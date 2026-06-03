@@ -62,4 +62,10 @@ def get_site_config():
         ],
         'users_enabled': config.users_enabled,
         'google_oauth_client_id': config.google_oauth_client_id,
+        # Page content fields needed by public pages
+        'home_text': config.home_text,
+        'projects_text': config.projects_text,
+        'about_text': config.about_text,
+        'headshot_filename': config.headshot_filename,
+        'stripe_publishable_key': config.stripe_publishable_key,
     })

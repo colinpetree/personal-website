@@ -16,6 +16,19 @@ export default function Navbar() {
   // Close mobile menu on navigation
   useEffect(() => { setMenuOpen(false) }, [location.pathname])
 
+  // Update favicon when site config loads
+  useEffect(() => {
+    if (config?.favicon_filename) {
+      let link = document.querySelector("link[rel~='icon']")
+      if (!link) {
+        link = document.createElement('link')
+        link.rel = 'icon'
+        document.head.appendChild(link)
+      }
+      link.href = `/api/uploads/${config.favicon_filename}`
+    }
+  }, [config?.favicon_filename])
+
   const navLinks = config?.nav?.filter(n => n.enabled) ?? []
   const siteTitle = config?.site_title ?? ''
 
