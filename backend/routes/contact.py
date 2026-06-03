@@ -4,6 +4,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from flask import Blueprint, jsonify, request
 from models import SiteConfig
+from crypto import decrypt
 
 contact_bp = Blueprint('contact', __name__)
 
@@ -39,6 +40,7 @@ def _smtp_configured(config):
         and config.smtp_user
         and config.smtp_password
         and config.smtp_from_email
+        and config.forward_email
     )
 
 
@@ -64,7 +66,8 @@ def submit_contact():
     full_subject = f"[Contact] {subject}"
 
     try:
-        _send_email(config, config.smtp_from_email, full_subject, body)
+        config.smtp_password = decrypt(config.smtp_password)
+        _send_email(config, config.forward_email, full_subject, body)
     except Exception as e:
         return jsonify({'error': 'Failed to send message. Please try again later.'}), 500
 

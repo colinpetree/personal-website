@@ -1,3 +1,5 @@
+from flask_login import UserMixin
+from werkzeug.security import generate_password_hash, check_password_hash
 from extensions import db
 
 
@@ -45,6 +47,7 @@ class SiteConfig(db.Model):
     smtp_password = db.Column(db.Text, nullable=True)  # stored encrypted
     smtp_from_email = db.Column(db.String(255), nullable=True)
     smtp_sender_name = db.Column(db.String(255), nullable=True)
+    forward_email = db.Column(db.String(255), nullable=True)
 
     # AI Demo
     ai_demo_enabled = db.Column(db.Boolean, nullable=False, default=False)
@@ -62,6 +65,23 @@ class SiteConfig(db.Model):
     users_enabled = db.Column(db.Boolean, nullable=False, default=False)
     google_oauth_client_id = db.Column(db.Text, nullable=True)
     google_oauth_client_secret = db.Column(db.Text, nullable=True)  # stored encrypted
+
+
+class AdminAccount(UserMixin, db.Model):
+    __tablename__ = 'admin_account'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    title = db.Column(db.String(100), nullable=True)
+    email = db.Column(db.String(255), nullable=False, unique=True)
+    password_hash = db.Column(db.String(255), nullable=False)
+    is_primary = db.Column(db.Boolean, nullable=False, default=False)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
 
 
 class Project(db.Model):

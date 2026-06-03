@@ -1,6 +1,6 @@
 from app import create_app
 from extensions import db
-from models import Profile, SiteConfig
+from models import Profile, SiteConfig, AdminAccount
 
 app = create_app()
 
@@ -31,3 +31,16 @@ with app.app_context():
         print('SiteConfig seeded.')
     else:
         print('SiteConfig already exists.')
+
+    if not AdminAccount.query.first():
+        admin = AdminAccount(
+            name='Admin',
+            email='admin',
+            is_primary=True,
+        )
+        admin.set_password('admin')
+        db.session.add(admin)
+        db.session.commit()
+        print('Admin account seeded — login: admin / admin  (change this password!)')
+    else:
+        print('Admin account already exists.')
