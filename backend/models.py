@@ -1,5 +1,6 @@
 from extensions import db
 
+
 class Profile(db.Model):
     __tablename__ = 'profile'
 
@@ -7,3 +8,69 @@ class Profile(db.Model):
     name = db.Column(db.String(100), nullable=False)
     title = db.Column(db.String(100), nullable=False)
     bio = db.Column(db.Text, nullable=True)
+
+
+class SiteConfig(db.Model):
+    __tablename__ = 'site_config'
+
+    id = db.Column(db.Integer, primary_key=True)
+    site_title = db.Column(db.String(200), nullable=False, default='My Website')
+
+    # Home
+    home_enabled = db.Column(db.Boolean, nullable=False, default=True)
+    home_page_name = db.Column(db.String(100), nullable=False, default='Home')
+    home_text = db.Column(db.Text, nullable=True)
+
+    # Blog
+    blog_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    blog_page_name = db.Column(db.String(100), nullable=False, default='Blog')
+
+    # Projects
+    projects_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    projects_page_name = db.Column(db.String(100), nullable=False, default='Projects')
+    projects_text = db.Column(db.Text, nullable=True)
+
+    # About
+    about_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    about_page_name = db.Column(db.String(100), nullable=False, default='About')
+    about_text = db.Column(db.Text, nullable=True)
+    headshot_filename = db.Column(db.String(255), nullable=True)
+
+    # Contact
+    contact_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    contact_page_name = db.Column(db.String(100), nullable=False, default='Contact')
+    smtp_host = db.Column(db.String(255), nullable=True)
+    smtp_port = db.Column(db.Integer, nullable=True)
+    smtp_user = db.Column(db.String(255), nullable=True)
+    smtp_password = db.Column(db.Text, nullable=True)  # stored encrypted
+    smtp_from_email = db.Column(db.String(255), nullable=True)
+    smtp_sender_name = db.Column(db.String(255), nullable=True)
+
+    # AI Demo
+    ai_demo_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    ai_demo_page_name = db.Column(db.String(100), nullable=False, default='AI Implementations')
+
+    # Donate
+    donate_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    donate_page_name = db.Column(db.String(100), nullable=False, default='Donate')
+    stripe_publishable_key = db.Column(db.Text, nullable=True)
+    stripe_secret_key = db.Column(db.Text, nullable=True)  # stored encrypted
+
+    # Site-wide
+    domain = db.Column(db.String(255), nullable=True)
+    favicon_filename = db.Column(db.String(255), nullable=True)
+    users_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    google_oauth_client_id = db.Column(db.Text, nullable=True)
+    google_oauth_client_secret = db.Column(db.Text, nullable=True)  # stored encrypted
+
+
+class Project(db.Model):
+    __tablename__ = 'project'
+
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text, nullable=True)
+    url = db.Column(db.String(500), nullable=True)
+    image_filename = db.Column(db.String(255), nullable=True)
+    order = db.Column(db.Integer, nullable=False, default=0)
+    visible = db.Column(db.Boolean, nullable=False, default=True)

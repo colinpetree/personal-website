@@ -15,7 +15,13 @@ def create_app():
     db.init_app(app)
 
     from routes.profile import profile_bp
+    from routes.site_config import site_config_bp
+    from routes.projects import projects_bp
+    from routes.uploads import uploads_bp
     app.register_blueprint(profile_bp)
+    app.register_blueprint(site_config_bp)
+    app.register_blueprint(projects_bp)
+    app.register_blueprint(uploads_bp)
 
     return app
 
