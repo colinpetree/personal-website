@@ -1,0 +1,14 @@
+# You need two terminals running simultaneously — one for the backend, one for the frontend.
+
+# Terminal 1 — Flask backend
+
+cd backend
+.venv\Scripts\activate
+python app.py
+Flask starts on http://localhost:5000
+
+# Terminal 2 — Vite frontend
+
+cd frontend
+npm run dev
+Vite starts on http://localhost:5173
