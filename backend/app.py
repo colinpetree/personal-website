@@ -18,10 +18,12 @@ def create_app():
     from routes.site_config import site_config_bp
     from routes.projects import projects_bp
     from routes.uploads import uploads_bp
+    from routes.contact import contact_bp
     app.register_blueprint(profile_bp)
     app.register_blueprint(site_config_bp)
     app.register_blueprint(projects_bp)
     app.register_blueprint(uploads_bp)
+    app.register_blueprint(contact_bp)
 
     return app
 
