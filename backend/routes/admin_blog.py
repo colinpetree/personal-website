@@ -112,6 +112,10 @@ def update_post(post_id):
     if 'publish_date' in data:
         post.publish_date = datetime.fromisoformat(data['publish_date']) if data['publish_date'] else None
 
+    # Auto-set publish_date the first time a post is published
+    if post.status == 'published' and post.publish_date is None:
+        post.publish_date = datetime.utcnow()
+
     post.updated_at = datetime.utcnow()
     db.session.commit()
     return jsonify(_post_to_dict(post, include_content=True))

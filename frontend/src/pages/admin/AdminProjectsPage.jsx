@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { ArrowUp, ArrowDown } from 'lucide-react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, Field, Input, Textarea, Toggle, SaveBar, useSaveState } from '../../components/admin/AdminPage'
 
@@ -147,8 +148,12 @@ export default function AdminProjectsPage() {
                   {p.visible ? 'visible' : 'hidden'}
                 </span>
                 <div className="flex gap-1">
-                  <button onClick={() => move(i, -1)} disabled={i === 0} className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-30">↑</button>
-                  <button onClick={() => move(i, 1)} disabled={i === projects.length - 1} className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-30">↓</button>
+                  <button onClick={() => move(i, -1)} disabled={i === 0} className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-30">
+                    <ArrowUp size={14} strokeWidth={1.5} />
+                  </button>
+                  <button onClick={() => move(i, 1)} disabled={i === projects.length - 1} className="p-1 text-gray-400 hover:text-gray-700 disabled:opacity-30">
+                    <ArrowDown size={14} strokeWidth={1.5} />
+                  </button>
                 </div>
                 <button onClick={() => openEdit(p)} className="text-sm text-blue-600 hover:underline">Edit</button>
                 <button onClick={() => deleteProject(p.id)} className="text-sm text-red-500 hover:text-red-700">Delete</button>

@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  Bold, Italic, Underline, Strikethrough, Code, Link2, Image, Undo2, Redo2, ChevronDown,
+} from 'lucide-react'
 import { LexicalComposer } from '@lexical/react/LexicalComposer'
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin'
 import { ContentEditable } from '@lexical/react/LexicalContentEditable'
@@ -203,38 +206,38 @@ function Toolbar({ onImageUpload }) {
     e.target.value = ''
   }
 
-  const btn = (active, title, onClick, children) => (
+  const iconBtn = (active, title, onClick, Icon) => (
     <button
       key={title}
       title={title}
       onMouseDown={e => { e.preventDefault(); onClick() }}
-      className={`px-2 py-1 rounded text-sm font-medium transition-colors ${
-        active ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'
+      className={`p-1.5 rounded transition-colors ${
+        active ? 'bg-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
       }`}
     >
-      {children}
+      <Icon size={16} strokeWidth={1.5} />
     </button>
   )
 
   return (
-    <div className="flex items-center gap-0.5 flex-wrap px-3 py-2 bg-gray-800 border-b border-gray-700 sticky top-0 z-10">
+    <div className="flex items-center gap-0.5 flex-wrap px-3 py-2 bg-white border-b border-gray-200 sticky top-0 z-10">
       {/* Block type dropdown */}
       <div className="relative mr-1">
         <button
           onMouseDown={e => { e.preventDefault(); setShowBlockMenu(v => !v) }}
-          className="flex items-center gap-1 px-2 py-1 rounded text-sm text-gray-300 hover:text-white hover:bg-gray-700 transition-colors min-w-[110px]"
+          className="flex items-center gap-1 px-2 py-1.5 rounded text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors min-w-[110px]"
         >
           <span>{BLOCK_LABELS[blockType] || 'Paragraph'}</span>
-          <span className="text-xs">▾</span>
+          <ChevronDown size={14} strokeWidth={1.5} />
         </button>
         {showBlockMenu && (
-          <div className="absolute top-full left-0 mt-1 bg-gray-900 border border-gray-700 rounded-md shadow-lg z-20 py-1 min-w-[140px]">
+          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-[140px]">
             {Object.entries(BLOCK_LABELS).map(([type, label]) => (
               <button
                 key={type}
                 onMouseDown={e => { e.preventDefault(); setBlockFormat(type) }}
                 className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                  blockType === type ? 'text-white bg-gray-700' : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                  blockType === type ? 'text-gray-900 bg-gray-100' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
                 {label}
@@ -244,30 +247,30 @@ function Toolbar({ onImageUpload }) {
         )}
       </div>
 
-      <div className="w-px h-5 bg-gray-600 mx-1" />
+      <div className="w-px h-5 bg-gray-200 mx-1" />
 
-      {btn(isBold, 'Bold', () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'bold'), <b>B</b>)}
-      {btn(isItalic, 'Italic', () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'italic'), <i>I</i>)}
-      {btn(isUnderline, 'Underline', () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'underline'), <u>U</u>)}
-      {btn(isStrike, 'Strikethrough', () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'strikethrough'), <s>S</s>)}
-      {btn(isCode, 'Inline code', () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'code'), <code className="font-mono">{`<>`}</code>)}
+      {iconBtn(isBold, 'Bold', () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'bold'), Bold)}
+      {iconBtn(isItalic, 'Italic', () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'italic'), Italic)}
+      {iconBtn(isUnderline, 'Underline', () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'underline'), Underline)}
+      {iconBtn(isStrike, 'Strikethrough', () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'strikethrough'), Strikethrough)}
+      {iconBtn(isCode, 'Inline code', () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'code'), Code)}
 
-      <div className="w-px h-5 bg-gray-600 mx-1" />
+      <div className="w-px h-5 bg-gray-200 mx-1" />
 
-      {btn(false, 'Link', handleLink, '🔗')}
+      {iconBtn(false, 'Link', handleLink, Link2)}
       <button
         title="Insert image"
         onMouseDown={e => { e.preventDefault(); fileRef.current?.click() }}
-        className="px-2 py-1 rounded text-sm text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+        className="p-1.5 rounded text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
       >
-        🖼
+        <Image size={16} strokeWidth={1.5} />
       </button>
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageFile} />
 
-      <div className="w-px h-5 bg-gray-600 mx-1" />
+      <div className="w-px h-5 bg-gray-200 mx-1" />
 
-      {btn(false, 'Undo', () => editor.dispatchCommand(UNDO_COMMAND, undefined), '↩')}
-      {btn(false, 'Redo', () => editor.dispatchCommand(REDO_COMMAND, undefined), '↪')}
+      {iconBtn(false, 'Undo', () => editor.dispatchCommand(UNDO_COMMAND, undefined), Undo2)}
+      {iconBtn(false, 'Redo', () => editor.dispatchCommand(REDO_COMMAND, undefined), Redo2)}
     </div>
   )
 }
@@ -323,15 +326,15 @@ export default function RichTextEditor({ initialHtml, onChange, placeholder = 'S
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <div className="flex flex-col rounded-lg overflow-hidden border border-gray-700">
+      <div className="flex flex-col">
         <Toolbar onImageUpload={handleImageUpload} />
-        <div className="relative bg-gray-900 text-gray-100">
+        <div className="relative bg-white text-gray-900">
           <RichTextPlugin
             contentEditable={
-              <ContentEditable className="outline-none min-h-[500px] px-6 py-5 text-base leading-relaxed" />
+              <ContentEditable className="outline-none min-h-[500px] px-6 py-5 prose prose-gray max-w-none" />
             }
             placeholder={
-              <div className="absolute top-5 left-6 text-gray-500 pointer-events-none select-none">
+              <div className="absolute top-5 left-6 text-gray-400 pointer-events-none select-none">
                 {placeholder}
               </div>
             }

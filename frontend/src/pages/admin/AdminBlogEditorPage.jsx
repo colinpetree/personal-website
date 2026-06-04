@@ -1,9 +1,31 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
 import RichTextEditor from '../../components/admin/RichTextEditor'
 import { Field, Input, Textarea } from '../../components/admin/AdminPage'
 
 const AUTOSAVE_DELAY = 2000
+
+function extractExcerpt(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  for (const tag of ['p', 'li']) {
+    const el = doc.querySelector(tag)
+    if (el) {
+      const text = el.textContent.trim()
+      if (text) return text
+    }
+  }
+  return ''
+}
+
+function slugify(text) {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}
 
 export default function AdminBlogEditorPage() {
   const { id } = useParams()
@@ -26,6 +48,8 @@ export default function AdminBlogEditorPage() {
 
   const autosaveTimer = useRef(null)
   const pendingFields = useRef({})
+  const slugEdited = useRef(false)
+  const excerptEdited = useRef(false)
 
   useEffect(() => {
     fetch(`/api/admin/blog/posts/${id}`, { credentials: 'include' })
@@ -34,7 +58,9 @@ export default function AdminBlogEditorPage() {
         setPost(data)
         setTitle(data.title || '')
         setSlug(data.slug || '')
+        slugEdited.current = (data.slug || '') !== slugify(data.title || '')
         setExcerpt(data.excerpt || '')
+        excerptEdited.current = !!(data.excerpt && data.excerpt !== extractExcerpt(data.content_html || ''))
         setMetaDescription(data.meta_description || '')
         setPublishDate(data.publish_date ? data.publish_date.slice(0, 16) : '')
         setThumbnailFilename(data.thumbnail_filename || '')
@@ -59,6 +85,8 @@ export default function AdminBlogEditorPage() {
       if (!res.ok) throw new Error(data.error || 'Save failed')
       setPost(data)
       setSlug(data.slug)
+      setExcerpt(data.excerpt || '')
+      setPublishDate(data.publish_date ? data.publish_date.slice(0, 16) : '')
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus('idle'), 2500)
     } catch (err) {
@@ -77,13 +105,36 @@ export default function AdminBlogEditorPage() {
   }
 
   function handleTitleChange(e) {
-    setTitle(e.target.value)
-    scheduleSave({ title: e.target.value })
+    const newTitle = e.target.value
+    setTitle(newTitle)
+    if (!slugEdited.current) {
+      const autoSlug = slugify(newTitle)
+      setSlug(autoSlug)
+      scheduleSave({ title: newTitle, slug: autoSlug })
+    } else {
+      scheduleSave({ title: newTitle })
+    }
+  }
+
+  function handleSlugChange(e) {
+    slugEdited.current = true
+    setSlug(e.target.value)
   }
 
   function handleContentChange(html) {
     setContentHtml(html)
-    scheduleSave({ content_html: html })
+    if (!excerptEdited.current) {
+      const autoExcerpt = extractExcerpt(html)
+      setExcerpt(autoExcerpt)
+      scheduleSave({ content_html: html, excerpt: autoExcerpt })
+    } else {
+      scheduleSave({ content_html: html })
+    }
+  }
+
+  function handleExcerptChange(e) {
+    excerptEdited.current = true
+    setExcerpt(e.target.value)
   }
 
   function handleSidebarSave() {
@@ -135,16 +186,10 @@ export default function AdminBlogEditorPage() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-3 bg-white border-b border-gray-200 shrink-0">
-        <Link to="/admin/blog/posts" className="text-sm text-gray-400 hover:text-gray-700 shrink-0">
-          ← Posts
+        <Link to="/admin/blog/posts" className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 shrink-0">
+          <ArrowLeft size={14} strokeWidth={1.5} />Posts
         </Link>
-        <input
-          type="text"
-          value={title}
-          onChange={handleTitleChange}
-          placeholder="Post title"
-          className="flex-1 text-lg font-semibold text-gray-900 outline-none border-none bg-transparent placeholder-gray-300"
-        />
+        <div className="flex-1" />
         <div className="flex items-center gap-3 shrink-0">
           {saveStatus === 'saving' && <span className="text-xs text-gray-400">Saving…</span>}
           {saveStatus === 'saved' && <span className="text-xs text-green-600">Saved</span>}
@@ -170,13 +215,22 @@ export default function AdminBlogEditorPage() {
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
         {/* Editor area */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <RichTextEditor
-            key={post?.id}
-            initialHtml={contentHtml}
-            onChange={handleContentChange}
-            placeholder="Start writing your post…"
-          />
+        <div className="flex-1 overflow-y-auto bg-white">
+          <div className="max-w-3xl mx-auto px-6 py-10">
+            <input
+              type="text"
+              value={title}
+              onChange={handleTitleChange}
+              placeholder="Post title"
+              className="w-full text-4xl font-bold text-gray-900 outline-none border-none bg-transparent placeholder-gray-300 leading-tight mb-8"
+            />
+            <RichTextEditor
+              key={post?.id}
+              initialHtml={contentHtml}
+              onChange={handleContentChange}
+              placeholder="Start writing your post…"
+            />
+          </div>
         </div>
 
         {/* Settings sidebar */}
@@ -186,7 +240,7 @@ export default function AdminBlogEditorPage() {
           <Field label="Slug">
             <Input
               value={slug}
-              onChange={e => setSlug(e.target.value)}
+              onChange={handleSlugChange}
               onBlur={handleSidebarSave}
               className="text-xs"
             />
@@ -195,7 +249,7 @@ export default function AdminBlogEditorPage() {
           <Field label="Excerpt">
             <Textarea
               value={excerpt}
-              onChange={e => setExcerpt(e.target.value)}
+              onChange={handleExcerptChange}
               onBlur={handleSidebarSave}
               rows={3}
               placeholder="Short description for post lists…"
