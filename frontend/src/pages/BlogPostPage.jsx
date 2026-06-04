@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
 
 function CommentItem({ comment }) {
   return (
@@ -139,7 +140,9 @@ export default function BlogPostPage() {
   if (notFound) return (
     <main className="max-w-3xl mx-auto px-6 py-16">
       <h1 className="text-2xl font-bold text-gray-900 mb-4">Post not found</h1>
-      <Link to="/blog" className="text-blue-600 hover:underline">← Back to blog</Link>
+      <Link to="/blog" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
+        <ArrowLeft size={14} strokeWidth={1.5} />Back to blog
+      </Link>
     </main>
   )
 

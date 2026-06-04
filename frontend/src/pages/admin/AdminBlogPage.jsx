@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { ChevronRight } from 'lucide-react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, Field, Input, Toggle, SaveBar, useSaveState } from '../../components/admin/AdminPage'
 
@@ -39,7 +40,7 @@ export default function AdminBlogPage() {
               <p className="text-sm font-medium text-gray-900">Manage Posts</p>
               <p className="text-xs text-gray-500 mt-0.5">Create, edit, and publish blog posts</p>
             </div>
-            <span className="text-gray-400">→</span>
+            <ChevronRight size={16} strokeWidth={1.5} className="text-gray-400" />
           </Link>
           <Link
             to="/admin/blog/comments"
@@ -49,7 +50,7 @@ export default function AdminBlogPage() {
               <p className="text-sm font-medium text-gray-900">Manage Comments</p>
               <p className="text-xs text-gray-500 mt-0.5">Moderate reader comments</p>
             </div>
-            <span className="text-gray-400">→</span>
+            <ChevronRight size={16} strokeWidth={1.5} className="text-gray-400" />
           </Link>
         </div>
       </div>

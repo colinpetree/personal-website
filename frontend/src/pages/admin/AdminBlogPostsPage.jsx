@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { ArrowLeft } from 'lucide-react'
 import { PageShell } from '../../components/admin/AdminPage'
 
 export default function AdminBlogPostsPage() {
@@ -46,7 +47,9 @@ export default function AdminBlogPostsPage() {
   return (
     <PageShell title="Blog Posts">
       <div className="flex justify-between items-center mb-6 -mt-2">
-        <Link to="/admin/blog" className="text-sm text-gray-500 hover:text-gray-700">← Blog settings</Link>
+        <Link to="/admin/blog" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+          <ArrowLeft size={14} strokeWidth={1.5} />Blog settings
+        </Link>
         <button
           onClick={handleNew}
           disabled={creating}

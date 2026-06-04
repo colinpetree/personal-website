@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { ExternalLink } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 
 export default function ProjectsPage() {
@@ -59,9 +60,9 @@ export default function ProjectsPage() {
                     href={project.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-sm font-medium text-blue-600 hover:underline"
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:underline"
                   >
-                    View project →
+                    View project<ExternalLink size={13} strokeWidth={1.5} />
                   </a>
                 )}
               </div>

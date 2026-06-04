@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 
 export default function BlogPage() {
   const [data, setData] = useState(null)
@@ -68,17 +69,17 @@ export default function BlogPage() {
               <button
                 onClick={() => setPage(p => p - 1)}
                 disabled={page === 1}
-                className="px-4 py-2 rounded-md border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                ← Previous
+                <ChevronLeft size={15} strokeWidth={1.5} />Previous
               </button>
               <span className="text-sm text-gray-500">Page {page} of {data.pages}</span>
               <button
                 onClick={() => setPage(p => p + 1)}
                 disabled={page >= data.pages}
-                className="px-4 py-2 rounded-md border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                Next →
+                Next<ChevronRight size={15} strokeWidth={1.5} />
               </button>
             </div>
           )}
