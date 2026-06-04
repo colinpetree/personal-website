@@ -20,6 +20,9 @@ import AdminContactPage from './pages/admin/AdminContactPage'
 import AdminAIDemoPage from './pages/admin/AdminAIDemoPage'
 import AdminDonatePage from './pages/admin/AdminDonatePage'
 import AdminAccountsPage from './pages/admin/AdminAccountsPage'
+import AdminBlogPostsPage from './pages/admin/AdminBlogPostsPage'
+import AdminBlogEditorPage from './pages/admin/AdminBlogEditorPage'
+import AdminBlogCommentsPage from './pages/admin/AdminBlogCommentsPage'
 
 const router = createBrowserRouter([
   // Public site — Navbar layout
@@ -51,6 +54,9 @@ const router = createBrowserRouter([
       { index: true, element: <AdminSettingsPage /> },
       { path: 'home', element: <AdminHomePage /> },
       { path: 'blog', element: <AdminBlogPage /> },
+      { path: 'blog/posts', element: <AdminBlogPostsPage /> },
+      { path: 'blog/posts/:id', element: <AdminBlogEditorPage /> },
+      { path: 'blog/comments', element: <AdminBlogCommentsPage /> },
       { path: 'projects', element: <AdminProjectsPage /> },
       { path: 'about', element: <AdminAboutPage /> },
       { path: 'contact', element: <AdminContactPage /> },

@@ -1,3 +1,4 @@
+from datetime import datetime
 from flask_login import UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from extensions import db
@@ -82,6 +83,45 @@ class AdminAccount(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+
+class BlogPost(db.Model):
+    __tablename__ = 'blog_post'
+
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(500), nullable=False)
+    slug = db.Column(db.String(500), nullable=False, unique=True)
+    content_html = db.Column(db.Text, nullable=True)
+    excerpt = db.Column(db.Text, nullable=True)
+    meta_description = db.Column(db.String(500), nullable=True)
+    status = db.Column(db.String(20), nullable=False, default='draft')  # draft | published
+    publish_date = db.Column(db.DateTime, nullable=True)
+    thumbnail_filename = db.Column(db.String(255), nullable=True)
+    author_id = db.Column(db.Integer, db.ForeignKey('admin_account.id'), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    comments = db.relationship('Comment', backref='post', lazy='dynamic', cascade='all, delete-orphan')
+
+
+class Comment(db.Model):
+    __tablename__ = 'comment'
+
+    id = db.Column(db.Integer, primary_key=True)
+    post_id = db.Column(db.Integer, db.ForeignKey('blog_post.id'), nullable=False)
+    user_id = db.Column(db.Integer, nullable=True)  # FK → User (Phase 6)
+    parent_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=True)
+    content = db.Column(db.Text, nullable=False)
+    guest_name = db.Column(db.String(200), nullable=True)
+    guest_email = db.Column(db.String(255), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    is_deleted = db.Column(db.Boolean, nullable=False, default=False)
+
+    replies = db.relationship(
+        'Comment',
+        backref=db.backref('parent', remote_side='Comment.id'),
+        lazy='dynamic',
+    )
 
 
 class Project(db.Model):
