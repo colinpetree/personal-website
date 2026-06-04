@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, Field, Input, Toggle, SaveBar, useSaveState } from '../../components/admin/AdminPage'
 
@@ -26,6 +27,31 @@ export default function AdminBlogPage() {
           <Input value={form.blog_page_name || ''} onChange={e => set('blog_page_name', e.target.value)} />
         </Field>
         <SaveBar saving={saving} saved={saved} error={error} onSave={() => wrap(() => save(form))} />
+
+        <hr className="border-gray-200" />
+
+        <div className="flex flex-col gap-3">
+          <Link
+            to="/admin/blog/posts"
+            className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 bg-white hover:bg-gray-50 transition-colors"
+          >
+            <div>
+              <p className="text-sm font-medium text-gray-900">Manage Posts</p>
+              <p className="text-xs text-gray-500 mt-0.5">Create, edit, and publish blog posts</p>
+            </div>
+            <span className="text-gray-400">→</span>
+          </Link>
+          <Link
+            to="/admin/blog/comments"
+            className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 bg-white hover:bg-gray-50 transition-colors"
+          >
+            <div>
+              <p className="text-sm font-medium text-gray-900">Manage Comments</p>
+              <p className="text-xs text-gray-500 mt-0.5">Moderate reader comments</p>
+            </div>
+            <span className="text-gray-400">→</span>
+          </Link>
+        </div>
       </div>
     </PageShell>
   )
