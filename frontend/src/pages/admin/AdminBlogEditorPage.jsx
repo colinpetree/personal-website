@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Calendar } from 'lucide-react'
+import { DayPicker } from 'react-day-picker'
 import RichTextEditor from '../../components/admin/RichTextEditor'
 import { Field, Input, Textarea } from '../../components/admin/AdminPage'
 
@@ -27,6 +28,150 @@ function slugify(text) {
     .replace(/^-+|-+$/g, '')
 }
 
+function tzAbbr() {
+  return (
+    Intl.DateTimeFormat('en-US', { timeZoneName: 'short' })
+      .formatToParts(new Date())
+      .find(p => p.type === 'timeZoneName')?.value ?? 'UTC'
+  )
+}
+
+const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/
+
+const DAY_PICKER_CLASSES = {
+  months: 'relative',
+  month_caption: 'flex justify-center items-center h-8 mb-2',
+  caption_label: 'text-sm font-semibold text-gray-800',
+  nav: 'absolute inset-x-0 top-0 flex justify-between',
+  button_previous: 'h-8 w-8 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 transition-colors',
+  button_next: 'h-8 w-8 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 transition-colors',
+  month_grid: 'w-full',
+  weekdays: 'flex',
+  weekday: 'flex-1 text-center text-xs font-medium text-gray-400 pb-2',
+  weeks: 'flex flex-col gap-0.5',
+  week: 'flex',
+  day: 'flex-1 flex justify-center',
+  day_button: [
+    'h-8 w-8 text-sm rounded transition-colors flex items-center justify-center cursor-pointer',
+    'text-gray-700 hover:bg-gray-100',
+    'data-[selected]:bg-gray-900 data-[selected]:text-white data-[selected]:hover:bg-gray-700',
+    'data-[today]:font-semibold data-[today]:text-gray-900',
+    'data-[outside]:text-gray-300 data-[outside]:hover:bg-transparent',
+    'data-[disabled]:text-gray-200 data-[disabled]:cursor-not-allowed data-[disabled]:hover:bg-transparent',
+  ].join(' '),
+  selected: '',
+  today: '',
+  outside: '',
+  disabled: '',
+  hidden: 'invisible',
+  chevron: 'w-3.5 h-3.5 fill-gray-500',
+}
+
+function PublishDateField({ datePart, timePart, onDateChange, onTimeChange, onBlur }) {
+  const tz = useMemo(tzAbbr, [])
+  const [calendarOpen, setCalendarOpen] = useState(false)
+  const [timeError, setTimeError] = useState(false)
+  const containerRef = useRef(null)
+
+  useEffect(() => {
+    if (!calendarOpen) return
+    function handleOutside(e) {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setCalendarOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [calendarOpen])
+
+  const selectedDate = useMemo(() => {
+    if (!datePart || !/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return undefined
+    const [y, m, d] = datePart.split('-').map(Number)
+    return new Date(y, m - 1, d)
+  }, [datePart])
+
+  function handleDaySelect(date) {
+    if (date) {
+      const y = date.getFullYear()
+      const m = String(date.getMonth() + 1).padStart(2, '0')
+      const d = String(date.getDate()).padStart(2, '0')
+      const newDatePart = `${y}-${m}-${d}`
+      onDateChange(newDatePart)
+      setCalendarOpen(false)
+      onBlur(newDatePart)
+    } else {
+      setCalendarOpen(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-sm font-medium text-gray-700">Publish date</label>
+      <div className="flex gap-2">
+        {/* Date field */}
+        <div className="relative flex-1" ref={containerRef}>
+          <input
+            type="text"
+            value={datePart}
+            onChange={e => onDateChange(e.target.value)}
+            onBlur={onBlur}
+            onClick={() => setCalendarOpen(true)}
+            placeholder="YYYY-MM-DD"
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 w-full pr-8 focus:outline-none focus:ring-2 focus:ring-gray-400"
+          />
+          <button
+            type="button"
+            onClick={() => setCalendarOpen(v => !v)}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          >
+            <Calendar size={13} />
+          </button>
+
+          {calendarOpen && (
+            <div className="absolute top-full left-0 z-50 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-[17rem]">
+              <DayPicker
+                mode="single"
+                selected={selectedDate}
+                onSelect={handleDaySelect}
+                classNames={DAY_PICKER_CLASSES}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Time input */}
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={timePart}
+            onChange={e => {
+              onTimeChange(e.target.value)
+              if (timeError && TIME_RE.test(e.target.value)) setTimeError(false)
+            }}
+            onBlur={() => {
+              if (timePart && !TIME_RE.test(timePart)) {
+                setTimeError(true)
+              } else {
+                setTimeError(false)
+                onBlur()
+              }
+            }}
+            placeholder="00:00"
+            className={`rounded-md border px-3 py-2 text-sm text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400 ${timeError ? 'border-red-400 focus:ring-red-300' : 'border-gray-300'}`}
+            style={{ paddingRight: `${tz.length * 7 + 12}px` }}
+          />
+          <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none select-none">
+            {tz}
+          </span>
+        </div>
+      </div>
+      {timeError && (
+        <p className="text-xs text-red-500 -mt-1">Must be in format: &ldquo;15:00&rdquo;</p>
+      )}
+    </div>
+  )
+}
+
 export default function AdminBlogEditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -42,7 +187,8 @@ export default function AdminBlogEditorPage() {
   const [slug, setSlug] = useState('')
   const [excerpt, setExcerpt] = useState('')
   const [metaDescription, setMetaDescription] = useState('')
-  const [publishDate, setPublishDate] = useState('')
+  const [publishDatePart, setPublishDatePart] = useState('')
+  const [publishTimePart, setPublishTimePart] = useState('')
   const [thumbnailFilename, setThumbnailFilename] = useState('')
   const [status, setStatus] = useState('draft')
 
@@ -63,7 +209,9 @@ export default function AdminBlogEditorPage() {
         setExcerpt(data.excerpt || '')
         excerptEdited.current = !!(data.excerpt && data.excerpt !== extractExcerpt(data.content_html || ''))
         setMetaDescription(data.meta_description || '')
-        setPublishDate(data.publish_date ? data.publish_date.slice(0, 16) : '')
+        const dtStr = data.publish_date ? data.publish_date.slice(0, 16) : ''
+        setPublishDatePart(dtStr ? dtStr.slice(0, 10) : '')
+        setPublishTimePart(dtStr ? dtStr.slice(11, 16) : '')
         setThumbnailFilename(data.thumbnail_filename || '')
         setStatus(data.status || 'draft')
         // content set via RichTextEditor's initialHtml + key
@@ -87,7 +235,9 @@ export default function AdminBlogEditorPage() {
       setPost(data)
       setSlug(data.slug)
       setExcerpt(data.excerpt || '')
-      setPublishDate(data.publish_date ? data.publish_date.slice(0, 16) : '')
+      const savedDt = data.publish_date ? data.publish_date.slice(0, 16) : ''
+      setPublishDatePart(savedDt ? savedDt.slice(0, 10) : '')
+      setPublishTimePart(savedDt ? savedDt.slice(11, 16) : '')
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus('idle'), 2500)
     } catch (err) {
@@ -138,13 +288,19 @@ export default function AdminBlogEditorPage() {
     setExcerpt(e.target.value)
   }
 
-  function handleSidebarSave() {
+  function combinePublishDate(datePart = publishDatePart, timePart = publishTimePart) {
+    if (!datePart) return null
+    return timePart ? `${datePart}T${timePart}` : datePart
+  }
+
+  function handleSidebarSave(overrideDatePart) {
     clearTimeout(autosaveTimer.current)
+    const dp = typeof overrideDatePart === 'string' ? overrideDatePart : publishDatePart
     save({
       slug,
       excerpt,
       meta_description: metaDescription,
-      publish_date: publishDate || null,
+      publish_date: combinePublishDate(dp),
       thumbnail_filename: thumbnailFilename || null,
     })
   }
@@ -157,7 +313,7 @@ export default function AdminBlogEditorPage() {
       slug,
       excerpt,
       meta_description: metaDescription,
-      publish_date: publishDate || null,
+      publish_date: combinePublishDate(),
       thumbnail_filename: thumbnailFilename || null,
     }
     await save(fields)
@@ -242,7 +398,7 @@ export default function AdminBlogEditorPage() {
         </div>
 
         {/* Settings sidebar */}
-        <div className="w-64 shrink-0 border-l border-gray-200 bg-gray-50 overflow-y-auto p-4 flex flex-col gap-4">
+        <div className="w-80 shrink-0 border-l border-gray-200 bg-gray-50 overflow-y-auto p-4 flex flex-col gap-4">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Post settings</h3>
 
           <Field label="Slug">
@@ -274,14 +430,13 @@ export default function AdminBlogEditorPage() {
             />
           </Field>
 
-          <Field label="Publish date">
-            <Input
-              type="datetime-local"
-              value={publishDate}
-              onChange={e => setPublishDate(e.target.value)}
-              onBlur={handleSidebarSave}
-            />
-          </Field>
+          <PublishDateField
+            datePart={publishDatePart}
+            timePart={publishTimePart}
+            onDateChange={setPublishDatePart}
+            onTimeChange={setPublishTimePart}
+            onBlur={handleSidebarSave}
+          />
 
           <Field label="Thumbnail">
             {thumbnailFilename && (
