@@ -1,7 +1,96 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, Card, EditableCard, Field, Input, Textarea, Toggle } from '../../components/admin/AdminPage'
 import FileDropzone from '../../components/admin/FileDropzone'
+
+const TIMEZONES = [
+  { name: 'Pacific/Pago_Pago', label: '(GMT -11:00) Midway Island, Samoa' },
+  { name: 'Pacific/Honolulu', label: '(GMT -10:00) Hawaii' },
+  { name: 'America/Anchorage', label: '(GMT -9:00) Alaska' },
+  { name: 'America/Tijuana', label: '(GMT -8:00) Chihuahua, La Paz, Mazatlan' },
+  { name: 'America/Los_Angeles', label: '(GMT -8:00) Pacific Time (US & Canada); Tijuana' },
+  { name: 'America/Phoenix', label: '(GMT -7:00) Arizona' },
+  { name: 'America/Denver', label: '(GMT -7:00) Mountain Time (US & Canada)' },
+  { name: 'America/Costa_Rica', label: '(GMT -6:00) Central America' },
+  { name: 'America/Chicago', label: '(GMT -6:00) Central Time (US & Canada)' },
+  { name: 'America/Mexico_City', label: '(GMT -6:00) Guadalajara, Mexico City, Monterrey' },
+  { name: 'America/Regina', label: '(GMT -6:00) Saskatchewan' },
+  { name: 'America/Bogota', label: '(GMT -5:00) Bogota, Lima, Quito' },
+  { name: 'America/New_York', label: '(GMT -5:00) Eastern Time (US & Canada)' },
+  { name: 'America/Fort_Wayne', label: '(GMT -5:00) Indiana (East)' },
+  { name: 'America/Caracas', label: '(GMT -4:00) Caracas, La Paz' },
+  { name: 'America/Halifax', label: '(GMT -4:00) Atlantic Time (Canada); Brasilia, Greenland' },
+  { name: 'America/Santiago', label: '(GMT -4:00) Santiago' },
+  { name: 'America/St_Johns', label: '(GMT -3:30) Newfoundland' },
+  { name: 'America/Argentina/Buenos_Aires', label: '(GMT -3:00) Buenos Aires, Georgetown' },
+  { name: 'America/Noronha', label: '(GMT -2:00) Fernando de Noronha' },
+  { name: 'Atlantic/Azores', label: '(GMT -1:00) Azores' },
+  { name: 'Atlantic/Cape_Verde', label: '(GMT -1:00) Cape Verde Is.' },
+  { name: 'Etc/UTC', label: '(GMT) UTC' },
+  { name: 'Africa/Casablanca', label: '(GMT +0:00) Casablanca, Monrovia' },
+  { name: 'Europe/Dublin', label: '(GMT +0:00) Dublin, Edinburgh, London' },
+  { name: 'Europe/Amsterdam', label: '(GMT +1:00) Amsterdam, Berlin, Rome, Stockholm, Vienna' },
+  { name: 'Europe/Prague', label: '(GMT +1:00) Belgrade, Bratislava, Budapest, Prague' },
+  { name: 'Europe/Paris', label: '(GMT +1:00) Brussels, Copenhagen, Madrid, Paris' },
+  { name: 'Europe/Warsaw', label: '(GMT +1:00) Sarajevo, Skopje, Warsaw, Zagreb' },
+  { name: 'Africa/Lagos', label: '(GMT +1:00) West Central Africa' },
+  { name: 'Europe/Athens', label: '(GMT +2:00) Athens, Beirut, Bucharest' },
+  { name: 'Africa/Cairo', label: '(GMT +2:00) Cairo, Egypt' },
+  { name: 'Africa/Maputo', label: '(GMT +2:00) Harare' },
+  { name: 'Europe/Kiev', label: '(GMT +2:00) Helsinki, Kyiv, Riga, Sofia, Tallinn, Vilnius' },
+  { name: 'Asia/Jerusalem', label: '(GMT +2:00) Jerusalem' },
+  { name: 'Africa/Johannesburg', label: '(GMT +2:00) Pretoria' },
+  { name: 'Asia/Baghdad', label: '(GMT +3:00) Baghdad' },
+  { name: 'Asia/Riyadh', label: '(GMT +3:00) Kuwait, Nairobi, Riyadh' },
+  { name: 'Europe/Istanbul', label: '(GMT +3:00) Istanbul, Ankara' },
+  { name: 'Europe/Moscow', label: '(GMT +3:00) Moscow, St. Petersburg, Volgograd' },
+  { name: 'Asia/Tehran', label: '(GMT +3:30) Tehran' },
+  { name: 'Asia/Dubai', label: '(GMT +4:00) Abu Dhabi, Muscat' },
+  { name: 'Asia/Baku', label: '(GMT +4:00) Baku, Tbilisi, Yerevan' },
+  { name: 'Asia/Kabul', label: '(GMT +4:30) Kabul' },
+  { name: 'Asia/Karachi', label: '(GMT +5:00) Islamabad, Karachi, Tashkent' },
+  { name: 'Asia/Yekaterinburg', label: '(GMT +5:00) Yekaterinburg' },
+  { name: 'Asia/Kolkata', label: '(GMT +5:30) Chennai, Calcutta, Mumbai, New Delhi' },
+  { name: 'Asia/Kathmandu', label: '(GMT +5:45) Katmandu' },
+  { name: 'Asia/Almaty', label: '(GMT +6:00) Almaty, Novosibirsk' },
+  { name: 'Asia/Dhaka', label: '(GMT +6:00) Astana, Dhaka, Sri Jayawardenepura' },
+  { name: 'Asia/Rangoon', label: '(GMT +6:30) Rangoon' },
+  { name: 'Asia/Bangkok', label: '(GMT +7:00) Bangkok, Hanoi, Jakarta' },
+  { name: 'Asia/Krasnoyarsk', label: '(GMT +7:00) Krasnoyarsk' },
+  { name: 'Asia/Hong_Kong', label: '(GMT +8:00) Beijing, Chongqing, Hong Kong, Urumqi' },
+  { name: 'Asia/Irkutsk', label: '(GMT +8:00) Irkutsk, Ulaan Bataar' },
+  { name: 'Asia/Singapore', label: '(GMT +8:00) Kuala Lumpur, Perth, Singapore, Taipei' },
+  { name: 'Asia/Tokyo', label: '(GMT +9:00) Osaka, Sapporo, Tokyo' },
+  { name: 'Asia/Seoul', label: '(GMT +9:00) Seoul' },
+  { name: 'Asia/Yakutsk', label: '(GMT +9:00) Yakutsk' },
+  { name: 'Australia/Adelaide', label: '(GMT +9:30) Adelaide' },
+  { name: 'Australia/Darwin', label: '(GMT +9:30) Darwin' },
+  { name: 'Australia/Brisbane', label: '(GMT +10:00) Brisbane, Guam, Port Moresby' },
+  { name: 'Australia/Sydney', label: '(GMT +10:00) Canberra, Hobart, Melbourne, Sydney, Vladivostok' },
+  { name: 'Asia/Magadan', label: '(GMT +11:00) Magadan, Soloman Is., New Caledonia' },
+  { name: 'Pacific/Auckland', label: '(GMT +12:00) Auckland, Wellington' },
+  { name: 'Pacific/Fiji', label: '(GMT +12:00) Fiji, Kamchatka, Marshall Is.' },
+  { name: 'Pacific/Kwajalein', label: '(GMT +12:00) International Date Line West' },
+]
+
+function LiveClock({ timezone }) {
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const formatted = now.toLocaleString('en-US', {
+    timeZone: timezone || 'UTC',
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  })
+  return <p className="text-xs text-gray-400">The local time here is currently {formatted}</p>
+}
 
 function DisplayValue({ value, fallback = '—' }) {
   return (
@@ -77,6 +166,36 @@ export default function AdminSettingsPage() {
                 <DisplayValue value={local.site_description} fallback="No description set" />
               </div>
             </>
+          )}
+        </EditableCard>
+
+        {/* Timezone card */}
+        <EditableCard
+          title="Site timezone"
+          description="Set the time and date for your site, used for all published posts"
+          savedValues={{ timezone: config?.timezone || 'Etc/UTC' }}
+          onSave={values => save({ timezone: values.timezone })}
+        >
+          {({ editing, local, set }) => editing ? (
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-gray-700">Site timezone</label>
+              <select
+                value={local.timezone}
+                onChange={e => set('timezone', e.target.value)}
+                className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full"
+              >
+                {TIMEZONES.map(tz => (
+                  <option key={tz.name} value={tz.name}>{tz.label}</option>
+                ))}
+              </select>
+              <LiveClock timezone={local.timezone} />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-medium text-gray-500">Site timezone</p>
+              <p className="text-sm text-gray-900">{TIMEZONES.find(t => t.name === local.timezone)?.label || local.timezone}</p>
+              <LiveClock timezone={local.timezone} />
+            </div>
           )}
         </EditableCard>
 

@@ -64,6 +64,7 @@ class SiteConfig(db.Model):
     # Site-wide
     domain = db.Column(db.String(255), nullable=True)
     favicon_filename = db.Column(db.String(255), nullable=True)
+    timezone = db.Column(db.String(100), nullable=False, default='Etc/UTC')
     users_enabled = db.Column(db.Boolean, nullable=False, default=False)
     google_oauth_client_id = db.Column(db.Text, nullable=True)
     google_oauth_client_secret = db.Column(db.Text, nullable=True)  # stored encrypted
