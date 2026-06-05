@@ -53,9 +53,19 @@ def _post_to_dict(post, include_content=False):
     return d
 
 
+def _promote_scheduled():
+    now = datetime.utcnow()
+    BlogPost.query.filter(
+        BlogPost.status == 'scheduled',
+        BlogPost.publish_date <= now
+    ).update({'status': 'published'})
+    db.session.commit()
+
+
 @admin_blog_bp.route('/api/admin/blog/posts', methods=['GET'])
 @admin_required
 def list_posts():
+    _promote_scheduled()
     posts = BlogPost.query.order_by(BlogPost.updated_at.desc()).all()
     return jsonify([_post_to_dict(p) for p in posts])
 
@@ -80,6 +90,7 @@ def create_post():
 @admin_blog_bp.route('/api/admin/blog/posts/<int:post_id>', methods=['GET'])
 @admin_required
 def get_post(post_id):
+    _promote_scheduled()
     post = BlogPost.query.get_or_404(post_id)
     return jsonify(_post_to_dict(post, include_content=True))
 
@@ -106,15 +117,11 @@ def update_post(post_id):
         if field in data:
             setattr(post, field, data[field])
 
-    if 'status' in data and data['status'] in ('draft', 'published'):
+    if 'status' in data and data['status'] in ('draft', 'scheduled', 'published'):
         post.status = data['status']
 
     if 'publish_date' in data:
         post.publish_date = datetime.fromisoformat(data['publish_date']) if data['publish_date'] else None
-
-    # Auto-set publish_date the first time a post is published
-    if post.status == 'published' and post.publish_date is None:
-        post.publish_date = datetime.utcnow()
 
     post.updated_at = datetime.utcnow()
     db.session.commit()

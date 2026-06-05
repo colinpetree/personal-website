@@ -39,8 +39,18 @@ def _comment_dict(c):
     }
 
 
+def _promote_scheduled():
+    now = datetime.utcnow()
+    BlogPost.query.filter(
+        BlogPost.status == 'scheduled',
+        BlogPost.publish_date <= now
+    ).update({'status': 'published'})
+    db.session.commit()
+
+
 @blog_bp.route('/api/blog')
 def list_posts():
+    _promote_scheduled()
     page = request.args.get('page', 1, type=int)
     per_page = min(request.args.get('per_page', 10, type=int), 50)
     now = datetime.utcnow()

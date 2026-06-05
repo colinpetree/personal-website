@@ -96,7 +96,7 @@ class BlogPost(db.Model):
     content_html = db.Column(db.Text, nullable=True)
     excerpt = db.Column(db.Text, nullable=True)
     meta_description = db.Column(db.String(500), nullable=True)
-    status = db.Column(db.String(20), nullable=False, default='draft')  # draft | published
+    status = db.Column(db.String(20), nullable=False, default='draft')  # draft | scheduled | published
     publish_date = db.Column(db.DateTime, nullable=True)
     thumbnail_filename = db.Column(db.String(255), nullable=True)
     author_id = db.Column(db.Integer, db.ForeignKey('admin_account.id'), nullable=True)

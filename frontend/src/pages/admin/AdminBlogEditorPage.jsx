@@ -1,11 +1,68 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Calendar } from 'lucide-react'
+import { ArrowLeft, Calendar, ChevronRight, ExternalLink, X } from 'lucide-react'
 import { DayPicker } from 'react-day-picker'
 import RichTextEditor from '../../components/admin/RichTextEditor'
 import { Field, Input, Textarea } from '../../components/admin/AdminPage'
+import { useToast } from '../../components/admin/Toast'
 
 const AUTOSAVE_DELAY = 2000
+
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
+function ordinal(day) {
+  if ([1, 21, 31].includes(day)) return 'st'
+  if ([2, 22].includes(day)) return 'nd'
+  if ([3, 23].includes(day)) return 'rd'
+  return 'th'
+}
+
+function formatPublishDateTime(isoStr) {
+  if (!isoStr) return ''
+  const d = new Date(isoStr)
+  const month = MONTHS[d.getMonth()]
+  const day = d.getDate()
+  const year = d.getFullYear()
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return `${month} ${day}, ${year} at ${time}`
+}
+
+function formatPublishShort(isoStr) {
+  if (!isoStr) return ''
+  const d = new Date(isoStr)
+  const month = MONTHS[d.getMonth()]
+  const day = d.getDate()
+  return `${month} ${day}${ordinal(day)}`
+}
+
+function formatDateTimeLong(isoStr) {
+  if (!isoStr) return ''
+  const d = new Date(isoStr)
+  const month = MONTHS_SHORT[d.getMonth()]
+  const day = d.getDate()
+  const year = d.getFullYear()
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  return `${month} ${day}, ${year} at ${time}`
+}
+
+function formatScheduledHover(isoStr) {
+  if (!isoStr) return ''
+  const d = new Date(isoStr)
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  const tz = Intl.DateTimeFormat('en-US', { timeZoneName: 'short' })
+    .formatToParts(d).find(p => p.type === 'timeZoneName')?.value ?? 'UTC'
+  const month = MONTHS_SHORT[d.getMonth()]
+  const day = d.getDate()
+  const year = d.getFullYear()
+  return `to be published at ${time} (${tz}) on ${month} ${day}, ${year}`
+}
+
+function countWords(html) {
+  const text = new DOMParser().parseFromString(html, 'text/html').body.textContent || ''
+  const words = text.trim().split(/\s+/).filter(Boolean)
+  return words.length
+}
 
 function extractExcerpt(html) {
   const doc = new DOMParser().parseFromString(html, 'text/html')
@@ -108,7 +165,6 @@ function PublishDateField({ datePart, timePart, onDateChange, onTimeChange, onBl
     <div className="flex flex-col gap-1.5">
       <label className="text-sm font-medium text-gray-700">Publish date</label>
       <div className="flex gap-2">
-        {/* Date field */}
         <div className="relative flex-1" ref={containerRef}>
           <input
             type="text"
@@ -139,7 +195,6 @@ function PublishDateField({ datePart, timePart, onDateChange, onTimeChange, onBl
           )}
         </div>
 
-        {/* Time input */}
         <div className="relative flex-1">
           <input
             type="text"
@@ -172,14 +227,205 @@ function PublishDateField({ datePart, timePart, onDateChange, onTimeChange, onBl
   )
 }
 
+// ── Publish Dialog ────────────────────────────────────────────────────────────
+
+function PublishDialog({ publishChoice, onChoiceChange, datePart, timePart, onDateChange, onTimeChange, onDateBlur, onClose, onContinue }) {
+  const canContinue = publishChoice === 'now' || (publishChoice === 'later' && datePart)
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6 flex flex-col gap-5">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900">Publish</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          {/* Publish right now */}
+          <button
+            onClick={() => onChoiceChange('now')}
+            className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${
+              publishChoice === 'now' ? 'border-gray-900 bg-gray-50' : 'border-gray-200 hover:bg-gray-50'
+            }`}
+          >
+            <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${publishChoice === 'now' ? 'border-gray-900' : 'border-gray-300'}`}>
+              {publishChoice === 'now' && <div className="w-2 h-2 rounded-full bg-gray-900" />}
+            </div>
+            <span className="text-sm font-medium text-gray-800">Publish Right Now</span>
+          </button>
+
+          {/* Schedule for later */}
+          <div>
+            <button
+              onClick={() => onChoiceChange('later')}
+              className={`w-full flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${
+                publishChoice === 'later' ? 'border-gray-900 bg-gray-50' : 'border-gray-200 hover:bg-gray-50'
+              }`}
+            >
+              <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${publishChoice === 'later' ? 'border-gray-900' : 'border-gray-300'}`}>
+                {publishChoice === 'later' && <div className="w-2 h-2 rounded-full bg-gray-900" />}
+              </div>
+              <span className="text-sm font-medium text-gray-800">Schedule for later</span>
+            </button>
+            {publishChoice === 'later' && (
+              <div className="mt-3 px-1">
+                <PublishDateField
+                  datePart={datePart}
+                  timePart={timePart}
+                  onDateChange={onDateChange}
+                  onTimeChange={onTimeChange}
+                  onBlur={onDateBlur}
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <button
+            onClick={onContinue}
+            disabled={!canContinue}
+            className="inline-flex items-center gap-1.5 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Continue <ChevronRight size={15} />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Final Review Dialog ───────────────────────────────────────────────────────
+
+function FinalReviewDialog({ publishChoice, publishDate, onBack, onClose, onConfirm, saving }) {
+  const isNow = publishChoice === 'now'
+  const bodyMessage = isNow
+    ? 'Your post will be published on your site.'
+    : `On ${formatPublishDateTime(publishDate)} your post will be published on your site.`
+  const buttonLabel = isNow
+    ? 'Publish post, right now'
+    : `Publish post, on ${formatPublishShort(publishDate)}`
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6 flex flex-col gap-5">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900">Final Review</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+        </div>
+
+        <p className="text-sm text-gray-700">{bodyMessage}</p>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onConfirm}
+            disabled={saving}
+            className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+          >
+            {saving ? 'Publishing…' : buttonLabel}
+          </button>
+          <button
+            onClick={onBack}
+            className="rounded-md border border-gray-200 px-4 py-2 text-sm text-gray-500 hover:bg-gray-50 transition-colors"
+          >
+            Back to settings
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Unpublish / Unschedule Dialog ─────────────────────────────────────────────
+
+function RevertDialog({ type, publishDate, onClose, onConfirm, saving }) {
+  const isPublished = type === 'published'
+  const title = isPublished ? 'Unpublish' : 'Unschedule'
+  const largeText = isPublished ? 'This post has been published' : 'This post has been scheduled'
+  const smallText = isPublished
+    ? `Your post was published on your site on ${formatDateTimeLong(publishDate)}.`
+    : `Your post will be published on your site on ${formatDateTimeLong(publishDate)}.`
+  const btnLabel = isPublished
+    ? 'Unpublish and revert to a private draft'
+    : 'Unschedule and revert to a private draft'
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-sm p-6 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-semibold text-gray-900">{title}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={16} /></button>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <p className="text-base font-medium text-gray-800">{largeText}</p>
+          <p className="text-sm text-gray-500">{smallText}</p>
+        </div>
+
+        <button
+          onClick={onConfirm}
+          disabled={saving}
+          className="self-start rounded-md border border-gray-200 px-4 py-2 text-sm font-medium text-green-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+        >
+          {saving ? 'Reverting…' : btnLabel}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Delete Confirmation Dialog ────────────────────────────────────────────────
+
+function DeleteDialog({ onClose, onConfirm, deleting }) {
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-sm p-6 flex flex-col gap-4">
+        <h3 className="font-semibold text-gray-900">Delete post?</h3>
+        <p className="text-sm text-gray-500">This will permanently delete the post and all its comments.</p>
+        <div className="flex gap-3 justify-end">
+          <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-1.5">Cancel</button>
+          <button
+            onClick={onConfirm}
+            disabled={deleting}
+            className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            {deleting ? 'Deleting…' : 'Delete'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Main Editor ───────────────────────────────────────────────────────────────
+
 export default function AdminBlogEditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { addToast } = useToast()
 
   const [post, setPost] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [saveStatus, setSaveStatus] = useState('idle') // idle | saving | saved | error
-  const [saveError, setSaveError] = useState('')
+  const [status, setStatus] = useState('draft')
+
+  // Draft save status indicator
+  const [draftStatus, setDraftStatus] = useState('new') // new | draft | saving | draft-saved
+
+  // Published/scheduled dirty tracking
+  const [isDirty, setIsDirty] = useState(false)
+  const [updateSaving, setUpdateSaving] = useState(false)
+
+  // Dialog states
+  const [publishDialog, setPublishDialog] = useState(null) // null | 'options' | 'review'
+  const [publishChoice, setPublishChoice] = useState('now')
+  const [publishSaving, setPublishSaving] = useState(false)
+  const [revertDialog, setRevertDialog] = useState(false)
+  const [revertSaving, setRevertSaving] = useState(false)
+  const [deleteDialog, setDeleteDialog] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  // Scheduled header hover
+  const [scheduledHover, setScheduledHover] = useState(false)
 
   // Form fields
   const [title, setTitle] = useState('')
@@ -187,10 +433,13 @@ export default function AdminBlogEditorPage() {
   const [slug, setSlug] = useState('')
   const [excerpt, setExcerpt] = useState('')
   const [metaDescription, setMetaDescription] = useState('')
+  // These are used by the sidebar AND the publish dialog
   const [publishDatePart, setPublishDatePart] = useState('')
   const [publishTimePart, setPublishTimePart] = useState('')
+  // Dialog-local publish date (reset when dialog opens)
+  const [dialogDatePart, setDialogDatePart] = useState('')
+  const [dialogTimePart, setDialogTimePart] = useState('')
   const [thumbnailFilename, setThumbnailFilename] = useState('')
-  const [status, setStatus] = useState('draft')
 
   const autosaveTimer = useRef(null)
   const pendingFields = useRef({})
@@ -213,51 +462,77 @@ export default function AdminBlogEditorPage() {
         setPublishDatePart(dtStr ? dtStr.slice(0, 10) : '')
         setPublishTimePart(dtStr ? dtStr.slice(11, 16) : '')
         setThumbnailFilename(data.thumbnail_filename || '')
-        setStatus(data.status || 'draft')
-        // content set via RichTextEditor's initialHtml + key
+        const s = data.status || 'draft'
+        setStatus(s)
         setContentHtml(data.content_html || '')
+        // Determine initial draft status
+        const isNew = (data.title === 'Untitled' || !data.title) && !data.content_html
+        setDraftStatus(s === 'draft' ? (isNew ? 'new' : 'draft') : 'idle')
         setLoading(false)
       })
   }, [id])
 
+  function combineDate(dp = publishDatePart, tp = publishTimePart) {
+    if (!dp) return null
+    return tp ? `${dp}T${tp}` : dp
+  }
+
+  function combineDateFromDialog(dp = dialogDatePart, tp = dialogTimePart) {
+    if (!dp) return null
+    return tp ? `${dp}T${tp}` : dp
+  }
+
+  // ── Save helper ──────────────────────────────────────────────────────────────
+
   const save = useCallback(async (fields) => {
-    setSaveStatus('saving')
-    setSaveError('')
-    try {
-      const res = await fetch(`/api/admin/blog/posts/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(fields),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Save failed')
-      setPost(data)
-      setSlug(data.slug)
-      setExcerpt(data.excerpt || '')
-      const savedDt = data.publish_date ? data.publish_date.slice(0, 16) : ''
-      setPublishDatePart(savedDt ? savedDt.slice(0, 10) : '')
-      setPublishTimePart(savedDt ? savedDt.slice(11, 16) : '')
-      setSaveStatus('saved')
-      setTimeout(() => setSaveStatus('idle'), 2500)
-    } catch (err) {
-      setSaveStatus('error')
-      setSaveError(err.message)
-    }
+    const res = await fetch(`/api/admin/blog/posts/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(fields),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Save failed')
+    setPost(data)
+    setSlug(data.slug)
+    setExcerpt(data.excerpt || '')
+    const savedDt = data.publish_date ? data.publish_date.slice(0, 16) : ''
+    setPublishDatePart(savedDt ? savedDt.slice(0, 10) : '')
+    setPublishTimePart(savedDt ? savedDt.slice(11, 16) : '')
+    return data
   }, [id])
 
+  // ── Auto-save (draft only) ───────────────────────────────────────────────────
+
   function scheduleSave(fields) {
+    if (status !== 'draft') return
+    setDraftStatus('draft')
     pendingFields.current = { ...pendingFields.current, ...fields }
     clearTimeout(autosaveTimer.current)
-    autosaveTimer.current = setTimeout(() => {
-      save(pendingFields.current)
-      pendingFields.current = {}
+    autosaveTimer.current = setTimeout(async () => {
+      const savingIndicatorTimer = setTimeout(() => setDraftStatus('saving'), 200)
+      try {
+        await save(pendingFields.current)
+        pendingFields.current = {}
+        clearTimeout(savingIndicatorTimer)
+        setDraftStatus('draft-saved')
+      } catch {
+        clearTimeout(savingIndicatorTimer)
+        setDraftStatus('draft')
+      }
     }, AUTOSAVE_DELAY)
+  }
+
+  // ── Field handlers ───────────────────────────────────────────────────────────
+
+  function markDirty() {
+    if (status !== 'draft') setIsDirty(true)
   }
 
   function handleTitleChange(e) {
     const newTitle = e.target.value
     setTitle(newTitle)
+    markDirty()
     if (!slugEdited.current) {
       const autoSlug = slugify(newTitle)
       setSlug(autoSlug)
@@ -270,10 +545,12 @@ export default function AdminBlogEditorPage() {
   function handleSlugChange(e) {
     slugEdited.current = true
     setSlug(e.target.value)
+    markDirty()
   }
 
   function handleContentChange(html) {
     setContentHtml(html)
+    markDirty()
     if (!excerptEdited.current) {
       const autoExcerpt = extractExcerpt(html)
       setExcerpt(autoExcerpt)
@@ -286,38 +563,20 @@ export default function AdminBlogEditorPage() {
   function handleExcerptChange(e) {
     excerptEdited.current = true
     setExcerpt(e.target.value)
-  }
-
-  function combinePublishDate(datePart = publishDatePart, timePart = publishTimePart) {
-    if (!datePart) return null
-    return timePart ? `${datePart}T${timePart}` : datePart
+    markDirty()
   }
 
   function handleSidebarSave(overrideDatePart) {
+    if (status !== 'draft') return
     clearTimeout(autosaveTimer.current)
     const dp = typeof overrideDatePart === 'string' ? overrideDatePart : publishDatePart
     save({
       slug,
       excerpt,
       meta_description: metaDescription,
-      publish_date: combinePublishDate(dp),
+      publish_date: combineDate(dp),
       thumbnail_filename: thumbnailFilename || null,
-    })
-  }
-
-  async function handlePublish() {
-    clearTimeout(autosaveTimer.current)
-    const newStatus = status === 'published' ? 'draft' : 'published'
-    const fields = {
-      status: newStatus,
-      slug,
-      excerpt,
-      meta_description: metaDescription,
-      publish_date: combinePublishDate(),
-      thumbnail_filename: thumbnailFilename || null,
-    }
-    await save(fields)
-    setStatus(newStatus)
+    }).catch(() => {})
   }
 
   async function handleThumbnailUpload(e) {
@@ -333,11 +592,186 @@ export default function AdminBlogEditorPage() {
     if (res.ok) {
       const { filename } = await res.json()
       setThumbnailFilename(filename)
+      markDirty()
     }
     e.target.value = ''
   }
 
+  // ── Publish flow ─────────────────────────────────────────────────────────────
+
+  function openPublishDialog() {
+    setPublishChoice('now')
+    setDialogDatePart(publishDatePart)
+    setDialogTimePart(publishTimePart)
+    setPublishDialog('options')
+  }
+
+  async function handlePublishConfirm() {
+    setPublishSaving(true)
+    const isScheduled = publishChoice === 'later'
+    const publishDate = isScheduled ? combineDateFromDialog() : new Date().toISOString().slice(0, 16)
+    try {
+      const data = await save({
+        status: isScheduled ? 'scheduled' : 'published',
+        publish_date: publishDate,
+        slug,
+        excerpt,
+        meta_description: metaDescription,
+        thumbnail_filename: thumbnailFilename || null,
+      })
+      setPublishDialog(null)
+      navigate('/admin/blog/posts', {
+        state: {
+          publishConfirm: {
+            slug: data.slug,
+            title: data.title,
+            isScheduled,
+            publishDate: data.publish_date,
+          },
+        },
+      })
+    } catch {
+      setPublishSaving(false)
+    }
+  }
+
+  // ── Revert (unpublish / unschedule) ──────────────────────────────────────────
+
+  async function handleRevertConfirm() {
+    setRevertSaving(true)
+    try {
+      await save({ status: 'draft' })
+      setStatus('draft')
+      setDraftStatus('draft')
+      setRevertDialog(false)
+      setIsDirty(false)
+      addToast({ message: 'Post reverted to a draft.' })
+    } catch {
+      setRevertSaving(false)
+    }
+  }
+
+  // ── Update (published/scheduled) ─────────────────────────────────────────────
+
+  async function handleUpdate() {
+    const savingIndicatorTimer = setTimeout(() => setUpdateSaving(true), 200)
+    try {
+      const data = await save({
+        slug,
+        excerpt,
+        meta_description: metaDescription,
+        publish_date: combineDate(),
+        thumbnail_filename: thumbnailFilename || null,
+        content_html: contentHtml,
+        title,
+      })
+      setIsDirty(false)
+      if (status === 'scheduled') {
+        const tz = tzAbbr()
+        const d = new Date(data.publish_date)
+        const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+        const month = MONTHS_SHORT[d.getMonth()]
+        const day = d.getDate()
+        const year = d.getFullYear()
+        addToast({ message: 'Post scheduled', subtext: `Will be published on ${month} ${day}, ${year} at ${time} (${tz})` })
+      } else {
+        addToast({
+          message: 'Post updated',
+          subtext: 'View on site',
+          subtextHref: `/blog/${data.slug}`,
+        })
+      }
+    } finally {
+      clearTimeout(savingIndicatorTimer)
+      setUpdateSaving(false)
+    }
+  }
+
+  // ── Delete ───────────────────────────────────────────────────────────────────
+
+  async function handleDelete() {
+    setDeleting(true)
+    await fetch(`/api/admin/blog/posts/${id}`, { method: 'DELETE', credentials: 'include' })
+    navigate('/admin/blog/posts')
+  }
+
   if (loading) return <div className="p-8 text-gray-400">Loading…</div>
+
+  const wordCount = countWords(contentHtml)
+  const publishDateIso = combineDate()
+
+  // ── Header status indicator ──────────────────────────────────────────────────
+
+  function HeaderStatus() {
+    if (status === 'published') {
+      return (
+        <a
+          href={`/blog/${post?.slug}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 hover:font-semibold transition-all"
+        >
+          Published <ExternalLink size={11} />
+        </a>
+      )
+    }
+    if (status === 'scheduled') {
+      return (
+        <span
+          className="text-xs font-medium cursor-default transition-all"
+          style={{ color: '#30cf43' }}
+          onMouseEnter={() => setScheduledHover(true)}
+          onMouseLeave={() => setScheduledHover(false)}
+        >
+          Scheduled
+          {scheduledHover && publishDateIso && (
+            <span className="text-gray-400 font-normal ml-1">{formatScheduledHover(publishDateIso)}</span>
+          )}
+        </span>
+      )
+    }
+    // draft
+    if (draftStatus === 'new') return <span className="text-xs text-gray-400">New</span>
+    if (draftStatus === 'saving') return <span className="text-xs text-gray-400">Saving...</span>
+    if (draftStatus === 'draft-saved') return <span className="text-xs text-gray-400">Draft - Saved</span>
+    if (draftStatus === 'draft') return <span className="text-xs text-gray-400">Draft</span>
+    return null
+  }
+
+  // ── Action buttons ───────────────────────────────────────────────────────────
+
+  function ActionButtons() {
+    if (status === 'draft') {
+      return (
+        <button
+          onClick={openPublishDialog}
+          className="rounded-md bg-white px-4 py-1.5 text-sm font-medium text-green-600 hover:bg-gray-100 transition-colors"
+        >
+          Publish
+        </button>
+      )
+    }
+
+    const revertLabel = status === 'scheduled' ? 'Unschedule' : 'Unpublish'
+
+    return (
+      <>
+        <button
+          onClick={handleUpdate}
+          disabled={!isDirty || updateSaving}
+          className="rounded-md bg-white px-4 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          {updateSaving ? 'Updating...' : 'Update'}
+        </button>
+        <button
+          onClick={() => setRevertDialog(true)}
+          className="rounded-md bg-white px-4 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+        >
+          {revertLabel}
+        </button>
+      </>
+    )
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -346,33 +780,17 @@ export default function AdminBlogEditorPage() {
         <Link to="/admin/blog/posts" className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 shrink-0">
           <ArrowLeft size={14} strokeWidth={1.5} />Posts
         </Link>
+        <HeaderStatus />
         <div className="flex-1" />
-        <div className="flex items-center gap-3 shrink-0">
-          {saveStatus === 'saving' && <span className="text-xs text-gray-400">Saving…</span>}
-          {saveStatus === 'saved' && <span className="text-xs text-green-600">Saved</span>}
-          {saveStatus === 'error' && <span className="text-xs text-red-500">{saveError}</span>}
-          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-            status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-          }`}>
-            {status}
-          </span>
-          <button
-            onClick={handlePublish}
-            className={`rounded-md px-4 py-1.5 text-sm font-medium text-white transition-colors ${
-              status === 'published'
-                ? 'bg-amber-500 hover:bg-amber-600'
-                : 'bg-gray-900 hover:bg-gray-700'
-            }`}
-          >
-            {status === 'published' ? 'Unpublish' : 'Publish'}
-          </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <ActionButtons />
         </div>
       </div>
 
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
         {/* Editor area */}
-        <div className="flex-1 overflow-y-auto bg-white">
+        <div className="flex-1 overflow-y-auto bg-white relative">
           <div className="max-w-3xl mx-auto pt-10">
             <input
               type="text"
@@ -423,7 +841,7 @@ export default function AdminBlogEditorPage() {
           <Field label="Meta description">
             <Textarea
               value={metaDescription}
-              onChange={e => setMetaDescription(e.target.value)}
+              onChange={e => { setMetaDescription(e.target.value); markDirty() }}
               onBlur={handleSidebarSave}
               rows={3}
               placeholder="SEO description…"
@@ -433,8 +851,8 @@ export default function AdminBlogEditorPage() {
           <PublishDateField
             datePart={publishDatePart}
             timePart={publishTimePart}
-            onDateChange={setPublishDatePart}
-            onTimeChange={setPublishTimePart}
+            onDateChange={v => { setPublishDatePart(v); markDirty() }}
+            onTimeChange={v => { setPublishTimePart(v); markDirty() }}
             onBlur={handleSidebarSave}
           />
 
@@ -453,7 +871,7 @@ export default function AdminBlogEditorPage() {
           </Field>
 
           {post && (
-            <div className="mt-auto pt-4 border-t border-gray-200">
+            <div className="mt-auto pt-4 border-t border-gray-200 flex flex-col gap-2">
               <a
                 href={`/blog/${post.slug}`}
                 target="_blank"
@@ -462,9 +880,66 @@ export default function AdminBlogEditorPage() {
               >
                 View post ↗
               </a>
+              <button
+                onClick={() => setDeleteDialog(true)}
+                className="text-xs text-red-400 hover:text-red-600 text-left transition-colors"
+              >
+                Delete post
+              </button>
             </div>
           )}
         </div>
+      </div>
+
+      {/* Dialogs */}
+      {publishDialog === 'options' && (
+        <PublishDialog
+          publishChoice={publishChoice}
+          onChoiceChange={setPublishChoice}
+          datePart={dialogDatePart}
+          timePart={dialogTimePart}
+          onDateChange={setDialogDatePart}
+          onTimeChange={setDialogTimePart}
+          onDateBlur={() => {}}
+          onClose={() => setPublishDialog(null)}
+          onContinue={() => setPublishDialog('review')}
+        />
+      )}
+
+      {publishDialog === 'review' && (
+        <FinalReviewDialog
+          publishChoice={publishChoice}
+          publishDate={combineDateFromDialog()}
+          onBack={() => setPublishDialog('options')}
+          onClose={() => setPublishDialog(null)}
+          onConfirm={handlePublishConfirm}
+          saving={publishSaving}
+        />
+      )}
+
+      {revertDialog && (
+        <RevertDialog
+          type={status}
+          publishDate={publishDateIso}
+          onClose={() => setRevertDialog(false)}
+          onConfirm={handleRevertConfirm}
+          saving={revertSaving}
+        />
+      )}
+
+      {deleteDialog && (
+        <DeleteDialog
+          onClose={() => setDeleteDialog(false)}
+          onConfirm={handleDelete}
+          deleting={deleting}
+        />
+      )}
+
+      {/* Word count */}
+      <div className="fixed bottom-4 pointer-events-none" style={{ right: '320px' }}>
+        <span className="text-xs text-gray-300 pr-4">
+          {wordCount === 1 ? '1 word' : `${wordCount} words`}
+        </span>
       </div>
     </div>
   )

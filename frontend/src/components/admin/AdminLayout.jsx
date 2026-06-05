@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAdminAuth } from '../../context/AdminAuthContext'
+import { ToastProvider } from './Toast'
 
 const NAV_ITEMS = [
   { to: '/admin', label: 'Settings', end: true },
@@ -38,6 +39,7 @@ export default function AdminLayout() {
   }
 
   return (
+    <ToastProvider>
     <div className="flex min-h-screen bg-gray-50">
       {/* Sidebar */}
       <aside className="w-52 shrink-0 bg-gray-900 flex flex-col">
@@ -80,5 +82,6 @@ export default function AdminLayout() {
         <Outlet />
       </main>
     </div>
+    </ToastProvider>
   )
 }
