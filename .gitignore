@@ -20,5 +20,8 @@ Thumbs.db
 # Uploads
 backend/uploads/
 
+# Runtime artifacts
+backend/certbot_domain.txt
+
 # Claude Code
 .claude/settings.local.json

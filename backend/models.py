@@ -18,6 +18,7 @@ class SiteConfig(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     site_title = db.Column(db.String(200), nullable=False, default='My Website')
+    site_description = db.Column(db.Text, nullable=True)
 
     # Home
     home_enabled = db.Column(db.Boolean, nullable=False, default=True)

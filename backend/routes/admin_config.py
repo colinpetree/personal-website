@@ -18,6 +18,7 @@ def _config_to_dict(config):
     """Serialize SiteConfig for the admin — includes all fields, secrets as _set flags."""
     return {
         'site_title': config.site_title,
+        'site_description': config.site_description,
         'domain': config.domain,
         'favicon_filename': config.favicon_filename,
         'users_enabled': config.users_enabled,
@@ -73,7 +74,7 @@ def update_admin_config():
 
     # Plain fields — update if present in payload
     plain_fields = [
-        'site_title', 'domain', 'favicon_filename', 'users_enabled',
+        'site_title', 'site_description', 'domain', 'favicon_filename', 'users_enabled',
         'google_oauth_client_id',
         'home_enabled', 'home_page_name', 'home_text',
         'blog_enabled', 'blog_page_name',
