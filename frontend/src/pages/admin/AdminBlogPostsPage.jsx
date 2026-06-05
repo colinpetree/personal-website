@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, Pencil, X } from 'lucide-react'
 import { PageShell } from '../../components/admin/AdminPage'
+import { useToast } from '../../components/admin/Toast'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
@@ -102,11 +103,15 @@ export default function AdminBlogPostsPage() {
   const [publishConfirm, setPublishConfirm] = useState(null)
   const navigate = useNavigate()
   const location = useLocation()
+  const { addToast } = useToast()
 
   useEffect(() => {
     if (location.state?.publishConfirm) {
       setPublishConfirm(location.state.publishConfirm)
-      // Clear state so a refresh doesn't re-show the modal
+      window.history.replaceState({}, '')
+    }
+    if (location.state?.deleted) {
+      addToast({ message: 'Post deleted' })
       window.history.replaceState({}, '')
     }
   }, [])

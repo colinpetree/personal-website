@@ -114,7 +114,7 @@ const DAY_PICKER_CLASSES = {
     'data-[selected]:bg-gray-900 data-[selected]:text-white data-[selected]:hover:bg-gray-700',
     'data-[today]:font-semibold data-[today]:text-gray-900',
     'data-[outside]:text-gray-300 data-[outside]:hover:bg-transparent',
-    'data-[disabled]:text-gray-200 data-[disabled]:cursor-not-allowed data-[disabled]:hover:bg-transparent',
+    'data-[disabled]:text-gray-200 data-[disabled]:hover:bg-transparent',
   ].join(' '),
   selected: '',
   today: '',
@@ -285,7 +285,7 @@ function PublishDialog({ publishChoice, onChoiceChange, datePart, timePart, onDa
           <button
             onClick={onContinue}
             disabled={!canContinue}
-            className="inline-flex items-center gap-1.5 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-40 transition-colors"
           >
             Continue <ChevronRight size={15} />
           </button>
@@ -454,7 +454,7 @@ export default function AdminBlogEditorPage() {
         setPost(data)
         setTitle(data.title || '')
         setSlug(data.slug || '')
-        slugEdited.current = (data.slug || '') !== slugify(data.title || '')
+        slugEdited.current = !/^untitled(-\d+)?$/.test(data.slug || '')
         setExcerpt(data.excerpt || '')
         excerptEdited.current = !!(data.excerpt && data.excerpt !== extractExcerpt(data.content_html || ''))
         setMetaDescription(data.meta_description || '')
@@ -607,6 +607,7 @@ export default function AdminBlogEditorPage() {
   }
 
   async function handlePublishConfirm() {
+    slugEdited.current = true
     setPublishSaving(true)
     const isScheduled = publishChoice === 'later'
     const publishDate = isScheduled ? combineDateFromDialog() : new Date().toISOString().slice(0, 16)
@@ -692,7 +693,7 @@ export default function AdminBlogEditorPage() {
   async function handleDelete() {
     setDeleting(true)
     await fetch(`/api/admin/blog/posts/${id}`, { method: 'DELETE', credentials: 'include' })
-    navigate('/admin/blog/posts')
+    navigate('/admin/blog/posts', { state: { deleted: true } })
   }
 
   if (loading) return <div className="p-8 text-gray-400">Loading…</div>
@@ -759,7 +760,7 @@ export default function AdminBlogEditorPage() {
         <button
           onClick={handleUpdate}
           disabled={!isDirty || updateSaving}
-          className="rounded-md bg-white px-4 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="rounded-md bg-white px-4 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-100 disabled:opacity-40 transition-colors"
         >
           {updateSaving ? 'Updating...' : 'Update'}
         </button>
