@@ -1,4 +1,102 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+
+export function Card({ children, className = '' }) {
+  return (
+    <div className={`bg-white rounded-lg border border-gray-200 shadow-sm p-6 flex flex-col gap-5 ${className}`}>
+      {children}
+    </div>
+  )
+}
+
+export function EditableCard({ title, description, savedValues, onSave, children }) {
+  const [editing, setEditing] = useState(false)
+  const [local, setLocal] = useState(savedValues)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+
+  const savedKey = JSON.stringify(savedValues)
+  useEffect(() => {
+    if (!editing) setLocal(savedValues)
+  }, [savedKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isDirty = JSON.stringify(local) !== savedKey
+
+  function set(field, value) {
+    setLocal(l => ({ ...l, [field]: value }))
+  }
+
+  function cancel() {
+    setLocal(savedValues)
+    setEditing(false)
+    setError('')
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    setError('')
+    try {
+      await onSave(local)
+      await new Promise(r => setTimeout(r, 700))
+      setSaved(true)
+      setEditing(false)
+      setTimeout(() => setSaved(false), 2500)
+    } catch (err) {
+      setError(err.message || 'Save failed')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Card>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">{title}</h2>
+          {description && <p className="text-xs text-gray-400 mt-0.5">{description}</p>}
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {!editing && (
+            <button
+              onClick={() => !saved && setEditing(true)}
+              disabled={saved}
+              className="rounded-md bg-white px-3 py-1.5 text-xs font-medium transition-colors disabled:cursor-default text-gray-400 enabled:text-gray-700 enabled:hover:bg-gray-50"
+            >
+              {saved ? 'Saved' : 'Edit'}
+            </button>
+          )}
+          {editing && (
+            <>
+              {!saving && (
+                <button
+                  onClick={cancel}
+                  className="rounded-md px-3 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                onClick={handleSave}
+                disabled={!isDirty || saving}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  saving
+                    ? 'bg-white text-gray-500 cursor-default'
+                    : isDirty
+                      ? 'bg-[#30cf43] text-white hover:brightness-95'
+                      : 'bg-gray-100 text-gray-400 cursor-default'
+                }`}
+              >
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+      {children({ editing, local, set })}
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </Card>
+  )
+}
 
 export function PageShell({ title, children }) {
   return (
@@ -13,8 +111,8 @@ export function Field({ label, hint, children }) {
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-sm font-medium text-gray-700">{label}</label>
-      {hint && <p className="text-xs text-gray-500">{hint}</p>}
       {children}
+      {hint && <p className="text-xs text-gray-400">{hint}</p>}
     </div>
   )
 }
