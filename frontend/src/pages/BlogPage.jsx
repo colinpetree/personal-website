@@ -69,7 +69,7 @@ export default function BlogPage() {
               <button
                 onClick={() => setPage(p => p - 1)}
                 disabled={page === 1}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors"
               >
                 <ChevronLeft size={15} strokeWidth={1.5} />Previous
               </button>
@@ -77,7 +77,7 @@ export default function BlogPage() {
               <button
                 onClick={() => setPage(p => p + 1)}
                 disabled={page >= data.pages}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors"
               >
                 Next<ChevronRight size={15} strokeWidth={1.5} />
               </button>
