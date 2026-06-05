@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import {
-  Bold, Italic, Underline, Strikethrough, Code, Link2, Image, Undo2, Redo2, ChevronDown,
-} from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { Bold, Italic, Underline, Strikethrough, Code, Link2 } from 'lucide-react'
 import { LexicalComposer } from '@lexical/react/LexicalComposer'
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin'
 import { ContentEditable } from '@lexical/react/LexicalContentEditable'
@@ -11,18 +10,16 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { HeadingNode, QuoteNode, $createHeadingNode, $createQuoteNode } from '@lexical/rich-text'
-import { ListNode, ListItemNode, INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, REMOVE_LIST_COMMAND } from '@lexical/list'
+import { ListNode, ListItemNode, INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND } from '@lexical/list'
 import { LinkNode, TOGGLE_LINK_COMMAND } from '@lexical/link'
 import { CodeNode, $createCodeNode } from '@lexical/code'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
 import { $setBlocksType } from '@lexical/selection'
 import {
   $getSelection, $isRangeSelection, $createParagraphNode, $getRoot,
-  FORMAT_TEXT_COMMAND, DecoratorNode, UNDO_COMMAND, REDO_COMMAND,
+  FORMAT_TEXT_COMMAND, DecoratorNode,
+  KEY_DOWN_COMMAND, COMMAND_PRIORITY_HIGH, $getNodeByKey, $isParagraphNode,
 } from 'lexical'
-import { $isHeadingNode } from '@lexical/rich-text'
-import { $isListNode } from '@lexical/list'
-import { $isCodeNode } from '@lexical/code'
 
 // ─── ImageNode ───────────────────────────────────────────────────────────────
 
@@ -108,171 +105,335 @@ function HtmlOutputPlugin({ onChange }) {
   return null
 }
 
-// ─── Toolbar ─────────────────────────────────────────────────────────────────
+// ─── Floating format toolbar ──────────────────────────────────────────────────
 
-const BLOCK_LABELS = {
-  paragraph: 'Paragraph',
-  h1: 'Heading 1',
-  h2: 'Heading 2',
-  h3: 'Heading 3',
-  quote: 'Quote',
-  code: 'Code',
-  bullet: 'Bulleted list',
-  number: 'Numbered list',
-}
-
-function Toolbar({ onImageUpload }) {
+function FloatingToolbarPlugin() {
   const [editor] = useLexicalComposerContext()
-  const [blockType, setBlockType] = useState('paragraph')
-  const [isBold, setIsBold] = useState(false)
-  const [isItalic, setIsItalic] = useState(false)
-  const [isUnderline, setIsUnderline] = useState(false)
-  const [isStrike, setIsStrike] = useState(false)
-  const [isCode, setIsCode] = useState(false)
-  const [isLink, setIsLink] = useState(false)
-  const [showBlockMenu, setShowBlockMenu] = useState(false)
-  const fileRef = useRef(null)
+  const [toolbar, setToolbar] = useState({
+    visible: false, top: 0, left: 0,
+    bold: false, italic: false, underline: false, strike: false, code: false,
+  })
 
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }) => {
       editorState.read(() => {
         const selection = $getSelection()
-        if (!$isRangeSelection(selection)) return
-
-        const anchor = selection.anchor.getNode()
-        const topLevel = anchor.getKey() === 'root'
-          ? anchor
-          : anchor.getTopLevelElementOrThrow()
-
-        if ($isListNode(topLevel)) {
-          setBlockType(topLevel.getListType() === 'number' ? 'number' : 'bullet')
-        } else if ($isHeadingNode(topLevel)) {
-          setBlockType(topLevel.getTag())
-        } else if ($isCodeNode(topLevel)) {
-          setBlockType('code')
-        } else {
-          setBlockType(topLevel.getType())
+        if (!$isRangeSelection(selection) || selection.isCollapsed()) {
+          setToolbar(t => t.visible ? { ...t, visible: false } : t)
+          return
         }
 
-        setIsBold(selection.hasFormat('bold'))
-        setIsItalic(selection.hasFormat('italic'))
-        setIsUnderline(selection.hasFormat('underline'))
-        setIsStrike(selection.hasFormat('strikethrough'))
-        setIsCode(selection.hasFormat('code'))
+        const nativeSel = window.getSelection()
+        if (!nativeSel || nativeSel.rangeCount === 0) {
+          setToolbar(t => t.visible ? { ...t, visible: false } : t)
+          return
+        }
+
+        const rect = nativeSel.getRangeAt(0).getBoundingClientRect()
+        if (!rect || rect.width === 0) {
+          setToolbar(t => t.visible ? { ...t, visible: false } : t)
+          return
+        }
+
+        const W = 272 // approximate toolbar width
+        const H = 40
+        let left = rect.left + window.scrollX + rect.width / 2 - W / 2
+        left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - W - 8))
+        let top = rect.top + window.scrollY - H - 8
+        if (top < window.scrollY + 8) top = rect.bottom + window.scrollY + 8
+
+        setToolbar({
+          visible: true, top, left,
+          bold: selection.hasFormat('bold'),
+          italic: selection.hasFormat('italic'),
+          underline: selection.hasFormat('underline'),
+          strike: selection.hasFormat('strikethrough'),
+          code: selection.hasFormat('code'),
+        })
       })
     })
   }, [editor])
-
-  function setBlockFormat(type) {
-    setShowBlockMenu(false)
-    editor.update(() => {
-      const selection = $getSelection()
-      if (!$isRangeSelection(selection)) return
-      if (type === 'paragraph') {
-        $setBlocksType(selection, () => $createParagraphNode())
-      } else if (type === 'h1' || type === 'h2' || type === 'h3') {
-        $setBlocksType(selection, () => $createHeadingNode(type))
-      } else if (type === 'quote') {
-        $setBlocksType(selection, () => $createQuoteNode())
-      } else if (type === 'code') {
-        $setBlocksType(selection, () => $createCodeNode())
-      }
-    })
-    if (type === 'bullet') editor.dispatchCommand(INSERT_UNORDERED_LIST_COMMAND, undefined)
-    if (type === 'number') editor.dispatchCommand(INSERT_ORDERED_LIST_COMMAND, undefined)
-  }
 
   function handleLink() {
     const url = window.prompt('Enter URL:')
     if (url) editor.dispatchCommand(TOGGLE_LINK_COMMAND, url)
   }
 
+  function fmtBtn(active, Icon, format) {
+    return (
+      <button
+        onMouseDown={e => { e.preventDefault(); editor.dispatchCommand(FORMAT_TEXT_COMMAND, format) }}
+        className={`p-1.5 rounded transition-colors ${
+          active ? 'text-white bg-white/20' : 'text-gray-300 hover:text-white hover:bg-white/15'
+        }`}
+      >
+        <Icon size={14} strokeWidth={2} />
+      </button>
+    )
+  }
+
+  if (!toolbar.visible) return null
+
+  return createPortal(
+    <div
+      style={{ position: 'absolute', top: toolbar.top, left: toolbar.left, zIndex: 9999 }}
+      className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 shadow-2xl"
+      onMouseDown={e => e.preventDefault()}
+    >
+      {fmtBtn(toolbar.bold, Bold, 'bold')}
+      {fmtBtn(toolbar.italic, Italic, 'italic')}
+      {fmtBtn(toolbar.underline, Underline, 'underline')}
+      {fmtBtn(toolbar.strike, Strikethrough, 'strikethrough')}
+      {fmtBtn(toolbar.code, Code, 'code')}
+      <div className="w-px h-4 bg-gray-600 mx-1" />
+      <button
+        onMouseDown={e => { e.preventDefault(); handleLink() }}
+        className="p-1.5 rounded text-gray-300 hover:text-white hover:bg-white/15 transition-colors"
+      >
+        <Link2 size={14} strokeWidth={2} />
+      </button>
+    </div>,
+    document.body
+  )
+}
+
+// ─── Slash command menu ───────────────────────────────────────────────────────
+
+const SLASH_ITEMS = [
+  { label: 'Text',          description: 'Plain paragraph',      icon: 'P',   action: 'paragraph' },
+  { label: 'Heading 1',     description: 'Large section heading', icon: 'H1',  action: 'h1' },
+  { label: 'Heading 2',     description: 'Medium heading',        icon: 'H2',  action: 'h2' },
+  { label: 'Heading 3',     description: 'Small heading',         icon: 'H3',  action: 'h3' },
+  { label: 'Quote',         description: 'Capture a quote',       icon: '❝',   action: 'quote' },
+  { label: 'Code',          description: 'Code snippet',          icon: '</>',  action: 'code' },
+  { label: 'Bulleted List', description: 'Unordered list',        icon: '•',   action: 'bullet' },
+  { label: 'Numbered List', description: 'Ordered list',          icon: '1.',  action: 'number' },
+  { label: 'Image',         description: 'Upload an image',       icon: '⬜',  action: 'image' },
+]
+
+function SlashCommandPlugin({ onImageUpload }) {
+  const [editor] = useLexicalComposerContext()
+  const [menu, setMenu] = useState({
+    visible: false, top: 0, left: 0, filter: '', selectedIndex: 0, nodeKey: null,
+  })
+  // Refs so keyboard handler never has stale closures
+  const menuRef = useRef(menu)
+  menuRef.current = menu
+  const fileRef = useRef(null)
+  const pendingNodeKeyRef = useRef(null)
+
+  function getItems(filter) {
+    if (!filter) return SLASH_ITEMS
+    const q = filter.toLowerCase()
+    return SLASH_ITEMS.filter(i => i.label.toLowerCase().includes(q))
+  }
+
+  const filteredItems = getItems(menu.filter)
+  const filteredItemsRef = useRef(filteredItems)
+  filteredItemsRef.current = filteredItems
+
+  // Detect "/" at start of paragraph
+  useEffect(() => {
+    return editor.registerUpdateListener(({ editorState }) => {
+      editorState.read(() => {
+        const selection = $getSelection()
+        if (!$isRangeSelection(selection)) {
+          setMenu(m => m.visible ? { ...m, visible: false } : m)
+          return
+        }
+
+        const node = selection.anchor.getNode()
+        let topLevel
+        try {
+          topLevel = node.getKey() === 'root' ? node : node.getTopLevelElementOrThrow()
+        } catch {
+          setMenu(m => m.visible ? { ...m, visible: false } : m)
+          return
+        }
+
+        if (!$isParagraphNode(topLevel)) {
+          setMenu(m => m.visible ? { ...m, visible: false } : m)
+          return
+        }
+
+        const text = topLevel.getTextContent()
+        if (text.startsWith('/')) {
+          const domEl = editor.getElementByKey(topLevel.getKey())
+          if (!domEl) return
+          const rect = domEl.getBoundingClientRect()
+          setMenu({
+            visible: true,
+            top: rect.bottom + window.scrollY + 6,
+            left: rect.left + window.scrollX,
+            filter: text.slice(1),
+            selectedIndex: 0,
+            nodeKey: topLevel.getKey(),
+          })
+        } else {
+          setMenu(m => m.visible ? { ...m, visible: false } : m)
+        }
+      })
+    })
+  }, [editor])
+
+  // Keyboard navigation while menu is open
+  useEffect(() => {
+    if (!menu.visible) return
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        const items = filteredItemsRef.current
+        const m = menuRef.current
+        if (event.key === 'ArrowDown') {
+          event.preventDefault()
+          setMenu(prev => ({ ...prev, selectedIndex: Math.min(prev.selectedIndex + 1, items.length - 1) }))
+          return true
+        }
+        if (event.key === 'ArrowUp') {
+          event.preventDefault()
+          setMenu(prev => ({ ...prev, selectedIndex: Math.max(prev.selectedIndex - 1, 0) }))
+          return true
+        }
+        if (event.key === 'Enter') {
+          const item = items[m.selectedIndex]
+          if (item) {
+            event.preventDefault()
+            applyItem(item)
+            return true
+          }
+          return false
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault()
+          setMenu(m => ({ ...m, visible: false }))
+          return true
+        }
+        return false
+      },
+      COMMAND_PRIORITY_HIGH
+    )
+  }, [editor, menu.visible]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function applyItem(item) {
+    const nodeKey = menuRef.current.nodeKey
+    setMenu(m => ({ ...m, visible: false }))
+
+    if (item.action === 'image') {
+      editor.update(() => {
+        const node = $getNodeByKey(nodeKey)
+        if (node && $isParagraphNode(node)) node.clear()
+      })
+      pendingNodeKeyRef.current = nodeKey
+      fileRef.current?.click()
+      return
+    }
+
+    if (item.action === 'bullet' || item.action === 'number') {
+      editor.update(() => {
+        const node = $getNodeByKey(nodeKey)
+        if (node && $isParagraphNode(node)) { node.clear(); node.selectEnd() }
+      }, {
+        onUpdate: () => {
+          editor.dispatchCommand(
+            item.action === 'bullet' ? INSERT_UNORDERED_LIST_COMMAND : INSERT_ORDERED_LIST_COMMAND,
+            undefined
+          )
+        },
+      })
+      return
+    }
+
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (!node || !$isParagraphNode(node)) return
+      node.clear()
+      const sel = node.select(0, 0)
+      if (item.action === 'h1' || item.action === 'h2' || item.action === 'h3') {
+        $setBlocksType(sel, () => $createHeadingNode(item.action))
+      } else if (item.action === 'quote') {
+        $setBlocksType(sel, () => $createQuoteNode())
+      } else if (item.action === 'code') {
+        $setBlocksType(sel, () => $createCodeNode())
+      }
+      // 'paragraph' — already a paragraph, nothing more needed
+    })
+  }
+
   async function handleImageFile(e) {
     const file = e.target.files?.[0]
     if (!file) return
+    const nodeKey = pendingNodeKeyRef.current
     try {
       const filename = await onImageUpload(file)
       const src = `/api/uploads/${filename}`
       editor.update(() => {
-        const selection = $getSelection()
-        if ($isRangeSelection(selection)) {
-          const node = $createImageNode(src, '')
-          selection.insertNodes([node])
+        const node = $getNodeByKey(nodeKey)
+        if (node) {
+          const imgNode = $createImageNode(src, '')
+          node.replace(imgNode)
         }
       })
     } catch {
       alert('Image upload failed.')
     }
+    pendingNodeKeyRef.current = null
     e.target.value = ''
   }
 
-  const iconBtn = (active, title, onClick, Icon) => (
-    <button
-      key={title}
-      title={title}
-      onMouseDown={e => { e.preventDefault(); onClick() }}
-      className={`p-1.5 rounded transition-colors ${
-        active ? 'bg-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-      }`}
-    >
-      <Icon size={16} strokeWidth={1.5} />
-    </button>
-  )
-
-  return (
-    <div className="flex items-center gap-0.5 flex-wrap px-3 py-2 bg-white border-b border-gray-200 sticky top-0 z-10">
-      {/* Block type dropdown */}
-      <div className="relative mr-1">
-        <button
-          onMouseDown={e => { e.preventDefault(); setShowBlockMenu(v => !v) }}
-          className="flex items-center gap-1 px-2 py-1.5 rounded text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors min-w-[110px]"
+  return createPortal(
+    <>
+      {menu.visible && filteredItems.length > 0 && (
+        <div
+          style={{ position: 'absolute', top: menu.top, left: menu.left, zIndex: 9999 }}
+          className="bg-white border border-gray-200 rounded-xl shadow-2xl py-2 w-72 max-h-80 overflow-y-auto"
         >
-          <span>{BLOCK_LABELS[blockType] || 'Paragraph'}</span>
-          <ChevronDown size={14} strokeWidth={1.5} />
-        </button>
-        {showBlockMenu && (
-          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-20 py-1 min-w-[140px]">
-            {Object.entries(BLOCK_LABELS).map(([type, label]) => (
-              <button
-                key={type}
-                onMouseDown={e => { e.preventDefault(); setBlockFormat(type) }}
-                className={`w-full text-left px-3 py-1.5 text-sm transition-colors ${
-                  blockType === type ? 'text-gray-900 bg-gray-100' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div className="w-px h-5 bg-gray-200 mx-1" />
-
-      {iconBtn(isBold, 'Bold', () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'bold'), Bold)}
-      {iconBtn(isItalic, 'Italic', () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'italic'), Italic)}
-      {iconBtn(isUnderline, 'Underline', () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'underline'), Underline)}
-      {iconBtn(isStrike, 'Strikethrough', () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'strikethrough'), Strikethrough)}
-      {iconBtn(isCode, 'Inline code', () => editor.dispatchCommand(FORMAT_TEXT_COMMAND, 'code'), Code)}
-
-      <div className="w-px h-5 bg-gray-200 mx-1" />
-
-      {iconBtn(false, 'Link', handleLink, Link2)}
-      <button
-        title="Insert image"
-        onMouseDown={e => { e.preventDefault(); fileRef.current?.click() }}
-        className="p-1.5 rounded text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
-      >
-        <Image size={16} strokeWidth={1.5} />
-      </button>
+          <p className="px-3 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Blocks</p>
+          {filteredItems.map((item, i) => (
+            <button
+              key={item.action}
+              onMouseDown={e => { e.preventDefault(); applyItem(item) }}
+              className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
+                i === menu.selectedIndex ? 'bg-gray-100' : 'hover:bg-gray-50'
+              }`}
+            >
+              <span className="shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg text-xs font-bold text-gray-500">
+                {item.icon}
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900 leading-tight">{item.label}</p>
+                <p className="text-xs text-gray-400 leading-tight">{item.description}</p>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageFile} />
-
-      <div className="w-px h-5 bg-gray-200 mx-1" />
-
-      {iconBtn(false, 'Undo', () => editor.dispatchCommand(UNDO_COMMAND, undefined), Undo2)}
-      {iconBtn(false, 'Redo', () => editor.dispatchCommand(REDO_COMMAND, undefined), Redo2)}
-    </div>
+    </>,
+    document.body
   )
+}
+
+// ─── Editor handle (exposes focusAtStart to parent via ref) ──────────────────
+
+function EditorHandlePlugin({ handleRef }) {
+  const [editor] = useLexicalComposerContext()
+  useImperativeHandle(handleRef, () => ({
+    focusAtStart() {
+      editor.getRootElement()?.focus({ preventScroll: true })
+      editor.update(() => {
+        const root = $getRoot()
+        const newParagraph = $createParagraphNode()
+        const firstChild = root.getFirstChild()
+        if (firstChild) {
+          firstChild.insertBefore(newParagraph)
+        } else {
+          root.append(newParagraph)
+        }
+        newParagraph.select()
+      })
+    },
+  }), [editor])
+  return null
 }
 
 // ─── Editor theme ─────────────────────────────────────────────────────────────
@@ -303,7 +464,7 @@ const theme = {
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
-export default function RichTextEditor({ initialHtml, onChange, placeholder = 'Start writing…' }) {
+const RichTextEditor = forwardRef(function RichTextEditor({ initialHtml, onChange, placeholder = 'Start writing…' }, ref) {
   const initialConfig = {
     namespace: 'BlogEditor',
     theme,
@@ -326,27 +487,29 @@ export default function RichTextEditor({ initialHtml, onChange, placeholder = 'S
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <div className="flex flex-col">
-        <Toolbar onImageUpload={handleImageUpload} />
-        <div className="relative bg-white text-gray-900">
-          <RichTextPlugin
-            contentEditable={
-              <ContentEditable className="outline-none min-h-[500px] px-6 py-5 prose prose-gray max-w-none" />
-            }
-            placeholder={
-              <div className="absolute top-5 left-6 text-gray-400 pointer-events-none select-none">
-                {placeholder}
-              </div>
-            }
-            ErrorBoundary={LexicalErrorBoundary}
-          />
-        </div>
-        <HistoryPlugin />
-        <ListPlugin />
-        <LinkPlugin />
-        <LoadHtmlPlugin html={initialHtml} />
-        <HtmlOutputPlugin onChange={onChange} />
+      <div className="relative bg-white text-gray-900">
+        <RichTextPlugin
+          contentEditable={
+            <ContentEditable className="outline-none min-h-[500px] px-6 pt-2 pb-10 prose prose-gray max-w-none" />
+          }
+          placeholder={
+            <div className="absolute top-2 left-6 text-gray-400 pointer-events-none select-none">
+              {placeholder}
+            </div>
+          }
+          ErrorBoundary={LexicalErrorBoundary}
+        />
       </div>
+      <HistoryPlugin />
+      <ListPlugin />
+      <LinkPlugin />
+      <LoadHtmlPlugin html={initialHtml} />
+      <HtmlOutputPlugin onChange={onChange} />
+      <FloatingToolbarPlugin />
+      <SlashCommandPlugin onImageUpload={handleImageUpload} />
+      <EditorHandlePlugin handleRef={ref} />
     </LexicalComposer>
   )
-}
+})
+
+export default RichTextEditor

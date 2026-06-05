@@ -50,6 +50,7 @@ export default function AdminBlogEditorPage() {
   const pendingFields = useRef({})
   const slugEdited = useRef(false)
   const excerptEdited = useRef(false)
+  const editorRef = useRef(null)
 
   useEffect(() => {
     fetch(`/api/admin/blog/posts/${id}`, { credentials: 'include' })
@@ -216,15 +217,22 @@ export default function AdminBlogEditorPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Editor area */}
         <div className="flex-1 overflow-y-auto bg-white">
-          <div className="max-w-3xl mx-auto px-6 py-10">
+          <div className="max-w-3xl mx-auto pt-10">
             <input
               type="text"
               value={title}
               onChange={handleTitleChange}
               placeholder="Post title"
-              className="w-full text-4xl font-bold text-gray-900 outline-none border-none bg-transparent placeholder-gray-300 leading-tight mb-8"
+              className="w-full text-4xl font-bold text-gray-900 outline-none border-none bg-transparent placeholder-gray-300 leading-tight px-6 pb-4"
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  editorRef.current?.focusAtStart()
+                }
+              }}
             />
             <RichTextEditor
+              ref={editorRef}
               key={post?.id}
               initialHtml={contentHtml}
               onChange={handleContentChange}
