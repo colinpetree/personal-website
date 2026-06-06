@@ -3,7 +3,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 from extensions import db
-from models import BlogPost, Comment
+from models import BlogPost, Comment, User
 from routes.admin_auth import admin_required
 
 admin_blog_bp = Blueprint('admin_blog', __name__)
@@ -143,13 +143,15 @@ def list_comments():
     comments = Comment.query.order_by(Comment.created_at.desc()).all()
     result = []
     for c in comments:
+        user = User.query.get(c.user_id) if c.user_id else None
         result.append({
             'id': c.id,
             'post_id': c.post_id,
             'post_title': c.post.title if c.post else None,
             'post_slug': c.post.slug if c.post else None,
-            'guest_name': c.guest_name,
-            'guest_email': c.guest_email,
+            'author_name': user.name if user else (c.guest_name or 'Anonymous'),
+            'author_email': user.email if user else c.guest_email,
+            'is_user': user is not None,
             'content': c.content,
             'created_at': c.created_at.isoformat(),
             'is_deleted': c.is_deleted,

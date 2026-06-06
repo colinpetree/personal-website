@@ -1,41 +1,116 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Heart, Reply, MoreHorizontal, ChevronDown, X } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 
-function CommentItem({ comment }) {
+// ── Utilities ──────────────────────────────────────────────────────────────
+
+function countAllComments(comments) {
+  return comments.reduce((n, c) => n + 1 + countAllComments(c.replies || []), 0)
+}
+
+function sortComments(comments, sort) {
+  const sorted = [...comments]
+  if (sort === 'Newest') sorted.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  else if (sort === 'Oldest') sorted.sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+  else sorted.sort((a, b) => {
+    const d = (b.like_count || 0) - (a.like_count || 0)
+    return d !== 0 ? d : new Date(a.created_at) - new Date(b.created_at)
+  })
+  return sorted
+}
+
+function formatDate(iso) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// ── Report Modal ───────────────────────────────────────────────────────────
+
+function ReportModal({ comment, slug, onClose }) {
+  const [submitting, setSubmitting] = useState(false)
+  const [done, setDone] = useState(false)
+
+  async function handleReport() {
+    setSubmitting(true)
+    try {
+      await fetch(`/api/blog/${slug}/comments/${comment.id}/report`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+    } catch {}
+    setDone(true)
+    setSubmitting(false)
+  }
+
   return (
-    <div className="py-4">
-      <div className="flex items-center gap-2 mb-1">
-        {comment.author_avatar ? (
-          <img
-            src={comment.author_avatar}
-            alt={comment.author_name}
-            className="w-6 h-6 rounded-full object-cover flex-shrink-0"
-            referrerPolicy="no-referrer"
-          />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40" />
+      <div
+        className="relative bg-white rounded-xl shadow-xl max-w-sm w-full p-6"
+        onClick={e => e.stopPropagation()}
+      >
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+          <X size={18} />
+        </button>
+        {done ? (
+          <>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Report sent</h2>
+            <p className="text-sm text-gray-600 mb-6">Thank you. The site owner has been notified.</p>
+            <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700">Close</button>
+          </>
         ) : (
-          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-500 flex-shrink-0">
-            {(comment.author_name || '?').charAt(0).toUpperCase()}
-          </div>
+          <>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Report this comment?</h2>
+            <p className="text-sm text-gray-700 mb-6">Your request will be sent to the owner of this site.</p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleReport}
+                disabled={submitting}
+                className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                {submitting ? 'Reporting…' : 'Report'}
+              </button>
+              <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">
+                Cancel
+              </button>
+            </div>
+          </>
         )}
-        <span className="font-medium text-gray-900 text-sm">
-          {comment.author_name || 'Anonymous'}
-          <span className="font-normal text-gray-400">
-            {comment.author_title
-              ? ` · ${comment.author_title} · `
-              : ' · '}
-            {new Date(comment.created_at).toLocaleDateString('en-US', {
-              month: 'short', day: 'numeric', year: 'numeric',
-            })}
-          </span>
-        </span>
       </div>
-      <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap ml-8">{comment.content}</p>
-      {comment.replies?.length > 0 && (
-        <div className="ml-8 mt-3 border-l-2 border-gray-100 pl-4 flex flex-col gap-3">
-          {comment.replies.map(r => (
-            <CommentItem key={r.id} comment={r} />
+    </div>
+  )
+}
+
+// ── Sort Dropdown ──────────────────────────────────────────────────────────
+
+function SortDropdown({ sort, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handle(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [])
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="flex items-center gap-1 text-sm font-bold text-gray-700 hover:text-gray-900"
+      >
+        Sort by: {sort} <ChevronDown size={13} strokeWidth={2.5} />
+      </button>
+      {open && (
+        <div className="absolute left-0 top-7 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[110px]">
+          {['Best', 'Newest', 'Oldest'].map(opt => (
+            <button
+              key={opt}
+              onClick={() => { onChange(opt); setOpen(false) }}
+              className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors ${sort === opt ? 'font-semibold text-gray-900' : 'text-gray-700'}`}
+            >
+              {opt}
+            </button>
           ))}
         </div>
       )}
@@ -43,7 +118,9 @@ function CommentItem({ comment }) {
   )
 }
 
-function UserCommentForm({ slug, parentId, onSuccess, onCancel }) {
+// ── Comment Forms ──────────────────────────────────────────────────────────
+
+function UserCommentForm({ slug, parentId, parentComment, onSuccess, onCancel, isReply = false }) {
   const { user, loginWithGoogle } = useUserAuth()
   const [content, setContent] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -93,18 +170,25 @@ function UserCommentForm({ slug, parentId, onSuccess, onCancel }) {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
+      <div className="flex items-start gap-2">
         {user.avatar_url ? (
-          <img src={user.avatar_url} alt={user.name} className="w-7 h-7 rounded-full object-cover" referrerPolicy="no-referrer" />
+          <img src={user.avatar_url} alt={user.name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" referrerPolicy="no-referrer" />
         ) : (
-          <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-600">
+          <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-600 flex-shrink-0">
             {user.name.charAt(0).toUpperCase()}
           </div>
         )}
-        <span className="text-sm font-medium text-gray-900">
-          {user.name}
-          {user.title && <span className="font-normal text-gray-400"> · {user.title}</span>}
-        </span>
+        <div>
+          <span className="text-sm font-medium text-gray-900">
+            {user.name}
+            {user.title && <span className="font-normal text-gray-400"> · {user.title}</span>}
+          </span>
+          {isReply && parentComment && (
+            <p className="text-xs text-gray-400 mt-0.5 truncate">
+              Reply to: <span className="font-semibold">{parentComment.content}</span>
+            </p>
+          )}
+        </div>
       </div>
       <div className="rounded-md border border-gray-300 focus-within:ring-2 focus-within:ring-gray-400">
         <textarea
@@ -112,21 +196,22 @@ function UserCommentForm({ slug, parentId, onSuccess, onCancel }) {
           onChange={e => setContent(e.target.value)}
           required
           rows={4}
-          placeholder="Write a comment…"
+          placeholder={isReply ? 'Reply to comment…' : 'Write a comment…'}
           className="w-full rounded-t-md px-3 py-2 text-sm focus:outline-none resize-none"
+          autoFocus={isReply}
         />
-        <div className="flex items-center justify-between px-2 py-2">
-          {onCancel ? (
+        <div className="flex items-center justify-end gap-1 px-2 py-2">
+          {onCancel && (
             <button type="button" onClick={onCancel} className="text-sm text-gray-500 hover:text-gray-700 px-2 py-1">
               Cancel
             </button>
-          ) : <span />}
+          )}
           <button
             type="submit"
             disabled={submitting || !content.trim()}
             className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${content.trim() ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-100 text-gray-400'}`}
           >
-            {submitting ? 'Posting…' : 'Add comment'}
+            {submitting ? 'Posting…' : isReply ? 'Add reply' : 'Add comment'}
           </button>
         </div>
       </div>
@@ -135,7 +220,7 @@ function UserCommentForm({ slug, parentId, onSuccess, onCancel }) {
   )
 }
 
-function GuestCommentForm({ slug, parentId, onSuccess, onCancel }) {
+function GuestCommentForm({ slug, parentId, parentComment, onSuccess, onCancel, isReply = false }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [content, setContent] = useState('')
@@ -170,32 +255,29 @@ function GuestCommentForm({ slug, parentId, onSuccess, onCancel }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Name *</label>
-          <input
-            value={name}
-            onChange={e => setName(e.target.value)}
-            required
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-          />
+          <input value={name} onChange={e => setName(e.target.value)} required className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-700 mb-1">Email (optional)</label>
-          <input
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
-          />
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
         </div>
       </div>
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Comment *</label>
+        {!isReply && <label className="block text-xs font-medium text-gray-700 mb-1">Comment *</label>}
+        {isReply && parentComment && (
+          <p className="text-xs text-gray-400 mb-2 truncate">
+            Reply to: <span className="font-semibold">{parentComment.content}</span>
+          </p>
+        )}
         <div className="rounded-md border border-gray-300 focus-within:ring-2 focus-within:ring-gray-400">
           <textarea
             value={content}
             onChange={e => setContent(e.target.value)}
             required
             rows={4}
+            placeholder={isReply ? 'Reply to comment…' : undefined}
             className="w-full rounded-t-md px-3 py-2 text-sm focus:outline-none resize-none"
+            autoFocus={isReply}
           />
           <div className="flex items-center justify-between px-2 py-2">
             {onCancel ? (
@@ -208,7 +290,7 @@ function GuestCommentForm({ slug, parentId, onSuccess, onCancel }) {
               disabled={submitting || !content.trim()}
               className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${content.trim() ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-100 text-gray-400'}`}
             >
-              {submitting ? 'Posting…' : 'Add comment'}
+              {submitting ? 'Posting…' : isReply ? 'Add reply' : 'Add comment'}
             </button>
           </div>
         </div>
@@ -218,13 +300,183 @@ function GuestCommentForm({ slug, parentId, onSuccess, onCancel }) {
   )
 }
 
+// ── Comment Item ───────────────────────────────────────────────────────────
+
+function CommentItem({ comment, slug, usersEnabled, currentUserId, likedIds, likeDeltas, onLike, onReport, onReplySuccess, depth = 0 }) {
+  const [showReplyForm, setShowReplyForm] = useState(false)
+  const [repliesVisible, setRepliesVisible] = useState(true)
+  const [showMoreMenu, setShowMoreMenu] = useState(false)
+  const moreRef = useRef(null)
+
+  const liked = likedIds.has(comment.id)
+  const likeCount = (comment.like_count || 0) + (likeDeltas[comment.id] || 0)
+  const isOwnComment = currentUserId && comment.user_id === currentUserId
+  const hasReplies = comment.replies?.length > 0
+  const ReplyForm = usersEnabled ? UserCommentForm : GuestCommentForm
+  const replyParentComment = depth > 0 ? comment : null
+
+  useEffect(() => {
+    if (!showMoreMenu) return
+    function handle(e) {
+      if (moreRef.current && !moreRef.current.contains(e.target)) setShowMoreMenu(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [showMoreMenu])
+
+  function handleReplySuccess() {
+    setShowReplyForm(false)
+    onReplySuccess()
+  }
+
+  return (
+    <div id={`comment-${comment.id}`} className="flex gap-3 py-4">
+      {/* Left: avatar + thread line */}
+      <div className="flex flex-col items-center flex-shrink-0 w-6">
+        {comment.author_avatar ? (
+          <img
+            src={comment.author_avatar}
+            alt={comment.author_name}
+            className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+            referrerPolicy="no-referrer"
+          />
+        ) : (
+          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-500 flex-shrink-0">
+            {(comment.author_name || '?').charAt(0).toUpperCase()}
+          </div>
+        )}
+        {hasReplies && (
+          <div
+            className={`w-0.5 flex-1 mt-1.5 rounded-full cursor-pointer transition-colors ${repliesVisible ? 'bg-gray-200 hover:bg-gray-400' : 'bg-gray-100 hover:bg-gray-300'}`}
+            onClick={() => setRepliesVisible(v => !v)}
+          />
+        )}
+      </div>
+
+      {/* Right: content */}
+      <div className="flex-1 min-w-0">
+        {/* Name + date */}
+        <span className="font-medium text-gray-900 text-sm">
+          {comment.author_name || 'Anonymous'}
+          <span className="font-normal text-gray-400">
+            {comment.author_title ? ` · ${comment.author_title} · ` : ' · '}
+            {formatDate(comment.created_at)}
+          </span>
+        </span>
+
+        {/* Content */}
+        <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap mt-1">{comment.content}</p>
+
+        {/* Action row */}
+        <div className="flex items-center gap-4 mt-2">
+          <button
+            onClick={() => !isOwnComment && onLike(comment.id, liked)}
+            disabled={isOwnComment}
+            className={`flex items-center gap-1 text-xs transition-colors ${isOwnComment ? 'text-gray-300' : 'text-gray-400 hover:text-red-500'}`}
+          >
+            <Heart
+              size={13}
+              className="transition-colors"
+              fill={liked ? 'currentColor' : 'none'}
+              style={liked && !isOwnComment ? { color: '#ef4444' } : {}}
+            />
+            {likeCount > 0 && (
+              <span className={liked && !isOwnComment ? 'text-red-500' : ''}>{likeCount}</span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setShowReplyForm(v => !v)}
+            className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <Reply size={13} />
+            Reply
+          </button>
+
+          <div className="relative" ref={moreRef}>
+            <button
+              onClick={() => setShowMoreMenu(v => !v)}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <MoreHorizontal size={14} />
+            </button>
+            {showMoreMenu && (
+              <div className="absolute left-0 top-5 z-20 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]">
+                <button
+                  onClick={() => { onReport(comment); setShowMoreMenu(false) }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Report comment
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Inline reply form */}
+        {showReplyForm && (
+          <div className="mt-3">
+            <ReplyForm
+              slug={slug}
+              parentId={comment.id}
+              parentComment={replyParentComment}
+              onSuccess={handleReplySuccess}
+              onCancel={() => setShowReplyForm(false)}
+              isReply={true}
+            />
+          </div>
+        )}
+
+        {/* Replies */}
+        {hasReplies && repliesVisible && (
+          <div className="mt-1">
+            {comment.replies.map(r => (
+              <CommentItem
+                key={r.id}
+                comment={r}
+                slug={slug}
+                usersEnabled={usersEnabled}
+                currentUserId={currentUserId}
+                likedIds={likedIds}
+                likeDeltas={likeDeltas}
+                onLike={onLike}
+                onReport={onReport}
+                onReplySuccess={onReplySuccess}
+                depth={depth + 1}
+              />
+            ))}
+          </div>
+        )}
+        {hasReplies && !repliesVisible && (
+          <button
+            onClick={() => setRepliesVisible(true)}
+            className="mt-2 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            Show {comment.replies.length} {comment.replies.length === 1 ? 'reply' : 'replies'}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Blog Post Page ─────────────────────────────────────────────────────────
+
 export default function BlogPostPage() {
   const { slug } = useParams()
+  const { user: currentUser } = useUserAuth()
   const [post, setPost] = useState(null)
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [siteConfig, setSiteConfig] = useState(null)
+  const [sort, setSort] = useState('Best')
+  const [reportingComment, setReportingComment] = useState(null)
+  const [likeDeltas, setLikeDeltas] = useState({})
+  const [likedIds, setLikedIds] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('liked_comments') || '[]')) }
+    catch { return new Set() }
+  })
 
   async function fetchPost() {
     const res = await fetch(`/api/blog/${slug}`)
@@ -235,7 +487,10 @@ export default function BlogPostPage() {
 
   async function fetchComments() {
     const res = await fetch(`/api/blog/${slug}/comments`)
-    if (res.ok) setComments(await res.json())
+    if (res.ok) {
+      setComments(await res.json())
+      setLikeDeltas({})
+    }
   }
 
   useEffect(() => {
@@ -243,6 +498,26 @@ export default function BlogPostPage() {
     fetchComments()
     fetch('/api/site-config').then(r => r.ok ? r.json() : null).then(d => { if (d) setSiteConfig(d) })
   }, [slug])
+
+  function handleLike(commentId, currentlyLiked) {
+    const delta = currentlyLiked ? -1 : 1
+    const newLikedIds = new Set(likedIds)
+    if (currentlyLiked) newLikedIds.delete(commentId)
+    else newLikedIds.add(commentId)
+
+    setLikedIds(newLikedIds)
+    setLikeDeltas(prev => ({ ...prev, [commentId]: (prev[commentId] || 0) + delta }))
+    localStorage.setItem('liked_comments', JSON.stringify([...newLikedIds]))
+
+    fetch(`/api/blog/${slug}/comments/${commentId}/like`, {
+      method: currentlyLiked ? 'DELETE' : 'POST',
+      credentials: 'include',
+    }).catch(() => {
+      setLikedIds(likedIds)
+      setLikeDeltas(prev => ({ ...prev, [commentId]: (prev[commentId] || 0) - delta }))
+      localStorage.setItem('liked_comments', JSON.stringify([...likedIds]))
+    })
+  }
 
   if (loading) return <main className="max-w-3xl mx-auto px-6 py-16"><p className="text-gray-400">Loading…</p></main>
 
@@ -257,9 +532,19 @@ export default function BlogPostPage() {
 
   const usersEnabled = siteConfig?.users_enabled ?? false
   const CommentForm = usersEnabled ? UserCommentForm : GuestCommentForm
+  const sortedComments = sortComments(comments, sort)
+  const totalComments = countAllComments(comments)
 
   return (
     <main className="max-w-3xl mx-auto px-6 py-16">
+      {reportingComment && (
+        <ReportModal
+          comment={reportingComment}
+          slug={slug}
+          onClose={() => setReportingComment(null)}
+        />
+      )}
+
       <h1 className="text-4xl font-bold text-gray-900 mb-3 leading-tight">{post.title}</h1>
       <p className="text-sm text-gray-400 mb-8">
         {new Date(post.publish_date || post.created_at).toLocaleDateString('en-US', {
@@ -283,9 +568,9 @@ export default function BlogPostPage() {
       <section>
         <div className="flex items-baseline justify-between mb-10">
           <h2 className="text-xl font-bold text-gray-900">Discussion</h2>
-          {comments.length > 0 && (
+          {totalComments > 0 && (
             <span className="text-sm text-gray-400">
-              {comments.length === 1 ? '1 comment' : `${comments.length} comments`}
+              {totalComments === 1 ? '1 comment' : `${totalComments} comments`}
             </span>
           )}
         </div>
@@ -295,12 +580,28 @@ export default function BlogPostPage() {
         </div>
 
         {comments.length > 0 && (
-          <div className="divide-y divide-gray-100 mb-8">
-            {comments.map(c => <CommentItem key={c.id} comment={c} />)}
-          </div>
+          <>
+            <div className="mb-4">
+              <SortDropdown sort={sort} onChange={setSort} />
+            </div>
+            <div className="divide-y divide-gray-100">
+              {sortedComments.map(c => (
+                <CommentItem
+                  key={c.id}
+                  comment={c}
+                  slug={slug}
+                  usersEnabled={usersEnabled}
+                  currentUserId={currentUser?.id}
+                  likedIds={likedIds}
+                  likeDeltas={likeDeltas}
+                  onLike={handleLike}
+                  onReport={setReportingComment}
+                  onReplySuccess={fetchComments}
+                />
+              ))}
+            </div>
+          </>
         )}
-
-
       </section>
     </main>
   )
