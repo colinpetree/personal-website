@@ -19,11 +19,16 @@ function CommentItem({ comment }) {
             {(comment.author_name || '?').charAt(0).toUpperCase()}
           </div>
         )}
-        <span className="font-medium text-gray-900 text-sm">{comment.author_name || 'Anonymous'}</span>
-        <span className="text-xs text-gray-400">
-          {new Date(comment.created_at).toLocaleDateString('en-US', {
-            month: 'short', day: 'numeric', year: 'numeric',
-          })}
+        <span className="font-medium text-gray-900 text-sm">
+          {comment.author_name || 'Anonymous'}
+          <span className="font-normal text-gray-400">
+            {comment.author_title
+              ? ` · ${comment.author_title} · `
+              : ' · '}
+            {new Date(comment.created_at).toLocaleDateString('en-US', {
+              month: 'short', day: 'numeric', year: 'numeric',
+            })}
+          </span>
         </span>
       </div>
       <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap ml-8">{comment.content}</p>
@@ -96,31 +101,36 @@ function UserCommentForm({ slug, parentId, onSuccess, onCancel }) {
             {user.name.charAt(0).toUpperCase()}
           </div>
         )}
-        <span className="text-sm font-medium text-gray-900">{user.name}</span>
+        <span className="text-sm font-medium text-gray-900">
+          {user.name}
+          {user.title && <span className="font-normal text-gray-400"> · {user.title}</span>}
+        </span>
       </div>
-      <textarea
-        value={content}
-        onChange={e => setContent(e.target.value)}
-        required
-        rows={4}
-        placeholder="Write a comment…"
-        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 resize-y"
-      />
-      {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
-        >
-          {submitting ? 'Posting…' : 'Post comment'}
-        </button>
-        {onCancel && (
-          <button type="button" onClick={onCancel} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">
-            Cancel
+      <div className="rounded-md border border-gray-300 focus-within:ring-2 focus-within:ring-gray-400">
+        <textarea
+          value={content}
+          onChange={e => setContent(e.target.value)}
+          required
+          rows={4}
+          placeholder="Write a comment…"
+          className="w-full rounded-t-md px-3 py-2 text-sm focus:outline-none resize-none"
+        />
+        <div className="flex items-center justify-between px-2 py-2">
+          {onCancel ? (
+            <button type="button" onClick={onCancel} className="text-sm text-gray-500 hover:text-gray-700 px-2 py-1">
+              Cancel
+            </button>
+          ) : <span />}
+          <button
+            type="submit"
+            disabled={submitting || !content.trim()}
+            className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${content.trim() ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-100 text-gray-400'}`}
+          >
+            {submitting ? 'Posting…' : 'Add comment'}
           </button>
-        )}
+        </div>
       </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
     </form>
   )
 }
@@ -179,29 +189,31 @@ function GuestCommentForm({ slug, parentId, onSuccess, onCancel }) {
       </div>
       <div>
         <label className="block text-xs font-medium text-gray-700 mb-1">Comment *</label>
-        <textarea
-          value={content}
-          onChange={e => setContent(e.target.value)}
-          required
-          rows={4}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 resize-y"
-        />
+        <div className="rounded-md border border-gray-300 focus-within:ring-2 focus-within:ring-gray-400">
+          <textarea
+            value={content}
+            onChange={e => setContent(e.target.value)}
+            required
+            rows={4}
+            className="w-full rounded-t-md px-3 py-2 text-sm focus:outline-none resize-none"
+          />
+          <div className="flex items-center justify-between px-2 py-2">
+            {onCancel ? (
+              <button type="button" onClick={onCancel} className="text-sm text-gray-500 hover:text-gray-700 px-2 py-1">
+                Cancel
+              </button>
+            ) : <span />}
+            <button
+              type="submit"
+              disabled={submitting || !content.trim()}
+              className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${content.trim() ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-100 text-gray-400'}`}
+            >
+              {submitting ? 'Posting…' : 'Add comment'}
+            </button>
+          </div>
+        </div>
       </div>
       {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
-        >
-          {submitting ? 'Posting…' : 'Post comment'}
-        </button>
-        {onCancel && (
-          <button type="button" onClick={onCancel} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2">
-            Cancel
-          </button>
-        )}
-      </div>
     </form>
   )
 }
@@ -269,9 +281,18 @@ export default function BlogPostPage() {
       />
 
       <section>
-        <h2 className="text-xl font-bold text-gray-900 mb-6">
-          Comments{comments.length > 0 ? ` (${comments.length})` : ''}
-        </h2>
+        <div className="flex items-baseline justify-between mb-10">
+          <h2 className="text-xl font-bold text-gray-900">Discussion</h2>
+          {comments.length > 0 && (
+            <span className="text-sm text-gray-400">
+              {comments.length === 1 ? '1 comment' : `${comments.length} comments`}
+            </span>
+          )}
+        </div>
+
+        <div className="mb-8">
+          <CommentForm slug={slug} onSuccess={fetchComments} />
+        </div>
 
         {comments.length > 0 && (
           <div className="divide-y divide-gray-100 mb-8">
@@ -279,10 +300,7 @@ export default function BlogPostPage() {
           </div>
         )}
 
-        <div className="border-t border-gray-200 pt-8">
-          <h3 className="text-base font-semibold text-gray-900 mb-4">Leave a comment</h3>
-          <CommentForm slug={slug} onSuccess={fetchComments} />
-        </div>
+
       </section>
     </main>
   )
