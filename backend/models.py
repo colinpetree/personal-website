@@ -106,12 +106,27 @@ class BlogPost(db.Model):
     comments = db.relationship('Comment', backref='post', lazy='dynamic', cascade='all, delete-orphan')
 
 
+class User(db.Model):
+    __tablename__ = 'user'
+
+    id = db.Column(db.Integer, primary_key=True)
+    google_id = db.Column(db.String(255), nullable=False, unique=True)
+    email = db.Column(db.String(255), nullable=False, unique=True)
+    name = db.Column(db.String(200), nullable=False)
+    title = db.Column(db.String(200), nullable=True)
+    avatar_url = db.Column(db.Text, nullable=True)
+    can_comment = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    comments = db.relationship('Comment', backref='user', lazy='dynamic')
+
+
 class Comment(db.Model):
     __tablename__ = 'comment'
 
     id = db.Column(db.Integer, primary_key=True)
     post_id = db.Column(db.Integer, db.ForeignKey('blog_post.id'), nullable=False)
-    user_id = db.Column(db.Integer, nullable=True)  # FK → User (Phase 6)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=True)
     content = db.Column(db.Text, nullable=False)
     guest_name = db.Column(db.String(200), nullable=True)

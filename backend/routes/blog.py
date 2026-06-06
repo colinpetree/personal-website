@@ -1,7 +1,7 @@
 from datetime import datetime
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, session
 from extensions import db
-from models import BlogPost, Comment
+from models import BlogPost, Comment, SiteConfig, User
 
 blog_bp = Blueprint('blog', __name__)
 
@@ -27,9 +27,13 @@ def _post_to_dict(post, include_content=False):
 
 
 def _comment_dict(c):
+    user = User.query.get(c.user_id) if c.user_id else None
     return {
         'id': c.id,
         'content': c.content,
+        'author_name': user.name if user else (c.guest_name or 'Anonymous'),
+        'author_avatar': user.avatar_url if user else None,
+        'is_user': user is not None,
         'guest_name': c.guest_name,
         'created_at': c.created_at.isoformat(),
         'replies': [
@@ -98,25 +102,38 @@ def list_comments(slug):
 @blog_bp.route('/api/blog/<slug>/comments', methods=['POST'])
 def post_comment(slug):
     post = BlogPost.query.filter_by(slug=slug, status='published').first_or_404()
+    config = SiteConfig.query.first()
     data = request.get_json(silent=True) or {}
-
-    name = (data.get('name') or '').strip()
-    email = (data.get('email') or '').strip()
-    content = (data.get('content') or '').strip()
     parent_id = data.get('parent_id')
+    content = (data.get('content') or '').strip()
 
-    if not name or not content:
-        return jsonify({'error': 'Name and message are required.'}), 400
-    if email and '@' not in email:
-        return jsonify({'error': 'Invalid email address.'}), 400
+    if config and config.users_enabled:
+        uid = session.get('user_id')
+        if not uid:
+            return jsonify({'error': 'Sign in with Google to comment.'}), 401
+        user = User.query.get(uid)
+        if not user:
+            return jsonify({'error': 'User not found.'}), 401
+        if not user.can_comment:
+            return jsonify({'error': 'You are not allowed to comment.'}), 403
+        if not content:
+            return jsonify({'error': 'Message is required.'}), 400
+        comment = Comment(post_id=post.id, user_id=uid, parent_id=parent_id, content=content)
+    else:
+        name = (data.get('name') or '').strip()
+        email = (data.get('email') or '').strip()
+        if not name or not content:
+            return jsonify({'error': 'Name and message are required.'}), 400
+        if email and '@' not in email:
+            return jsonify({'error': 'Invalid email address.'}), 400
+        comment = Comment(
+            post_id=post.id,
+            parent_id=parent_id,
+            content=content,
+            guest_name=name,
+            guest_email=email or None,
+        )
 
-    comment = Comment(
-        post_id=post.id,
-        parent_id=parent_id,
-        content=content,
-        guest_name=name,
-        guest_email=email or None,
-    )
     db.session.add(comment)
     db.session.commit()
     return jsonify(_comment_dict(comment)), 201

@@ -25,6 +25,11 @@ def _config_to_dict(config):
         'users_enabled': config.users_enabled,
         'google_oauth_client_id': config.google_oauth_client_id,
         'google_oauth_client_secret_set': bool(config.google_oauth_client_secret),
+        'google_oauth_redirect_uri': (
+            f'https://{config.domain}/api/auth/google/callback'
+            if config.domain and not current_app.debug
+            else request.host_url.rstrip('/') + '/api/auth/google/callback'
+        ),
         'home_enabled': config.home_enabled,
         'home_page_name': config.home_page_name,
         'home_text': config.home_text,
