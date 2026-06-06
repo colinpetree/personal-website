@@ -1,20 +1,75 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAdminAuth } from '../../context/AdminAuthContext'
 import { ToastProvider } from './Toast'
 
-const NAV_ITEMS = [
-  { to: '/admin', label: 'Settings', end: true },
-  { to: '/admin/home', label: 'Home' },
-  { to: '/admin/blog', label: 'Blog' },
-  { to: '/admin/projects', label: 'Projects' },
-  { to: '/admin/about', label: 'About' },
-  { to: '/admin/contact', label: 'Contact' },
-  { to: '/admin/demo', label: 'AI Demo' },
-  { to: '/admin/donate', label: 'Donate' },
-  { to: '/admin/accounts', label: 'Accounts' },
-  { to: '/admin/users', label: 'Users' },
+const NAV_GROUPS = [
+  {
+    label: 'Site Pages',
+    items: [
+      { to: '/admin/home', label: 'Home' },
+      { to: '/admin/blog', label: 'Blog' },
+      { to: '/admin/projects', label: 'Projects' },
+      { to: '/admin/about', label: 'About' },
+      { to: '/admin/contact', label: 'Contact' },
+      { to: '/admin/demo', label: 'AI Demo' },
+      { to: '/admin/donate', label: 'Donate' },
+    ],
+  },
+  {
+    label: 'System Settings',
+    defaultCollapsed: true,
+    items: [
+      { to: '/admin', label: 'Site Settings', end: true },
+      { to: '/admin/accounts', label: 'Admin Accounts' },
+      { to: '/admin/users', label: 'Users' },
+    ],
+  },
 ]
+
+function NavGroup({ label, items, defaultCollapsed = false }) {
+  const [open, setOpen] = useState(!defaultCollapsed)
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider text-gray-500 hover:text-gray-300 transition-colors"
+      >
+        <span>{label}</span>
+        <svg
+          className={`w-3 h-3 transition-transform ${open ? 'rotate-90' : ''}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2.5}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="flex flex-col gap-0.5 mt-0.5 mb-2">
+          {items.map(item => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) =>
+                `block px-3 py-2 rounded-md text-sm transition-colors ${
+                  isActive
+                    ? 'bg-gray-700 text-white font-medium'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                }`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function AdminLayout() {
   const { admin, loading, logout } = useAdminAuth()
@@ -48,22 +103,14 @@ export default function AdminLayout() {
           <span className="text-white font-semibold text-sm">Admin Panel</span>
         </div>
 
-        <nav className="flex-1 px-3 py-4 flex flex-col gap-0.5">
-          {NAV_ITEMS.map(item => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                `block px-3 py-2 rounded-md text-sm transition-colors ${
-                  isActive
-                    ? 'bg-gray-700 text-white font-medium'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                }`
-              }
-            >
-              {item.label}
-            </NavLink>
+        <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
+          {NAV_GROUPS.map(group => (
+            <NavGroup
+              key={group.label}
+              label={group.label}
+              items={group.items}
+              defaultCollapsed={group.defaultCollapsed}
+            />
           ))}
         </nav>
 
