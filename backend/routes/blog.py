@@ -2,6 +2,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request, session
 from extensions import db
 from models import BlogPost, Comment, SiteConfig, User
+from crypto import decrypt
 
 blog_bp = Blueprint('blog', __name__)
 
@@ -34,14 +35,27 @@ def _comment_dict(c):
         'author_name': user.name if user else (c.guest_name or 'Anonymous'),
         'author_title': user.title if user else None,
         'author_avatar': user.avatar_url if user else None,
+        'user_id': c.user_id,
         'is_user': user is not None,
         'guest_name': c.guest_name,
+        'like_count': c.like_count or 0,
         'created_at': c.created_at.isoformat(),
         'replies': [
             _comment_dict(r)
             for r in c.replies.filter_by(is_deleted=False).order_by(Comment.created_at).all()
         ],
     }
+
+
+def _smtp_ready(config):
+    return bool(
+        config
+        and config.smtp_host
+        and config.smtp_user
+        and config.smtp_password
+        and config.smtp_from_email
+        and config.forward_email
+    )
 
 
 def _promote_scheduled():
@@ -138,3 +152,44 @@ def post_comment(slug):
     db.session.add(comment)
     db.session.commit()
     return jsonify(_comment_dict(comment)), 201
+
+
+@blog_bp.route('/api/blog/<slug>/comments/<int:comment_id>/like', methods=['POST', 'DELETE'])
+def toggle_like(slug, comment_id):
+    post = BlogPost.query.filter_by(slug=slug).first_or_404()
+    comment = Comment.query.filter_by(id=comment_id, post_id=post.id, is_deleted=False).first_or_404()
+    if request.method == 'POST':
+        comment.like_count = (comment.like_count or 0) + 1
+    else:
+        comment.like_count = max(0, (comment.like_count or 0) - 1)
+    db.session.commit()
+    return jsonify({'like_count': comment.like_count})
+
+
+@blog_bp.route('/api/blog/<slug>/comments/<int:comment_id>/report', methods=['POST'])
+def report_comment(slug, comment_id):
+    from routes.contact import _send_email
+    post = BlogPost.query.filter_by(slug=slug).first_or_404()
+    comment = Comment.query.filter_by(id=comment_id, post_id=post.id, is_deleted=False).first_or_404()
+    config = SiteConfig.query.first()
+
+    if _smtp_ready(config):
+        author = User.query.get(comment.user_id) if comment.user_id else None
+        author_name = author.name if author else (comment.guest_name or 'Anonymous')
+        author_email = author.email if author else (comment.guest_email or 'N/A')
+        domain = (config.domain or 'localhost:5173').rstrip('/')
+        post_url = f"https://{domain}/blog/{post.slug}#comment-{comment.id}"
+        body = (
+            f"A comment has been reported on your website.\n\n"
+            f"Comment by: {author_name} ({author_email})\n"
+            f"Posted on: {comment.created_at.strftime('%B %d, %Y')}\n\n"
+            f"Comment text:\n{comment.content}\n\n"
+            f"View comment: {post_url}"
+        )
+        try:
+            config.smtp_password = decrypt(config.smtp_password)
+            _send_email(config, config.forward_email, 'Website Comment Reported', body)
+        except Exception:
+            pass
+
+    return jsonify({'ok': True})

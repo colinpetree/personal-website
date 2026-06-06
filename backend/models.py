@@ -131,6 +131,7 @@ class Comment(db.Model):
     content = db.Column(db.Text, nullable=False)
     guest_name = db.Column(db.String(200), nullable=True)
     guest_email = db.Column(db.String(255), nullable=True)
+    like_count = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     is_deleted = db.Column(db.Boolean, nullable=False, default=False)
 
