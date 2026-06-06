@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
-import { PageShell, Card, EditableCard, Field, Input, Textarea, Toggle } from '../../components/admin/AdminPage'
+import { PageShell, Card, EditableCard, Field, Input, Textarea } from '../../components/admin/AdminPage'
 import FileDropzone from '../../components/admin/FileDropzone'
 
 const TIMEZONES = [
@@ -247,53 +247,6 @@ export default function AdminSettingsPage() {
             </Field>
           ) : (
             <DisplayValue value={local.domain} fallback="No domain set" />
-          )}
-        </EditableCard>
-
-        {/* User accounts card */}
-        <EditableCard
-          title="User accounts"
-          description="Allow users to sign up to leave comments on posts"
-          savedValues={{
-            users_enabled: config?.users_enabled || false,
-            google_oauth_client_id: config?.google_oauth_client_id || '',
-            google_oauth_client_secret: '',
-          }}
-          onSave={values => {
-            const payload = { users_enabled: values.users_enabled, google_oauth_client_id: values.google_oauth_client_id }
-            if (values.google_oauth_client_secret) payload.google_oauth_client_secret = values.google_oauth_client_secret
-            return save(payload)
-          }}
-        >
-          {({ editing, local, set }) => editing ? (
-            <>
-              <Toggle label="Enable user accounts" checked={local.users_enabled} onChange={v => set('users_enabled', v)} />
-              {local.users_enabled && (
-                <>
-                  <Field label="Google OAuth Client ID">
-                    <Input value={local.google_oauth_client_id} onChange={e => set('google_oauth_client_id', e.target.value)} />
-                  </Field>
-                  <Field
-                    label="Google OAuth Client Secret"
-                    hint={config?.google_oauth_client_secret_set ? 'Currently set — enter a new value to replace it.' : ''}
-                  >
-                    <Input
-                      type="password"
-                      value={local.google_oauth_client_secret}
-                      onChange={e => set('google_oauth_client_secret', e.target.value)}
-                      placeholder={config?.google_oauth_client_secret_set ? '••••••••' : ''}
-                    />
-                  </Field>
-                </>
-              )}
-            </>
-          ) : (
-            <p className="text-sm">
-              {local.users_enabled
-                ? <span className="text-[#30cf43] font-medium">Enabled</span>
-                : <span className="text-gray-400">Disabled</span>
-              }
-            </p>
           )}
         </EditableCard>
 

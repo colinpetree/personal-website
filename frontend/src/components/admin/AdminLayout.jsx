@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { to: '/admin/demo', label: 'AI Demo' },
   { to: '/admin/donate', label: 'Donate' },
   { to: '/admin/accounts', label: 'Accounts' },
+  { to: '/admin/users', label: 'Users' },
 ]
 
 export default function AdminLayout() {

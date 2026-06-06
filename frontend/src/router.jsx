@@ -23,6 +23,8 @@ import AdminAccountsPage from './pages/admin/AdminAccountsPage'
 import AdminBlogPostsPage from './pages/admin/AdminBlogPostsPage'
 import AdminBlogEditorPage from './pages/admin/AdminBlogEditorPage'
 import AdminBlogCommentsPage from './pages/admin/AdminBlogCommentsPage'
+import AdminUsersPage from './pages/admin/AdminUsersPage'
+import UserProfilePage from './pages/UserProfilePage'
 
 const router = createBrowserRouter([
   // Public site — Navbar layout
@@ -38,6 +40,7 @@ const router = createBrowserRouter([
       { path: 'contact', element: <ContactPage /> },
       { path: 'demo', element: <AIDemoPage /> },
       { path: 'donate', element: <DonatePage /> },
+      { path: 'profile', element: <UserProfilePage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
@@ -63,6 +66,7 @@ const router = createBrowserRouter([
       { path: 'demo', element: <AdminAIDemoPage /> },
       { path: 'donate', element: <AdminDonatePage /> },
       { path: 'accounts', element: <AdminAccountsPage /> },
+      { path: 'users', element: <AdminUsersPage /> },
     ],
   },
 ])
