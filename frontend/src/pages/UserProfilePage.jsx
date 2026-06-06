@@ -1,10 +1,8 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useUserAuth } from '../context/UserAuthContext'
 
 export default function UserProfilePage() {
-  const { user, loading, updateProfile, logout } = useUserAuth()
-  const navigate = useNavigate()
+  const { user, loading, updateProfile } = useUserAuth()
   const [name, setName] = useState('')
   const [title, setTitle] = useState('')
   const [editing, setEditing] = useState(false)
@@ -55,11 +53,6 @@ export default function UserProfilePage() {
     } finally {
       setSaving(false)
     }
-  }
-
-  async function handleLogout() {
-    await logout()
-    navigate('/')
   }
 
   return (
@@ -140,14 +133,6 @@ export default function UserProfilePage() {
         )}
       </div>
 
-      <div className="mt-8">
-        <button
-          onClick={handleLogout}
-          className="text-sm text-gray-500 hover:text-gray-700"
-        >
-          Sign out
-        </button>
-      </div>
     </main>
   )
 }

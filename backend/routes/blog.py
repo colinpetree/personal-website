@@ -32,6 +32,7 @@ def _comment_dict(c):
         'id': c.id,
         'content': c.content,
         'author_name': user.name if user else (c.guest_name or 'Anonymous'),
+        'author_title': user.title if user else None,
         'author_avatar': user.avatar_url if user else None,
         'is_user': user is not None,
         'guest_name': c.guest_name,
