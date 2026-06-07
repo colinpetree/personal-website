@@ -28,21 +28,25 @@ class SiteConfig(db.Model):
     # Blog
     blog_enabled = db.Column(db.Boolean, nullable=False, default=False)
     blog_page_name = db.Column(db.String(100), nullable=False, default='Blog')
+    blog_slug = db.Column(db.String(100), nullable=False, default='blog')
 
     # Projects
     projects_enabled = db.Column(db.Boolean, nullable=False, default=False)
     projects_page_name = db.Column(db.String(100), nullable=False, default='Projects')
     projects_text = db.Column(db.Text, nullable=True)
+    projects_slug = db.Column(db.String(100), nullable=False, default='projects')
 
     # About
     about_enabled = db.Column(db.Boolean, nullable=False, default=False)
     about_page_name = db.Column(db.String(100), nullable=False, default='About')
     about_text = db.Column(db.Text, nullable=True)
     headshot_filename = db.Column(db.String(255), nullable=True)
+    about_slug = db.Column(db.String(100), nullable=False, default='about')
 
     # Contact
     contact_enabled = db.Column(db.Boolean, nullable=False, default=False)
     contact_page_name = db.Column(db.String(100), nullable=False, default='Contact')
+    contact_slug = db.Column(db.String(100), nullable=False, default='contact')
     smtp_host = db.Column(db.String(255), nullable=True)
     smtp_port = db.Column(db.Integer, nullable=True)
     smtp_user = db.Column(db.String(255), nullable=True)
@@ -54,10 +58,12 @@ class SiteConfig(db.Model):
     # AI Demo
     ai_demo_enabled = db.Column(db.Boolean, nullable=False, default=False)
     ai_demo_page_name = db.Column(db.String(100), nullable=False, default='AI Implementations')
+    ai_demo_slug = db.Column(db.String(100), nullable=False, default='demo')
 
     # Donate
     donate_enabled = db.Column(db.Boolean, nullable=False, default=False)
     donate_page_name = db.Column(db.String(100), nullable=False, default='Donate')
+    donate_slug = db.Column(db.String(100), nullable=False, default='donate')
     stripe_publishable_key = db.Column(db.Text, nullable=True)
     stripe_secret_key = db.Column(db.Text, nullable=True)  # stored encrypted
 

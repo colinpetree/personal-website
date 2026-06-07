@@ -112,14 +112,18 @@ export default function AdminProjectsPage() {
             projects_enabled: config?.projects_enabled ?? false,
             projects_page_name: config?.projects_page_name || 'Projects',
             projects_text: config?.projects_text || '',
+            projects_slug: config?.projects_slug || 'projects',
           }}
           onSave={values => save(values)}
         >
           {({ editing, local, set }) => editing ? (
             <>
               <Toggle label="Enable projects page" checked={local.projects_enabled} onChange={v => set('projects_enabled', v)} />
-              <Field label="Nav link name">
+              <Field label="Link label">
                 <Input value={local.projects_page_name} onChange={e => set('projects_page_name', e.target.value)} />
+              </Field>
+              <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
+                <Input value={local.projects_slug} onChange={e => set('projects_slug', e.target.value.replace(/^\/+/, ''))} placeholder="projects" />
               </Field>
               <Field label="Page intro text" hint="HTML is supported.">
                 <Textarea rows={4} value={local.projects_text} onChange={e => set('projects_text', e.target.value)} />
@@ -137,8 +141,12 @@ export default function AdminProjectsPage() {
                 </p>
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Nav link name</p>
+                <p className="text-xs font-medium text-gray-500">Link label</p>
                 <DisplayValue value={local.projects_page_name} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">URL</p>
+                <DisplayValue value={local.projects_slug ? `/${local.projects_slug}` : ''} fallback="/projects" />
               </div>
               <div className="flex flex-col gap-1">
                 <p className="text-xs font-medium text-gray-500">Page intro text</p>

@@ -22,14 +22,18 @@ export default function AdminBlogPage() {
           savedValues={{
             blog_enabled: config?.blog_enabled ?? false,
             blog_page_name: config?.blog_page_name || 'Blog',
+            blog_slug: config?.blog_slug || 'blog',
           }}
           onSave={values => save(values)}
         >
           {({ editing, local, set }) => editing ? (
             <>
               <Toggle label="Enable blog" checked={local.blog_enabled} onChange={v => set('blog_enabled', v)} />
-              <Field label="Nav link name">
+              <Field label="Link label">
                 <Input value={local.blog_page_name} onChange={e => set('blog_page_name', e.target.value)} />
+              </Field>
+              <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
+                <Input value={local.blog_slug} onChange={e => set('blog_slug', e.target.value.replace(/^\/+/, ''))} placeholder="blog" />
               </Field>
             </>
           ) : (
@@ -44,8 +48,12 @@ export default function AdminBlogPage() {
                 </p>
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Nav link name</p>
+                <p className="text-xs font-medium text-gray-500">Link label</p>
                 <DisplayValue value={local.blog_page_name} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">URL</p>
+                <DisplayValue value={local.blog_slug ? `/${local.blog_slug}` : ''} fallback="/blog" />
               </div>
             </>
           )}

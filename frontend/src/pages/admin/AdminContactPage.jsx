@@ -46,14 +46,18 @@ export default function AdminContactPage() {
           savedValues={{
             contact_enabled: config?.contact_enabled ?? false,
             contact_page_name: config?.contact_page_name || 'Contact',
+            contact_slug: config?.contact_slug || 'contact',
           }}
-          onSave={values => save({ contact_enabled: values.contact_enabled, contact_page_name: values.contact_page_name })}
+          onSave={values => save({ contact_enabled: values.contact_enabled, contact_page_name: values.contact_page_name, contact_slug: values.contact_slug })}
         >
           {({ editing, local, set }) => editing ? (
             <>
               <Toggle label="Enable contact page" checked={local.contact_enabled} onChange={v => set('contact_enabled', v)} />
-              <Field label="Nav link name">
+              <Field label="Link label">
                 <Input value={local.contact_page_name} onChange={e => set('contact_page_name', e.target.value)} />
+              </Field>
+              <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
+                <Input value={local.contact_slug} onChange={e => set('contact_slug', e.target.value.replace(/^\/+/, ''))} placeholder="contact" />
               </Field>
             </>
           ) : (
@@ -68,8 +72,12 @@ export default function AdminContactPage() {
                 </p>
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Nav link name</p>
+                <p className="text-xs font-medium text-gray-500">Link label</p>
                 <DisplayValue value={local.contact_page_name} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">URL</p>
+                <DisplayValue value={local.contact_slug ? `/${local.contact_slug}` : ''} fallback="/contact" />
               </div>
             </>
           )}

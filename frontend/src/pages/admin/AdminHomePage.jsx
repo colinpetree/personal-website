@@ -26,7 +26,7 @@ export default function AdminHomePage() {
           {({ editing, local, set }) => editing ? (
             <>
               <Toggle label="Show in navigation" checked={local.home_enabled} onChange={v => set('home_enabled', v)} />
-              <Field label="Nav link name">
+              <Field label="Link label">
                 <Input value={local.home_page_name} onChange={e => set('home_page_name', e.target.value)} />
               </Field>
               <Field label="Page content" hint="HTML is supported.">
@@ -45,7 +45,7 @@ export default function AdminHomePage() {
                 </p>
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Nav link name</p>
+                <p className="text-xs font-medium text-gray-500">Link label</p>
                 <DisplayValue value={local.home_page_name} />
               </div>
               <div className="flex flex-col gap-1">
