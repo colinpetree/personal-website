@@ -8,7 +8,15 @@ const NAV_GROUPS = [
     label: 'Site Pages',
     items: [
       { to: '/admin/home', label: 'Home' },
-      { to: '/admin/blog', label: 'Blog' },
+      {
+        to: '/admin/blog',
+        label: 'Blog',
+        end: true,
+        subItems: [
+          { to: '/admin/blog/posts', label: 'Posts' },
+          { to: '/admin/blog/comments', label: 'Comments' },
+        ],
+      },
       { to: '/admin/projects', label: 'Projects' },
       { to: '/admin/about', label: 'About' },
       { to: '/admin/contact', label: 'Contact' },
@@ -50,20 +58,40 @@ function NavGroup({ label, items, defaultCollapsed = false }) {
       {open && (
         <div className="flex flex-col gap-0.5 mt-0.5 mb-2">
           {items.map(item => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              className={({ isActive }) =>
-                `block px-3 py-2 rounded-md text-sm transition-colors ${
-                  isActive
-                    ? 'bg-gray-700 text-white font-medium'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-800'
-                }`
-              }
-            >
-              {item.label}
-            </NavLink>
+            <div key={item.to}>
+              <NavLink
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  `block px-3 py-2 rounded-md text-sm transition-colors ${
+                    isActive
+                      ? 'bg-gray-700 text-white font-medium'
+                      : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                  }`
+                }
+              >
+                {item.label}
+              </NavLink>
+              {item.subItems && (
+                <div className="flex flex-col gap-0.5 ml-3 mt-0.5">
+                  {item.subItems.map(sub => (
+                    <NavLink
+                      key={sub.to}
+                      to={sub.to}
+                      className={({ isActive }) =>
+                        `block px-3 py-1.5 rounded-md text-xs transition-colors ${
+                          isActive
+                            ? 'bg-gray-700 text-white font-medium'
+                            : 'text-gray-500 hover:text-white hover:bg-gray-800'
+                        }`
+                      }
+                    >
+                      {sub.label}
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
