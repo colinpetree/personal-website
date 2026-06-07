@@ -358,6 +358,9 @@ function CommentItem({ comment, slug, usersEnabled, currentUserId, likedIds, lik
         {/* Name + date */}
         <span className="font-medium text-gray-900 text-sm">
           {comment.author_name || 'Anonymous'}
+          {comment.is_owner_author && (
+            <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded bg-blue-100 text-blue-700 font-medium align-middle">Author</span>
+          )}
           <span className="font-normal text-gray-400">
             {comment.author_title ? ` · ${comment.author_title} · ` : ' · '}
             {formatDate(comment.created_at)}
@@ -473,6 +476,7 @@ export default function BlogPostPage() {
   const [sort, setSort] = useState('Best')
   const [reportingComment, setReportingComment] = useState(null)
   const [likeDeltas, setLikeDeltas] = useState({})
+  const [blogAuthor, setBlogAuthor] = useState(null)
   const [likedIds, setLikedIds] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('liked_comments') || '[]')) }
     catch { return new Set() }
@@ -497,6 +501,7 @@ export default function BlogPostPage() {
     fetchPost()
     fetchComments()
     fetch('/api/site-config').then(r => r.ok ? r.json() : null).then(d => { if (d) setSiteConfig(d) })
+    fetch('/api/blog/author').then(r => r.ok ? r.json() : null).then(d => { if (d?.name) setBlogAuthor(d) })
   }, [slug])
 
   function handleLike(commentId, currentlyLiked) {
@@ -546,11 +551,39 @@ export default function BlogPostPage() {
       )}
 
       <h1 className="text-4xl font-bold text-gray-900 mb-3 leading-tight">{post.title}</h1>
-      <p className="text-sm text-gray-400 mb-8">
-        {new Date(post.publish_date || post.created_at).toLocaleDateString('en-US', {
-          month: 'long', day: 'numeric', year: 'numeric',
-        })}
-      </p>
+
+      {/* Author + date */}
+      <div className="flex items-center gap-2 mb-8">
+        {blogAuthor ? (() => {
+          const authorHref = siteConfig?.about_enabled ? `/${siteConfig.about_slug || 'about'}` : '/'
+          const avatar = blogAuthor.avatar_filename ? (
+            <img src={`/uploads/${blogAuthor.avatar_filename}`} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt={blogAuthor.name} />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-500 flex-shrink-0">
+              {(blogAuthor.name || '?').charAt(0).toUpperCase()}
+            </div>
+          )
+          return (
+            <div className="flex items-center gap-2">
+              <Link to={authorHref} className="hover:opacity-80 transition-opacity">{avatar}</Link>
+              <div className="flex flex-col leading-tight">
+                <Link to={authorHref} className="text-sm font-medium text-gray-700 hover:opacity-80 transition-opacity">{blogAuthor.name}</Link>
+                <span className="text-xs text-gray-400">
+                  {new Date(post.publish_date || post.created_at).toLocaleDateString('en-US', {
+                    month: 'long', day: 'numeric', year: 'numeric',
+                  })}
+                </span>
+              </div>
+            </div>
+          )
+        })() : (
+          <span className="text-sm text-gray-400">
+            {new Date(post.publish_date || post.created_at).toLocaleDateString('en-US', {
+              month: 'long', day: 'numeric', year: 'numeric',
+            })}
+          </span>
+        )}
+      </div>
 
       {post.thumbnail_filename && (
         <img

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, Card, EditableCard, Field, Input, Textarea } from '../../components/admin/AdminPage'
 import FileDropzone from '../../components/admin/FileDropzone'
+import HistoryModal from '../../components/admin/HistoryModal'
 
 const TIMEZONES = [
   { name: 'Pacific/Pago_Pago', label: '(GMT -11:00) Midway Island, Samoa' },
@@ -101,6 +102,7 @@ function DisplayValue({ value, fallback = '—' }) {
 export default function AdminSettingsPage() {
   const { config, loading, save } = useAdminConfig()
   const [faviconFile, setFaviconFile] = useState(null)
+  const [showHistory, setShowHistory] = useState(false)
   const [faviconUploading, setFaviconUploading] = useState(false)
   const [faviconSaved, setFaviconSaved] = useState(false)
   const [faviconError, setFaviconError] = useState('')
@@ -250,7 +252,26 @@ export default function AdminSettingsPage() {
           )}
         </EditableCard>
 
+        {/* History card */}
+        <Card>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">History</h2>
+              <p className="text-xs text-gray-400 mt-0.5">View system event log</p>
+            </div>
+            <button
+              onClick={() => setShowHistory(true)}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:border-gray-400 hover:text-gray-900 transition-colors flex-shrink-0"
+            >
+              View History
+            </button>
+          </div>
+        </Card>
+
       </div>
+
+      {showHistory && <HistoryModal onClose={() => setShowHistory(false)} />}
+
     </PageShell>
   )
 }

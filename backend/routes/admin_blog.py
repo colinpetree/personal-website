@@ -3,8 +3,21 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 from extensions import db
-from models import BlogPost, Comment, User
+from models import BlogPost, Comment, User, SiteEventLog
 from routes.admin_auth import admin_required
+
+
+def _log(area, action_type, subject, subject_is_bold=False):
+    entry = SiteEventLog(
+        admin_id=current_user.id,
+        admin_name=current_user.full_name,
+        admin_avatar=current_user.avatar_filename,
+        area=area,
+        action_type=action_type,
+        subject=subject,
+        subject_is_bold=subject_is_bold,
+    )
+    db.session.add(entry)
 
 admin_blog_bp = Blueprint('admin_blog', __name__)
 
@@ -83,6 +96,7 @@ def create_post():
         author_id=current_user.id,
     )
     db.session.add(post)
+    _log('Post', 'added', title, subject_is_bold=True)
     db.session.commit()
     return jsonify(_post_to_dict(post, include_content=True)), 201
 
@@ -124,6 +138,7 @@ def update_post(post_id):
         post.publish_date = datetime.fromisoformat(data['publish_date']) if data['publish_date'] else None
 
     post.updated_at = datetime.utcnow()
+    _log('Post', 'edited', post.title, subject_is_bold=True)
     db.session.commit()
     return jsonify(_post_to_dict(post, include_content=True))
 
@@ -132,6 +147,7 @@ def update_post(post_id):
 @admin_required
 def delete_post(post_id):
     post = BlogPost.query.get_or_404(post_id)
+    _log('Post', 'deleted', post.title, subject_is_bold=True)
     db.session.delete(post)
     db.session.commit()
     return jsonify({'message': 'Post deleted'})
@@ -164,6 +180,8 @@ def list_comments():
 @admin_required
 def delete_comment(comment_id):
     comment = Comment.query.get_or_404(comment_id)
+    excerpt = (comment.content or '')[:60]
+    _log('Comment', 'deleted', f'"{excerpt}"')
     comment.is_deleted = True
     db.session.commit()
     return jsonify({'message': 'Comment deleted'})

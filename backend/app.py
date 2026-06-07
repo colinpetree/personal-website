@@ -32,6 +32,7 @@ def create_app():
     from routes.auth import auth_bp
     from routes.user import user_bp
     from routes.admin_users import admin_users_bp
+    from routes.admin_history import admin_history_bp
     app.register_blueprint(profile_bp)
     app.register_blueprint(site_config_bp)
     app.register_blueprint(projects_bp)
@@ -46,6 +47,7 @@ def create_app():
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(admin_users_bp)
+    app.register_blueprint(admin_history_bp)
 
     return app
 

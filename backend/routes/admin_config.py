@@ -1,7 +1,8 @@
 import os
 import uuid
 from flask import Blueprint, jsonify, request, current_app
-from models import SiteConfig
+from flask_login import current_user
+from models import SiteConfig, SiteEventLog
 from crypto import encrypt, decrypt
 from routes.admin_auth import admin_required
 from routes.contact import _send_email, _smtp_configured
@@ -114,6 +115,22 @@ def update_admin_config():
         cert_file = os.path.join(current_app.root_path, 'certbot_domain.txt')
         with open(cert_file, 'w') as f:
             f.write(data['domain'])
+
+    # Log the settings change
+    changed_keys = [k for k in data if k in plain_fields or k in ('smtp_password', 'stripe_secret_key', 'google_oauth_client_secret')]
+    if changed_keys:
+        subject = 'Site (' + ', '.join(changed_keys) + ')'
+        entry = SiteEventLog(
+            admin_id=current_user.id,
+            admin_name=current_user.full_name,
+            admin_avatar=current_user.avatar_filename,
+            area='Settings',
+            action_type='edited',
+            subject=subject,
+            subject_is_bold=False,
+        )
+        from extensions import db
+        db.session.add(entry)
 
     from extensions import db
     db.session.commit()

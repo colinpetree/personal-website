@@ -1,7 +1,8 @@
 from datetime import datetime
 from flask import Blueprint, jsonify, request, session
+from flask_login import current_user
 from extensions import db
-from models import BlogPost, Comment, SiteConfig, User
+from models import AdminAccount, BlogPost, Comment, SiteConfig, User
 from crypto import decrypt
 
 blog_bp = Blueprint('blog', __name__)
@@ -29,14 +30,33 @@ def _post_to_dict(post, include_content=False):
 
 def _comment_dict(c):
     user = User.query.get(c.user_id) if c.user_id else None
+    admin = AdminAccount.query.get(c.admin_id) if c.admin_id else None
+    if admin:
+        author_name = admin.full_name
+        author_title = admin.title
+        author_avatar = admin.avatar_filename
+        is_owner_author = admin.role == 'owner'
+    elif user:
+        author_name = user.name
+        author_title = user.title
+        author_avatar = user.avatar_url
+        is_owner_author = False
+    else:
+        author_name = c.guest_name or 'Anonymous'
+        author_title = None
+        author_avatar = None
+        is_owner_author = False
+
     return {
         'id': c.id,
         'content': c.content,
-        'author_name': user.name if user else (c.guest_name or 'Anonymous'),
-        'author_title': user.title if user else None,
-        'author_avatar': user.avatar_url if user else None,
+        'author_name': author_name,
+        'author_title': author_title,
+        'author_avatar': author_avatar,
         'user_id': c.user_id,
-        'is_user': user is not None,
+        'admin_id': c.admin_id,
+        'is_user': user is not None or admin is not None,
+        'is_owner_author': is_owner_author,
         'guest_name': c.guest_name,
         'like_count': c.like_count or 0,
         'created_at': c.created_at.isoformat() + 'Z',
@@ -114,6 +134,18 @@ def list_comments(slug):
     return jsonify([_comment_dict(c) for c in top_level])
 
 
+@blog_bp.route('/api/blog/author')
+def get_blog_author():
+    """Returns the Owner account info for public blog attribution."""
+    owner = AdminAccount.query.filter_by(role='owner').first()
+    if not owner:
+        return jsonify({'name': None, 'avatar_filename': None})
+    return jsonify({
+        'name': owner.full_name,
+        'avatar_filename': owner.avatar_filename,
+    })
+
+
 @blog_bp.route('/api/blog/<slug>/comments', methods=['POST'])
 def post_comment(slug):
     post = BlogPost.query.filter_by(slug=slug, status='published').first_or_404()
@@ -122,7 +154,12 @@ def post_comment(slug):
     parent_id = data.get('parent_id')
     content = (data.get('content') or '').strip()
 
-    if config and config.users_enabled:
+    # Admin session takes priority — staff can always comment
+    if current_user.is_authenticated:
+        if not content:
+            return jsonify({'error': 'Message is required.'}), 400
+        comment = Comment(post_id=post.id, admin_id=current_user.id, parent_id=parent_id, content=content)
+    elif config and config.users_enabled:
         uid = session.get('user_id')
         if not uid:
             return jsonify({'error': 'Sign in with Google to comment.'}), 401

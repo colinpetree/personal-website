@@ -34,9 +34,9 @@ with app.app_context():
 
     if not AdminAccount.query.first():
         admin = AdminAccount(
-            name='Admin',
+            full_name='Admin',
             email='admin',
-            is_primary=True,
+            role='owner',
         )
         admin.set_password('admin')
         db.session.add(admin)
