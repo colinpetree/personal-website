@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
-import { PageShell, Card, EditableCard, Field, Input, Textarea, Toggle } from '../../components/admin/AdminPage'
+import { PageShell, Card, EditableCard, Field, Input, InputWithPrefix, Textarea, Toggle } from '../../components/admin/AdminPage'
 import FileDropzone from '../../components/admin/FileDropzone'
 
 function DisplayValue({ value, fallback = '—' }) {
@@ -59,7 +59,7 @@ export default function AdminAboutPage() {
                 <Input value={local.about_page_name} onChange={e => set('about_page_name', e.target.value)} />
               </Field>
               <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
-                <Input value={local.about_slug} onChange={e => set('about_slug', e.target.value.replace(/^\/+/, ''))} placeholder="about" />
+                <InputWithPrefix prefix={`https://${config?.domain || 'example.com'}/`} value={local.about_slug} onChange={e => set('about_slug', e.target.value.replace(/^\/+/, ''))} placeholder="about" />
               </Field>
               <Field label="About text" hint="HTML is supported.">
                 <Textarea rows={10} value={local.about_text} onChange={e => set('about_text', e.target.value)} />

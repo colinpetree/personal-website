@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
-import { PageShell, EditableCard, Field, Input, Toggle } from '../../components/admin/AdminPage'
+import { PageShell, EditableCard, Field, Input, InputWithPrefix, Toggle } from '../../components/admin/AdminPage'
 
 function DisplayValue({ value, fallback = '—' }) {
   return <p className="text-sm text-gray-900">{value || <span className="text-gray-400">{fallback}</span>}</p>
@@ -33,7 +33,7 @@ export default function AdminBlogPage() {
                 <Input value={local.blog_page_name} onChange={e => set('blog_page_name', e.target.value)} />
               </Field>
               <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
-                <Input value={local.blog_slug} onChange={e => set('blog_slug', e.target.value.replace(/^\/+/, ''))} placeholder="blog" />
+                <InputWithPrefix prefix={`https://${config?.domain || 'example.com'}/`} value={local.blog_slug} onChange={e => set('blog_slug', e.target.value.replace(/^\/+/, ''))} placeholder="blog" />
               </Field>
             </>
           ) : (

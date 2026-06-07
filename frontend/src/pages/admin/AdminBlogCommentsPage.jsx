@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, X, Search } from 'lucide-react'
+import { ArrowLeft, X, Search, Trash2 } from 'lucide-react'
 import { PageShell } from '../../components/admin/AdminPage'
 
 function CommentCard({ c, isReply, onDelete }) {
@@ -24,9 +24,10 @@ function CommentCard({ c, isReply, onDelete }) {
         {!c.is_deleted && (
           <button
             onClick={() => onDelete(c)}
-            className="shrink-0 text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+            className="shrink-0 text-red-400 hover:text-red-600 p-1.5 rounded hover:bg-red-50 transition-colors"
+            aria-label="Delete comment"
           >
-            Delete
+            <Trash2 size={15} />
           </button>
         )}
       </div>

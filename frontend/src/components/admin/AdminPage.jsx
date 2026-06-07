@@ -126,6 +126,20 @@ export function Input({ ...props }) {
   )
 }
 
+export function InputWithPrefix({ prefix, className, ...props }) {
+  return (
+    <div className="flex rounded-md border border-gray-300 focus-within:ring-2 focus-within:ring-gray-400 overflow-hidden">
+      <span className="flex items-center px-3 py-2 text-sm text-gray-500 bg-gray-50 border-r border-gray-300 whitespace-nowrap select-none">
+        {prefix}
+      </span>
+      <input
+        {...props}
+        className={`flex-1 px-3 py-2 text-sm text-gray-900 focus:outline-none min-w-0 ${className || ''}`}
+      />
+    </div>
+  )
+}
+
 export function Textarea({ ...props }) {
   return (
     <textarea
