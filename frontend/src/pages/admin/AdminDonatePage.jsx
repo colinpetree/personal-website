@@ -20,14 +20,18 @@ export default function AdminDonatePage() {
           savedValues={{
             donate_enabled: config?.donate_enabled ?? false,
             donate_page_name: config?.donate_page_name || 'Donate',
+            donate_slug: config?.donate_slug || 'donate',
           }}
           onSave={values => save(values)}
         >
           {({ editing, local, set }) => editing ? (
             <>
               <Toggle label="Enable donate page" checked={local.donate_enabled} onChange={v => set('donate_enabled', v)} />
-              <Field label="Nav link name">
+              <Field label="Link label">
                 <Input value={local.donate_page_name} onChange={e => set('donate_page_name', e.target.value)} />
+              </Field>
+              <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
+                <Input value={local.donate_slug} onChange={e => set('donate_slug', e.target.value.replace(/^\/+/, ''))} placeholder="donate" />
               </Field>
             </>
           ) : (
@@ -42,8 +46,12 @@ export default function AdminDonatePage() {
                 </p>
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Nav link name</p>
+                <p className="text-xs font-medium text-gray-500">Link label</p>
                 <DisplayValue value={local.donate_page_name} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">URL</p>
+                <DisplayValue value={local.donate_slug ? `/${local.donate_slug}` : ''} fallback="/donate" />
               </div>
             </>
           )}

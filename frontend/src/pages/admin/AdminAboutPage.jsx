@@ -48,14 +48,18 @@ export default function AdminAboutPage() {
             about_enabled: config?.about_enabled ?? false,
             about_page_name: config?.about_page_name || 'About',
             about_text: config?.about_text || '',
+            about_slug: config?.about_slug || 'about',
           }}
-          onSave={values => save({ about_enabled: values.about_enabled, about_page_name: values.about_page_name, about_text: values.about_text })}
+          onSave={values => save({ about_enabled: values.about_enabled, about_page_name: values.about_page_name, about_text: values.about_text, about_slug: values.about_slug })}
         >
           {({ editing, local, set }) => editing ? (
             <>
               <Toggle label="Enable about page" checked={local.about_enabled} onChange={v => set('about_enabled', v)} />
-              <Field label="Nav link name">
+              <Field label="Link label">
                 <Input value={local.about_page_name} onChange={e => set('about_page_name', e.target.value)} />
+              </Field>
+              <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
+                <Input value={local.about_slug} onChange={e => set('about_slug', e.target.value.replace(/^\/+/, ''))} placeholder="about" />
               </Field>
               <Field label="About text" hint="HTML is supported.">
                 <Textarea rows={10} value={local.about_text} onChange={e => set('about_text', e.target.value)} />
@@ -73,8 +77,12 @@ export default function AdminAboutPage() {
                 </p>
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Nav link name</p>
+                <p className="text-xs font-medium text-gray-500">Link label</p>
                 <DisplayValue value={local.about_page_name} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">URL</p>
+                <DisplayValue value={local.about_slug ? `/${local.about_slug}` : ''} fallback="/about" />
               </div>
               <div className="flex flex-col gap-1">
                 <p className="text-xs font-medium text-gray-500">About text</p>

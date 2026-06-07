@@ -24,42 +24,50 @@ def get_site_config():
             {
                 'key': 'blog',
                 'name': config.blog_page_name,
-                'path': '/blog',
+                'path': f'/{config.blog_slug}',
                 'enabled': config.blog_enabled,
             },
             {
                 'key': 'projects',
                 'name': config.projects_page_name,
-                'path': '/projects',
+                'path': f'/{config.projects_slug}',
                 'enabled': config.projects_enabled,
             },
             {
                 'key': 'about',
                 'name': config.about_page_name,
-                'path': '/about',
+                'path': f'/{config.about_slug}',
                 'enabled': config.about_enabled,
             },
             {
                 'key': 'contact',
                 'name': config.contact_page_name,
-                'path': '/contact',
+                'path': f'/{config.contact_slug}',
                 # Contact requires SMTP to be configured before showing
                 'enabled': config.contact_enabled and bool(config.smtp_host),
             },
             {
                 'key': 'ai_demo',
                 'name': config.ai_demo_page_name,
-                'path': '/demo',
+                'path': f'/{config.ai_demo_slug}',
                 'enabled': config.ai_demo_enabled,
             },
             {
                 'key': 'donate',
                 'name': config.donate_page_name,
-                'path': '/donate',
+                'path': f'/{config.donate_slug}',
                 # Donate requires Stripe publishable key to be configured
                 'enabled': config.donate_enabled and bool(config.stripe_publishable_key),
             },
         ],
+        'slugs': {
+            'blog': config.blog_slug,
+            'projects': config.projects_slug,
+            'about': config.about_slug,
+            'contact': config.contact_slug,
+            'ai_demo': config.ai_demo_slug,
+            'donate': config.donate_slug,
+        },
         'users_enabled': config.users_enabled,
         'google_oauth_client_id': config.google_oauth_client_id,
         # Page content fields needed by public pages

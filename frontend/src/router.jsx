@@ -26,49 +26,58 @@ import AdminBlogCommentsPage from './pages/admin/AdminBlogCommentsPage'
 import AdminUsersPage from './pages/admin/AdminUsersPage'
 import UserProfilePage from './pages/UserProfilePage'
 
-const router = createBrowserRouter([
-  // Public site — Navbar layout
-  {
-    path: '/',
-    element: <App />,
-    children: [
-      { index: true, element: <HomePage /> },
-      { path: 'blog', element: <BlogPage /> },
-      { path: 'blog/:slug', element: <BlogPostPage /> },
-      { path: 'projects', element: <ProjectsPage /> },
-      { path: 'about', element: <AboutPage /> },
-      { path: 'contact', element: <ContactPage /> },
-      { path: 'demo', element: <AIDemoPage /> },
-      { path: 'donate', element: <DonatePage /> },
-      { path: 'profile', element: <UserProfilePage /> },
-      { path: '*', element: <NotFoundPage /> },
-    ],
-  },
-  // Admin login — standalone page (no sidebar)
-  {
-    path: '/admin/login',
-    element: <AdminLoginPage />,
-  },
-  // Admin panel — sidebar layout with auth guard built into AdminLayout
-  {
-    path: '/admin',
-    element: <AdminLayout />,
-    children: [
-      { index: true, element: <AdminSettingsPage /> },
-      { path: 'home', element: <AdminHomePage /> },
-      { path: 'blog', element: <AdminBlogPage /> },
-      { path: 'blog/posts', element: <AdminBlogPostsPage /> },
-      { path: 'blog/posts/:id', element: <AdminBlogEditorPage /> },
-      { path: 'blog/comments', element: <AdminBlogCommentsPage /> },
-      { path: 'projects', element: <AdminProjectsPage /> },
-      { path: 'about', element: <AdminAboutPage /> },
-      { path: 'contact', element: <AdminContactPage /> },
-      { path: 'demo', element: <AdminAIDemoPage /> },
-      { path: 'donate', element: <AdminDonatePage /> },
-      { path: 'accounts', element: <AdminAccountsPage /> },
-      { path: 'users', element: <AdminUsersPage /> },
-    ],
-  },
-])
+export function createRouter(slugs = {}) {
+  const {
+    blog = 'blog',
+    projects = 'projects',
+    about = 'about',
+    contact = 'contact',
+    ai_demo = 'demo',
+    donate = 'donate',
+  } = slugs
 
-export default router
+  return createBrowserRouter([
+    // Public site — Navbar layout
+    {
+      path: '/',
+      element: <App />,
+      children: [
+        { index: true, element: <HomePage /> },
+        { path: blog, element: <BlogPage /> },
+        { path: `${blog}/:slug`, element: <BlogPostPage /> },
+        { path: projects, element: <ProjectsPage /> },
+        { path: about, element: <AboutPage /> },
+        { path: contact, element: <ContactPage /> },
+        { path: ai_demo, element: <AIDemoPage /> },
+        { path: donate, element: <DonatePage /> },
+        { path: 'profile', element: <UserProfilePage /> },
+        { path: '*', element: <NotFoundPage /> },
+      ],
+    },
+    // Admin login — standalone page (no sidebar)
+    {
+      path: '/admin/login',
+      element: <AdminLoginPage />,
+    },
+    // Admin panel — sidebar layout with auth guard built into AdminLayout
+    {
+      path: '/admin',
+      element: <AdminLayout />,
+      children: [
+        { index: true, element: <AdminSettingsPage /> },
+        { path: 'home', element: <AdminHomePage /> },
+        { path: 'blog', element: <AdminBlogPage /> },
+        { path: 'blog/posts', element: <AdminBlogPostsPage /> },
+        { path: 'blog/posts/:id', element: <AdminBlogEditorPage /> },
+        { path: 'blog/comments', element: <AdminBlogCommentsPage /> },
+        { path: 'projects', element: <AdminProjectsPage /> },
+        { path: 'about', element: <AdminAboutPage /> },
+        { path: 'contact', element: <AdminContactPage /> },
+        { path: 'demo', element: <AdminAIDemoPage /> },
+        { path: 'donate', element: <AdminDonatePage /> },
+        { path: 'accounts', element: <AdminAccountsPage /> },
+        { path: 'users', element: <AdminUsersPage /> },
+      ],
+    },
+  ])
+}

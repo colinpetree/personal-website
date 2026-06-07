@@ -36,7 +36,7 @@ export default function BlogPage() {
             {data.posts.map(post => (
               <article key={post.id} className="flex gap-6">
                 {post.thumbnail_filename && (
-                  <Link to={`/blog/${post.slug}`} className="shrink-0">
+                  <Link to={`${post.slug}`} className="shrink-0">
                     <img
                       src={`/api/uploads/${post.thumbnail_filename}`}
                       alt={post.title}
@@ -45,7 +45,7 @@ export default function BlogPage() {
                   </Link>
                 )}
                 <div className="flex-1 min-w-0">
-                  <Link to={`/blog/${post.slug}`}>
+                  <Link to={`${post.slug}`}>
                     <h2 className="text-xl font-semibold text-gray-900 hover:text-gray-600 transition-colors mb-1">
                       {post.title}
                     </h2>
