@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
-import { PageShell, EditableCard, Field, Input, Toggle } from '../../components/admin/AdminPage'
+import { PageShell, EditableCard, Field, Input, InputWithPrefix, Toggle } from '../../components/admin/AdminPage'
 
 function DisplayValue({ value, fallback = '—' }) {
   return (
@@ -57,7 +57,7 @@ export default function AdminContactPage() {
                 <Input value={local.contact_page_name} onChange={e => set('contact_page_name', e.target.value)} />
               </Field>
               <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
-                <Input value={local.contact_slug} onChange={e => set('contact_slug', e.target.value.replace(/^\/+/, ''))} placeholder="contact" />
+                <InputWithPrefix prefix={`https://${config?.domain || 'example.com'}/`} value={local.contact_slug} onChange={e => set('contact_slug', e.target.value.replace(/^\/+/, ''))} placeholder="contact" />
               </Field>
             </>
           ) : (

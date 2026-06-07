@@ -3,8 +3,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft, Calendar, ChevronRight, ExternalLink, X } from 'lucide-react'
 import { DayPicker } from 'react-day-picker'
 import RichTextEditor from '../../components/admin/RichTextEditor'
-import { Field, Input, Textarea } from '../../components/admin/AdminPage'
+import { Field, Input, InputWithPrefix, Textarea } from '../../components/admin/AdminPage'
 import { useToast } from '../../components/admin/Toast'
+import { useSiteConfig } from '../../hooks/useSiteConfig'
 
 const AUTOSAVE_DELAY = 2000
 
@@ -403,6 +404,7 @@ export default function AdminBlogEditorPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { addToast } = useToast()
+  const { config: siteConfig } = useSiteConfig()
 
   const [post, setPost] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -821,7 +823,8 @@ export default function AdminBlogEditorPage() {
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Post settings</h3>
 
           <Field label="Slug">
-            <Input
+            <InputWithPrefix
+              prefix={`${siteConfig?.domain || 'example.com'}/blog/`}
               value={slug}
               onChange={handleSlugChange}
               onBlur={handleSidebarSave}

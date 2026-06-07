@@ -1,5 +1,5 @@
 import { useAdminConfig } from '../../hooks/useAdminConfig'
-import { PageShell, EditableCard, Field, Input, Toggle } from '../../components/admin/AdminPage'
+import { PageShell, EditableCard, Field, Input, InputWithPrefix, Toggle } from '../../components/admin/AdminPage'
 
 function DisplayValue({ value, fallback = '—' }) {
   return <p className="text-sm text-gray-900">{value || <span className="text-gray-400">{fallback}</span>}</p>
@@ -33,7 +33,7 @@ export default function AdminAIDemoPage() {
                 <Input value={local.ai_demo_page_name} onChange={e => set('ai_demo_page_name', e.target.value)} />
               </Field>
               <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
-                <Input value={local.ai_demo_slug} onChange={e => set('ai_demo_slug', e.target.value.replace(/^\/+/, ''))} placeholder="demo" />
+                <InputWithPrefix prefix={`https://${config?.domain || 'example.com'}/`} value={local.ai_demo_slug} onChange={e => set('ai_demo_slug', e.target.value.replace(/^\/+/, ''))} placeholder="demo" />
               </Field>
             </>
           ) : (

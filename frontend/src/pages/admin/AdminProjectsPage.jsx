@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ArrowUp, ArrowDown } from 'lucide-react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
-import { PageShell, EditableCard, Field, Input, Textarea, Toggle } from '../../components/admin/AdminPage'
+import { PageShell, EditableCard, Field, Input, InputWithPrefix, Textarea, Toggle } from '../../components/admin/AdminPage'
 
 function DisplayValue({ value, fallback = '—' }) {
   return <p className="text-sm text-gray-900">{value || <span className="text-gray-400">{fallback}</span>}</p>
@@ -123,7 +123,7 @@ export default function AdminProjectsPage() {
                 <Input value={local.projects_page_name} onChange={e => set('projects_page_name', e.target.value)} />
               </Field>
               <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
-                <Input value={local.projects_slug} onChange={e => set('projects_slug', e.target.value.replace(/^\/+/, ''))} placeholder="projects" />
+                <InputWithPrefix prefix={`https://${config?.domain || 'example.com'}/`} value={local.projects_slug} onChange={e => set('projects_slug', e.target.value.replace(/^\/+/, ''))} placeholder="projects" />
               </Field>
               <Field label="Page intro text" hint="HTML is supported.">
                 <Textarea rows={4} value={local.projects_text} onChange={e => set('projects_text', e.target.value)} />
