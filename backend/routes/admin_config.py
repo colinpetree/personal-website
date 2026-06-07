@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request, current_app
 from flask_login import current_user
 from models import SiteConfig, SiteEventLog
 from crypto import encrypt, decrypt
-from routes.admin_auth import admin_required
+from routes.admin_auth import admin_required, role_at_least
 from routes.contact import _send_email, _smtp_configured
 
 admin_config_bp = Blueprint('admin_config', __name__)
@@ -76,14 +76,23 @@ def get_admin_config():
     return jsonify(_config_to_dict(config))
 
 
+ADMIN_ONLY_FIELDS = {
+    'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password',
+    'smtp_from_email', 'smtp_sender_name', 'forward_email',
+    'stripe_publishable_key', 'stripe_secret_key',
+}
+
 @admin_config_bp.route('/api/admin/site-config', methods=['PUT'])
-@admin_required
+@role_at_least('editor')
 def update_admin_config():
     config = SiteConfig.query.first()
     if not config:
         return jsonify({'error': 'No site config found'}), 404
 
     data = request.get_json(silent=True) or {}
+
+    if current_user.role == 'editor' and ADMIN_ONLY_FIELDS & set(data.keys()):
+        return jsonify({'error': 'Insufficient permissions to update these settings'}), 403
 
     # Plain fields — update if present in payload
     plain_fields = [
@@ -160,7 +169,7 @@ def upload_file():
 
 
 @admin_config_bp.route('/api/admin/contact/test-email', methods=['POST'])
-@admin_required
+@role_at_least('administrator')
 def test_email():
     config = SiteConfig.query.first()
     smtp_ready = bool(

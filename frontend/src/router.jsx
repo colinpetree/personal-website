@@ -10,6 +10,7 @@ import AIDemoPage from './pages/AIDemoPage'
 import DonatePage from './pages/DonatePage'
 import NotFoundPage from './pages/NotFoundPage'
 import AdminLayout from './components/admin/AdminLayout'
+import RoleGuard from './components/admin/RoleGuard'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
 import AdminSettingsPage from './pages/admin/AdminSettingsPage'
 import AdminHomePage from './pages/admin/AdminHomePage'
@@ -25,6 +26,10 @@ import AdminBlogEditorPage from './pages/admin/AdminBlogEditorPage'
 import AdminBlogCommentsPage from './pages/admin/AdminBlogCommentsPage'
 import AdminUsersPage from './pages/admin/AdminUsersPage'
 import UserProfilePage from './pages/UserProfilePage'
+
+// For admin-only pages, editors fall back to /admin/blog and contributors to /admin/blog/posts
+const adminOnlyFallback = (admin) =>
+  admin?.role === 'editor' ? '/admin/blog' : '/admin/blog/posts'
 
 export function createRouter(slugs = {}) {
   const {
@@ -64,19 +69,99 @@ export function createRouter(slugs = {}) {
       path: '/admin',
       element: <AdminLayout />,
       children: [
-        { index: true, element: <AdminSettingsPage /> },
-        { path: 'home', element: <AdminHomePage /> },
-        { path: 'blog', element: <AdminBlogPage /> },
+        // Administrator+ only
+        {
+          index: true,
+          element: (
+            <RoleGuard minRole="administrator" fallback={adminOnlyFallback}>
+              <AdminSettingsPage />
+            </RoleGuard>
+          ),
+        },
+        {
+          path: 'users',
+          element: (
+            <RoleGuard minRole="administrator" fallback={adminOnlyFallback}>
+              <AdminUsersPage />
+            </RoleGuard>
+          ),
+        },
+        // Editor+ only (contributors are blocked)
+        {
+          path: 'home',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminHomePage />
+            </RoleGuard>
+          ),
+        },
+        {
+          path: 'blog',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminBlogPage />
+            </RoleGuard>
+          ),
+        },
+        {
+          path: 'blog/comments',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminBlogCommentsPage />
+            </RoleGuard>
+          ),
+        },
+        {
+          path: 'projects',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminProjectsPage />
+            </RoleGuard>
+          ),
+        },
+        {
+          path: 'about',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminAboutPage />
+            </RoleGuard>
+          ),
+        },
+        {
+          path: 'contact',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminContactPage />
+            </RoleGuard>
+          ),
+        },
+        {
+          path: 'demo',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminAIDemoPage />
+            </RoleGuard>
+          ),
+        },
+        {
+          path: 'donate',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminDonatePage />
+            </RoleGuard>
+          ),
+        },
+        {
+          path: 'accounts',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminAccountsPage />
+            </RoleGuard>
+          ),
+        },
+        // All roles
         { path: 'blog/posts', element: <AdminBlogPostsPage /> },
         { path: 'blog/posts/:id', element: <AdminBlogEditorPage /> },
-        { path: 'blog/comments', element: <AdminBlogCommentsPage /> },
-        { path: 'projects', element: <AdminProjectsPage /> },
-        { path: 'about', element: <AdminAboutPage /> },
-        { path: 'contact', element: <AdminContactPage /> },
-        { path: 'demo', element: <AdminAIDemoPage /> },
-        { path: 'donate', element: <AdminDonatePage /> },
-        { path: 'accounts', element: <AdminAccountsPage /> },
-        { path: 'users', element: <AdminUsersPage /> },
       ],
     },
   ])

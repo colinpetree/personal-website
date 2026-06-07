@@ -38,14 +38,14 @@ def _log(admin, area, action_type, subject, subject_is_bold=False, subject_suffi
 @admin_accounts_bp.route('/api/admin/accounts', methods=['GET'])
 @role_at_least('editor')
 def list_accounts():
-    accounts = AdminAccount.query.order_by(AdminAccount.id).all()
+    accounts = AdminAccount.query.filter_by(is_active=True).order_by(AdminAccount.id).all()
     return jsonify([_account_dict(a) for a in accounts])
 
 
 @admin_accounts_bp.route('/api/admin/accounts/owner', methods=['GET'])
 @admin_required
 def get_owner():
-    owner = AdminAccount.query.filter_by(role='owner').first()
+    owner = AdminAccount.query.filter_by(role='owner', is_active=True).first()
     if not owner:
         return jsonify({'error': 'No owner account found'}), 404
     return jsonify(_account_dict(owner))
@@ -188,16 +188,22 @@ def make_owner(account_id):
 
 
 @admin_accounts_bp.route('/api/admin/accounts/<int:account_id>', methods=['DELETE'])
-@role_at_least('administrator')
+@role_at_least('editor')
 def delete_account(account_id):
     account = AdminAccount.query.get_or_404(account_id)
 
+    if not account.is_active:
+        return jsonify({'error': 'Account not found'}), 404
     if account.role == 'owner':
         return jsonify({'error': 'The Owner account cannot be deleted'}), 403
     if account.id == current_user.id:
         return jsonify({'error': 'You cannot delete your own account'}), 403
+    if current_user.role == 'editor' and account.role != 'contributor':
+        return jsonify({'error': 'Editors can only delete Contributors'}), 403
+    if current_user.role == 'administrator' and account.role == 'administrator':
+        return jsonify({'error': 'Administrators cannot delete other Administrators'}), 403
 
     _log(current_user, 'User', 'deleted', account.full_name, subject_is_bold=True)
-    db.session.delete(account)
+    account.is_active = False
     db.session.commit()
     return jsonify({'message': 'Account deleted'})

@@ -3,7 +3,7 @@ import io
 from flask import Blueprint, jsonify, request, Response
 from extensions import db
 from models import User, Comment
-from routes.admin_auth import admin_required
+from routes.admin_auth import admin_required, role_at_least
 
 admin_users_bp = Blueprint('admin_users', __name__)
 
@@ -22,7 +22,7 @@ def _user_dict(u, comment_count):
 
 
 @admin_users_bp.route('/api/admin/users')
-@admin_required
+@role_at_least('administrator')
 def list_users():
     page = request.args.get('page', 1, type=int)
     per_page = min(request.args.get('per_page', 20, type=int), 100)
@@ -45,7 +45,7 @@ def list_users():
 
 
 @admin_users_bp.route('/api/admin/users/<int:user_id>', methods=['PUT'])
-@admin_required
+@role_at_least('administrator')
 def update_user(user_id):
     user = User.query.get_or_404(user_id)
     data = request.get_json(silent=True) or {}
@@ -59,7 +59,7 @@ def update_user(user_id):
 
 
 @admin_users_bp.route('/api/admin/users/export.csv')
-@admin_required
+@role_at_least('administrator')
 def export_users():
     users = User.query.order_by(User.created_at).all()
 

@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from extensions import db
 from models import Project
-from routes.admin_auth import admin_required
+from routes.admin_auth import admin_required, role_at_least
 
 admin_projects_bp = Blueprint('admin_projects', __name__)
 
@@ -26,7 +26,7 @@ def list_projects():
 
 
 @admin_projects_bp.route('/api/admin/projects', methods=['POST'])
-@admin_required
+@role_at_least('editor')
 def create_project():
     data = request.get_json(silent=True) or {}
     title = (data.get('title') or '').strip()
@@ -49,7 +49,7 @@ def create_project():
 
 
 @admin_projects_bp.route('/api/admin/projects/<int:project_id>', methods=['PUT'])
-@admin_required
+@role_at_least('editor')
 def update_project(project_id):
     project = Project.query.get_or_404(project_id)
     data = request.get_json(silent=True) or {}
@@ -68,7 +68,7 @@ def update_project(project_id):
 
 
 @admin_projects_bp.route('/api/admin/projects/<int:project_id>', methods=['DELETE'])
-@admin_required
+@role_at_least('editor')
 def delete_project(project_id):
     project = Project.query.get_or_404(project_id)
     db.session.delete(project)
@@ -77,7 +77,7 @@ def delete_project(project_id):
 
 
 @admin_projects_bp.route('/api/admin/projects/reorder', methods=['PUT'])
-@admin_required
+@role_at_least('editor')
 def reorder_projects():
     """Accepts [{id, order}, ...] and bulk-updates order values."""
     items = request.get_json(silent=True) or []

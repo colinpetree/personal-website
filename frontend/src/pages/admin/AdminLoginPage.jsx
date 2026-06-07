@@ -10,8 +10,14 @@ export default function AdminLoginPage() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
+  function landingFor(role) {
+    if (role === 'contributor') return '/admin/blog/posts'
+    if (role === 'editor') return '/admin/blog'
+    return '/admin'
+  }
+
   useEffect(() => {
-    if (!loading && admin) navigate('/admin', { replace: true })
+    if (!loading && admin) navigate(landingFor(admin.role), { replace: true })
   }, [admin, loading, navigate])
 
   async function handleSubmit(e) {
@@ -19,8 +25,8 @@ export default function AdminLoginPage() {
     setError('')
     setSubmitting(true)
     try {
-      await login(email, password)
-      navigate('/admin', { replace: true })
+      const loggedInAdmin = await login(email, password)
+      navigate(landingFor(loggedInAdmin.role), { replace: true })
     } catch (err) {
       setError(err.message)
     } finally {

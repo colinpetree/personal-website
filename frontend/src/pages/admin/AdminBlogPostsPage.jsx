@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, Pencil, X } from 'lucide-react'
 import { PageShell } from '../../components/admin/AdminPage'
 import { useToast } from '../../components/admin/Toast'
+import { useAdminAuth } from '../../context/AdminAuthContext'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
@@ -104,6 +105,7 @@ export default function AdminBlogPostsPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { addToast } = useToast()
+  const { admin } = useAdminAuth()
 
   useEffect(() => {
     if (location.state?.publishConfirm) {
@@ -139,12 +141,19 @@ export default function AdminBlogPostsPage() {
 
   if (loading) return <div className="p-8 text-gray-400">Loading…</div>
 
+  const isContributor = admin?.role === 'contributor'
+  const visiblePosts = isContributor ? posts.filter(p => p.author_id === admin.id) : posts
+
   return (
     <PageShell title="Blog Posts">
       <div className="flex justify-between items-center mb-6 -mt-2">
-        <Link to="/admin/blog" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
-          <ArrowLeft size={14} strokeWidth={1.5} />Blog settings
-        </Link>
+        {isContributor ? (
+          <div />
+        ) : (
+          <Link to="/admin/blog" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+            <ArrowLeft size={14} strokeWidth={1.5} />Blog settings
+          </Link>
+        )}
         <button
           onClick={handleNew}
           disabled={creating}
@@ -154,11 +163,11 @@ export default function AdminBlogPostsPage() {
         </button>
       </div>
 
-      {posts.length === 0 ? (
+      {visiblePosts.length === 0 ? (
         <p className="text-gray-500 text-sm">No posts yet. Create your first post above.</p>
       ) : (
         <div className="flex flex-col divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
-          {posts.map(post => (
+          {visiblePosts.map(post => (
             <div
               key={post.id}
               onClick={() => navigate(`/admin/blog/posts/${post.id}`)}

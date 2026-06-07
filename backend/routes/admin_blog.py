@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user
 from extensions import db
 from models import BlogPost, Comment, User, SiteEventLog
-from routes.admin_auth import admin_required
+from routes.admin_auth import admin_required, role_at_least
 
 
 def _log(area, action_type, subject, subject_is_bold=False):
@@ -115,6 +115,12 @@ def update_post(post_id):
     post = BlogPost.query.get_or_404(post_id)
     data = request.get_json(silent=True) or {}
 
+    if current_user.role == 'contributor':
+        if post.author_id != current_user.id:
+            return jsonify({'error': 'You can only edit your own posts'}), 403
+        if data.get('status') in ('published', 'scheduled'):
+            return jsonify({'error': 'Contributors cannot publish or schedule posts'}), 403
+
     if 'title' in data:
         post.title = (data['title'] or 'Untitled').strip()
 
@@ -144,7 +150,7 @@ def update_post(post_id):
 
 
 @admin_blog_bp.route('/api/admin/blog/posts/<int:post_id>', methods=['DELETE'])
-@admin_required
+@role_at_least('editor')
 def delete_post(post_id):
     post = BlogPost.query.get_or_404(post_id)
     _log('Post', 'deleted', post.title, subject_is_bold=True)
@@ -154,7 +160,7 @@ def delete_post(post_id):
 
 
 @admin_blog_bp.route('/api/admin/blog/comments', methods=['GET'])
-@admin_required
+@role_at_least('editor')
 def list_comments():
     comments = Comment.query.order_by(Comment.created_at.asc()).all()
     result = []
@@ -177,7 +183,7 @@ def list_comments():
 
 
 @admin_blog_bp.route('/api/admin/blog/comments/<int:comment_id>', methods=['DELETE'])
-@admin_required
+@role_at_least('editor')
 def delete_comment(comment_id):
     comment = Comment.query.get_or_404(comment_id)
     excerpt = (comment.content or '')[:60]

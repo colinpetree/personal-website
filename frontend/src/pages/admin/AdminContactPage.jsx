@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, EditableCard, Field, Input, InputWithPrefix, Toggle } from '../../components/admin/AdminPage'
+import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
 
 function DisplayValue({ value, fallback = '—' }) {
   return (
@@ -9,7 +10,9 @@ function DisplayValue({ value, fallback = '—' }) {
 }
 
 export default function AdminContactPage() {
+  const { admin } = useAdminAuth()
   const { config, loading, save } = useAdminConfig()
+  const isAdmin = isAtLeast(admin, 'administrator')
   const [testEmail, setTestEmail] = useState('')
   const [testStatus, setTestStatus] = useState(null) // null | 'sending' | 'sent' | 'error'
   const [testMsg, setTestMsg] = useState('')
@@ -83,7 +86,7 @@ export default function AdminContactPage() {
           )}
         </EditableCard>
 
-        <EditableCard
+        {isAdmin && <EditableCard
           title="SMTP Settings"
           description="Allow this site to send emails for Contact form submissions and password resets."
           savedValues={{
@@ -184,7 +187,7 @@ export default function AdminContactPage() {
               )}
             </>
           )}
-        </EditableCard>
+        </EditableCard>}
 
       </div>
 
