@@ -45,8 +45,8 @@ def _post_to_dict(post, include_content=False):
         'publish_date': post.publish_date.isoformat() if post.publish_date else None,
         'thumbnail_filename': post.thumbnail_filename,
         'author_id': post.author_id,
-        'created_at': post.created_at.isoformat(),
-        'updated_at': post.updated_at.isoformat(),
+        'created_at': post.created_at.isoformat() + 'Z',
+        'updated_at': post.updated_at.isoformat() + 'Z',
     }
     if include_content:
         d['content_html'] = post.content_html
@@ -140,7 +140,7 @@ def delete_post(post_id):
 @admin_blog_bp.route('/api/admin/blog/comments', methods=['GET'])
 @admin_required
 def list_comments():
-    comments = Comment.query.order_by(Comment.created_at.desc()).all()
+    comments = Comment.query.order_by(Comment.created_at.asc()).all()
     result = []
     for c in comments:
         user = User.query.get(c.user_id) if c.user_id else None
@@ -153,7 +153,7 @@ def list_comments():
             'author_email': user.email if user else c.guest_email,
             'is_user': user is not None,
             'content': c.content,
-            'created_at': c.created_at.isoformat(),
+            'created_at': c.created_at.isoformat() + 'Z',
             'is_deleted': c.is_deleted,
             'parent_id': c.parent_id,
         })
