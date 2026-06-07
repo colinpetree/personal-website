@@ -6,6 +6,7 @@ import RichTextEditor from '../../components/admin/RichTextEditor'
 import { Field, Input, InputWithPrefix, Textarea } from '../../components/admin/AdminPage'
 import { useToast } from '../../components/admin/Toast'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
+import { useAdminAuth } from '../../context/AdminAuthContext'
 
 const AUTOSAVE_DELAY = 2000
 
@@ -405,6 +406,15 @@ export default function AdminBlogEditorPage() {
   const navigate = useNavigate()
   const { addToast } = useToast()
   const { config: siteConfig } = useSiteConfig()
+  const { admin } = useAdminAuth()
+  const [owner, setOwner] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/admin/accounts/owner', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then(setOwner)
+      .catch(() => {})
+  }, [])
 
   const [post, setPost] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -821,6 +831,26 @@ export default function AdminBlogEditorPage() {
         {/* Settings sidebar */}
         <div className="w-80 shrink-0 border-l border-gray-200 bg-gray-50 overflow-y-auto p-4 flex flex-col gap-4">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Post settings</h3>
+
+          {/* Author (display-only, always the Owner) */}
+          <div className="flex flex-col gap-1">
+            <p className="text-sm font-medium text-gray-700">Author</p>
+            {owner ? (
+              <div className="flex items-center gap-2">
+                {owner.avatar_filename ? (
+                  <img src={`/uploads/${owner.avatar_filename}`} className="w-6 h-6 rounded-full object-cover" alt={owner.full_name} />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-semibold text-gray-600">
+                    {(owner.full_name || '?').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span className="text-sm text-gray-900">{owner.full_name}</span>
+              </div>
+            ) : (
+              <span className="text-sm text-gray-400">—</span>
+            )}
+            <p className="text-xs text-gray-400">Edit the Owner account information to change the author</p>
+          </div>
 
           <Field label="Slug">
             <InputWithPrefix

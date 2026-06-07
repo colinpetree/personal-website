@@ -21,7 +21,7 @@ const NAV_GROUPS = [
     defaultCollapsed: true,
     items: [
       { to: '/admin', label: 'Site Settings', end: true },
-      { to: '/admin/accounts', label: 'Admin Accounts' },
+      { to: '/admin/accounts', label: 'Staff Accounts' },
       { to: '/admin/users', label: 'Users' },
     ],
   },
@@ -115,7 +115,7 @@ export default function AdminLayout() {
         </nav>
 
         <div className="px-3 py-4 border-t border-gray-700">
-          <p className="px-3 text-xs text-gray-500 mb-2 truncate">{admin.name}</p>
+          <p className="px-3 text-xs text-gray-500 mb-2 truncate">{admin.full_name}</p>
           <button
             onClick={handleLogout}
             className="w-full text-left px-3 py-2 rounded-md text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"

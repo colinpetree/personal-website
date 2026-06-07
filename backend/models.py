@@ -80,11 +80,13 @@ class AdminAccount(UserMixin, db.Model):
     __tablename__ = 'admin_account'
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
+    full_name = db.Column(db.String(200), nullable=False)
     title = db.Column(db.String(100), nullable=True)
+    location = db.Column(db.String(200), nullable=True)
     email = db.Column(db.String(255), nullable=False, unique=True)
     password_hash = db.Column(db.String(255), nullable=False)
-    is_primary = db.Column(db.Boolean, nullable=False, default=False)
+    role = db.Column(db.String(20), nullable=False, default='administrator')
+    avatar_filename = db.Column(db.String(255), nullable=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -133,6 +135,7 @@ class Comment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     post_id = db.Column(db.Integer, db.ForeignKey('blog_post.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey('admin_account.id'), nullable=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('comment.id'), nullable=True)
     content = db.Column(db.Text, nullable=False)
     guest_name = db.Column(db.String(200), nullable=True)
@@ -158,3 +161,20 @@ class Project(db.Model):
     image_filename = db.Column(db.String(255), nullable=True)
     order = db.Column(db.Integer, nullable=False, default=0)
     visible = db.Column(db.Boolean, nullable=False, default=True)
+
+
+class SiteEventLog(db.Model):
+    __tablename__ = 'site_event_log'
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey('admin_account.id'), nullable=True)
+    admin_name = db.Column(db.String(200), nullable=False)
+    admin_avatar = db.Column(db.String(255), nullable=True)
+    area = db.Column(db.String(50), nullable=False)   # Post | Page | Comment | User | Settings
+    action_type = db.Column(db.String(20), nullable=False)  # added | edited | deleted
+    subject = db.Column(db.String(300), nullable=False)
+    subject_suffix = db.Column(db.String(200), nullable=True)
+    subject_is_bold = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    admin = db.relationship('AdminAccount', backref='events', foreign_keys=[admin_id])
