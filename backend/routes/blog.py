@@ -19,8 +19,8 @@ def _post_to_dict(post, include_content=False):
         'status': post.status,
         'publish_date': post.publish_date.isoformat() if post.publish_date else None,
         'thumbnail_filename': post.thumbnail_filename,
-        'created_at': post.created_at.isoformat(),
-        'updated_at': post.updated_at.isoformat(),
+        'created_at': post.created_at.isoformat() + 'Z',
+        'updated_at': post.updated_at.isoformat() + 'Z',
     }
     if include_content:
         d['content_html'] = post.content_html
@@ -39,7 +39,7 @@ def _comment_dict(c):
         'is_user': user is not None,
         'guest_name': c.guest_name,
         'like_count': c.like_count or 0,
-        'created_at': c.created_at.isoformat(),
+        'created_at': c.created_at.isoformat() + 'Z',
         'replies': [
             _comment_dict(r)
             for r in c.replies.filter_by(is_deleted=False).order_by(Comment.created_at).all()

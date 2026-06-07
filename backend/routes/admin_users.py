@@ -16,7 +16,7 @@ def _user_dict(u, comment_count):
         'title': u.title,
         'avatar_url': u.avatar_url,
         'can_comment': u.can_comment,
-        'created_at': u.created_at.isoformat(),
+        'created_at': u.created_at.isoformat() + 'Z',
         'comment_count': comment_count,
     }
 
