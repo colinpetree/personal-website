@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
-import { useAdminAuth } from '../../context/AdminAuthContext'
+import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
 import { ToastProvider } from './Toast'
+import StaffProfileModal, { AvatarCircle, ROLE_BADGE, ROLE_LABELS } from './StaffProfileModal'
 
 const NAV_GROUPS = [
   {
@@ -34,6 +35,33 @@ const NAV_GROUPS = [
     ],
   },
 ]
+
+function getFilteredNavGroups(role) {
+  if (role === 'contributor') {
+    return [
+      {
+        label: 'Blog',
+        items: [
+          { to: '/admin/blog/posts', label: 'Posts' },
+        ],
+      },
+    ]
+  }
+
+  if (role === 'editor') {
+    return NAV_GROUPS.map(group => {
+      if (group.label === 'System Settings') {
+        return {
+          ...group,
+          items: group.items.filter(item => item.label !== 'Site Settings' && item.label !== 'Users'),
+        }
+      }
+      return group
+    })
+  }
+
+  return NAV_GROUPS
+}
 
 function NavGroup({ label, items, defaultCollapsed = false }) {
   const [open, setOpen] = useState(!defaultCollapsed)
@@ -100,8 +128,9 @@ function NavGroup({ label, items, defaultCollapsed = false }) {
 }
 
 export default function AdminLayout() {
-  const { admin, loading, logout } = useAdminAuth()
+  const { admin, loading, logout, refreshAdmin } = useAdminAuth()
   const navigate = useNavigate()
+  const [showSelfProfile, setShowSelfProfile] = useState(false)
 
   useEffect(() => {
     if (!loading && !admin) navigate('/admin/login', { replace: true })
@@ -122,17 +151,19 @@ export default function AdminLayout() {
     navigate('/admin/login')
   }
 
+  const filteredNav = getFilteredNavGroups(admin.role)
+
   return (
     <ToastProvider>
     <div className="flex min-h-screen bg-gray-50">
       {/* Sidebar */}
-      <aside className="w-52 shrink-0 bg-gray-900 flex flex-col">
+      <aside className="w-52 shrink-0 bg-gray-900 relative">
         <div className="px-5 py-5 border-b border-gray-700">
           <span className="text-white font-semibold text-sm">Admin Panel</span>
         </div>
 
-        <nav className="flex-1 px-3 py-4 flex flex-col gap-1">
-          {NAV_GROUPS.map(group => (
+        <nav className="px-3 py-4 flex flex-col gap-1 overflow-y-auto" style={{ paddingBottom: '6rem' }}>
+          {filteredNav.map(group => (
             <NavGroup
               key={group.label}
               label={group.label}
@@ -142,11 +173,22 @@ export default function AdminLayout() {
           ))}
         </nav>
 
-        <div className="px-3 py-4 border-t border-gray-700">
-          <p className="px-3 text-xs text-gray-500 mb-2 truncate">{admin.full_name}</p>
+        <div className="absolute bottom-0 left-0 right-0 px-3 py-4 border-t border-gray-700 bg-gray-900">
+          <button
+            onClick={() => setShowSelfProfile(true)}
+            className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-gray-800 transition-colors text-left"
+          >
+            <AvatarCircle name={admin.full_name} avatarFilename={admin.avatar_filename} size="sm" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-gray-300 truncate">{admin.full_name}</p>
+              <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-full leading-none mt-0.5 ${ROLE_BADGE[admin.role] || 'bg-gray-700 text-gray-400'}`}>
+                {ROLE_LABELS[admin.role] || admin.role}
+              </span>
+            </div>
+          </button>
           <button
             onClick={handleLogout}
-            className="w-full text-left px-3 py-2 rounded-md text-sm text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+            className="w-full text-left px-3 py-2 mt-1 rounded-md text-xs text-gray-500 hover:text-white hover:bg-gray-800 transition-colors"
           >
             Sign out
           </button>
@@ -158,6 +200,15 @@ export default function AdminLayout() {
         <Outlet />
       </main>
     </div>
+
+    {showSelfProfile && (
+      <StaffProfileModal
+        account={admin}
+        onClose={() => setShowSelfProfile(false)}
+        onUpdated={() => { refreshAdmin(); setShowSelfProfile(false) }}
+        onRefetch={() => {}}
+      />
+    )}
     </ToastProvider>
   )
 }

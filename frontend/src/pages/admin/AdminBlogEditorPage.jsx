@@ -481,6 +481,9 @@ export default function AdminBlogEditorPage() {
         const isNew = (data.title === 'Untitled' || !data.title) && !data.content_html
         setDraftStatus(s === 'draft' ? (isNew ? 'new' : 'draft') : 'idle')
         setLoading(false)
+        if (admin?.role === 'contributor' && data.author_id !== admin.id) {
+          navigate('/admin/blog/posts', { replace: true })
+        }
       })
   }, [id])
 
@@ -754,11 +757,19 @@ export default function AdminBlogEditorPage() {
   // ── Action buttons ───────────────────────────────────────────────────────────
 
   function ActionButtons() {
+    const isContributor = admin?.role === 'contributor'
+
     if (status === 'draft') {
       return (
         <button
-          onClick={openPublishDialog}
-          className="rounded-md bg-white px-4 py-1.5 text-sm font-medium text-green-600 hover:bg-gray-100 transition-colors"
+          onClick={isContributor ? undefined : openPublishDialog}
+          disabled={isContributor}
+          title={isContributor ? 'Editors must review and publish your post' : undefined}
+          className={`rounded-md bg-white px-4 py-1.5 text-sm font-medium transition-colors ${
+            isContributor
+              ? 'text-gray-400 opacity-50 cursor-not-allowed'
+              : 'text-green-600 hover:bg-gray-100'
+          }`}
         >
           Publish
         </button>
@@ -777,8 +788,14 @@ export default function AdminBlogEditorPage() {
           {updateSaving ? 'Updating...' : 'Update'}
         </button>
         <button
-          onClick={() => setRevertDialog(true)}
-          className="rounded-md bg-white px-4 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+          onClick={isContributor ? undefined : () => setRevertDialog(true)}
+          disabled={isContributor}
+          title={isContributor ? 'Only Editors and above can unpublish posts' : undefined}
+          className={`rounded-md bg-white px-4 py-1.5 text-sm font-medium transition-colors ${
+            isContributor
+              ? 'text-gray-400 opacity-50 cursor-not-allowed'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`}
         >
           {revertLabel}
         </button>

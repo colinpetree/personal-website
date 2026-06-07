@@ -1,12 +1,15 @@
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, EditableCard, Field, Input, InputWithPrefix, Toggle } from '../../components/admin/AdminPage'
+import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
 
 function DisplayValue({ value, fallback = '—' }) {
   return <p className="text-sm text-gray-900">{value || <span className="text-gray-400">{fallback}</span>}</p>
 }
 
 export default function AdminDonatePage() {
+  const { admin } = useAdminAuth()
   const { config, loading, save } = useAdminConfig()
+  const isAdmin = isAtLeast(admin, 'administrator')
 
   if (loading) return <div className="p-8 text-gray-400">Loading…</div>
 
@@ -57,7 +60,7 @@ export default function AdminDonatePage() {
           )}
         </EditableCard>
 
-        <EditableCard
+        {isAdmin && <EditableCard
           title="Stripe keys"
           description="Donate page is only shown in the navbar once a Stripe publishable key is set."
           savedValues={{
@@ -96,7 +99,7 @@ export default function AdminDonatePage() {
               </div>
             </>
           )}
-        </EditableCard>
+        </EditableCard>}
 
       </div>
     </PageShell>

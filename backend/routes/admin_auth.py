@@ -23,7 +23,10 @@ def _account_dict(account):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return AdminAccount.query.get(int(user_id))
+    account = AdminAccount.query.get(int(user_id))
+    if account is None or not account.is_active:
+        return None
+    return account
 
 
 def admin_required(f):
@@ -78,6 +81,8 @@ def login():
     account = AdminAccount.query.filter_by(email=email).first()
     if not account or not account.check_password(password):
         return jsonify({'error': 'Invalid credentials'}), 401
+    if not account.is_active:
+        return jsonify({'error': 'Account has been deactivated'}), 401
 
     login_user(account, remember=True)
     return jsonify(_account_dict(account))
