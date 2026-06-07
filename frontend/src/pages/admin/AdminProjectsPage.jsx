@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
 import { ArrowUp, ArrowDown } from 'lucide-react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
-import { PageShell, Field, Input, Textarea, Toggle, SaveBar, useSaveState } from '../../components/admin/AdminPage'
+import { PageShell, EditableCard, Field, Input, Textarea, Toggle } from '../../components/admin/AdminPage'
+
+function DisplayValue({ value, fallback = '—' }) {
+  return <p className="text-sm text-gray-900">{value || <span className="text-gray-400">{fallback}</span>}</p>
+}
 
 export default function AdminProjectsPage() {
   const { config, loading: configLoading, save } = useAdminConfig()
-  const { saving, saved, error, wrap } = useSaveState()
-  const [form, setForm] = useState({})
   const [projects, setProjects] = useState([])
   const [projLoading, setProjLoading] = useState(true)
   const [editingProject, setEditingProject] = useState(null) // null | project object | 'new'
@@ -16,14 +18,6 @@ export default function AdminProjectsPage() {
   const [uploadingImg, setUploadingImg] = useState(false)
   const [imgFile, setImgFile] = useState(null)
 
-  useEffect(() => {
-    if (config) setForm({
-      projects_enabled: config.projects_enabled ?? false,
-      projects_page_name: config.projects_page_name || 'Projects',
-      projects_text: config.projects_text || '',
-    })
-  }, [config])
-
   useEffect(() => { fetchProjects() }, [])
 
   async function fetchProjects() {
@@ -31,8 +25,6 @@ export default function AdminProjectsPage() {
     if (res.ok) setProjects(await res.json())
     setProjLoading(false)
   }
-
-  function set(field, value) { setForm(f => ({ ...f, [field]: value })) }
 
   function openNew() {
     setEditingProject('new')
@@ -112,14 +104,49 @@ export default function AdminProjectsPage() {
   return (
     <PageShell title="Projects Page">
       <div className="flex flex-col gap-6">
-        <Toggle label="Enable projects page" checked={form.projects_enabled ?? false} onChange={v => set('projects_enabled', v)} />
-        <Field label="Nav link name">
-          <Input value={form.projects_page_name || ''} onChange={e => set('projects_page_name', e.target.value)} />
-        </Field>
-        <Field label="Page intro text" hint="HTML is supported.">
-          <Textarea rows={4} value={form.projects_text || ''} onChange={e => set('projects_text', e.target.value)} />
-        </Field>
-        <SaveBar saving={saving} saved={saved} error={error} onSave={() => wrap(() => save(form))} />
+
+        <EditableCard
+          title="Page settings"
+          description="Configure projects page visibility and content"
+          savedValues={{
+            projects_enabled: config?.projects_enabled ?? false,
+            projects_page_name: config?.projects_page_name || 'Projects',
+            projects_text: config?.projects_text || '',
+          }}
+          onSave={values => save(values)}
+        >
+          {({ editing, local, set }) => editing ? (
+            <>
+              <Toggle label="Enable projects page" checked={local.projects_enabled} onChange={v => set('projects_enabled', v)} />
+              <Field label="Nav link name">
+                <Input value={local.projects_page_name} onChange={e => set('projects_page_name', e.target.value)} />
+              </Field>
+              <Field label="Page intro text" hint="HTML is supported.">
+                <Textarea rows={4} value={local.projects_text} onChange={e => set('projects_text', e.target.value)} />
+              </Field>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">Status</p>
+                <p className="text-sm">
+                  {local.projects_enabled
+                    ? <span className="text-[#30cf43] font-medium">Enabled</span>
+                    : <span className="text-gray-400">Disabled</span>
+                  }
+                </p>
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">Nav link name</p>
+                <DisplayValue value={local.projects_page_name} />
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">Page intro text</p>
+                <DisplayValue value={local.projects_text} fallback="No intro text set" />
+              </div>
+            </>
+          )}
+        </EditableCard>
 
         <hr className="border-gray-200" />
         <div className="flex items-center justify-between">
