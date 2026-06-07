@@ -1,33 +1,55 @@
-import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRight } from 'lucide-react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
-import { PageShell, Field, Input, Toggle, SaveBar, useSaveState } from '../../components/admin/AdminPage'
+import { PageShell, EditableCard, Field, Input, Toggle } from '../../components/admin/AdminPage'
+
+function DisplayValue({ value, fallback = '—' }) {
+  return <p className="text-sm text-gray-900">{value || <span className="text-gray-400">{fallback}</span>}</p>
+}
 
 export default function AdminBlogPage() {
   const { config, loading, save } = useAdminConfig()
-  const { saving, saved, error, wrap } = useSaveState()
-  const [form, setForm] = useState({})
-
-  useEffect(() => {
-    if (config) setForm({
-      blog_enabled: config.blog_enabled ?? false,
-      blog_page_name: config.blog_page_name || 'Blog',
-    })
-  }, [config])
-
-  function set(field, value) { setForm(f => ({ ...f, [field]: value })) }
 
   if (loading) return <div className="p-8 text-gray-400">Loading…</div>
 
   return (
     <PageShell title="Blog">
       <div className="flex flex-col gap-6">
-        <Toggle label="Enable blog" checked={form.blog_enabled ?? false} onChange={v => set('blog_enabled', v)} />
-        <Field label="Nav link name">
-          <Input value={form.blog_page_name || ''} onChange={e => set('blog_page_name', e.target.value)} />
-        </Field>
-        <SaveBar saving={saving} saved={saved} error={error} onSave={() => wrap(() => save(form))} />
+
+        <EditableCard
+          title="Blog settings"
+          description="Configure blog visibility and navigation"
+          savedValues={{
+            blog_enabled: config?.blog_enabled ?? false,
+            blog_page_name: config?.blog_page_name || 'Blog',
+          }}
+          onSave={values => save(values)}
+        >
+          {({ editing, local, set }) => editing ? (
+            <>
+              <Toggle label="Enable blog" checked={local.blog_enabled} onChange={v => set('blog_enabled', v)} />
+              <Field label="Nav link name">
+                <Input value={local.blog_page_name} onChange={e => set('blog_page_name', e.target.value)} />
+              </Field>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">Status</p>
+                <p className="text-sm">
+                  {local.blog_enabled
+                    ? <span className="text-[#30cf43] font-medium">Enabled</span>
+                    : <span className="text-gray-400">Disabled</span>
+                  }
+                </p>
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">Nav link name</p>
+                <DisplayValue value={local.blog_page_name} />
+              </div>
+            </>
+          )}
+        </EditableCard>
 
         <hr className="border-gray-200" />
 
@@ -53,6 +75,7 @@ export default function AdminBlogPage() {
             <ChevronRight size={16} strokeWidth={1.5} className="text-gray-400" />
           </Link>
         </div>
+
       </div>
     </PageShell>
   )

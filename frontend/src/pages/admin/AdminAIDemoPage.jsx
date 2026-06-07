@@ -1,34 +1,58 @@
-import { useState, useEffect } from 'react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
-import { PageShell, Field, Input, Toggle, SaveBar, useSaveState } from '../../components/admin/AdminPage'
+import { PageShell, EditableCard, Field, Input, Toggle } from '../../components/admin/AdminPage'
+
+function DisplayValue({ value, fallback = '—' }) {
+  return <p className="text-sm text-gray-900">{value || <span className="text-gray-400">{fallback}</span>}</p>
+}
 
 export default function AdminAIDemoPage() {
   const { config, loading, save } = useAdminConfig()
-  const { saving, saved, error, wrap } = useSaveState()
-  const [form, setForm] = useState({})
-
-  useEffect(() => {
-    if (config) setForm({
-      ai_demo_enabled: config.ai_demo_enabled ?? false,
-      ai_demo_page_name: config.ai_demo_page_name || 'AI Implementations',
-    })
-  }, [config])
-
-  function set(field, value) { setForm(f => ({ ...f, [field]: value })) }
 
   if (loading) return <div className="p-8 text-gray-400">Loading…</div>
 
   return (
     <PageShell title="AI Implementations Page">
       <div className="flex flex-col gap-6">
-        <p className="text-sm text-gray-500">
-          The AI demo page uses <code className="bg-gray-100 px-1 rounded">ANTHROPIC_API_KEY</code> and <code className="bg-gray-100 px-1 rounded">VOYAGE_API_KEY</code> set in the server environment.
-        </p>
-        <Toggle label="Enable AI demo page" checked={form.ai_demo_enabled ?? false} onChange={v => set('ai_demo_enabled', v)} />
-        <Field label="Nav link name">
-          <Input value={form.ai_demo_page_name || ''} onChange={e => set('ai_demo_page_name', e.target.value)} />
-        </Field>
-        <SaveBar saving={saving} saved={saved} error={error} onSave={() => wrap(() => save(form))} />
+        <EditableCard
+          title="Page settings"
+          description="Configure AI demo page visibility and navigation"
+          savedValues={{
+            ai_demo_enabled: config?.ai_demo_enabled ?? false,
+            ai_demo_page_name: config?.ai_demo_page_name || 'AI Implementations',
+          }}
+          onSave={values => save(values)}
+        >
+          {({ editing, local, set }) => editing ? (
+            <>
+              <p className="text-sm text-gray-500">
+                The AI demo page uses <code className="bg-gray-100 px-1 rounded">ANTHROPIC_API_KEY</code> and <code className="bg-gray-100 px-1 rounded">VOYAGE_API_KEY</code> set in the server environment.
+              </p>
+              <Toggle label="Enable AI demo page" checked={local.ai_demo_enabled} onChange={v => set('ai_demo_enabled', v)} />
+              <Field label="Nav link name">
+                <Input value={local.ai_demo_page_name} onChange={e => set('ai_demo_page_name', e.target.value)} />
+              </Field>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">Status</p>
+                <p className="text-sm">
+                  {local.ai_demo_enabled
+                    ? <span className="text-[#30cf43] font-medium">Enabled</span>
+                    : <span className="text-gray-400">Disabled</span>
+                  }
+                </p>
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">Nav link name</p>
+                <DisplayValue value={local.ai_demo_page_name} />
+              </div>
+              <p className="text-sm text-gray-500">
+                The AI demo page uses <code className="bg-gray-100 px-1 rounded">ANTHROPIC_API_KEY</code> and <code className="bg-gray-100 px-1 rounded">VOYAGE_API_KEY</code> set in the server environment.
+              </p>
+            </>
+          )}
+        </EditableCard>
       </div>
     </PageShell>
   )
