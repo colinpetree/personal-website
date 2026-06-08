@@ -11,7 +11,7 @@ import { ListNode, ListItemNode } from '@lexical/list'
 import { LinkNode } from '@lexical/link'
 import { CodeNode } from '@lexical/code'
 import theme from './theme'
-import { ImageNode } from './nodes'
+import { ImageNode, VideoNode, AudioNode, FileNode, GalleryNode } from './nodes'
 import {
   LoadHtmlPlugin,
   HtmlOutputPlugin,
@@ -28,7 +28,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
   const initialConfig = {
     namespace: 'BlogEditor',
     theme,
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, CodeNode, ImageNode],
+    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, CodeNode, ImageNode, VideoNode, AudioNode, FileNode, GalleryNode],
     onError: (error) => { throw error },
   }
 

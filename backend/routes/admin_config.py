@@ -9,7 +9,12 @@ from routes.contact import _send_email, _smtp_configured
 
 admin_config_bp = Blueprint('admin_config', __name__)
 
-ALLOWED_IMAGE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+ALLOWED_EXTENSIONS = {
+    'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
+    'mp4', 'webm', 'ogv', 'mov', 'avi',
+    'mp3', 'wav', 'ogg', 'flac', 'm4a',
+    'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip', 'csv',
+}
 
 # Fields that are stored encrypted; GET returns _set booleans, PUT encrypts if provided
 ENCRYPTED_FIELDS = ('smtp_password', 'stripe_secret_key', 'google_oauth_client_secret')
@@ -157,15 +162,21 @@ def upload_file():
         return jsonify({'error': 'No file selected'}), 400
 
     ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
-    if ext not in ALLOWED_IMAGE_EXTENSIONS:
-        return jsonify({'error': f'File type not allowed. Allowed: {", ".join(ALLOWED_IMAGE_EXTENSIONS)}'}), 400
+    if ext not in ALLOWED_EXTENSIONS:
+        return jsonify({'error': f'File type not allowed.'}), 400
 
     filename = f'{uuid.uuid4().hex}.{ext}'
     uploads_dir = os.path.join(current_app.root_path, 'uploads')
     os.makedirs(uploads_dir, exist_ok=True)
-    file.save(os.path.join(uploads_dir, filename))
+    saved_path = os.path.join(uploads_dir, filename)
+    file.save(saved_path)
 
-    return jsonify({'filename': filename})
+    return jsonify({
+        'filename': filename,
+        'original_name': file.filename,
+        'mime_type': file.mimetype or '',
+        'size': os.path.getsize(saved_path),
+    })
 
 
 @admin_config_bp.route('/api/admin/contact/test-email', methods=['POST'])

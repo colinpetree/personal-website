@@ -1,4 +1,9 @@
 export async function handleUpload(file) {
+  const data = await handleUploadFull(file)
+  return data.filename
+}
+
+export async function handleUploadFull(file) {
   const formData = new FormData()
   formData.append('file', file)
   const res = await fetch('/api/admin/upload', {
@@ -7,6 +12,5 @@ export async function handleUpload(file) {
     body: formData,
   })
   if (!res.ok) throw new Error('Upload failed')
-  const { filename } = await res.json()
-  return filename
+  return await res.json()
 }
