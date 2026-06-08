@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Calendar, ChevronRight, ExternalLink, X } from 'lucide-react'
+import { ArrowLeft, Calendar, ChevronRight, ExternalLink, PanelRight, X } from 'lucide-react'
 import { DayPicker } from 'react-day-picker'
 import RichTextEditor from '../../components/admin/editor'
 import { Field, Input, InputWithPrefix, Textarea } from '../../components/admin/AdminPage'
@@ -439,6 +439,9 @@ export default function AdminBlogEditorPage() {
   // Scheduled header hover
   const [scheduledHover, setScheduledHover] = useState(false)
 
+  // Settings panel visibility
+  const [panelOpen, setPanelOpen] = useState(true)
+
   // Form fields
   const [title, setTitle] = useState('')
   const [contentHtml, setContentHtml] = useState('')
@@ -814,6 +817,13 @@ export default function AdminBlogEditorPage() {
         <div className="flex-1" />
         <div className="flex items-center gap-2 shrink-0">
           <ActionButtons />
+          <button
+            onClick={() => setPanelOpen(v => !v)}
+            className="rounded-md p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            title={panelOpen ? 'Hide settings' : 'Show settings'}
+          >
+            <PanelRight size={16} strokeWidth={1.5} />
+          </button>
         </div>
       </div>
 
@@ -821,13 +831,13 @@ export default function AdminBlogEditorPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Editor area */}
         <div className="flex-1 overflow-y-auto bg-white relative">
-          <div className="max-w-3xl mx-auto pt-10">
+          <div className="max-w-3xl mx-auto px-6 pt-10">
             <input
               type="text"
               value={title}
               onChange={handleTitleChange}
               placeholder="Post title"
-              className="w-full text-4xl font-bold text-gray-900 outline-none border-none bg-transparent placeholder-gray-300 leading-tight px-6 pb-4"
+              className="w-full text-4xl font-bold text-gray-900 outline-none border-none bg-transparent placeholder-gray-300 leading-tight pb-4"
               onKeyDown={e => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
@@ -835,18 +845,19 @@ export default function AdminBlogEditorPage() {
                 }
               }}
             />
-            <RichTextEditor
-              ref={editorRef}
-              key={post?.id}
-              initialHtml={contentHtml}
-              onChange={handleContentChange}
-              placeholder="Start writing your post…"
-            />
           </div>
+          <RichTextEditor
+            ref={editorRef}
+            key={post?.id}
+            initialHtml={contentHtml}
+            onChange={handleContentChange}
+            placeholder="Start writing your post…"
+          />
         </div>
 
-        {/* Settings sidebar */}
-        <div className="w-80 shrink-0 border-l border-gray-200 bg-gray-50 overflow-y-auto p-4 flex flex-col gap-4">
+        {/* Settings sidebar — outer shell clips during slide, inner div stays full-width */}
+        <div className={`shrink-0 overflow-hidden transition-all duration-200 ${panelOpen ? 'w-80' : 'w-0'}`}>
+        <div className="w-80 h-full border-l border-gray-200 bg-gray-50 overflow-y-auto p-4 flex flex-col gap-4">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Post settings</h3>
 
           {/* Author (display-only, always the Owner) */}
@@ -940,6 +951,7 @@ export default function AdminBlogEditorPage() {
             </div>
           )}
         </div>
+        </div>
       </div>
 
       {/* Dialogs */}
@@ -987,7 +999,7 @@ export default function AdminBlogEditorPage() {
       )}
 
       {/* Word count */}
-      <div className="fixed bottom-4 pointer-events-none" style={{ right: '320px' }}>
+      <div className="fixed bottom-4 pointer-events-none transition-all duration-200" style={{ right: panelOpen ? '320px' : '16px' }}>
         <span className="text-xs text-gray-300 pr-4">
           {wordCount === 1 ? '1 word' : `${wordCount} words`}
         </span>
