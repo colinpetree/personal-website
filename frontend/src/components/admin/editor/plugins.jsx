@@ -1,74 +1,25 @@
 import { createPortal } from 'react-dom'
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { Bold, Italic, Underline, Strikethrough, Code, Link2 } from 'lucide-react'
-import { LexicalComposer } from '@lexical/react/LexicalComposer'
-import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin'
-import { ContentEditable } from '@lexical/react/LexicalContentEditable'
-import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
-import { ListPlugin } from '@lexical/react/LexicalListPlugin'
-import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
-import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
-import { HeadingNode, QuoteNode, $createHeadingNode, $createQuoteNode } from '@lexical/rich-text'
-import { ListNode, ListItemNode, INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND } from '@lexical/list'
-import { LinkNode, TOGGLE_LINK_COMMAND } from '@lexical/link'
-import { CodeNode, $createCodeNode } from '@lexical/code'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
 import { $setBlocksType } from '@lexical/selection'
+import { $createHeadingNode, $createQuoteNode } from '@lexical/rich-text'
+import { INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND } from '@lexical/list'
+import { TOGGLE_LINK_COMMAND } from '@lexical/link'
+import { $createCodeNode } from '@lexical/code'
 import {
   $getSelection, $isRangeSelection, $createParagraphNode, $getRoot,
-  FORMAT_TEXT_COMMAND, DecoratorNode,
-  KEY_DOWN_COMMAND, COMMAND_PRIORITY_HIGH, $getNodeByKey, $isParagraphNode,
+  FORMAT_TEXT_COMMAND, KEY_DOWN_COMMAND, COMMAND_PRIORITY_HIGH,
+  $getNodeByKey, $isParagraphNode, $isDecoratorNode,
+  $createNodeSelection, $setSelection,
 } from 'lexical'
+import { $createImageNode } from './nodes'
+import { handleUpload } from './upload'
 
-// ─── ImageNode ───────────────────────────────────────────────────────────────
+// ─── LoadHtmlPlugin ───────────────────────────────────────────────────────────
 
-class ImageNode extends DecoratorNode {
-  static getType() { return 'image' }
-  static clone(node) { return new ImageNode(node.__src, node.__alt, node.__key) }
-
-  static importJSON(data) { return new ImageNode(data.src, data.alt || '') }
-  exportJSON() { return { type: 'image', src: this.__src, alt: this.__alt, version: 1 } }
-
-  constructor(src, alt = '', key) {
-    super(key)
-    this.__src = src
-    this.__alt = alt
-  }
-
-  createDOM() {
-    const span = document.createElement('span')
-    span.style.display = 'contents'
-    return span
-  }
-  updateDOM() { return false }
-
-  exportDOM() {
-    const img = document.createElement('img')
-    img.setAttribute('src', this.__src)
-    img.setAttribute('alt', this.__alt)
-    return { element: img }
-  }
-
-  isInline() { return false }
-
-  decorate() {
-    return (
-      <img
-        src={this.__src}
-        alt={this.__alt}
-        className="max-w-full h-auto rounded-lg my-4 block"
-        draggable={false}
-      />
-    )
-  }
-}
-
-function $createImageNode(src, alt = '') { return new ImageNode(src, alt) }
-
-// ─── Plugins ─────────────────────────────────────────────────────────────────
-
-function LoadHtmlPlugin({ html }) {
+export function LoadHtmlPlugin({ html }) {
   const [editor] = useLexicalComposerContext()
   const loaded = useRef(false)
 
@@ -88,7 +39,9 @@ function LoadHtmlPlugin({ html }) {
   return null
 }
 
-function HtmlOutputPlugin({ onChange }) {
+// ─── HtmlOutputPlugin ─────────────────────────────────────────────────────────
+
+export function HtmlOutputPlugin({ onChange }) {
   const [editor] = useLexicalComposerContext()
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
@@ -105,9 +58,9 @@ function HtmlOutputPlugin({ onChange }) {
   return null
 }
 
-// ─── Floating format toolbar ──────────────────────────────────────────────────
+// ─── FloatingToolbarPlugin ────────────────────────────────────────────────────
 
-function FloatingToolbarPlugin() {
+export function FloatingToolbarPlugin() {
   const [editor] = useLexicalComposerContext()
   const [toolbar, setToolbar] = useState({
     visible: false, top: 0, left: 0,
@@ -135,7 +88,7 @@ function FloatingToolbarPlugin() {
           return
         }
 
-        const W = 272 // approximate toolbar width
+        const W = 272
         const H = 40
         let left = rect.left + window.scrollX + rect.width / 2 - W / 2
         left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - W - 8))
@@ -197,7 +150,7 @@ function FloatingToolbarPlugin() {
   )
 }
 
-// ─── Slash command menu ───────────────────────────────────────────────────────
+// ─── SlashCommandPlugin ───────────────────────────────────────────────────────
 
 const SLASH_ITEMS = [
   { label: 'Text',          description: 'Plain paragraph',      icon: 'P',   action: 'paragraph' },
@@ -211,12 +164,11 @@ const SLASH_ITEMS = [
   { label: 'Image',         description: 'Upload an image',       icon: '⬜',  action: 'image' },
 ]
 
-function SlashCommandPlugin({ onImageUpload }) {
+export function SlashCommandPlugin() {
   const [editor] = useLexicalComposerContext()
   const [menu, setMenu] = useState({
     visible: false, top: 0, left: 0, filter: '', selectedIndex: 0, nodeKey: null,
   })
-  // Refs so keyboard handler never has stale closures
   const menuRef = useRef(menu)
   menuRef.current = menu
   const fileRef = useRef(null)
@@ -232,7 +184,6 @@ function SlashCommandPlugin({ onImageUpload }) {
   const filteredItemsRef = useRef(filteredItems)
   filteredItemsRef.current = filteredItems
 
-  // Detect "/" at start of paragraph
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }) => {
       editorState.read(() => {
@@ -276,7 +227,6 @@ function SlashCommandPlugin({ onImageUpload }) {
     })
   }, [editor])
 
-  // Keyboard navigation while menu is open
   useEffect(() => {
     if (!menu.visible) return
     return editor.registerCommand(
@@ -355,29 +305,28 @@ function SlashCommandPlugin({ onImageUpload }) {
       } else if (item.action === 'code') {
         $setBlocksType(sel, () => $createCodeNode())
       }
-      // 'paragraph' — already a paragraph, nothing more needed
     })
   }
 
   async function handleImageFile(e) {
     const file = e.target.files?.[0]
     if (!file) return
-    const nodeKey = pendingNodeKeyRef.current
+    const paragraphKey = pendingNodeKeyRef.current
+    pendingNodeKeyRef.current = null
+    e.target.value = ''
+
     try {
-      const filename = await onImageUpload(file)
+      const filename = await handleUpload(file)
       const src = `/api/uploads/${filename}`
       editor.update(() => {
-        const node = $getNodeByKey(nodeKey)
-        if (node) {
-          const imgNode = $createImageNode(src, '')
-          node.replace(imgNode)
+        const node = $getNodeByKey(paragraphKey)
+        if (node && $isParagraphNode(node)) {
+          node.replace($createImageNode(src, ''))
         }
       })
     } catch {
       alert('Image upload failed.')
     }
-    pendingNodeKeyRef.current = null
-    e.target.value = ''
   }
 
   return createPortal(
@@ -413,9 +362,63 @@ function SlashCommandPlugin({ onImageUpload }) {
   )
 }
 
-// ─── Editor handle (exposes focusAtStart to parent via ref) ──────────────────
+// ─── DecoratorArrowNavigationPlugin ──────────────────────────────────────────
+// Intercepts ArrowDown/ArrowUp when the adjacent block is a DecoratorNode so
+// the node gets a NodeSelection instead of being skipped by Lexical's default
+// arrow-key movement. Only fires when the cursor is at the visual edge of the
+// current paragraph (last line for down, first line for up).
 
-function EditorHandlePlugin({ handleRef }) {
+export function DecoratorArrowNavigationPlugin() {
+  const [editor] = useLexicalComposerContext()
+
+  useEffect(() => {
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return false
+        const isDown = event.key === 'ArrowDown'
+
+        const selection = $getSelection()
+        if (!$isRangeSelection(selection)) return false
+
+        let topElement
+        try {
+          topElement = selection.anchor.getNode().getTopLevelElementOrThrow()
+        } catch {
+          return false
+        }
+
+        const sibling = isDown ? topElement.getNextSibling() : topElement.getPreviousSibling()
+        if (!sibling || !$isDecoratorNode(sibling) || sibling.isInline()) return false
+
+        // Only intercept when the cursor is visually at the edge of the block.
+        // This lets normal line-by-line movement work inside multi-line paragraphs.
+        const domEl = editor.getElementByKey(topElement.getKey())
+        const domSel = window.getSelection()
+        if (domEl && domSel && domSel.rangeCount > 0) {
+          const cursorRect = domSel.getRangeAt(0).getBoundingClientRect()
+          const elRect = domEl.getBoundingClientRect()
+          const lineH = parseFloat(window.getComputedStyle(domEl).lineHeight) || 24
+          if (isDown && cursorRect.bottom < elRect.bottom - lineH) return false
+          if (!isDown && cursorRect.top > elRect.top + lineH) return false
+        }
+
+        event.preventDefault()
+        const sel = $createNodeSelection()
+        sel.add(sibling.getKey())
+        $setSelection(sel)
+        return true
+      },
+      COMMAND_PRIORITY_HIGH
+    )
+  }, [editor])
+
+  return null
+}
+
+// ─── EditorHandlePlugin ───────────────────────────────────────────────────────
+
+export function EditorHandlePlugin({ handleRef }) {
   const [editor] = useLexicalComposerContext()
   useImperativeHandle(handleRef, () => ({
     focusAtStart() {
@@ -435,81 +438,3 @@ function EditorHandlePlugin({ handleRef }) {
   }), [editor])
   return null
 }
-
-// ─── Editor theme ─────────────────────────────────────────────────────────────
-
-const theme = {
-  heading: {
-    h1: 'text-3xl font-bold mt-6 mb-3',
-    h2: 'text-2xl font-bold mt-5 mb-2',
-    h3: 'text-xl font-semibold mt-4 mb-2',
-  },
-  paragraph: 'mb-3 leading-relaxed',
-  quote: 'border-l-4 border-gray-300 pl-4 italic text-gray-600 my-3',
-  code: 'block bg-gray-100 rounded p-3 font-mono text-sm my-3 whitespace-pre-wrap',
-  text: {
-    bold: 'font-bold',
-    italic: 'italic',
-    underline: 'underline',
-    strikethrough: 'line-through',
-    code: 'bg-gray-100 rounded px-1 font-mono text-sm',
-  },
-  list: {
-    ul: 'list-disc pl-6 mb-3',
-    ol: 'list-decimal pl-6 mb-3',
-    listitem: 'mb-1',
-  },
-  link: 'text-blue-600 underline',
-}
-
-// ─── Main component ──────────────────────────────────────────────────────────
-
-const RichTextEditor = forwardRef(function RichTextEditor({ initialHtml, onChange, placeholder = 'Start writing…' }, ref) {
-  const initialConfig = {
-    namespace: 'BlogEditor',
-    theme,
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, CodeNode, ImageNode],
-    onError: (error) => { throw error },
-  }
-
-  async function handleImageUpload(file) {
-    const formData = new FormData()
-    formData.append('file', file)
-    const res = await fetch('/api/admin/upload', {
-      method: 'POST',
-      credentials: 'include',
-      body: formData,
-    })
-    if (!res.ok) throw new Error('Upload failed')
-    const { filename } = await res.json()
-    return filename
-  }
-
-  return (
-    <LexicalComposer initialConfig={initialConfig}>
-      <div className="relative bg-white text-gray-900">
-        <RichTextPlugin
-          contentEditable={
-            <ContentEditable className="outline-none min-h-[500px] px-6 pt-2 pb-10 prose prose-gray max-w-none" />
-          }
-          placeholder={
-            <div className="absolute top-2 left-6 text-gray-400 pointer-events-none select-none">
-              {placeholder}
-            </div>
-          }
-          ErrorBoundary={LexicalErrorBoundary}
-        />
-      </div>
-      <HistoryPlugin />
-      <ListPlugin />
-      <LinkPlugin />
-      <LoadHtmlPlugin html={initialHtml} />
-      <HtmlOutputPlugin onChange={onChange} />
-      <FloatingToolbarPlugin />
-      <SlashCommandPlugin onImageUpload={handleImageUpload} />
-      <EditorHandlePlugin handleRef={ref} />
-    </LexicalComposer>
-  )
-})
-
-export default RichTextEditor
