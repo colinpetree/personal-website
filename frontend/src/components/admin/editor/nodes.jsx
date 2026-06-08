@@ -652,8 +652,19 @@ function AudioNodeComponent({ src, filename, title, duration, thumbnailSrc, node
             {displayName}
             {durationStr && <span className="ml-2 text-xs text-gray-400 font-normal">{durationStr}</span>}
           </p>
-          <audio controls src={src} className="w-full" style={{ height: '32px' }} />
+          <audio controls controlsList="nodownload noplaybackrate" src={src} className="w-full" style={{ height: '32px' }} />
         </div>
+        {displayName && (
+          <a
+            href={`${src}?name=${encodeURIComponent(displayName)}`}
+            download={displayName}
+            onClick={e => e.stopPropagation()}
+            className="shrink-0 p-2 text-gray-400 hover:text-gray-600 rounded transition-colors select-auto"
+            title="Download"
+          >
+            <Download size={16} />
+          </a>
+        )}
       </div>
     </>
   )
@@ -676,12 +687,25 @@ export class AudioNode extends DecoratorNode {
 
   static importDOM() {
     return {
+      figure: () => ({
+        conversion: (domNode) => {
+          if (!domNode.classList.contains('audio-player')) return null
+          const audio = domNode.querySelector('audio')
+          if (!audio) return null
+          const src = domNode.getAttribute('data-src') || audio.getAttribute('src') || ''
+          const filename = domNode.getAttribute('data-filename') || ''
+          const title = domNode.getAttribute('data-title') || domNode.querySelector('figcaption')?.textContent?.trim() || ''
+          const duration = parseFloat(domNode.getAttribute('data-duration') || '0')
+          const thumbnailSrc = domNode.getAttribute('data-thumbnail-src') || ''
+          return { node: new AudioNode(src, filename, title, duration, thumbnailSrc) }
+        },
+        priority: 1,
+      }),
       audio: () => ({
         conversion: (domNode) => {
           if (!(domNode instanceof HTMLAudioElement)) return null
-          const figure = domNode.closest('figure.audio-player')
-          const figcaption = figure?.querySelector('figcaption')
-          return { node: new AudioNode(domNode.getAttribute('src') || '', figcaption?.textContent?.trim() || '') }
+          if (domNode.closest('figure.audio-player')) return null
+          return { node: new AudioNode(domNode.getAttribute('src') || '', '') }
         },
         priority: 1,
       }),
@@ -707,20 +731,66 @@ export class AudioNode extends DecoratorNode {
 
   exportDOM() {
     if (!this.__src) return { element: null }
+    const displayName = this.__title || this.__filename
+    const durationStr = formatDuration(this.__duration)
+
     const figure = document.createElement('figure')
     figure.className = 'audio-player'
-    figure.style.cssText = 'margin:1.5rem 0'
+    figure.setAttribute('data-src', this.__src)
+    figure.setAttribute('data-filename', this.__filename)
+    figure.setAttribute('data-title', this.__title)
+    figure.setAttribute('data-duration', String(this.__duration))
+    if (this.__thumbnailSrc) figure.setAttribute('data-thumbnail-src', this.__thumbnailSrc)
+    figure.style.cssText = 'max-width:740px;margin:1rem auto;display:flex;align-items:center;gap:0.75rem;padding:0.75rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:0.5rem'
+
+    // Thumbnail or music icon
+    if (this.__thumbnailSrc) {
+      const img = document.createElement('img')
+      img.setAttribute('src', this.__thumbnailSrc)
+      img.setAttribute('alt', '')
+      img.style.cssText = 'flex-shrink:0;width:3rem;height:3rem;object-fit:cover;border-radius:0.5rem'
+      figure.appendChild(img)
+    } else {
+      const iconWrap = document.createElement('div')
+      iconWrap.style.cssText = 'flex-shrink:0;width:2.25rem;height:2.25rem;display:flex;align-items:center;justify-content:center;background:#e5e7eb;border-radius:9999px;color:#6b7280'
+      iconWrap.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>'
+      figure.appendChild(iconWrap)
+    }
+
+    // Center: title + audio controls
+    const center = document.createElement('div')
+    center.style.cssText = 'min-width:0;flex:1'
+    if (displayName) {
+      const nameEl = document.createElement('p')
+      nameEl.style.cssText = 'font-size:0.875rem;font-weight:500;color:#374151;margin:0 0 0.25rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap'
+      nameEl.textContent = displayName
+      if (durationStr) {
+        const dur = document.createElement('span')
+        dur.style.cssText = 'font-size:0.75rem;color:#9ca3af;font-weight:normal;margin-left:0.5rem'
+        dur.textContent = durationStr
+        nameEl.appendChild(dur)
+      }
+      center.appendChild(nameEl)
+    }
     const audio = document.createElement('audio')
     audio.setAttribute('src', this.__src)
     audio.setAttribute('controls', '')
-    audio.style.cssText = 'width:100%'
-    figure.appendChild(audio)
-    const displayName = this.__title || this.__filename
+    audio.setAttribute('controlsList', 'nodownload noplaybackrate')
+    audio.style.cssText = 'width:100%;height:32px'
+    center.appendChild(audio)
+    figure.appendChild(center)
+
+    // Download button
     if (displayName) {
-      const figcaption = document.createElement('figcaption')
-      figcaption.textContent = displayName
-      figure.appendChild(figcaption)
+      const dl = document.createElement('a')
+      dl.setAttribute('href', `${this.__src}?name=${encodeURIComponent(displayName)}`)
+      dl.setAttribute('download', displayName)
+      dl.style.cssText = 'flex-shrink:0;padding:0.5rem;color:#9ca3af;border-radius:0.25rem;text-decoration:none;display:flex;align-items:center;justify-content:center'
+      dl.setAttribute('title', 'Download')
+      dl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'
+      figure.appendChild(dl)
     }
+
     return { element: figure }
   }
 
@@ -846,8 +916,8 @@ function FileNodeComponent({ src, filename, mimeType, size, title, description, 
         <p className="text-xs text-gray-400 mt-1">{ext}{sizeStr ? ` · ${sizeStr}` : ''}</p>
       </div>
       <a
-        href={src}
-        download={filename || undefined}
+        href={(() => { const n = title || filename; return n ? `${src}?name=${encodeURIComponent(n)}` : src })()}
+        download={title || filename || undefined}
         onClick={e => e.stopPropagation()}
         className="shrink-0 p-2 text-gray-400 hover:text-gray-600 rounded transition-colors select-auto"
         title="Download"
@@ -873,6 +943,43 @@ export class FileNode extends DecoratorNode {
     return { type: 'file', version: 1, src: this.__src, filename: this.__filename, mimeType: this.__mimeType, size: this.__size, title: this.__title, description: this.__description }
   }
 
+  static importDOM() {
+    return {
+      div: (node) => {
+        if (!node.classList?.contains('file-attachment')) return null
+        return {
+          conversion: (domNode) => {
+            const src = domNode.getAttribute('data-src') || ''
+            if (!src) return null
+            return { node: new FileNode(
+              src,
+              domNode.getAttribute('data-filename') || '',
+              domNode.getAttribute('data-mime-type') || '',
+              parseInt(domNode.getAttribute('data-size') || '0', 10),
+              domNode.getAttribute('data-title') || '',
+              domNode.getAttribute('data-description') || '',
+            )}
+          },
+          priority: 2,
+        }
+      },
+      a: (node) => {
+        if (!node.classList?.contains('file-attachment')) return null
+        return {
+          conversion: (domNode) => {
+            const href = domNode.getAttribute('href') || ''
+            const src = href.split('?')[0]
+            if (!src) return null
+            const filename = domNode.getAttribute('download') || ''
+            const title = domNode.querySelector('span')?.textContent?.trim() || filename
+            return { node: new FileNode(src, filename, '', 0, title, '') }
+          },
+          priority: 2,
+        }
+      },
+    }
+  }
+
   constructor(src, filename = '', mimeType = '', size = 0, title = '', description = '', key) {
     super(key)
     this.__src = src
@@ -893,31 +1000,54 @@ export class FileNode extends DecoratorNode {
 
   exportDOM() {
     if (!this.__src) return { element: null }
-    const a = document.createElement('a')
-    a.className = 'file-attachment'
-    a.setAttribute('href', this.__src)
-    if (this.__filename) a.setAttribute('download', this.__filename)
-    a.style.cssText = 'display:flex;align-items:center;gap:0.75rem;padding:0.75rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:0.5rem;margin:1.5rem 0;text-decoration:none;color:inherit'
-    const textWrap = document.createElement('div')
-    textWrap.style.cssText = 'min-width:0;flex:1'
+    const friendlyName = this.__title || this.__filename
+    const ext = this.__filename?.includes('.') ? this.__filename.split('.').pop().toUpperCase() : 'FILE'
+    const sizeStr = formatFileSize(this.__size)
+
+    const wrap = document.createElement('div')
+    wrap.className = 'file-attachment'
+    wrap.setAttribute('data-src', this.__src)
+    wrap.setAttribute('data-filename', this.__filename)
+    wrap.setAttribute('data-mime-type', this.__mimeType)
+    wrap.setAttribute('data-size', String(this.__size))
+    wrap.setAttribute('data-title', this.__title)
+    wrap.setAttribute('data-description', this.__description)
+    wrap.style.cssText = 'max-width:740px;margin:1rem auto;display:flex;align-items:flex-start;gap:0.75rem;padding:0.75rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:0.5rem'
+
+    const iconWrap = document.createElement('div')
+    iconWrap.style.cssText = 'flex-shrink:0;width:2.25rem;height:2.25rem;display:flex;align-items:center;justify-content:center;background:#dbeafe;border-radius:0.5rem;color:#2563eb;margin-top:2px'
+    iconWrap.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>'
+    wrap.appendChild(iconWrap)
+
+    const center = document.createElement('div')
+    center.style.cssText = 'min-width:0;flex:1'
     const nameEl = document.createElement('span')
-    nameEl.textContent = this.__title || this.__filename || 'Download file'
-    nameEl.style.cssText = 'font-size:0.875rem;font-weight:500;color:#1d4ed8;display:block'
-    textWrap.appendChild(nameEl)
+    nameEl.textContent = friendlyName || 'File'
+    nameEl.style.cssText = 'font-size:0.875rem;font-weight:500;color:#1f2937;display:block'
+    center.appendChild(nameEl)
     if (this.__description) {
       const descEl = document.createElement('span')
       descEl.textContent = this.__description
       descEl.style.cssText = 'font-size:0.75rem;color:#6b7280;display:block;margin-top:2px'
-      textWrap.appendChild(descEl)
+      center.appendChild(descEl)
     }
-    if (this.__size) {
-      const sizeEl = document.createElement('span')
-      sizeEl.textContent = formatFileSize(this.__size)
-      sizeEl.style.cssText = 'font-size:0.75rem;color:#9ca3af;display:block;margin-top:2px'
-      textWrap.appendChild(sizeEl)
+    const metaEl = document.createElement('span')
+    metaEl.textContent = sizeStr ? `${ext} · ${sizeStr}` : ext
+    metaEl.style.cssText = 'font-size:0.75rem;color:#9ca3af;display:block;margin-top:4px'
+    center.appendChild(metaEl)
+    wrap.appendChild(center)
+
+    if (friendlyName) {
+      const dl = document.createElement('a')
+      dl.setAttribute('href', `${this.__src}?name=${encodeURIComponent(friendlyName)}`)
+      dl.setAttribute('download', friendlyName)
+      dl.setAttribute('title', 'Download')
+      dl.style.cssText = 'flex-shrink:0;padding:0.5rem;color:#9ca3af;text-decoration:none;display:flex;align-items:center;justify-content:center'
+      dl.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'
+      wrap.appendChild(dl)
     }
-    a.appendChild(textWrap)
-    return { element: a }
+
+    return { element: wrap }
   }
 
   decorate(editor) {
