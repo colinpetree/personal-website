@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
 import { ToastProvider } from './Toast'
 import StaffProfileModal, { AvatarCircle, ROLE_BADGE, ROLE_LABELS } from './StaffProfileModal'
@@ -130,7 +130,10 @@ function NavGroup({ label, items, defaultCollapsed = false }) {
 export default function AdminLayout() {
   const { admin, loading, logout, refreshAdmin } = useAdminAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [showSelfProfile, setShowSelfProfile] = useState(false)
+
+  const isEditorPage = /^\/admin\/blog\/posts\/[^/]+/.test(location.pathname)
 
   useEffect(() => {
     if (!loading && !admin) navigate('/admin/login', { replace: true })
@@ -157,7 +160,7 @@ export default function AdminLayout() {
     <ToastProvider>
     <div className="flex min-h-screen bg-gray-50">
       {/* Sidebar */}
-      <aside className="w-52 shrink-0 bg-gray-900 relative">
+      {!isEditorPage && <aside className="w-52 shrink-0 bg-gray-900 relative">
         <div className="px-5 py-5 border-b border-gray-700">
           <span className="text-white font-semibold text-sm">Admin Panel</span>
         </div>
@@ -193,7 +196,7 @@ export default function AdminLayout() {
             Sign out
           </button>
         </div>
-      </aside>
+      </aside>}
 
       {/* Content */}
       <main className="flex-1 overflow-auto">
