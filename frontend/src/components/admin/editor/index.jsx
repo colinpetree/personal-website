@@ -17,6 +17,7 @@ import {
   HtmlOutputPlugin,
   FloatingToolbarPlugin,
   SlashCommandPlugin,
+  ListIndentPlugin,
   DecoratorArrowNavigationPlugin,
   EditorHandlePlugin,
 } from './plugins'
@@ -54,6 +55,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
       <HtmlOutputPlugin onChange={onChange} />
       <FloatingToolbarPlugin />
       <SlashCommandPlugin />
+      <ListIndentPlugin />
       <DecoratorArrowNavigationPlugin />
       <EditorHandlePlugin handleRef={ref} />
     </LexicalComposer>

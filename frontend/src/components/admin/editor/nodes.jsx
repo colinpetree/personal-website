@@ -10,6 +10,7 @@ import { handleUpload } from './upload'
 function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor }) {
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
   const [toolbarPos, setToolbarPos] = useState(null)
   const [showLinkInput, setShowLinkInput] = useState(false)
   const [linkDraft, setLinkDraft] = useState('')
@@ -110,7 +111,9 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
       <figure
         ref={figRef}
         style={{ maxWidth: widthMaxMap[width] ?? '740px' }}
-        className={`my-4 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : ''}`}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`my-4 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
       >
         <img
           ref={imgRef}
@@ -343,6 +346,7 @@ function formatDuration(seconds) {
 function VideoNodeComponent({ src, caption, width, loop, nodeKey, editor }) {
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
   const [toolbarPos, setToolbarPos] = useState(null)
   const figRef = useRef(null)
 
@@ -431,7 +435,9 @@ function VideoNodeComponent({ src, caption, width, loop, nodeKey, editor }) {
       <figure
         ref={figRef}
         style={{ maxWidth: widthMaxMap[width] ?? '740px' }}
-        className={`my-4 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : ''}`}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`my-4 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
       >
         <video src={src} controls loop={loop || undefined} className="w-full block bg-black" />
         <figcaption>
@@ -583,6 +589,7 @@ export function $createVideoNode(src, caption = '') {
 
 function AudioNodeComponent({ src, filename, title, duration, thumbnailSrc, nodeKey, editor }) {
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
+  const [isHovered, setIsHovered] = useState(false)
   const containerRef = useRef(null)
 
   useEffect(() => {
@@ -627,8 +634,10 @@ function AudioNodeComponent({ src, filename, title, duration, thumbnailSrc, node
       <div
         ref={containerRef}
         style={{ maxWidth: '740px' }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         className={`my-4 mx-auto flex items-center gap-3 p-3 bg-gray-50 border rounded-lg transition-all select-none ${
-          isSelected ? 'ring-2 ring-blue-500 border-transparent' : 'border-gray-200'
+          isSelected ? 'ring-2 ring-blue-500 border-transparent' : isHovered ? 'ring-1 ring-blue-300 border-transparent' : 'border-gray-200'
         }`}
       >
         {thumbnailSrc ? (
@@ -739,6 +748,7 @@ export function $createAudioNode(src, filename = '') {
 function FileNodeComponent({ src, filename, mimeType, size, title, description, nodeKey, editor }) {
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [inputFocused, setInputFocused] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
   const containerRef = useRef(null)
 
   const showRing = isSelected || inputFocused
@@ -801,8 +811,10 @@ function FileNodeComponent({ src, filename, mimeType, size, title, description, 
     <div
       ref={containerRef}
       style={{ maxWidth: '740px' }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       className={`my-4 mx-auto flex items-start gap-3 p-3 bg-gray-50 border rounded-lg transition-all select-none ${
-        showRing ? 'ring-2 ring-blue-500 border-transparent' : 'border-gray-200'
+        showRing ? 'ring-2 ring-blue-500 border-transparent' : isHovered ? 'ring-1 ring-blue-300 border-transparent' : 'border-gray-200'
       }`}
     >
       <div className="shrink-0 w-9 h-9 flex items-center justify-center bg-blue-100 rounded-lg text-blue-600 mt-0.5">
@@ -933,6 +945,7 @@ export function $createFileNode(src, filename = '', mimeType = '', size = 0) {
 function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
   const containerRef = useRef(null)
   const addFileRef = useRef(null)
 
@@ -1016,7 +1029,9 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
   return (
     <div
       ref={containerRef}
-      className={`my-4 rounded-lg overflow-hidden transition-all ${showRing ? 'ring-2 ring-blue-500' : ''}`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className={`my-4 rounded-lg overflow-hidden transition-all ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
     >
       <div className="grid grid-cols-3 gap-1">
         {images.map((img, i) => (

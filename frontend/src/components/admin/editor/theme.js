@@ -20,6 +20,9 @@ const theme = {
     ul: 'max-w-3xl mx-auto pr-6 pl-12 list-disc mb-3',
     ol: 'max-w-3xl mx-auto pr-6 pl-12 list-decimal mb-3',
     listitem: 'mb-1',
+    nested: {
+      listitem: 'list-none',
+    },
   },
   link: 'text-blue-600 underline',
 }
