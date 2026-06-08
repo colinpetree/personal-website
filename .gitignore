@@ -19,6 +19,7 @@ Thumbs.db
 
 # Uploads
 backend/uploads/
+editor-example-images/
 
 # Runtime artifacts
 backend/certbot_domain.txt
