@@ -594,7 +594,7 @@ export default function BlogPostPage() {
       )}
 
       <article
-        className="prose prose-gray max-w-none mb-16"
+        className="prose prose-gray max-w-none mb-16 blog-content"
         dangerouslySetInnerHTML={{ __html: post.content_html || '' }}
       />
 
