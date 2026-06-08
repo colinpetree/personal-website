@@ -1,3 +1,17 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Prevent horizontal scroll from full/wide breakout images */
+html {
+  overflow-x: hidden;
+}
+
+/* Blog post prose overrides */
+.blog-content figure {
+  margin: 0;
+}
+
+.blog-content figure img {
+  margin: 0;
+}
