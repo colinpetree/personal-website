@@ -807,9 +807,9 @@ export default function AdminBlogEditorPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-screen">
       {/* Header */}
-      <div className="flex items-center gap-3 px-5 py-3 bg-white border-b border-gray-200 shrink-0">
+      <div className="sticky top-0 z-10 flex items-center gap-3 px-5 py-3 bg-white border-b border-gray-200 shrink-0">
         <Link to="/admin/blog/posts" className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 shrink-0">
           <ArrowLeft size={14} strokeWidth={1.5} />Posts
         </Link>
@@ -853,6 +853,7 @@ export default function AdminBlogEditorPage() {
             onChange={handleContentChange}
             placeholder="Start writing your post…"
           />
+          <div aria-hidden="true" style={{ height: '33vh' }} />
         </div>
 
         {/* Settings sidebar — outer shell clips during slide, inner div stays full-width */}

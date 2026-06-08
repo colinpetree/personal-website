@@ -1,11 +1,16 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useImperativeHandle, useRef, useState } from 'react'
-import { Bold, Italic, Underline, Strikethrough, Code, Link2 } from 'lucide-react'
+import {
+  Bold, Italic, Underline, Strikethrough, Code, Link2,
+  Type, Heading1, Heading2, Heading3, Quote, Code2,
+  List, ListOrdered, Image, Video, Music, Paperclip, LayoutGrid,
+} from 'lucide-react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
 import { $setBlocksType } from '@lexical/selection'
 import { $createHeadingNode, $createQuoteNode } from '@lexical/rich-text'
-import { INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND } from '@lexical/list'
+import { INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, $isListItemNode } from '@lexical/list'
+import { $findMatchingParent } from '@lexical/utils'
 import { TOGGLE_LINK_COMMAND } from '@lexical/link'
 import { $createCodeNode } from '@lexical/code'
 import {
@@ -153,19 +158,19 @@ export function FloatingToolbarPlugin() {
 // ─── SlashCommandPlugin ───────────────────────────────────────────────────────
 
 const SLASH_ITEMS = [
-  { label: 'Text',          description: 'Plain paragraph',      icon: 'P',   action: 'paragraph' },
-  { label: 'Heading 1',     description: 'Large section heading', icon: 'H1',  action: 'h1' },
-  { label: 'Heading 2',     description: 'Medium heading',        icon: 'H2',  action: 'h2' },
-  { label: 'Heading 3',     description: 'Small heading',         icon: 'H3',  action: 'h3' },
-  { label: 'Quote',         description: 'Capture a quote',       icon: '❝',   action: 'quote' },
-  { label: 'Code',          description: 'Code snippet',          icon: '</>',  action: 'code' },
-  { label: 'Bulleted List', description: 'Unordered list',        icon: '•',   action: 'bullet' },
-  { label: 'Numbered List', description: 'Ordered list',          icon: '1.',  action: 'number' },
-  { label: 'Image',         description: 'Upload an image',       icon: '⬜',  action: 'image' },
-  { label: 'Video',         description: 'Upload a video',        icon: '▶',   action: 'video' },
-  { label: 'Audio',         description: 'Upload an audio file',  icon: '♪',   action: 'audio' },
-  { label: 'File',          description: 'Upload any file',       icon: '📎',  action: 'file' },
-  { label: 'Gallery',       description: 'Image grid',            icon: '⊞',   action: 'gallery' },
+  { label: 'Text',          description: 'Plain paragraph',      Icon: Type,        action: 'paragraph' },
+  { label: 'Heading 1',     description: 'Large section heading', Icon: Heading1,    action: 'h1' },
+  { label: 'Heading 2',     description: 'Medium heading',        Icon: Heading2,    action: 'h2' },
+  { label: 'Heading 3',     description: 'Small heading',         Icon: Heading3,    action: 'h3' },
+  { label: 'Quote',         description: 'Capture a quote',       Icon: Quote,       action: 'quote' },
+  { label: 'Code',          description: 'Code snippet',          Icon: Code2,       action: 'code' },
+  { label: 'Bulleted List', description: 'Unordered list',        Icon: List,        action: 'bullet' },
+  { label: 'Numbered List', description: 'Ordered list',          Icon: ListOrdered, action: 'number' },
+  { label: 'Image',         description: 'Upload an image',       Icon: Image,       action: 'image' },
+  { label: 'Video',         description: 'Upload a video',        Icon: Video,       action: 'video' },
+  { label: 'Audio',         description: 'Upload an audio file',  Icon: Music,       action: 'audio' },
+  { label: 'File',          description: 'Upload any file',       Icon: Paperclip,   action: 'file' },
+  { label: 'Gallery',       description: 'Image grid',            Icon: LayoutGrid,  action: 'gallery' },
 ]
 
 export function SlashCommandPlugin() {
@@ -178,6 +183,11 @@ export function SlashCommandPlugin() {
   const fileRef = useRef(null)
   const pendingNodeKeyRef = useRef(null)
   const pendingActionRef = useRef(null)
+  const selectedItemRef = useRef(null)
+
+  useEffect(() => {
+    selectedItemRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [menu.selectedIndex])
 
   function getItems(filter) {
     if (!filter) return SLASH_ITEMS
@@ -383,13 +393,14 @@ export function SlashCommandPlugin() {
           {filteredItems.map((item, i) => (
             <button
               key={item.action}
+              ref={i === menu.selectedIndex ? selectedItemRef : null}
               onMouseDown={e => { e.preventDefault(); applyItem(item) }}
               className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
                 i === menu.selectedIndex ? 'bg-gray-100' : 'hover:bg-gray-50'
               }`}
             >
-              <span className="shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg text-xs font-bold text-gray-500">
-                {item.icon}
+              <span className="shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg text-gray-500">
+                <item.Icon size={16} strokeWidth={2} />
               </span>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-gray-900 leading-tight">{item.label}</p>
@@ -403,6 +414,54 @@ export function SlashCommandPlugin() {
     </>,
     document.body
   )
+}
+
+// ─── ListIndentPlugin ─────────────────────────────────────────────────────────
+
+export function ListIndentPlugin() {
+  const [editor] = useLexicalComposerContext()
+
+  useEffect(() => {
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key !== 'Tab') return false
+
+        const selection = $getSelection()
+        if (!$isRangeSelection(selection)) return false
+
+        const listItem = $findMatchingParent(selection.anchor.getNode(), node => $isListItemNode(node))
+        if (!listItem) return false
+
+        event.preventDefault()
+
+        editor.update(() => {
+          const sel = $getSelection()
+          if (!$isRangeSelection(sel)) return
+          const item = $findMatchingParent(sel.anchor.getNode(), node => $isListItemNode(node))
+          if (!item) return
+
+          if (event.shiftKey) {
+            const indent = item.getIndent()
+            if (indent > 0) {
+              item.setIndent(indent - 1)
+            } else {
+              $setBlocksType(sel, () => $createParagraphNode())
+            }
+          } else {
+            if (item.getPreviousSibling() !== null) {
+              item.setIndent(item.getIndent() + 1)
+            }
+          }
+        })
+
+        return true
+      },
+      COMMAND_PRIORITY_HIGH
+    )
+  }, [editor])
+
+  return null
 }
 
 // ─── DecoratorArrowNavigationPlugin ──────────────────────────────────────────
@@ -439,11 +498,15 @@ export function DecoratorArrowNavigationPlugin() {
         const domEl = editor.getElementByKey(topElement.getKey())
         const domSel = window.getSelection()
         if (domEl && domSel && domSel.rangeCount > 0) {
-          const cursorRect = domSel.getRangeAt(0).getBoundingClientRect()
           const elRect = domEl.getBoundingClientRect()
           const lineH = parseFloat(window.getComputedStyle(domEl).lineHeight) || 24
-          if (isDown && cursorRect.bottom < elRect.bottom - lineH) return false
-          if (!isDown && cursorRect.top > elRect.top + lineH) return false
+          // getBoundingClientRect() returns a zero rect for collapsed ranges in Chrome;
+          // getClientRects() correctly reflects the cursor's line position.
+          const rects = domSel.getRangeAt(0).getClientRects()
+          if (rects.length > 0) {
+            if (isDown && rects[rects.length - 1].bottom < elRect.bottom - lineH) return false
+            if (!isDown && rects[0].top > elRect.top + lineH) return false
+          }
         }
 
         event.preventDefault()
