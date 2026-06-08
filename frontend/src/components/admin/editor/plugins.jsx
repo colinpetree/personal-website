@@ -14,8 +14,8 @@ import {
   $getNodeByKey, $isParagraphNode, $isDecoratorNode,
   $createNodeSelection, $setSelection,
 } from 'lexical'
-import { $createImageNode } from './nodes'
-import { handleUpload } from './upload'
+import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode } from './nodes'
+import { handleUpload, handleUploadFull } from './upload'
 
 // ─── LoadHtmlPlugin ───────────────────────────────────────────────────────────
 
@@ -162,6 +162,10 @@ const SLASH_ITEMS = [
   { label: 'Bulleted List', description: 'Unordered list',        icon: '•',   action: 'bullet' },
   { label: 'Numbered List', description: 'Ordered list',          icon: '1.',  action: 'number' },
   { label: 'Image',         description: 'Upload an image',       icon: '⬜',  action: 'image' },
+  { label: 'Video',         description: 'Upload a video',        icon: '▶',   action: 'video' },
+  { label: 'Audio',         description: 'Upload an audio file',  icon: '♪',   action: 'audio' },
+  { label: 'File',          description: 'Upload any file',       icon: '📎',  action: 'file' },
+  { label: 'Gallery',       description: 'Image grid',            icon: '⊞',   action: 'gallery' },
 ]
 
 export function SlashCommandPlugin() {
@@ -173,6 +177,7 @@ export function SlashCommandPlugin() {
   menuRef.current = menu
   const fileRef = useRef(null)
   const pendingNodeKeyRef = useRef(null)
+  const pendingActionRef = useRef(null)
 
   function getItems(filter) {
     if (!filter) return SLASH_ITEMS
@@ -264,16 +269,22 @@ export function SlashCommandPlugin() {
     )
   }, [editor, menu.visible]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const UPLOAD_ACTIONS = new Set(['image', 'video', 'audio', 'file', 'gallery'])
+  const ACCEPT_MAP = { image: 'image/*', video: 'video/*', audio: 'audio/*', file: '*', gallery: 'image/*' }
+
   function applyItem(item) {
     const nodeKey = menuRef.current.nodeKey
     setMenu(m => ({ ...m, visible: false }))
 
-    if (item.action === 'image') {
+    if (UPLOAD_ACTIONS.has(item.action)) {
       editor.update(() => {
         const node = $getNodeByKey(nodeKey)
         if (node && $isParagraphNode(node)) node.clear()
       })
       pendingNodeKeyRef.current = nodeKey
+      pendingActionRef.current = item.action
+      fileRef.current.accept = ACCEPT_MAP[item.action]
+      fileRef.current.multiple = item.action === 'gallery'
       fileRef.current?.click()
       return
     }
@@ -308,24 +319,56 @@ export function SlashCommandPlugin() {
     })
   }
 
-  async function handleImageFile(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  async function handleMediaFile(e) {
+    const files = [...(e.target.files || [])]
+    if (!files.length) return
     const paragraphKey = pendingNodeKeyRef.current
+    const action = pendingActionRef.current
     pendingNodeKeyRef.current = null
+    pendingActionRef.current = null
     e.target.value = ''
 
     try {
-      const filename = await handleUpload(file)
-      const src = `/api/uploads/${filename}`
-      editor.update(() => {
-        const node = $getNodeByKey(paragraphKey)
-        if (node && $isParagraphNode(node)) {
-          node.replace($createImageNode(src, ''))
+      if (action === 'image') {
+        const filename = await handleUpload(files[0])
+        editor.update(() => {
+          const node = $getNodeByKey(paragraphKey)
+          if (node && $isParagraphNode(node)) node.replace($createImageNode(`/api/uploads/${filename}`, ''))
+        })
+      } else if (action === 'video') {
+        const filename = await handleUpload(files[0])
+        editor.update(() => {
+          const node = $getNodeByKey(paragraphKey)
+          if (node && $isParagraphNode(node)) node.replace($createVideoNode(`/api/uploads/${filename}`))
+        })
+      } else if (action === 'audio') {
+        const data = await handleUploadFull(files[0])
+        editor.update(() => {
+          const node = $getNodeByKey(paragraphKey)
+          if (node && $isParagraphNode(node)) node.replace($createAudioNode(`/api/uploads/${data.filename}`, data.original_name))
+        })
+      } else if (action === 'file') {
+        const data = await handleUploadFull(files[0])
+        editor.update(() => {
+          const node = $getNodeByKey(paragraphKey)
+          if (node && $isParagraphNode(node)) node.replace($createFileNode(`/api/uploads/${data.filename}`, data.original_name, data.mime_type, data.size || 0))
+        })
+      } else if (action === 'gallery') {
+        const uploaded = []
+        for (const file of files) {
+          const filename = await handleUpload(file)
+          uploaded.push({ src: `/api/uploads/${filename}`, alt: '' })
         }
-      })
+        if (uploaded.length) {
+          editor.update(() => {
+            const node = $getNodeByKey(paragraphKey)
+            if (node && $isParagraphNode(node)) node.replace($createGalleryNode(uploaded))
+          })
+        }
+      }
     } catch {
-      alert('Image upload failed.')
+      const label = action ? action.charAt(0).toUpperCase() + action.slice(1) : 'Upload'
+      alert(`${label} upload failed.`)
     }
   }
 
@@ -356,7 +399,7 @@ export function SlashCommandPlugin() {
           ))}
         </div>
       )}
-      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleImageFile} />
+      <input ref={fileRef} type="file" className="hidden" onChange={handleMediaFile} />
     </>,
     document.body
   )
