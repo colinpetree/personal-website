@@ -1,9 +1,19 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { DecoratorNode, $getNodeByKey, $createParagraphNode, CLICK_COMMAND, KEY_DOWN_COMMAND, COMMAND_PRIORITY_LOW, COMMAND_PRIORITY_HIGH, $createNodeSelection, $setSelection } from 'lexical'
+import { createEditor, DecoratorNode, $getNodeByKey, $getRoot, $createParagraphNode, CLICK_COMMAND, KEY_DOWN_COMMAND, COMMAND_PRIORITY_LOW, COMMAND_PRIORITY_HIGH, COMMAND_PRIORITY_CRITICAL, $createNodeSelection, $setSelection } from 'lexical'
+import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { useLexicalNodeSelection } from '@lexical/react/useLexicalNodeSelection'
+import { LexicalNestedComposer } from '@lexical/react/LexicalNestedComposer'
+import { ContentEditable } from '@lexical/react/LexicalContentEditable'
+import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin'
+import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
+import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
+import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
+import { LinkNode } from '@lexical/link'
+import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
 import { AlignCenter, Maximize2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat } from 'lucide-react'
 import { handleUpload } from './upload'
+import { FloatingToolbarPlugin } from './plugins'
 
 // ─── ImageNodeComponent ───────────────────────────────────────────────────────
 
@@ -1391,6 +1401,63 @@ export function $createDividerNode() {
   return new DividerNode()
 }
 
+// ─── CalloutBodySyncPlugin ────────────────────────────────────────────────────
+
+function CalloutBodySyncPlugin({ parentEditor, nodeKey, initialHtml }) {
+  const [nestedEditor] = useLexicalComposerContext()
+  const loaded = useRef(false)
+
+  useEffect(() => {
+    if (loaded.current) return
+    loaded.current = true
+    if (!initialHtml) return
+    nestedEditor.update(() => {
+      const parser = new DOMParser()
+      const dom = parser.parseFromString(initialHtml, 'text/html')
+      const nodes = $generateNodesFromDOM(nestedEditor, dom)
+      $getRoot().clear()
+      $getRoot().append(...nodes)
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    return nestedEditor.registerUpdateListener(() => {
+      nestedEditor.read(() => {
+        const html = $generateHtmlFromNodes(nestedEditor, null)
+        parentEditor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (node instanceof CalloutNode) node.getWritable().__html = html
+        })
+      })
+    })
+  }, [nestedEditor, parentEditor, nodeKey])
+
+  // Enter exits to main editor and inserts paragraph below callout.
+  // Shift+Enter passes through as a soft line break.
+  useEffect(() => {
+    return nestedEditor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key !== 'Enter' || event.shiftKey) return false
+        event.preventDefault()
+        parentEditor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (!node) return
+          const para = $createParagraphNode()
+          node.insertAfter(para)
+          para.selectStart()
+        })
+        const root = parentEditor.getRootElement()
+        if (root) root.focus({ preventScroll: true })
+        return true
+      },
+      COMMAND_PRIORITY_CRITICAL
+    )
+  }, [nestedEditor, parentEditor, nodeKey])
+
+  return null
+}
+
 // ─── CalloutNodeComponent ─────────────────────────────────────────────────────
 
 const CALLOUT_EMOJIS = ['💡', '⚠️', '✅', '❌', '📝', '🔔', '💬', '🎯', '🔥', '⭐', '🚀', '💎']
@@ -1405,15 +1472,23 @@ const CALLOUT_COLOR_PRESETS = [
   { label: 'Purple', value: '#8e42ff33' },
 ]
 
-function CalloutNodeComponent({ emojiEnabled, emoji, color, text, nodeKey, editor }) {
+function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, editor }) {
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [isHovered, setIsHovered] = useState(false)
-  const [textareaFocused, setTextareaFocused] = useState(false)
+  const [nestedFocused, setNestedFocused] = useState(false)
   const [toolbarPos, setToolbarPos] = useState(null)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const containerRef = useRef(null)
+  const nestedContainerRef = useRef(null)
 
-  const showRing = isSelected || textareaFocused
+  const nestedEditor = useMemo(() => createEditor({
+    namespace: 'CalloutBody',
+    nodes: [LinkNode],
+    theme: { text: { bold: 'font-bold', italic: 'italic', underline: 'underline' }, paragraph: 'my-0' },
+    onError: console.error,
+  }), [])
+
+  const showRing = isSelected || nestedFocused
 
   useEffect(() => {
     return editor.registerCommand(
@@ -1421,7 +1496,7 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, text, nodeKey, edito
       (event) => {
         const el = containerRef.current
         if (!el || !el.contains(event.target)) return false
-        if (event.target.tagName === 'TEXTAREA') return false
+        if (nestedContainerRef.current?.contains(event.target)) return false
         clearSelection()
         setSelected(true)
         return true
@@ -1491,14 +1566,6 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, text, nodeKey, edito
     })
   }
 
-  function handleTextChange(e) {
-    const val = e.target.value
-    editor.update(() => {
-      const node = $getNodeByKey(nodeKey)
-      if (node instanceof CalloutNode) node.getWritable().__text = val
-    })
-  }
-
   return (
     <>
       <div
@@ -1506,24 +1573,20 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, text, nodeKey, edito
         style={{ background: color, height: '74px' }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`my-4 max-w-3xl mx-auto rounded-lg px-4 flex items-center gap-3 transition-all ${
+        className={`my-4 max-w-3xl mx-auto rounded-lg px-7 py-5 flex items-center gap-3 transition-all ${
           showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''
         }`}
       >
         {emojiEnabled && (
           <span className="text-xl shrink-0 select-none">{emoji}</span>
         )}
-        <textarea
-          value={text}
-          onChange={handleTextChange}
+        <div
+          ref={nestedContainerRef}
+          className="flex-1 relative"
           onClick={e => e.stopPropagation()}
-          onFocus={() => setTextareaFocused(true)}
-          onBlur={() => setTextareaFocused(false)}
           onKeyDown={e => {
-            e.stopPropagation()
-            if (e.key === 'Enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+            if (e.key === 'Escape') {
               e.preventDefault()
-              e.target.blur()
               const root = editor.getRootElement()
               if (root) root.focus({ preventScroll: true })
               editor.update(() => {
@@ -1533,10 +1596,29 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, text, nodeKey, edito
               })
             }
           }}
-          placeholder="Write your callout…"
-          rows={1}
-          className="flex-1 bg-transparent resize-none outline-none text-gray-800 leading-relaxed select-text placeholder-gray-400"
-        />
+        >
+          <LexicalNestedComposer initialEditor={nestedEditor} initialTheme={{ text: { bold: 'font-bold', italic: 'italic', underline: 'underline' }, paragraph: 'my-0' }}>
+            <RichTextPlugin
+              contentEditable={
+                <ContentEditable
+                  onFocus={() => setNestedFocused(true)}
+                  onBlur={() => setNestedFocused(false)}
+                  className="outline-none text-gray-800 leading-relaxed w-full"
+                />
+              }
+              placeholder={
+                <div className="text-gray-400 pointer-events-none absolute top-1/2 -translate-y-1/2 left-0 select-none">
+                  Write your callout…
+                </div>
+              }
+              ErrorBoundary={LexicalErrorBoundary}
+            />
+            <HistoryPlugin />
+            <LinkPlugin />
+            <FloatingToolbarPlugin />
+            <CalloutBodySyncPlugin parentEditor={editor} nodeKey={nodeKey} initialHtml={html} />
+          </LexicalNestedComposer>
+        </div>
       </div>
 
       {isSelected && toolbarPos && createPortal(
@@ -1614,14 +1696,15 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, text, nodeKey, edito
 export class CalloutNode extends DecoratorNode {
   static getType() { return 'callout' }
   static clone(node) {
-    return new CalloutNode(node.__emojiEnabled, node.__emoji, node.__color, node.__text, node.__key)
+    return new CalloutNode(node.__emojiEnabled, node.__emoji, node.__color, node.__html, node.__key)
   }
 
   static importJSON(data) {
-    return new CalloutNode(data.emojiEnabled ?? true, data.emoji || '💡', data.color || '#14b8ff33', data.text || '')
+    const html = data.html || (data.text ? `<p>${data.text}</p>` : '')
+    return new CalloutNode(data.emojiEnabled ?? true, data.emoji || '💡', data.color || '#14b8ff33', html)
   }
   exportJSON() {
-    return { type: 'callout', version: 1, emojiEnabled: this.__emojiEnabled, emoji: this.__emoji, color: this.__color, text: this.__text }
+    return { type: 'callout', version: 1, emojiEnabled: this.__emojiEnabled, emoji: this.__emoji, color: this.__color, html: this.__html }
   }
 
   static importDOM() {
@@ -1629,26 +1712,34 @@ export class CalloutNode extends DecoratorNode {
       div: (node) => {
         if (!node.classList?.contains('callout')) return null
         return {
-          conversion: (domNode) => ({
-            node: new CalloutNode(
-              domNode.getAttribute('data-emoji-enabled') !== 'false',
-              domNode.getAttribute('data-emoji') || '💡',
-              domNode.getAttribute('data-color') || '#14b8ff33',
-              domNode.querySelector('p')?.textContent?.trim() || '',
-            )
-          }),
+          conversion: (domNode) => {
+            const bodyEl = domNode.querySelector('.callout-body')
+            const html = bodyEl
+              ? bodyEl.innerHTML
+              : (domNode.querySelector('p')?.textContent?.trim()
+                  ? `<p>${domNode.querySelector('p').textContent.trim()}</p>`
+                  : '')
+            return {
+              node: new CalloutNode(
+                domNode.getAttribute('data-emoji-enabled') !== 'false',
+                domNode.getAttribute('data-emoji') || '💡',
+                domNode.getAttribute('data-color') || '#14b8ff33',
+                html,
+              )
+            }
+          },
           priority: 2,
         }
       },
     }
   }
 
-  constructor(emojiEnabled = true, emoji = '💡', color = '#14b8ff33', text = '', key) {
+  constructor(emojiEnabled = true, emoji = '💡', color = '#14b8ff33', html = '', key) {
     super(key)
     this.__emojiEnabled = emojiEnabled
     this.__emoji = emoji
     this.__color = color
-    this.__text = text
+    this.__html = html
   }
 
   createDOM() {
@@ -1665,7 +1756,7 @@ export class CalloutNode extends DecoratorNode {
     wrap.setAttribute('data-emoji-enabled', String(this.__emojiEnabled))
     wrap.setAttribute('data-emoji', this.__emoji)
     wrap.setAttribute('data-color', this.__color)
-    wrap.style.cssText = `background:${this.__color};border-radius:0.5rem;padding:0 1rem;display:flex;gap:0.75rem;margin:1rem 0;align-items:center;height:74px`
+    wrap.style.cssText = `background:${this.__color};border-radius:0.5rem;padding:20px 28px;display:flex;gap:0.75rem;margin:1rem 0;align-items:center;height:74px;box-sizing:border-box`
 
     if (this.__emojiEnabled) {
       const span = document.createElement('span')
@@ -1674,10 +1765,11 @@ export class CalloutNode extends DecoratorNode {
       wrap.appendChild(span)
     }
 
-    const p = document.createElement('p')
-    p.style.cssText = 'margin:0;color:#1f2937;line-height:1.625;flex:1'
-    p.textContent = this.__text
-    wrap.appendChild(p)
+    const body = document.createElement('div')
+    body.className = 'callout-body'
+    body.style.cssText = 'flex:1;color:#1f2937;line-height:1.625;margin:0'
+    body.innerHTML = this.__html || ''
+    wrap.appendChild(body)
 
     return { element: wrap }
   }
@@ -1688,7 +1780,7 @@ export class CalloutNode extends DecoratorNode {
         emojiEnabled={this.__emojiEnabled}
         emoji={this.__emoji}
         color={this.__color}
-        text={this.__text}
+        html={this.__html}
         nodeKey={this.getKey()}
         editor={editor}
       />
