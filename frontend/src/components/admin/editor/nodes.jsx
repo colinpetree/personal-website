@@ -11,7 +11,7 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, Maximize2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat, ChevronDown } from 'lucide-react'
+import { AlignLeft, AlignCenter, Maximize2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat, ChevronDown, Copy, Check } from 'lucide-react'
 import Picker from '@emoji-mart/react'
 import emojiData from '@emoji-mart/data'
 import { handleUpload } from './upload'
@@ -2442,4 +2442,180 @@ export class ToggleNode extends DecoratorNode {
 
 export function $createToggleNode() {
   return new ToggleNode('', '')
+}
+
+// ─── CodeBlockNode ────────────────────────────────────────────────────────────
+
+function CodeBlockComponent({ code, nodeKey, editor }) {
+  const [localCode, setLocalCode] = useState(code)
+  const [copied, setCopied] = useState(false)
+  const [textareaFocused, setTextareaFocused] = useState(false)
+  const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
+  const [isHovered, setIsHovered] = useState(false)
+  const containerRef = useRef(null)
+
+  useEffect(() => { setLocalCode(code) }, [code])
+
+  const showRing = isSelected || textareaFocused
+
+  function commitCode(val) {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node) node.getWritable().setCode(val)
+    })
+  }
+
+  function handleCopy() {
+    navigator.clipboard.writeText(localCode)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  useEffect(() => {
+    return editor.registerCommand(
+      CLICK_COMMAND,
+      (event) => {
+        const el = containerRef.current
+        if (!el || !el.contains(event.target)) return false
+        if (event.target.tagName === 'TEXTAREA') return false
+        clearSelection()
+        setSelected(true)
+        return true
+      },
+      COMMAND_PRIORITY_LOW
+    )
+  }, [editor, setSelected, clearSelection])
+
+  useEffect(() => {
+    if (!isSelected) return
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key !== 'Enter') return false
+        event.preventDefault()
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (!node) return
+          const para = $createParagraphNode()
+          node.insertAfter(para)
+          para.selectStart()
+        })
+        return true
+      },
+      COMMAND_PRIORITY_HIGH
+    )
+  }, [isSelected, editor, nodeKey])
+
+  return (
+    <div
+      ref={containerRef}
+      className={`max-w-3xl mx-auto my-3 rounded transition-all ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <div className="mx-6 relative bg-gray-100 rounded px-4 py-2">
+        <button
+          onClick={handleCopy}
+          onMouseDown={e => e.preventDefault()}
+          className="absolute top-2 right-2 p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors"
+        >
+          {copied ? <Check size={14} /> : <Copy size={14} />}
+        </button>
+        <textarea
+          value={localCode}
+          onChange={e => { setLocalCode(e.target.value); commitCode(e.target.value) }}
+          onFocus={() => setTextareaFocused(true)}
+          onBlur={() => setTextareaFocused(false)}
+          onKeyDown={e => {
+            e.stopPropagation()
+            if (e.key === 'Tab') {
+              e.preventDefault()
+              const { selectionStart, selectionEnd, value } = e.target
+              const newVal = value.substring(0, selectionStart) + '  ' + value.substring(selectionEnd)
+              setLocalCode(newVal)
+              commitCode(newVal)
+              requestAnimationFrame(() => {
+                e.target.selectionStart = e.target.selectionEnd = selectionStart + 2
+              })
+            }
+            if (e.key === 'Escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+              e.preventDefault()
+              e.target.blur()
+              const root = editor.getRootElement()
+              if (root) root.focus({ preventScroll: true })
+              editor.update(() => {
+                const sel = $createNodeSelection()
+                sel.add(nodeKey)
+                $setSelection(sel)
+              })
+            }
+          }}
+          rows={Math.max(3, localCode.split('\n').length)}
+          className="block w-full bg-transparent outline-none resize-none font-mono text-sm leading-relaxed text-gray-800 pr-6"
+        />
+      </div>
+    </div>
+  )
+}
+
+export class CodeBlockNode extends DecoratorNode {
+  static getType() { return 'code-block' }
+  static clone(node) { return new CodeBlockNode(node.__code, node.__key) }
+
+  static importJSON(data) {
+    return new CodeBlockNode(data.code || '')
+  }
+
+  exportJSON() {
+    return { type: 'code-block', version: 1, code: this.__code }
+  }
+
+  static importDOM() {
+    return {
+      pre: (node) => {
+        if (!node.classList?.contains('code-block')) return null
+        return {
+          conversion: (domNode) => ({ node: new CodeBlockNode(domNode.textContent || '') }),
+          priority: 2,
+        }
+      },
+    }
+  }
+
+  constructor(code = '', key) {
+    super(key)
+    this.__code = code
+  }
+
+  createDOM() {
+    const span = document.createElement('span')
+    span.style.display = 'contents'
+    return span
+  }
+
+  updateDOM() { return false }
+  isInline() { return false }
+
+  setCode(val) { this.getWritable().__code = val }
+
+  exportDOM() {
+    const pre = document.createElement('pre')
+    pre.className = 'code-block'
+    pre.textContent = this.__code
+    return { element: pre }
+  }
+
+  decorate(editor) {
+    return (
+      <CodeBlockComponent
+        code={this.__code}
+        nodeKey={this.getKey()}
+        editor={editor}
+      />
+    )
+  }
+}
+
+export function $createCodeBlockNode(code = '') {
+  return new CodeBlockNode(code)
 }

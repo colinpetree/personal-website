@@ -12,14 +12,13 @@ import { $createHeadingNode, $createQuoteNode } from '@lexical/rich-text'
 import { INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, $isListItemNode } from '@lexical/list'
 import { $findMatchingParent } from '@lexical/utils'
 import { TOGGLE_LINK_COMMAND } from '@lexical/link'
-import { $createCodeNode } from '@lexical/code'
 import {
   $getSelection, $isRangeSelection, $isNodeSelection, $createParagraphNode, $getRoot,
   FORMAT_TEXT_COMMAND, KEY_DOWN_COMMAND, COMMAND_PRIORITY_HIGH, COMMAND_PRIORITY_CRITICAL,
   $getNodeByKey, $isParagraphNode, $isDecoratorNode, $isElementNode,
   $createNodeSelection, $setSelection,
 } from 'lexical'
-import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createToggleNode } from './nodes'
+import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createToggleNode, $createCodeBlockNode } from './nodes'
 import { handleUpload, handleUploadFull } from './upload'
 import { Tooltip } from '../../ui/Tooltip'
 
@@ -443,6 +442,24 @@ export function SlashCommandPlugin() {
       return
     }
 
+    if (item.action === 'code') {
+      editor.update(() => {
+        const node = $getNodeByKey(nodeKey)
+        if (!node || !$isParagraphNode(node)) return
+        const codeBlock = $createCodeBlockNode()
+        node.replace(codeBlock)
+        const next = codeBlock.getNextSibling()
+        if ($isElementNode(next)) {
+          next.selectStart()
+        } else {
+          const para = $createParagraphNode()
+          codeBlock.insertAfter(para)
+          para.selectStart()
+        }
+      })
+      return
+    }
+
     if (item.action === 'bullet' || item.action === 'number') {
       editor.update(() => {
         const node = $getNodeByKey(nodeKey)
@@ -467,8 +484,6 @@ export function SlashCommandPlugin() {
         $setBlocksType(sel, () => $createHeadingNode(item.action))
       } else if (item.action === 'quote') {
         $setBlocksType(sel, () => $createQuoteNode())
-      } else if (item.action === 'code') {
-        $setBlocksType(sel, () => $createCodeNode())
       }
     })
   }
