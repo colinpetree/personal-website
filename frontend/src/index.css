@@ -7,6 +7,24 @@ html {
   overflow-x: hidden;
 }
 
+/* Remove typography plugin's auto-backticks from code elements */
+.prose code::before,
+.prose code::after {
+  content: none;
+}
+
+/* Code block on the public page: legible text, constrained to content width */
+.blog-content code,
+.blog-content pre {
+  color: #1f2937;
+}
+.blog-content pre {
+  margin-left: 0;
+  margin-right: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 /* Blog post prose overrides */
 /* Empty paragraph placeholder in the editor */
 .editor-paragraph.is-cursor-para:has(> br:only-child)::before {
