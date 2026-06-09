@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@emoji-mart/data": "^1.2.1",
+    "@radix-ui/react-tooltip": "^1.1.8",
     "@emoji-mart/react": "^1.1.1",
     "@lexical/code": "^0.45.0",
     "@lexical/html": "^0.45.0",
