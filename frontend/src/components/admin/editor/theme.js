@@ -4,7 +4,7 @@ const theme = {
     h2: 'max-w-3xl mx-auto px-6 text-2xl font-bold mt-5 mb-2',
     h3: 'max-w-3xl mx-auto px-6 text-xl font-semibold mt-4 mb-2',
   },
-  paragraph: 'max-w-3xl mx-auto px-6 mb-3 leading-relaxed',
+  paragraph: 'editor-paragraph max-w-3xl mx-auto px-6 mb-3 leading-relaxed',
   // pl-10 = px-6 (24px align) + pl-4 (16px indent from border), pr-6 for right alignment
   quote: 'max-w-3xl mx-auto pl-10 pr-6 border-l-4 border-gray-300 italic text-gray-600 my-3',
   code: 'block max-w-3xl mx-auto bg-gray-100 rounded p-3 font-mono text-sm my-3 whitespace-pre-wrap',
