@@ -636,6 +636,20 @@ export function EditorHandlePlugin({ handleRef }) {
         newParagraph.select()
       })
     },
+    focusAtEnd() {
+      editor.update(() => {
+        const root = $getRoot()
+        const lastChild = root.getLastChild()
+        if ($isParagraphNode(lastChild)) {
+          lastChild.selectEnd()
+        } else {
+          const paragraph = $createParagraphNode()
+          root.append(paragraph)
+          paragraph.select()
+        }
+      })
+      editor.getRootElement()?.focus()
+    },
   }), [editor])
   return null
 }
