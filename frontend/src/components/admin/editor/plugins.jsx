@@ -3,7 +3,7 @@ import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 import {
   Bold, Italic, Underline, Strikethrough, Code, Link2,
   Type, Heading1, Heading2, Heading3, Quote, Code2,
-  List, ListOrdered, Minus, Image, Video, Music, Paperclip, LayoutGrid, Plus,
+  List, ListOrdered, Minus, Image, Video, Music, Paperclip, LayoutGrid, Plus, MessageSquare,
 } from 'lucide-react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
@@ -19,7 +19,7 @@ import {
   $getNodeByKey, $isParagraphNode, $isDecoratorNode, $isElementNode,
   $createNodeSelection, $setSelection,
 } from 'lexical'
-import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode } from './nodes'
+import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode } from './nodes'
 import { handleUpload, handleUploadFull } from './upload'
 
 // ─── LoadHtmlPlugin ───────────────────────────────────────────────────────────
@@ -167,6 +167,7 @@ const SLASH_ITEMS = [
   { label: 'Bulleted List', description: 'Unordered list',        Icon: List,        action: 'bullet' },
   { label: 'Numbered List', description: 'Ordered list',          Icon: ListOrdered, action: 'number' },
   { label: 'Divider',       description: 'Horizontal rule',        Icon: Minus,       action: 'divider' },
+  { label: 'Callout',       description: 'Highlighted callout box', Icon: MessageSquare, action: 'callout' },
   { label: 'Image',         description: 'Upload an image',       Icon: Image,       action: 'image' },
   { label: 'Video',         description: 'Upload a video',        Icon: Video,       action: 'video' },
   { label: 'Audio',         description: 'Upload an audio file',  Icon: Music,       action: 'audio' },
@@ -375,6 +376,24 @@ export function SlashCommandPlugin() {
         } else {
           const para = $createParagraphNode()
           divider.insertAfter(para)
+          para.selectStart()
+        }
+      })
+      return
+    }
+
+    if (item.action === 'callout') {
+      editor.update(() => {
+        const node = $getNodeByKey(nodeKey)
+        if (!node || !$isParagraphNode(node)) return
+        const callout = $createCalloutNode()
+        node.replace(callout)
+        const next = callout.getNextSibling()
+        if ($isElementNode(next)) {
+          next.selectStart()
+        } else {
+          const para = $createParagraphNode()
+          callout.insertAfter(para)
           para.selectStart()
         }
       })
