@@ -18,4 +18,4 @@ Add role-based staff accounts, event log, and author attribution
 </example>
 
 For simple changes, a single summary line is enough — skip the bullet list if the change is self-explanatory.
-Use "-" as the buttet points and not actual bullet points in the commit message.
+Use "-" as the bullet points and not actual bullet points in the commit message.
