@@ -289,9 +289,67 @@ useLayoutEffect(() => {
 
 `onMouseDown={e => e.preventDefault()}` on the toolbar wrapper is required — without it, clicking toolbar buttons blurs the editor and deselects the node before the button's action fires.
 
+### 7. Nodes with editable text inputs (`<textarea>` / `<input>`)
+
+Nodes that contain a `<textarea>` or `<input>` need extra care. Three rules:
+
+**A. Never call `setSelected(true)` from `onFocus`.** Use a separate focused state for the ring instead:
+
+```jsx
+const [textareaFocused, setTextareaFocused] = useState(false)
+const showRing = isSelected || textareaFocused
+
+// container className:
+className={`... ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+
+// textarea:
+onFocus={() => setTextareaFocused(true)}
+onBlur={() => setTextareaFocused(false)}
+```
+
+If `setSelected(true)` is called from `onFocus`, `KEY_DOWN_COMMAND` becomes active while the user is typing, which intercepts Enter and creates paragraphs. `DecoratorArrowNavigationPlugin` also intercepts arrow keys, moving editor selection instead of the text cursor.
+
+**B. Stop all keyboard event propagation from the input.** Without this, every keystroke (Ctrl+B, arrow keys, Enter) bubbles up to Lexical's command handlers:
+
+```jsx
+onKeyDown={e => {
+  e.stopPropagation()
+  // handle special keys below
+}}
+```
+
+**C. "Escape to select" pattern for Enter and arrow keys.** When the user presses Enter/Up/Down inside the input, blur the input and return focus to the editor + select the node. Use `editor.getRootElement().focus()` — **not** `editor.focus()` or `editor.update()`:
+
+```jsx
+onKeyDown={e => {
+  e.stopPropagation()
+  if (e.key === 'Enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    e.preventDefault()
+    e.target.blur()
+    const root = editor.getRootElement()
+    if (root) root.focus({ preventScroll: true })
+    editor.update(() => {
+      const sel = $createNodeSelection()
+      sel.add(nodeKey)
+      $setSelection(sel)
+    })
+  }
+}}
+```
+
+**Why `getRootElement().focus()` and not `editor.focus()`?**
+When a textarea blurs, DOM focus lands on `<body>`. `editor.focus()` and `editor.update()` with `$setSelection` both set Lexical's *internal* selection state (the blue ring will appear) but neither moves *DOM focus* back to the contenteditable — so arrow keys still scroll the browser. `editor.getRootElement().focus({ preventScroll: true })` directly focuses the contenteditable element synchronously, which is required before the Lexical update.
+
+You can verify where focus actually lands by checking `document.activeElement` in the console after blur.
+
+Required imports for the escape-to-select pattern:
+```js
+import { ..., $createNodeSelection, $setSelection } from 'lexical'
+```
+
 ### Reference implementation
 
-`DividerNode` (bottom of `nodes.jsx`) is the minimal reference — no fields, just the interaction skeleton. `ImageNode`/`VideoNode` are the reference for the full floating toolbar pattern. `CalloutNode` (at the end of `nodes.jsx`) is the reference for nodes with both interactive text inputs and a settings toolbar.
+`DividerNode` (bottom of `nodes.jsx`) is the minimal reference — no fields, just the interaction skeleton. `ImageNode`/`VideoNode` are the reference for the full floating toolbar pattern. `CalloutNode` (at the end of `nodes.jsx`) is the reference for nodes with both interactive text inputs and a settings toolbar — including the `textareaFocused` state, `stopPropagation`, and escape-to-select pattern.
 
 ---
 
@@ -304,6 +362,11 @@ useLayoutEffect(() => {
 - [ ] `applyItem` case in `plugins.jsx` moves selection after `node.replace()` (next sibling or new paragraph)
 - [ ] `SLASH_ITEMS` entry added with a verified lucide icon name
 - [ ] Arrow-key navigation is free — no work needed (`DecoratorArrowNavigationPlugin` handles it)
+
+**If node contains `<textarea>` or `<input>`**
+- [ ] Separate `textareaFocused`/`inputFocused` state used for the ring — `onFocus` does NOT call `setSelected(true)`
+- [ ] `onKeyDown={e => e.stopPropagation()}` on every input to block Lexical command handlers
+- [ ] Enter/Up/Down in the input uses `editor.getRootElement().focus({ preventScroll: true })` (not `editor.focus()`) before the `editor.update()` call to return DOM focus to the contenteditable
 
 **Floating toolbar (if node has settings)**
 - [ ] `useLayoutEffect` positions toolbar above node, flips below if no room, cleans up scroll/resize listeners
