@@ -851,7 +851,7 @@ export default function AdminBlogEditorPage() {
             key={post?.id}
             initialHtml={contentHtml}
             onChange={handleContentChange}
-            placeholder="Start writing your post…"
+            placeholder=""
           />
           <div aria-hidden="true" style={{ height: '33vh' }} />
         </div>
