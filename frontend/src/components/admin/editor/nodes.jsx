@@ -12,6 +12,8 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
 import { AlignCenter, Maximize2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat } from 'lucide-react'
+import Picker from '@emoji-mart/react'
+import emojiData from '@emoji-mart/data'
 import { handleUpload } from './upload'
 import { FloatingToolbarPlugin } from './plugins'
 
@@ -1460,7 +1462,6 @@ function CalloutBodySyncPlugin({ parentEditor, nodeKey, initialHtml }) {
 
 // ─── CalloutNodeComponent ─────────────────────────────────────────────────────
 
-const CALLOUT_EMOJIS = ['💡', '⚠️', '✅', '❌', '📝', '🔔', '💬', '🎯', '🔥', '⭐', '🚀', '💎']
 const CALLOUT_COLOR_PRESETS = [
   { label: 'White',  value: '#00000000' },
   { label: 'Gray',   value: '#abb4be33' },
@@ -1480,6 +1481,36 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, edito
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const containerRef = useRef(null)
   const nestedContainerRef = useRef(null)
+  const emojiButtonRef = useRef(null)
+  const emojiPickerRef = useRef(null)
+  const [pickerPos, setPickerPos] = useState(null)
+
+  useEffect(() => {
+    if (!showEmojiPicker) return
+    function handleOutside(e) {
+      if (
+        emojiPickerRef.current && !emojiPickerRef.current.contains(e.target) &&
+        emojiButtonRef.current && !emojiButtonRef.current.contains(e.target)
+      ) {
+        setShowEmojiPicker(false)
+      }
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [showEmojiPicker])
+
+  function toggleEmojiPicker() {
+    if (showEmojiPicker) { setShowEmojiPicker(false); return }
+    const rect = emojiButtonRef.current?.getBoundingClientRect()
+    if (!rect) return
+    const pickerW = 352
+    let left = rect.left + window.scrollX
+    if (left + pickerW > window.innerWidth + window.scrollX - 8) {
+      left = window.innerWidth + window.scrollX - pickerW - 8
+    }
+    setPickerPos({ top: rect.bottom + window.scrollY + 4, left: Math.max(8, left) })
+    setShowEmojiPicker(true)
+  }
 
   const nestedEditor = useMemo(() => createEditor({
     namespace: 'CalloutBody',
@@ -1526,7 +1557,7 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, edito
   }, [isSelected, editor, nodeKey])
 
   useLayoutEffect(() => {
-    if (!isSelected || !containerRef.current) { setToolbarPos(null); return }
+    if ((!isSelected && !nestedFocused) || !containerRef.current) { setToolbarPos(null); return }
     function calc() {
       const rect = containerRef.current?.getBoundingClientRect()
       if (!rect) return
@@ -1542,7 +1573,7 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, edito
     window.addEventListener('scroll', calc, true)
     window.addEventListener('resize', calc)
     return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
-  }, [isSelected])
+  }, [isSelected, nestedFocused])
 
   function setEmojiEnabled(val) {
     editor.update(() => {
@@ -1611,7 +1642,7 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, edito
               }
               placeholder={
                 <div className="text-gray-400 pointer-events-none absolute top-1/2 -translate-y-1/2 left-0 select-none">
-                  Write your callout…
+                  Callout text...
                 </div>
               }
               ErrorBoundary={LexicalErrorBoundary}
@@ -1625,19 +1656,19 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, edito
         </div>
       </div>
 
-      {isSelected && toolbarPos && createPortal(
+      {(isSelected || nestedFocused) && toolbarPos && createPortal(
         <div
           style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999 }}
-          className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl overflow-hidden"
+          className="bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden"
           onMouseDown={e => e.preventDefault()}
         >
           <div className="flex items-center gap-2 px-2 py-1.5">
-            <span className="text-xs text-gray-400">Emoji</span>
+            <span className="text-xs text-gray-500">Emoji</span>
             <button
               title={emojiEnabled ? 'Hide emoji' : 'Show emoji'}
               onMouseDown={e => { e.preventDefault(); setEmojiEnabled(!emojiEnabled); setShowEmojiPicker(false) }}
               className={`relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors duration-200 ${
-                emojiEnabled ? 'bg-blue-500' : 'bg-gray-600'
+                emojiEnabled ? 'bg-blue-500' : 'bg-gray-300'
               }`}
             >
               <span className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 mt-0.5 ${
@@ -1647,47 +1678,51 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, edito
 
             {emojiEnabled && (
               <button
+                ref={emojiButtonRef}
                 title="Change emoji"
-                onMouseDown={e => { e.preventDefault(); setShowEmojiPicker(v => !v) }}
+                onMouseDown={e => { e.preventDefault(); toggleEmojiPicker() }}
                 className={`px-1.5 py-0.5 rounded text-sm transition-colors ${
-                  showEmojiPicker ? 'bg-white/20' : 'hover:bg-white/15'
+                  showEmojiPicker ? 'bg-gray-100' : 'hover:bg-gray-100'
                 }`}
               >
                 {emoji}
               </button>
             )}
 
-            <div className="w-px h-4 bg-gray-600 mx-1" />
+            <div className="w-px h-4 bg-gray-200 mx-1" />
 
             {CALLOUT_COLOR_PRESETS.map(({ label, value }) => (
               <button
                 key={value}
                 title={label}
                 onMouseDown={e => { e.preventDefault(); setColor(value) }}
-                className="w-4 h-4 rounded-full border-2 shadow-sm transition-transform hover:scale-110 shrink-0"
+                className="w-4 h-4 rounded-full shadow-sm transition-transform hover:scale-110 shrink-0"
                 style={{
                   background: value,
-                  borderColor: color === value ? '#3b82f6' : '#4b5563',
+                  outline: color === value ? '2px solid #3b82f6' : '1px solid #d1d5db',
+                  outlineOffset: color === value ? '1px' : '0',
                 }}
               />
             ))}
           </div>
 
-          {showEmojiPicker && (
-            <div className="border-t border-gray-700 px-2 py-1.5 grid grid-cols-6 gap-0.5">
-              {CALLOUT_EMOJIS.map(e => (
-                <button
-                  key={e}
-                  onMouseDown={ev => { ev.preventDefault(); setEmoji(e) }}
-                  className={`p-1 text-sm rounded transition-colors hover:bg-white/15 ${
-                    emoji === e ? 'bg-white/20' : ''
-                  }`}
-                >
-                  {e}
-                </button>
-              ))}
-            </div>
-          )}
+        </div>,
+        document.body
+      )}
+
+      {showEmojiPicker && pickerPos && createPortal(
+        <div
+          ref={emojiPickerRef}
+          style={{ position: 'absolute', top: pickerPos.top, left: pickerPos.left, zIndex: 10000 }}
+        >
+          <Picker
+            data={emojiData}
+            onEmojiSelect={(e) => setEmoji(e.native)}
+            theme="light"
+            previewPosition="none"
+            skinTonePosition="none"
+            autoFocus
+          />
         </div>,
         document.body
       )}
