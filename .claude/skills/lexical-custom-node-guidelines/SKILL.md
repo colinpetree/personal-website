@@ -235,9 +235,16 @@ case 'myNode': {
 - [ ] Are all non-visual fields stored as `data-` attributes so `importDOM` can fully reconstruct the node?
 - [ ] If changing an existing `exportDOM` structure, is there a backwards-compat handler for the old format?
 
+**Public-facing style parity**
+- [ ] Compare the node's visual design in the editor to how the exported HTML renders on the public blog (`BlogPostPage.jsx` renders `content_html` via `dangerouslySetInnerHTML` inside `.blog-content.prose`)
+- [ ] The `@tailwindcss/typography` prose defaults may not match the editor's Tailwind classes — check color, spacing, margins, and borders
+- [ ] Add overrides to `.blog-content <element>` in `frontend/src/index.css` for any properties that diverge (color, margin, padding, border, etc.)
+- [ ] The editor's selection ring and hover states are editor-only UI and should NOT appear on the public site — the raw exported HTML has no interactive wrapper, so this is already handled
+
 **Testing**
 - [ ] Insert node → save → reload editor → confirm node renders cleanly with no ghost text
 - [ ] Save again → reload → confirm no data changed (title, filename, size, etc. all survive)
 - [ ] Click node → confirm blue ring appears; hover without clicking → confirm lighter ring
 - [ ] Arrow Up/Down through node from adjacent paragraph → confirm navigation works
 - [ ] Press Enter while node is selected → confirm cursor moves to paragraph below
+- [ ] Open the published blog post in the browser and confirm the node looks the same as in the editor (same color, spacing, and proportions)
