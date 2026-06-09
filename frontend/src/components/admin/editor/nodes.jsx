@@ -544,9 +544,15 @@ export class VideoNode extends DecoratorNode {
     if (!this.__src) return { element: null }
     const video = document.createElement('video')
     video.setAttribute('src', this.__src)
-    video.setAttribute('controls', '')
-    if (this.__loop) video.setAttribute('loop', '')
-    if (this.__thumbnailSrc) video.setAttribute('poster', this.__thumbnailSrc)
+    if (this.__loop) {
+      video.setAttribute('autoplay', '')
+      video.setAttribute('muted', '')
+      video.setAttribute('loop', '')
+      video.setAttribute('playsinline', '')
+    } else {
+      video.setAttribute('controls', '')
+      if (this.__thumbnailSrc) video.setAttribute('poster', this.__thumbnailSrc)
+    }
     video.style.cssText = 'width:100%;display:block'
 
     const figure = document.createElement('figure')

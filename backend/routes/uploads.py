@@ -10,4 +10,7 @@ def serve_upload(filename):
     friendly_name = request.args.get('name')
     if friendly_name:
         return send_from_directory(uploads_dir, filename, as_attachment=True, download_name=friendly_name)
-    return send_from_directory(uploads_dir, filename)
+    response = send_from_directory(uploads_dir, filename)
+    response.cache_control.public = True
+    response.cache_control.max_age = 31536000
+    return response
