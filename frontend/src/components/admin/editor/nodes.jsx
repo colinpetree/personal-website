@@ -1570,13 +1570,16 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, edito
     <>
       <div
         ref={containerRef}
-        style={{ background: color, height: '74px' }}
+        className="my-4 max-w-3xl mx-auto"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`my-4 max-w-3xl mx-auto rounded-lg px-7 py-5 flex items-center gap-3 transition-all ${
-          showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''
-        }`}
       >
+        <div
+          style={{ background: color }}
+          className={`mx-6 rounded-lg px-7 py-5 flex items-start gap-3 transition-all ${
+            showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''
+          }`}
+        >
         {emojiEnabled && (
           <span className="text-xl shrink-0 select-none">{emoji}</span>
         )}
@@ -1618,6 +1621,7 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, edito
             <FloatingToolbarPlugin />
             <CalloutBodySyncPlugin parentEditor={editor} nodeKey={nodeKey} initialHtml={html} />
           </LexicalNestedComposer>
+        </div>
         </div>
       </div>
 
@@ -1756,7 +1760,7 @@ export class CalloutNode extends DecoratorNode {
     wrap.setAttribute('data-emoji-enabled', String(this.__emojiEnabled))
     wrap.setAttribute('data-emoji', this.__emoji)
     wrap.setAttribute('data-color', this.__color)
-    wrap.style.cssText = `background:${this.__color};border-radius:0.5rem;padding:20px 28px;display:flex;gap:0.75rem;margin:1rem 0;align-items:center;height:74px;box-sizing:border-box`
+    wrap.style.cssText = `background:${this.__color};border-radius:0.5rem;padding:20px 28px;display:flex;gap:0.75rem;margin:1rem 0;align-items:flex-start;box-sizing:border-box`
 
     if (this.__emojiEnabled) {
       const span = document.createElement('span')
@@ -1766,7 +1770,7 @@ export class CalloutNode extends DecoratorNode {
     }
 
     const body = document.createElement('div')
-    body.className = 'callout-body'
+    body.className = 'callout-body not-prose'
     body.style.cssText = 'flex:1;color:#1f2937;line-height:1.625;margin:0'
     body.innerHTML = this.__html || ''
     wrap.appendChild(body)
