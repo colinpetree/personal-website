@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { DecoratorNode, $getNodeByKey, $createParagraphNode, CLICK_COMMAND, KEY_DOWN_COMMAND, COMMAND_PRIORITY_LOW, COMMAND_PRIORITY_HIGH } from 'lexical'
+import { DecoratorNode, $getNodeByKey, $createParagraphNode, CLICK_COMMAND, KEY_DOWN_COMMAND, COMMAND_PRIORITY_LOW, COMMAND_PRIORITY_HIGH, $createNodeSelection, $setSelection } from 'lexical'
 import { useLexicalNodeSelection } from '@lexical/react/useLexicalNodeSelection'
 import { AlignCenter, Maximize2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat } from 'lucide-react'
 import { handleUpload } from './upload'
@@ -1408,9 +1408,12 @@ const CALLOUT_COLOR_PRESETS = [
 function CalloutNodeComponent({ emojiEnabled, emoji, color, text, nodeKey, editor }) {
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [isHovered, setIsHovered] = useState(false)
+  const [textareaFocused, setTextareaFocused] = useState(false)
   const [toolbarPos, setToolbarPos] = useState(null)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const containerRef = useRef(null)
+
+  const showRing = isSelected || textareaFocused
 
   useEffect(() => {
     return editor.registerCommand(
@@ -1504,7 +1507,7 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, text, nodeKey, edito
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         className={`my-4 max-w-3xl mx-auto rounded-lg px-4 flex items-center gap-3 transition-all ${
-          isSelected ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''
+          showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''
         }`}
       >
         {emojiEnabled && (
@@ -1514,7 +1517,22 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, text, nodeKey, edito
           value={text}
           onChange={handleTextChange}
           onClick={e => e.stopPropagation()}
-          onFocus={() => { clearSelection(); setSelected(true) }}
+          onFocus={() => setTextareaFocused(true)}
+          onBlur={() => setTextareaFocused(false)}
+          onKeyDown={e => {
+            e.stopPropagation()
+            if (e.key === 'Enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+              e.preventDefault()
+              e.target.blur()
+              const root = editor.getRootElement()
+              if (root) root.focus({ preventScroll: true })
+              editor.update(() => {
+                const sel = $createNodeSelection()
+                sel.add(nodeKey)
+                $setSelection(sel)
+              })
+            }
+          }}
           placeholder="Write your callout…"
           rows={1}
           className="flex-1 bg-transparent resize-none outline-none text-gray-800 leading-relaxed select-text placeholder-gray-400"
