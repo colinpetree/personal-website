@@ -3,7 +3,7 @@ import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 import {
   Bold, Italic, Underline, Strikethrough, Code, Link2,
   Type, Heading1, Heading2, Heading3, Quote, Code2,
-  List, ListOrdered, Image, Video, Music, Paperclip, LayoutGrid,
+  List, ListOrdered, Image, Video, Music, Paperclip, LayoutGrid, Plus,
 } from 'lucide-react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
@@ -176,10 +176,11 @@ const SLASH_ITEMS = [
 export function SlashCommandPlugin() {
   const [editor] = useLexicalComposerContext()
   const [menu, setMenu] = useState({
-    visible: false, top: 0, left: 0, filter: '', selectedIndex: 0, nodeKey: null,
+    visible: false, top: 0, left: 0, filter: '', selectedIndex: 0, nodeKey: null, plusTriggered: false,
   })
   const menuRef = useRef(menu)
   menuRef.current = menu
+  const [plusButton, setPlusButton] = useState({ visible: false, top: 0, left: 0, nodeKey: null })
   const fileRef = useRef(null)
   const pendingNodeKeyRef = useRef(null)
   const pendingActionRef = useRef(null)
@@ -205,6 +206,7 @@ export function SlashCommandPlugin() {
         const selection = $getSelection()
         if (!$isRangeSelection(selection)) {
           setMenu(m => m.visible ? { ...m, visible: false } : m)
+          setPlusButton(b => b.visible ? { ...b, visible: false } : b)
           return
         }
 
@@ -214,19 +216,23 @@ export function SlashCommandPlugin() {
           topLevel = node.getKey() === 'root' ? node : node.getTopLevelElementOrThrow()
         } catch {
           setMenu(m => m.visible ? { ...m, visible: false } : m)
+          setPlusButton(b => b.visible ? { ...b, visible: false } : b)
           return
         }
 
         if (!$isParagraphNode(topLevel)) {
           setMenu(m => m.visible ? { ...m, visible: false } : m)
+          setPlusButton(b => b.visible ? { ...b, visible: false } : b)
           return
         }
 
         const text = topLevel.getTextContent()
+        const domEl = editor.getElementByKey(topLevel.getKey())
+
         if (text.startsWith('/')) {
-          const domEl = editor.getElementByKey(topLevel.getKey())
           if (!domEl) return
           const rect = domEl.getBoundingClientRect()
+          setPlusButton(b => b.visible ? { ...b, visible: false } : b)
           setMenu({
             visible: true,
             top: rect.bottom + window.scrollY + 6,
@@ -234,13 +240,57 @@ export function SlashCommandPlugin() {
             filter: text.slice(1),
             selectedIndex: 0,
             nodeKey: topLevel.getKey(),
+            plusTriggered: false,
           })
+        } else if (menuRef.current.visible && menuRef.current.plusTriggered) {
+          // Menu was opened by + button — close it if cursor moved or paragraph got content
+          if (text === '' && topLevel.getKey() === menuRef.current.nodeKey) {
+            // Still on the same empty paragraph; keep menu open and update position
+            if (domEl) {
+              const rect = domEl.getBoundingClientRect()
+              setMenu(m => ({ ...m, top: rect.bottom + window.scrollY + 6, left: rect.left + window.scrollX }))
+            }
+          } else {
+            setMenu(m => ({ ...m, visible: false, plusTriggered: false }))
+          }
         } else {
           setMenu(m => m.visible ? { ...m, visible: false } : m)
+
+          // Show plus button when cursor is collapsed in an empty paragraph
+          if (selection.isCollapsed() && text === '' && domEl) {
+            const rect = domEl.getBoundingClientRect()
+            setPlusButton({
+              visible: true,
+              top: rect.top + window.scrollY + rect.height / 2,
+              left: rect.left + window.scrollX - 44,
+              nodeKey: topLevel.getKey(),
+            })
+          } else {
+            setPlusButton(b => b.visible ? { ...b, visible: false } : b)
+          }
         }
       })
     })
   }, [editor])
+
+  function handlePlusClick(e) {
+    e.preventDefault()
+    const { nodeKey } = plusButton
+    const domEl = editor.getElementByKey(nodeKey)
+    if (!domEl) return
+    const rect = domEl.getBoundingClientRect()
+    setPlusButton(b => ({ ...b, visible: false }))
+    setMenu({
+      visible: true,
+      top: rect.bottom + window.scrollY + 6,
+      left: rect.left + window.scrollX,
+      filter: '',
+      selectedIndex: 0,
+      nodeKey,
+      plusTriggered: true,
+    })
+    editor.focus()
+  }
 
   useEffect(() => {
     if (!menu.visible) return
@@ -384,6 +434,17 @@ export function SlashCommandPlugin() {
 
   return createPortal(
     <>
+      {plusButton.visible && (
+        <button
+          style={{ position: 'absolute', top: plusButton.top, left: plusButton.left, transform: 'translateY(-50%)', zIndex: 9999 }}
+          className="w-9 h-9 flex items-center justify-center rounded-full border border-gray-300 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          onMouseDown={handlePlusClick}
+          tabIndex={-1}
+          aria-label="Insert block"
+        >
+          <Plus size={20} strokeWidth={2} />
+        </button>
+      )}
       {menu.visible && filteredItems.length > 0 && (
         <div
           style={{ position: 'absolute', top: menu.top, left: menu.left, zIndex: 9999 }}
