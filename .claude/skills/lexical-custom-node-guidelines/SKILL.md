@@ -1,3 +1,8 @@
+---
+name: lexical-custom-node-guidelines
+description: Implementation and debugging reference for custom Lexical DecoratorNode classes in the WYSIWYG HTML editor. Use it when building any new editor node. 
+---
+
 # Lexical DecoratorNode Implementation Guide
 
 Use this guide when implementing or debugging custom Lexical `DecoratorNode` classes in the rich text editor (`frontend/src/components/admin/editor/nodes.jsx`).
@@ -114,12 +119,125 @@ static importDOM() {
 
 **Symptom of a missing backwards-compat handler:** old posts render as plain text/links in the editor after the first re-open, and saving "upgrades" them — but only if the user manually re-saves each post.
 
+## Standard interaction behavior (required for every block DecoratorNode)
+
+Every block `DecoratorNode` in this editor must implement hover highlighting, selection ring, arrow-key navigation, and Enter-to-paragraph. These are **not optional** — they are the baseline UX contract for all nodes.
+
+### 1. Hover + selection ring
+
+Use `useLexicalNodeSelection` and a local `isHovered` state. Apply Tailwind ring classes conditionally:
+
+```jsx
+const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
+const [isHovered, setIsHovered] = useState(false)
+
+// on the container element:
+className={`... transition-all ${
+  isSelected ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''
+}`}
+onMouseEnter={() => setIsHovered(true)}
+onMouseLeave={() => setIsHovered(false)}
+```
+
+### 2. Click to select
+
+Register `CLICK_COMMAND` at `COMMAND_PRIORITY_LOW`. Only handle clicks whose `event.target` is inside the node's DOM element.
+
+```jsx
+useEffect(() => {
+  return editor.registerCommand(
+    CLICK_COMMAND,
+    (event) => {
+      const el = containerRef.current
+      if (!el || !el.contains(event.target)) return false
+      clearSelection()
+      setSelected(true)
+      return true
+    },
+    COMMAND_PRIORITY_LOW
+  )
+}, [editor, setSelected, clearSelection])
+```
+
+### 3. Enter key inserts a paragraph below
+
+Register `KEY_DOWN_COMMAND` at `COMMAND_PRIORITY_HIGH`, but **only when the node is selected**. On `Enter`, insert a new paragraph after the node and move the cursor into it.
+
+```jsx
+useEffect(() => {
+  if (!isSelected) return
+  return editor.registerCommand(
+    KEY_DOWN_COMMAND,
+    (event) => {
+      if (event.key !== 'Enter') return false
+      event.preventDefault()
+      editor.update(() => {
+        const node = $getNodeByKey(nodeKey)
+        if (!node) return
+        const para = $createParagraphNode()
+        node.insertAfter(para)
+        para.selectStart()
+      })
+      return true
+    },
+    COMMAND_PRIORITY_HIGH
+  )
+}, [isSelected, editor, nodeKey])
+```
+
+### 4. Arrow-key navigation (free — no per-node work needed)
+
+`DecoratorArrowNavigationPlugin` (in `plugins.jsx`) already intercepts `ArrowUp`/`ArrowDown` when a text paragraph is adjacent to a block decorator node, and when a decorator node is selected and the user arrows to the next. **No per-node code required.**
+
+### 5. Inserting a node from the slash menu
+
+When `applyItem` replaces the slash paragraph with a new node, the old paragraph's selection becomes invalid. Always move the selection after the replace:
+
+```js
+case 'myNode': {
+  editor.update(() => {
+    const node = $getNodeByKey(nodeKey)
+    if (!node || !$isParagraphNode(node)) return
+    const newNode = $createMyNode()
+    node.replace(newNode)
+    const next = newNode.getNextSibling()
+    if ($isElementNode(next)) {
+      next.selectStart()
+    } else {
+      const para = $createParagraphNode()
+      newNode.insertAfter(para)
+      para.selectStart()
+    }
+  })
+  return
+}
+```
+
+### Reference implementation
+
+`DividerNode` (bottom of `nodes.jsx`) is the minimal reference — no fields, just the interaction skeleton. `AudioNode` is a good reference for a node with fields and a more complex layout.
+
+---
+
 ## Checklist when adding a new DecoratorNode
 
+**Interaction**
+- [ ] `useLexicalNodeSelection` + `isHovered` state wired to ring classes on the container
+- [ ] `CLICK_COMMAND` at `COMMAND_PRIORITY_LOW` sets selection when click target is inside the node
+- [ ] `KEY_DOWN_COMMAND` at `COMMAND_PRIORITY_HIGH` (gated on `isSelected`) handles Enter → insert paragraph below
+- [ ] `applyItem` case moves selection after `node.replace()` (next sibling or new paragraph)
+- [ ] Arrow-key navigation is free — no work needed (`DecoratorArrowNavigationPlugin` handles it)
+
+**HTML round-trip**
 - [ ] `exportDOM()` — what is the outermost element returned?
 - [ ] `importDOM()` — is there a handler for that outermost element?
 - [ ] Does the inner-element handler guard against duplicating work (`domNode.closest('figure.my-class') return null`)?
 - [ ] Are all non-visual fields stored as `data-` attributes so `importDOM` can fully reconstruct the node?
 - [ ] If changing an existing `exportDOM` structure, is there a backwards-compat handler for the old format?
-- [ ] Test: insert node → save → reload editor → confirm node renders cleanly with no ghost text
-- [ ] Test: save again → reload → confirm no data changed (title, filename, size, etc. all survive)
+
+**Testing**
+- [ ] Insert node → save → reload editor → confirm node renders cleanly with no ghost text
+- [ ] Save again → reload → confirm no data changed (title, filename, size, etc. all survive)
+- [ ] Click node → confirm blue ring appears; hover without clicking → confirm lighter ring
+- [ ] Arrow Up/Down through node from adjacent paragraph → confirm navigation works
+- [ ] Press Enter while node is selected → confirm cursor moves to paragraph below

@@ -1294,3 +1294,99 @@ export class GalleryNode extends DecoratorNode {
 export function $createGalleryNode(images = [], caption = '') {
   return new GalleryNode(images, caption)
 }
+
+// ─── DividerNodeComponent ─────────────────────────────────────────────────────
+
+function DividerNodeComponent({ nodeKey, editor }) {
+  const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
+  const [isHovered, setIsHovered] = useState(false)
+  const containerRef = useRef(null)
+
+  useEffect(() => {
+    return editor.registerCommand(
+      CLICK_COMMAND,
+      (event) => {
+        const el = containerRef.current
+        if (!el || !el.contains(event.target)) return false
+        clearSelection()
+        setSelected(true)
+        return true
+      },
+      COMMAND_PRIORITY_LOW
+    )
+  }, [editor, setSelected, clearSelection])
+
+  useEffect(() => {
+    if (!isSelected) return
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key !== 'Enter') return false
+        event.preventDefault()
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (!node) return
+          const para = $createParagraphNode()
+          node.insertAfter(para)
+          para.selectStart()
+        })
+        return true
+      },
+      COMMAND_PRIORITY_HIGH
+    )
+  }, [isSelected, editor, nodeKey])
+
+  return (
+    <div
+      ref={containerRef}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="max-w-3xl mx-auto select-none"
+    >
+      <div className={`mx-6 py-4 rounded transition-all ${
+        isSelected ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''
+      }`}>
+        <hr className="border-gray-300 my-0" />
+      </div>
+    </div>
+  )
+}
+
+// ─── DividerNode ──────────────────────────────────────────────────────────────
+
+export class DividerNode extends DecoratorNode {
+  static getType() { return 'divider' }
+  static clone(node) { return new DividerNode(node.__key) }
+
+  static importJSON() { return new DividerNode() }
+  exportJSON() { return { type: 'divider', version: 1 } }
+
+  static importDOM() {
+    return {
+      hr: () => ({
+        conversion: () => ({ node: new DividerNode() }),
+        priority: 0,
+      }),
+    }
+  }
+
+  exportDOM() {
+    return { element: document.createElement('hr') }
+  }
+
+  createDOM() {
+    const span = document.createElement('span')
+    span.style.display = 'contents'
+    return span
+  }
+  updateDOM() { return false }
+  isInline() { return false }
+
+  decorate(editor) {
+    return <DividerNodeComponent nodeKey={this.getKey()} editor={editor} />
+  }
+}
+
+export function $createDividerNode() {
+  return new DividerNode()
+}
