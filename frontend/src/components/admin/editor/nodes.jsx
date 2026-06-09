@@ -16,6 +16,7 @@ import Picker from '@emoji-mart/react'
 import emojiData from '@emoji-mart/data'
 import { handleUpload } from './upload'
 import { FloatingToolbarPlugin } from './plugins'
+import { Tooltip } from '../../ui/Tooltip'
 
 // ─── ImageNodeComponent ───────────────────────────────────────────────────────
 
@@ -159,29 +160,30 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
             { key: 'wide',    icon: Maximize2,   title: 'Wide' },
             { key: 'full',    icon: Expand,      title: 'Full width' },
           ].map(({ key: w, icon: Icon, title }) => (
-            <button
-              key={w}
-              title={title}
-              onMouseDown={e => { e.preventDefault(); setWidth(w) }}
-              className={`p-1.5 rounded transition-colors ${
-                width === w ? 'text-white bg-white/20' : 'text-gray-300 hover:text-white hover:bg-white/15'
-              }`}
-            >
-              <Icon size={14} strokeWidth={2} />
-            </button>
+            <Tooltip key={w} content={title}>
+              <button
+                onMouseDown={e => { e.preventDefault(); setWidth(w) }}
+                className={`p-1.5 rounded transition-colors ${
+                  width === w ? 'text-white bg-white/20' : 'text-gray-300 hover:text-white hover:bg-white/15'
+                }`}
+              >
+                <Icon size={14} strokeWidth={2} />
+              </button>
+            </Tooltip>
           ))}
 
           <div className="w-px h-4 bg-gray-600 mx-1" />
 
-          <button
-            title="Link"
-            onMouseDown={e => { e.preventDefault(); setLinkDraft(href); setShowLinkInput(v => !v) }}
-            className={`p-1.5 rounded transition-colors ${
-              href ? 'text-blue-400 bg-white/10' : 'text-gray-300 hover:text-white hover:bg-white/15'
-            }`}
-          >
-            <Link2 size={14} strokeWidth={2} />
-          </button>
+          <Tooltip content="Link">
+            <button
+              onMouseDown={e => { e.preventDefault(); setLinkDraft(href); setShowLinkInput(v => !v) }}
+              className={`p-1.5 rounded transition-colors ${
+                href ? 'text-blue-400 bg-white/10' : 'text-gray-300 hover:text-white hover:bg-white/15'
+              }`}
+            >
+              <Link2 size={14} strokeWidth={2} />
+            </button>
+          </Tooltip>
 
           {showLinkInput && (
             <div className="flex items-center gap-1 ml-1">
@@ -199,13 +201,14 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
                 onClick={e => e.stopPropagation()}
               />
               {href && (
-                <button
-                  title="Remove link"
-                  onMouseDown={e => { e.preventDefault(); commitLink('') }}
-                  className="text-gray-400 hover:text-red-400 p-1 rounded transition-colors"
-                >
-                  <X size={12} />
-                </button>
+                <Tooltip content="Remove link">
+                  <button
+                    onMouseDown={e => { e.preventDefault(); commitLink('') }}
+                    className="text-gray-400 hover:text-red-400 p-1 rounded transition-colors"
+                  >
+                    <X size={12} />
+                  </button>
+                </Tooltip>
               )}
             </div>
           )}
@@ -477,27 +480,28 @@ function VideoNodeComponent({ src, caption, width, loop, nodeKey, editor }) {
             { key: 'wide',    icon: Maximize2,   title: 'Wide' },
             { key: 'full',    icon: Expand,      title: 'Full width' },
           ].map(({ key: w, icon: Icon, title }) => (
-            <button
-              key={w}
-              title={title}
-              onMouseDown={e => { e.preventDefault(); setWidth(w) }}
-              className={`p-1.5 rounded transition-colors ${
-                width === w ? 'text-white bg-white/20' : 'text-gray-300 hover:text-white hover:bg-white/15'
-              }`}
-            >
-              <Icon size={14} strokeWidth={2} />
-            </button>
+            <Tooltip key={w} content={title}>
+              <button
+                onMouseDown={e => { e.preventDefault(); setWidth(w) }}
+                className={`p-1.5 rounded transition-colors ${
+                  width === w ? 'text-white bg-white/20' : 'text-gray-300 hover:text-white hover:bg-white/15'
+                }`}
+              >
+                <Icon size={14} strokeWidth={2} />
+              </button>
+            </Tooltip>
           ))}
           <div className="w-px h-4 bg-gray-600 mx-1" />
-          <button
-            title="Loop"
-            onMouseDown={e => { e.preventDefault(); toggleLoop() }}
-            className={`p-1.5 rounded transition-colors ${
-              loop ? 'text-white bg-white/20' : 'text-gray-300 hover:text-white hover:bg-white/15'
-            }`}
-          >
-            <Repeat size={14} strokeWidth={2} />
-          </button>
+          <Tooltip content="Loop">
+            <button
+              onMouseDown={e => { e.preventDefault(); toggleLoop() }}
+              className={`p-1.5 rounded transition-colors ${
+                loop ? 'text-white bg-white/20' : 'text-gray-300 hover:text-white hover:bg-white/15'
+              }`}
+            >
+              <Repeat size={14} strokeWidth={2} />
+            </button>
+          </Tooltip>
         </div>,
         document.body
       )}
@@ -673,15 +677,16 @@ function AudioNodeComponent({ src, filename, title, duration, thumbnailSrc, node
           <audio controls controlsList="nodownload noplaybackrate" src={src} className="w-full" style={{ height: '32px' }} />
         </div>
         {displayName && (
-          <a
-            href={`${src}?name=${encodeURIComponent(displayName)}`}
-            download={displayName}
-            onClick={e => e.stopPropagation()}
-            className="shrink-0 p-2 text-gray-400 hover:text-gray-600 rounded transition-colors select-auto"
-            title="Download"
-          >
-            <Download size={16} />
-          </a>
+          <Tooltip content="Download" side="left">
+            <a
+              href={`${src}?name=${encodeURIComponent(displayName)}`}
+              download={displayName}
+              onClick={e => e.stopPropagation()}
+              className="shrink-0 p-2 text-gray-400 hover:text-gray-600 rounded transition-colors select-auto"
+            >
+              <Download size={16} />
+            </a>
+          </Tooltip>
         )}
       </div>
     </>
@@ -933,15 +938,16 @@ function FileNodeComponent({ src, filename, mimeType, size, title, description, 
         />
         <p className="text-xs text-gray-400 mt-1">{ext}{sizeStr ? ` · ${sizeStr}` : ''}</p>
       </div>
-      <a
-        href={(() => { const n = title || filename; return n ? `${src}?name=${encodeURIComponent(n)}` : src })()}
-        download={title || filename || undefined}
-        onClick={e => e.stopPropagation()}
-        className="shrink-0 p-2 text-gray-400 hover:text-gray-600 rounded transition-colors select-auto"
-        title="Download"
-      >
-        <Download size={16} />
-      </a>
+      <Tooltip content="Download" side="left">
+        <a
+          href={(() => { const n = title || filename; return n ? `${src}?name=${encodeURIComponent(n)}` : src })()}
+          download={title || filename || undefined}
+          onClick={e => e.stopPropagation()}
+          className="shrink-0 p-2 text-gray-400 hover:text-gray-600 rounded transition-colors select-auto"
+        >
+          <Download size={16} />
+        </a>
+      </Tooltip>
     </div>
   )
 }
@@ -1664,45 +1670,47 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, edito
         >
           <div className="flex items-center gap-2 px-2 py-1.5">
             <span className="text-xs text-gray-500">Emoji</span>
-            <button
-              title={emojiEnabled ? 'Hide emoji' : 'Show emoji'}
-              onMouseDown={e => { e.preventDefault(); setEmojiEnabled(!emojiEnabled); setShowEmojiPicker(false) }}
-              className={`relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors duration-200 ${
-                emojiEnabled ? 'bg-blue-500' : 'bg-gray-300'
-              }`}
-            >
-              <span className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 mt-0.5 ${
-                emojiEnabled ? 'translate-x-3.5' : 'translate-x-0.5'
-              }`} />
-            </button>
-
-            {emojiEnabled && (
+            <Tooltip content={emojiEnabled ? 'Hide emoji' : 'Show emoji'}>
               <button
-                ref={emojiButtonRef}
-                title="Change emoji"
-                onMouseDown={e => { e.preventDefault(); toggleEmojiPicker() }}
-                className={`px-1.5 py-0.5 rounded text-sm transition-colors ${
-                  showEmojiPicker ? 'bg-gray-100' : 'hover:bg-gray-100'
+                onMouseDown={e => { e.preventDefault(); setEmojiEnabled(!emojiEnabled); setShowEmojiPicker(false) }}
+                className={`relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors duration-200 ${
+                  emojiEnabled ? 'bg-blue-500' : 'bg-gray-300'
                 }`}
               >
-                {emoji}
+                <span className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 mt-0.5 ${
+                  emojiEnabled ? 'translate-x-3.5' : 'translate-x-0.5'
+                }`} />
               </button>
+            </Tooltip>
+
+            {emojiEnabled && (
+              <Tooltip content="Change emoji">
+                <button
+                  ref={emojiButtonRef}
+                  onMouseDown={e => { e.preventDefault(); toggleEmojiPicker() }}
+                  className={`px-1.5 py-0.5 rounded text-sm transition-colors ${
+                    showEmojiPicker ? 'bg-gray-100' : 'hover:bg-gray-100'
+                  }`}
+                >
+                  {emoji}
+                </button>
+              </Tooltip>
             )}
 
             <div className="w-px h-4 bg-gray-200 mx-1" />
 
             {CALLOUT_COLOR_PRESETS.map(({ label, value }) => (
-              <button
-                key={value}
-                title={label}
-                onMouseDown={e => { e.preventDefault(); setColor(value) }}
-                className="w-4 h-4 rounded-full shadow-sm transition-transform hover:scale-110 shrink-0"
-                style={{
-                  background: value,
-                  outline: color === value ? '2px solid #3b82f6' : '1px solid #d1d5db',
-                  outlineOffset: color === value ? '1px' : '0',
-                }}
-              />
+              <Tooltip key={value} content={label}>
+                <button
+                  onMouseDown={e => { e.preventDefault(); setColor(value) }}
+                  className="w-4 h-4 rounded-full shadow-sm transition-transform hover:scale-110 shrink-0"
+                  style={{
+                    background: value,
+                    outline: color === value ? '2px solid #3b82f6' : '1px solid #d1d5db',
+                    outlineOffset: color === value ? '1px' : '0',
+                  }}
+                />
+              </Tooltip>
             ))}
           </div>
 

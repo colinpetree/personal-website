@@ -21,6 +21,7 @@ import {
 } from 'lexical'
 import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode } from './nodes'
 import { handleUpload, handleUploadFull } from './upload'
+import { Tooltip } from '../../ui/Tooltip'
 
 // ─── LoadHtmlPlugin ───────────────────────────────────────────────────────────
 
@@ -117,16 +118,18 @@ export function FloatingToolbarPlugin() {
     if (url) editor.dispatchCommand(TOGGLE_LINK_COMMAND, url)
   }
 
-  function fmtBtn(active, Icon, format) {
+  function fmtBtn(active, Icon, format, label) {
     return (
-      <button
-        onMouseDown={e => { e.preventDefault(); editor.dispatchCommand(FORMAT_TEXT_COMMAND, format) }}
-        className={`p-1.5 rounded transition-colors ${
-          active ? 'text-white bg-white/20' : 'text-gray-300 hover:text-white hover:bg-white/15'
-        }`}
-      >
-        <Icon size={14} strokeWidth={2} />
-      </button>
+      <Tooltip key={format} content={label}>
+        <button
+          onMouseDown={e => { e.preventDefault(); editor.dispatchCommand(FORMAT_TEXT_COMMAND, format) }}
+          className={`p-1.5 rounded transition-colors ${
+            active ? 'text-white bg-white/20' : 'text-gray-300 hover:text-white hover:bg-white/15'
+          }`}
+        >
+          <Icon size={14} strokeWidth={2} />
+        </button>
+      </Tooltip>
     )
   }
 
@@ -138,18 +141,20 @@ export function FloatingToolbarPlugin() {
       className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 shadow-2xl"
       onMouseDown={e => e.preventDefault()}
     >
-      {fmtBtn(toolbar.bold, Bold, 'bold')}
-      {fmtBtn(toolbar.italic, Italic, 'italic')}
-      {fmtBtn(toolbar.underline, Underline, 'underline')}
-      {fmtBtn(toolbar.strike, Strikethrough, 'strikethrough')}
-      {fmtBtn(toolbar.code, Code, 'code')}
+      {fmtBtn(toolbar.bold, Bold, 'bold', 'Bold')}
+      {fmtBtn(toolbar.italic, Italic, 'italic', 'Italic')}
+      {fmtBtn(toolbar.underline, Underline, 'underline', 'Underline')}
+      {fmtBtn(toolbar.strike, Strikethrough, 'strikethrough', 'Strikethrough')}
+      {fmtBtn(toolbar.code, Code, 'code', 'Inline code')}
       <div className="w-px h-4 bg-gray-600 mx-1" />
-      <button
-        onMouseDown={e => { e.preventDefault(); handleLink() }}
-        className="p-1.5 rounded text-gray-300 hover:text-white hover:bg-white/15 transition-colors"
-      >
-        <Link2 size={14} strokeWidth={2} />
-      </button>
+      <Tooltip content="Link">
+        <button
+          onMouseDown={e => { e.preventDefault(); handleLink() }}
+          className="p-1.5 rounded text-gray-300 hover:text-white hover:bg-white/15 transition-colors"
+        >
+          <Link2 size={14} strokeWidth={2} />
+        </button>
+      </Tooltip>
     </div>,
     document.body
   )
@@ -486,15 +491,17 @@ export function SlashCommandPlugin() {
   return createPortal(
     <>
       {plusButton.visible && (
-        <button
-          style={{ position: 'absolute', top: plusButton.top, left: plusButton.left, transform: 'translateY(-50%)', zIndex: 9999 }}
-          className="w-9 h-9 flex items-center justify-center rounded-full border border-gray-300 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-          onMouseDown={handlePlusClick}
-          tabIndex={-1}
-          aria-label="Insert block"
-        >
-          <Plus size={20} strokeWidth={2} />
-        </button>
+        <Tooltip content="Insert block" side="right">
+          <button
+            style={{ position: 'absolute', top: plusButton.top, left: plusButton.left, transform: 'translateY(-50%)', zIndex: 9999 }}
+            className="w-9 h-9 flex items-center justify-center rounded-full border border-gray-300 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            onMouseDown={handlePlusClick}
+            tabIndex={-1}
+            aria-label="Insert block"
+          >
+            <Plus size={20} strokeWidth={2} />
+          </button>
+        </Tooltip>
       )}
       {menu.visible && filteredItems.length > 0 && (
         <div

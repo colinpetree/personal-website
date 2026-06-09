@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from 'react-router-dom'
 import { AdminAuthProvider } from './context/AdminAuthContext'
 import { UserAuthProvider } from './context/UserAuthContext'
+import { TooltipProvider } from './components/ui/Tooltip'
 import './index.css'
 import { createRouter } from './router'
 
@@ -17,11 +18,13 @@ async function init() {
 
   createRoot(document.getElementById('root')).render(
     <StrictMode>
-      <AdminAuthProvider>
-        <UserAuthProvider>
-          <RouterProvider router={router} />
-        </UserAuthProvider>
-      </AdminAuthProvider>
+      <TooltipProvider>
+        <AdminAuthProvider>
+          <UserAuthProvider>
+            <RouterProvider router={router} />
+          </UserAuthProvider>
+        </AdminAuthProvider>
+      </TooltipProvider>
     </StrictMode>
   )
 }

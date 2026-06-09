@@ -4,6 +4,7 @@ import { ArrowLeft, Calendar, ChevronRight, ExternalLink, PanelRight, X } from '
 import { DayPicker } from 'react-day-picker'
 import RichTextEditor from '../../components/admin/editor'
 import { Field, Input, InputWithPrefix, Textarea } from '../../components/admin/AdminPage'
+import { Tooltip } from '../../components/ui/Tooltip'
 import { useToast } from '../../components/admin/Toast'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import { useAdminAuth } from '../../context/AdminAuthContext'
@@ -816,13 +817,14 @@ export default function AdminBlogEditorPage() {
         <div className="flex-1" />
         <div className="flex items-center gap-2 shrink-0">
           <ActionButtons />
-          <button
-            onClick={() => setPanelOpen(v => !v)}
-            className="rounded-md p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-            title={panelOpen ? 'Hide settings' : 'Show settings'}
-          >
-            <PanelRight size={16} strokeWidth={1.5} />
-          </button>
+          <Tooltip content={panelOpen ? 'Hide settings' : 'Show settings'}>
+            <button
+              onClick={() => setPanelOpen(v => !v)}
+              className="rounded-md p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <PanelRight size={16} strokeWidth={1.5} />
+            </button>
+          </Tooltip>
         </div>
       </div>
 
