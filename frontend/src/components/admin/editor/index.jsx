@@ -9,9 +9,8 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListNode, ListItemNode } from '@lexical/list'
 import { LinkNode } from '@lexical/link'
-import { CodeNode } from '@lexical/code'
 import theme from './theme'
-import { ImageNode, VideoNode, AudioNode, FileNode, GalleryNode, DividerNode, CalloutNode, ButtonNode, ToggleNode } from './nodes'
+import { ImageNode, VideoNode, AudioNode, FileNode, GalleryNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, CodeBlockNode } from './nodes'
 import {
   LoadHtmlPlugin,
   HtmlOutputPlugin,
@@ -29,7 +28,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
   const initialConfig = {
     namespace: 'BlogEditor',
     theme,
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, CodeNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, ImageNode, VideoNode, AudioNode, FileNode, GalleryNode],
+    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, CodeBlockNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, ImageNode, VideoNode, AudioNode, FileNode, GalleryNode],
     onError: (error) => { throw error },
   }
 
