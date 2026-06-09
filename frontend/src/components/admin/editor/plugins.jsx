@@ -15,7 +15,7 @@ import { TOGGLE_LINK_COMMAND } from '@lexical/link'
 import { $createCodeNode } from '@lexical/code'
 import {
   $getSelection, $isRangeSelection, $isNodeSelection, $createParagraphNode, $getRoot,
-  FORMAT_TEXT_COMMAND, KEY_DOWN_COMMAND, COMMAND_PRIORITY_HIGH,
+  FORMAT_TEXT_COMMAND, KEY_DOWN_COMMAND, COMMAND_PRIORITY_HIGH, COMMAND_PRIORITY_CRITICAL,
   $getNodeByKey, $isParagraphNode, $isDecoratorNode, $isElementNode,
   $createNodeSelection, $setSelection,
 } from 'lexical'
@@ -338,7 +338,7 @@ export function SlashCommandPlugin() {
         }
         return false
       },
-      COMMAND_PRIORITY_HIGH
+      COMMAND_PRIORITY_CRITICAL
     )
   }, [editor, menu.visible]) // eslint-disable-line react-hooks/exhaustive-deps
 
