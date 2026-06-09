@@ -11,7 +11,7 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignCenter, Maximize2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat } from 'lucide-react'
+import { AlignLeft, AlignCenter, Maximize2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat } from 'lucide-react'
 import Picker from '@emoji-mart/react'
 import emojiData from '@emoji-mart/data'
 import { handleUpload } from './upload'
@@ -1837,4 +1837,242 @@ export class CalloutNode extends DecoratorNode {
 
 export function $createCalloutNode() {
   return new CalloutNode(true, '💡', '#14b8ff33', '')
+}
+
+// ─── ButtonNodeComponent ──────────────────────────────────────────────────────
+
+function ButtonNodeComponent({ label, href, align, nodeKey, editor }) {
+  const TOOLBAR_WIDTH = 380
+  const containerRef = useRef(null)
+  const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
+  const [isHovered, setIsHovered] = useState(false)
+  const [toolbarPos, setToolbarPos] = useState(null)
+  const [localLabel, setLocalLabel] = useState(label)
+  const [localHref, setLocalHref] = useState(href)
+
+  useEffect(() => { setLocalLabel(label) }, [label])
+  useEffect(() => { setLocalHref(href) }, [href])
+
+  function commitLabel(val) {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (!node) return
+      node.getWritable().setLabel(val)
+    })
+  }
+
+  function commitHref(val) {
+    const normalized = val && !val.startsWith('http://') && !val.startsWith('https://') ? `https://${val}` : val
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (!node) return
+      node.getWritable().setHref(normalized)
+    })
+  }
+
+  function commitAlign(val) {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (!node) return
+      node.getWritable().setAlign(val)
+    })
+  }
+
+  useEffect(() => {
+    return editor.registerCommand(
+      CLICK_COMMAND,
+      (event) => {
+        const el = containerRef.current
+        if (!el || !el.contains(event.target)) return false
+        clearSelection()
+        setSelected(true)
+        return true
+      },
+      COMMAND_PRIORITY_LOW
+    )
+  }, [editor, setSelected, clearSelection])
+
+  useEffect(() => {
+    if (!isSelected) return
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key !== 'Enter') return false
+        event.preventDefault()
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (!node) return
+          const para = $createParagraphNode()
+          node.insertAfter(para)
+          para.selectStart()
+        })
+        return true
+      },
+      COMMAND_PRIORITY_HIGH
+    )
+  }, [isSelected, editor, nodeKey])
+
+  useLayoutEffect(() => {
+    if (!isSelected || !containerRef.current) { setToolbarPos(null); return }
+    function calc() {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      let left = rect.left + window.scrollX + rect.width / 2 - TOOLBAR_WIDTH / 2
+      left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - TOOLBAR_WIDTH - 8))
+      let top = rect.top + window.scrollY - 48
+      if (top < window.scrollY + 8) top = rect.bottom + window.scrollY + 8
+      setToolbarPos({ top, left })
+    }
+    calc()
+    window.addEventListener('scroll', calc, true)
+    window.addEventListener('resize', calc)
+    return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
+  }, [isSelected])
+
+  return (
+    <div
+      ref={containerRef}
+      className={`my-2 py-3 max-w-3xl mx-auto px-6 rounded transition-all ${isSelected ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+      style={{ textAlign: align }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <a className="inline-block bg-blue-600 text-white text-sm font-medium px-5 py-2 rounded-lg pointer-events-none select-none no-underline">
+        {localLabel || 'Click here'}
+      </a>
+
+      {isSelected && toolbarPos && createPortal(
+        <div
+          style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999, width: TOOLBAR_WIDTH }}
+          className="flex items-center gap-1 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 shadow-2xl"
+          onMouseDown={e => e.preventDefault()}
+        >
+          <Tooltip content="Align left">
+            <button
+              className={`p-1 rounded ${align === 'left' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+              onClick={() => commitAlign('left')}
+            >
+              <AlignLeft size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Align center">
+            <button
+              className={`p-1 rounded ${align === 'center' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+              onClick={() => commitAlign('center')}
+            >
+              <AlignCenter size={16} />
+            </button>
+          </Tooltip>
+
+          <div className="w-px h-4 bg-gray-600 mx-1 flex-shrink-0" />
+
+          <input
+            value={localLabel}
+            onChange={e => setLocalLabel(e.target.value)}
+            onBlur={e => commitLabel(e.target.value)}
+            onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur() }}
+            onMouseDown={e => e.stopPropagation()}
+            placeholder="Button label"
+            className="bg-gray-800 text-white text-sm px-2 py-1 rounded border border-gray-600 w-28 min-w-0"
+          />
+
+          <input
+            value={localHref}
+            onChange={e => setLocalHref(e.target.value)}
+            onBlur={e => commitHref(e.target.value)}
+            onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur() }}
+            onMouseDown={e => e.stopPropagation()}
+            placeholder="https://..."
+            className="bg-gray-800 text-white text-sm px-2 py-1 rounded border border-gray-600 flex-1 min-w-0"
+          />
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
+
+// ─── ButtonNode ───────────────────────────────────────────────────────────────
+
+export class ButtonNode extends DecoratorNode {
+  static getType() { return 'button' }
+
+  static clone(node) {
+    return new ButtonNode(node.__label, node.__href, node.__align, node.__key)
+  }
+
+  static importJSON(data) {
+    return new ButtonNode(data.label || 'Click here', data.href || '', data.align || 'center')
+  }
+
+  exportJSON() {
+    return { type: 'button', version: 1, label: this.__label, href: this.__href, align: this.__align }
+  }
+
+  static importDOM() {
+    return {
+      div: (node) => {
+        if (!node.classList?.contains('btn-wrapper')) return null
+        return {
+          conversion: (domNode) => {
+            const label = domNode.getAttribute('data-label') || domNode.querySelector('a')?.textContent || ''
+            const href  = domNode.getAttribute('data-href')  || domNode.querySelector('a')?.getAttribute('href') || ''
+            const align = domNode.getAttribute('data-align') || 'center'
+            return { node: new ButtonNode(label, href, align) }
+          },
+          priority: 2,
+        }
+      },
+    }
+  }
+
+  constructor(label = 'Click here', href = '', align = 'center', key) {
+    super(key)
+    this.__label = label
+    this.__href = href
+    this.__align = align
+  }
+
+  createDOM() {
+    const span = document.createElement('span')
+    span.style.display = 'contents'
+    return span
+  }
+
+  updateDOM() { return false }
+  isInline() { return false }
+
+  setLabel(label) { this.getWritable().__label = label }
+  setHref(href) { this.getWritable().__href = href }
+  setAlign(align) { this.getWritable().__align = align }
+
+  exportDOM() {
+    const wrap = document.createElement('div')
+    wrap.className = `btn-wrapper btn-${this.__align}`
+    wrap.setAttribute('data-label', this.__label)
+    wrap.setAttribute('data-href', this.__href)
+    wrap.setAttribute('data-align', this.__align)
+    const a = document.createElement('a')
+    a.className = 'btn'
+    a.href = this.__href
+    a.textContent = this.__label
+    wrap.appendChild(a)
+    return { element: wrap }
+  }
+
+  decorate(editor) {
+    return (
+      <ButtonNodeComponent
+        label={this.__label}
+        href={this.__href}
+        align={this.__align}
+        nodeKey={this.getKey()}
+        editor={editor}
+      />
+    )
+  }
+}
+
+export function $createButtonNode() {
+  return new ButtonNode('Click here', '', 'center')
 }

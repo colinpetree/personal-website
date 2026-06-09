@@ -32,3 +32,27 @@ html {
   margin-left: 1.5rem;
   margin-right: 1.5rem;
 }
+
+.blog-content .btn-wrapper {
+  margin: 1.25rem 0;
+}
+.blog-content .btn-wrapper.btn-center {
+  text-align: center;
+}
+.blog-content .btn-wrapper.btn-left {
+  text-align: left;
+}
+.blog-content .btn {
+  display: inline-block;
+  background: #2563eb;
+  color: #fff !important;
+  padding: 0.5rem 1.25rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none !important;
+  transition: background 0.15s;
+}
+.blog-content .btn:hover {
+  background: #1d4ed8;
+}
