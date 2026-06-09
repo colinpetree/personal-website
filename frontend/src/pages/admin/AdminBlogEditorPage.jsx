@@ -467,7 +467,8 @@ export default function AdminBlogEditorPage() {
       .then(r => r.json())
       .then(data => {
         setPost(data)
-        setTitle(data.title || '')
+        const isNew = (data.title === 'Untitled' || !data.title) && !data.content_html
+        setTitle(isNew ? '' : data.title || '')
         setSlug(data.slug || '')
         slugEdited.current = !/^untitled(-\d+)?$/.test(data.slug || '')
         setExcerpt(data.excerpt || '')
@@ -480,8 +481,6 @@ export default function AdminBlogEditorPage() {
         const s = data.status || 'draft'
         setStatus(s)
         setContentHtml(data.content_html || '')
-        // Determine initial draft status
-        const isNew = (data.title === 'Untitled' || !data.title) && !data.content_html
         setDraftStatus(s === 'draft' ? (isNew ? 'new' : 'draft') : 'idle')
         setLoading(false)
         if (admin?.role === 'contributor' && data.author_id !== admin.id) {
@@ -853,7 +852,7 @@ export default function AdminBlogEditorPage() {
             onChange={handleContentChange}
             placeholder=""
           />
-          <div aria-hidden="true" style={{ height: '33vh' }} />
+          <div style={{ height: '33vh' }} onClick={() => editorRef.current?.focusAtEnd()} />
         </div>
 
         {/* Settings sidebar — outer shell clips during slide, inner div stays full-width */}
