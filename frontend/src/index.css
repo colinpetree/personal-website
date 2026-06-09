@@ -57,6 +57,28 @@ html {
   background: #1d4ed8;
 }
 
+/* Strip the editor's outer px-6 from text elements on the public page */
+.blog-content h1,
+.blog-content h2,
+.blog-content h3,
+.blog-content p {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Lists: remove outer px-6 but keep pl-6 (1.5rem) for bullet/number indent */
+.blog-content ul,
+.blog-content ol {
+  padding-left: 1.5rem;
+  padding-right: 0;
+}
+
+/* Blockquote: remove outer px-6 but keep pl-4 (1rem) for the border indent */
+.blog-content blockquote {
+  padding-left: 1rem;
+  padding-right: 0;
+}
+
 /* Toggle (collapsible) block */
 .blog-content .toggle {
   margin: 1rem 0;
