@@ -1390,3 +1390,294 @@ export class DividerNode extends DecoratorNode {
 export function $createDividerNode() {
   return new DividerNode()
 }
+
+// ─── CalloutNodeComponent ─────────────────────────────────────────────────────
+
+const CALLOUT_EMOJIS = ['💡', '⚠️', '✅', '❌', '📝', '🔔', '💬', '🎯', '🔥', '⭐', '🚀', '💎']
+const CALLOUT_COLOR_PRESETS = [
+  { label: 'White',  value: '#00000000' },
+  { label: 'Gray',   value: '#abb4be33' },
+  { label: 'Blue',   value: '#14b8ff33' },
+  { label: 'Green',  value: '#30cf4333' },
+  { label: 'Yellow', value: '#ffb41f33' },
+  { label: 'Red',    value: '#f50b2333' },
+  { label: 'Pink',   value: '#fb2d8d33' },
+  { label: 'Purple', value: '#8e42ff33' },
+]
+
+function CalloutNodeComponent({ emojiEnabled, emoji, color, text, nodeKey, editor }) {
+  const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
+  const [isHovered, setIsHovered] = useState(false)
+  const [toolbarPos, setToolbarPos] = useState(null)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const containerRef = useRef(null)
+
+  useEffect(() => {
+    return editor.registerCommand(
+      CLICK_COMMAND,
+      (event) => {
+        const el = containerRef.current
+        if (!el || !el.contains(event.target)) return false
+        if (event.target.tagName === 'TEXTAREA') return false
+        clearSelection()
+        setSelected(true)
+        return true
+      },
+      COMMAND_PRIORITY_LOW
+    )
+  }, [editor, setSelected, clearSelection])
+
+  useEffect(() => {
+    if (!isSelected) return
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key !== 'Enter') return false
+        event.preventDefault()
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (!node) return
+          const para = $createParagraphNode()
+          node.insertAfter(para)
+          para.selectStart()
+        })
+        return true
+      },
+      COMMAND_PRIORITY_HIGH
+    )
+  }, [isSelected, editor, nodeKey])
+
+  useLayoutEffect(() => {
+    if (!isSelected || !containerRef.current) { setToolbarPos(null); return }
+    function calc() {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const W = 280
+      const H = 40
+      let left = rect.left + window.scrollX + rect.width / 2 - W / 2
+      left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - W - 8))
+      let top = rect.top + window.scrollY - H - 8
+      if (top < window.scrollY + 8) top = rect.bottom + window.scrollY + 8
+      setToolbarPos({ top, left })
+    }
+    calc()
+    window.addEventListener('scroll', calc, true)
+    window.addEventListener('resize', calc)
+    return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
+  }, [isSelected])
+
+  function setEmojiEnabled(val) {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node instanceof CalloutNode) node.getWritable().__emojiEnabled = val
+    })
+  }
+
+  function setEmoji(val) {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node instanceof CalloutNode) node.getWritable().__emoji = val
+    })
+    setShowEmojiPicker(false)
+  }
+
+  function setColor(val) {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node instanceof CalloutNode) node.getWritable().__color = val
+    })
+  }
+
+  function handleTextChange(e) {
+    const val = e.target.value
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node instanceof CalloutNode) node.getWritable().__text = val
+    })
+  }
+
+  return (
+    <>
+      <div
+        ref={containerRef}
+        style={{ background: color, height: '74px' }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`my-4 max-w-3xl mx-auto rounded-lg px-4 flex items-center gap-3 transition-all ${
+          isSelected ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''
+        }`}
+      >
+        {emojiEnabled && (
+          <span className="text-xl shrink-0 select-none">{emoji}</span>
+        )}
+        <textarea
+          value={text}
+          onChange={handleTextChange}
+          onClick={e => e.stopPropagation()}
+          onFocus={() => { clearSelection(); setSelected(true) }}
+          placeholder="Write your callout…"
+          rows={1}
+          className="flex-1 bg-transparent resize-none outline-none text-gray-800 leading-relaxed select-text placeholder-gray-400"
+        />
+      </div>
+
+      {isSelected && toolbarPos && createPortal(
+        <div
+          style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999 }}
+          className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl overflow-hidden"
+          onMouseDown={e => e.preventDefault()}
+        >
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            <span className="text-xs text-gray-400">Emoji</span>
+            <button
+              title={emojiEnabled ? 'Hide emoji' : 'Show emoji'}
+              onMouseDown={e => { e.preventDefault(); setEmojiEnabled(!emojiEnabled); setShowEmojiPicker(false) }}
+              className={`relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors duration-200 ${
+                emojiEnabled ? 'bg-blue-500' : 'bg-gray-600'
+              }`}
+            >
+              <span className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 mt-0.5 ${
+                emojiEnabled ? 'translate-x-3.5' : 'translate-x-0.5'
+              }`} />
+            </button>
+
+            {emojiEnabled && (
+              <button
+                title="Change emoji"
+                onMouseDown={e => { e.preventDefault(); setShowEmojiPicker(v => !v) }}
+                className={`px-1.5 py-0.5 rounded text-sm transition-colors ${
+                  showEmojiPicker ? 'bg-white/20' : 'hover:bg-white/15'
+                }`}
+              >
+                {emoji}
+              </button>
+            )}
+
+            <div className="w-px h-4 bg-gray-600 mx-1" />
+
+            {CALLOUT_COLOR_PRESETS.map(({ label, value }) => (
+              <button
+                key={value}
+                title={label}
+                onMouseDown={e => { e.preventDefault(); setColor(value) }}
+                className="w-4 h-4 rounded-full border-2 shadow-sm transition-transform hover:scale-110 shrink-0"
+                style={{
+                  background: value,
+                  borderColor: color === value ? '#3b82f6' : '#4b5563',
+                }}
+              />
+            ))}
+          </div>
+
+          {showEmojiPicker && (
+            <div className="border-t border-gray-700 px-2 py-1.5 grid grid-cols-6 gap-0.5">
+              {CALLOUT_EMOJIS.map(e => (
+                <button
+                  key={e}
+                  onMouseDown={ev => { ev.preventDefault(); setEmoji(e) }}
+                  className={`p-1 text-sm rounded transition-colors hover:bg-white/15 ${
+                    emoji === e ? 'bg-white/20' : ''
+                  }`}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+    </>
+  )
+}
+
+// ─── CalloutNode ──────────────────────────────────────────────────────────────
+
+export class CalloutNode extends DecoratorNode {
+  static getType() { return 'callout' }
+  static clone(node) {
+    return new CalloutNode(node.__emojiEnabled, node.__emoji, node.__color, node.__text, node.__key)
+  }
+
+  static importJSON(data) {
+    return new CalloutNode(data.emojiEnabled ?? true, data.emoji || '💡', data.color || '#14b8ff33', data.text || '')
+  }
+  exportJSON() {
+    return { type: 'callout', version: 1, emojiEnabled: this.__emojiEnabled, emoji: this.__emoji, color: this.__color, text: this.__text }
+  }
+
+  static importDOM() {
+    return {
+      div: (node) => {
+        if (!node.classList?.contains('callout')) return null
+        return {
+          conversion: (domNode) => ({
+            node: new CalloutNode(
+              domNode.getAttribute('data-emoji-enabled') !== 'false',
+              domNode.getAttribute('data-emoji') || '💡',
+              domNode.getAttribute('data-color') || '#14b8ff33',
+              domNode.querySelector('p')?.textContent?.trim() || '',
+            )
+          }),
+          priority: 2,
+        }
+      },
+    }
+  }
+
+  constructor(emojiEnabled = true, emoji = '💡', color = '#14b8ff33', text = '', key) {
+    super(key)
+    this.__emojiEnabled = emojiEnabled
+    this.__emoji = emoji
+    this.__color = color
+    this.__text = text
+  }
+
+  createDOM() {
+    const span = document.createElement('span')
+    span.style.display = 'contents'
+    return span
+  }
+  updateDOM() { return false }
+  isInline() { return false }
+
+  exportDOM() {
+    const wrap = document.createElement('div')
+    wrap.className = 'callout'
+    wrap.setAttribute('data-emoji-enabled', String(this.__emojiEnabled))
+    wrap.setAttribute('data-emoji', this.__emoji)
+    wrap.setAttribute('data-color', this.__color)
+    wrap.style.cssText = `background:${this.__color};border-radius:0.5rem;padding:0 1rem;display:flex;gap:0.75rem;margin:1rem 0;align-items:center;height:74px`
+
+    if (this.__emojiEnabled) {
+      const span = document.createElement('span')
+      span.style.cssText = 'font-size:1.25rem;flex-shrink:0;line-height:1.625'
+      span.textContent = this.__emoji
+      wrap.appendChild(span)
+    }
+
+    const p = document.createElement('p')
+    p.style.cssText = 'margin:0;color:#1f2937;line-height:1.625;flex:1'
+    p.textContent = this.__text
+    wrap.appendChild(p)
+
+    return { element: wrap }
+  }
+
+  decorate(editor) {
+    return (
+      <CalloutNodeComponent
+        emojiEnabled={this.__emojiEnabled}
+        emoji={this.__emoji}
+        color={this.__color}
+        text={this.__text}
+        nodeKey={this.getKey()}
+        editor={editor}
+      />
+    )
+  }
+}
+
+export function $createCalloutNode() {
+  return new CalloutNode(true, '💡', '#14b8ff33', '')
+}
