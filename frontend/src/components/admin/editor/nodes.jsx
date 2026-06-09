@@ -11,7 +11,7 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, Maximize2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat } from 'lucide-react'
+import { AlignLeft, AlignCenter, Maximize2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat, ChevronDown } from 'lucide-react'
 import Picker from '@emoji-mart/react'
 import emojiData from '@emoji-mart/data'
 import { handleUpload } from './upload'
@@ -2075,4 +2075,371 @@ export class ButtonNode extends DecoratorNode {
 
 export function $createButtonNode() {
   return new ButtonNode('Click here', '', 'center')
+}
+
+// ─── ToggleSummarySyncPlugin ──────────────────────────────────────────────────
+
+function ToggleSummarySyncPlugin({ parentEditor, nodeKey, initialHtml }) {
+  const [nestedEditor] = useLexicalComposerContext()
+  const loaded = useRef(false)
+
+  useEffect(() => {
+    if (loaded.current) return
+    loaded.current = true
+    if (!initialHtml) return
+    nestedEditor.update(() => {
+      const parser = new DOMParser()
+      const dom = parser.parseFromString(initialHtml, 'text/html')
+      const nodes = $generateNodesFromDOM(nestedEditor, dom)
+      $getRoot().clear()
+      $getRoot().append(...nodes)
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    return nestedEditor.registerUpdateListener(() => {
+      nestedEditor.read(() => {
+        const html = $generateHtmlFromNodes(nestedEditor, null)
+        parentEditor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (node instanceof ToggleNode) node.getWritable().__summaryHtml = html
+        })
+      })
+    })
+  }, [nestedEditor, parentEditor, nodeKey])
+
+  useEffect(() => {
+    return nestedEditor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key !== 'Enter' || event.shiftKey) return false
+        event.preventDefault()
+        parentEditor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (!node) return
+          const para = $createParagraphNode()
+          node.insertAfter(para)
+          para.selectStart()
+        })
+        const root = parentEditor.getRootElement()
+        if (root) root.focus({ preventScroll: true })
+        return true
+      },
+      COMMAND_PRIORITY_CRITICAL
+    )
+  }, [nestedEditor, parentEditor, nodeKey])
+
+  return null
+}
+
+// ─── ToggleBodySyncPlugin ─────────────────────────────────────────────────────
+
+function ToggleBodySyncPlugin({ parentEditor, nodeKey, initialHtml }) {
+  const [nestedEditor] = useLexicalComposerContext()
+  const loaded = useRef(false)
+
+  useEffect(() => {
+    if (loaded.current) return
+    loaded.current = true
+    if (!initialHtml) return
+    nestedEditor.update(() => {
+      const parser = new DOMParser()
+      const dom = parser.parseFromString(initialHtml, 'text/html')
+      const nodes = $generateNodesFromDOM(nestedEditor, dom)
+      $getRoot().clear()
+      $getRoot().append(...nodes)
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    return nestedEditor.registerUpdateListener(() => {
+      nestedEditor.read(() => {
+        const html = $generateHtmlFromNodes(nestedEditor, null)
+        parentEditor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (node instanceof ToggleNode) node.getWritable().__contentHtml = html
+        })
+      })
+    })
+  }, [nestedEditor, parentEditor, nodeKey])
+
+  useEffect(() => {
+    return nestedEditor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key !== 'Enter' || event.shiftKey) return false
+        event.preventDefault()
+        parentEditor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (!node) return
+          const para = $createParagraphNode()
+          node.insertAfter(para)
+          para.selectStart()
+        })
+        const root = parentEditor.getRootElement()
+        if (root) root.focus({ preventScroll: true })
+        return true
+      },
+      COMMAND_PRIORITY_CRITICAL
+    )
+  }, [nestedEditor, parentEditor, nodeKey])
+
+  return null
+}
+
+// ─── ToggleNodeComponent ──────────────────────────────────────────────────────
+
+function ToggleNodeComponent({ summaryHtml, contentHtml, nodeKey, editor }) {
+  const containerRef = useRef(null)
+  const summaryContainerRef = useRef(null)
+  const bodyContainerRef = useRef(null)
+  const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
+  const [isHovered, setIsHovered] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [summaryFocused, setSummaryFocused] = useState(false)
+  const [bodyFocused, setBodyFocused] = useState(false)
+
+  const showRing = isSelected || summaryFocused || bodyFocused
+
+  const summaryEditor = useMemo(() => createEditor({
+    namespace: 'ToggleSummary',
+    nodes: [LinkNode],
+    theme: { text: { bold: 'font-bold', italic: 'italic', underline: 'underline' }, paragraph: 'my-0' },
+    onError: console.error,
+  }), [])
+
+  const bodyEditor = useMemo(() => createEditor({
+    namespace: 'ToggleBody',
+    nodes: [LinkNode],
+    theme: { text: { bold: 'font-bold', italic: 'italic', underline: 'underline' }, paragraph: 'my-0' },
+    onError: console.error,
+  }), [])
+
+  useEffect(() => {
+    return editor.registerCommand(
+      CLICK_COMMAND,
+      (event) => {
+        const el = containerRef.current
+        if (!el || !el.contains(event.target)) return false
+        if (summaryContainerRef.current?.contains(event.target)) return false
+        if (bodyContainerRef.current?.contains(event.target)) return false
+        clearSelection()
+        setSelected(true)
+        return true
+      },
+      COMMAND_PRIORITY_LOW
+    )
+  }, [editor, setSelected, clearSelection])
+
+  useEffect(() => {
+    if (!isSelected) return
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key !== 'Enter') return false
+        event.preventDefault()
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (!node) return
+          const para = $createParagraphNode()
+          node.insertAfter(para)
+          para.selectStart()
+        })
+        return true
+      },
+      COMMAND_PRIORITY_HIGH
+    )
+  }, [isSelected, editor, nodeKey])
+
+  function escapeToSelect(e) {
+    if (e.key !== 'Escape') return
+    e.preventDefault()
+    const root = editor.getRootElement()
+    if (root) root.focus({ preventScroll: true })
+    editor.update(() => {
+      const sel = $createNodeSelection()
+      sel.add(nodeKey)
+      $setSelection(sel)
+    })
+  }
+
+  return (
+    <div
+      ref={containerRef}
+      className="my-4 max-w-3xl mx-auto"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <div
+        className={`mx-6 rounded-lg border bg-white transition-all overflow-hidden ${
+          showRing ? 'ring-2 ring-blue-500 border-transparent' : isHovered ? 'ring-1 ring-blue-300 border-transparent' : 'border-gray-200'
+        }`}
+      >
+        {/* Header row */}
+        <div className="flex items-center gap-2 px-4 py-3">
+          <div
+            ref={summaryContainerRef}
+            className="flex-1 relative"
+            onClick={e => e.stopPropagation()}
+            onKeyDown={escapeToSelect}
+          >
+            <LexicalNestedComposer
+              initialEditor={summaryEditor}
+              initialTheme={{ text: { bold: 'font-bold', italic: 'italic', underline: 'underline' }, paragraph: 'my-0' }}
+            >
+              <RichTextPlugin
+                contentEditable={
+                  <ContentEditable
+                    onFocus={() => setSummaryFocused(true)}
+                    onBlur={() => setSummaryFocused(false)}
+                    className="outline-none font-semibold text-gray-800 text-base w-full leading-relaxed"
+                  />
+                }
+                placeholder={
+                  <div className="text-gray-400 pointer-events-none absolute top-0 left-0 select-none text-base font-semibold">
+                    Toggle title…
+                  </div>
+                }
+                ErrorBoundary={LexicalErrorBoundary}
+              />
+              <HistoryPlugin />
+              <LinkPlugin />
+              <FloatingToolbarPlugin />
+              <ToggleSummarySyncPlugin parentEditor={editor} nodeKey={nodeKey} initialHtml={summaryHtml} />
+            </LexicalNestedComposer>
+          </div>
+
+          <button
+            onMouseDown={e => { e.preventDefault(); setIsExpanded(v => !v) }}
+            className="text-gray-400 hover:text-gray-600 shrink-0 transition-colors"
+            tabIndex={-1}
+          >
+            <ChevronDown
+              size={16}
+              style={{ transform: isExpanded ? 'rotate(-180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}
+            />
+          </button>
+        </div>
+
+        {/* Body (CSS-hidden when collapsed so editor state is preserved) */}
+        <div className={isExpanded ? 'block' : 'hidden'}>
+          <div
+            ref={bodyContainerRef}
+            className="not-prose px-4 py-3 border-t border-gray-100 relative"
+            onClick={e => e.stopPropagation()}
+            onKeyDown={escapeToSelect}
+          >
+            <LexicalNestedComposer
+              initialEditor={bodyEditor}
+              initialTheme={{ text: { bold: 'font-bold', italic: 'italic', underline: 'underline' }, paragraph: 'my-0' }}
+            >
+              <RichTextPlugin
+                contentEditable={
+                  <ContentEditable
+                    onFocus={() => setBodyFocused(true)}
+                    onBlur={() => setBodyFocused(false)}
+                    className="outline-none text-gray-700 text-sm w-full leading-relaxed"
+                  />
+                }
+                placeholder={
+                  <div className="text-gray-400 pointer-events-none absolute top-0 left-0 select-none text-sm">
+                    Toggle content…
+                  </div>
+                }
+                ErrorBoundary={LexicalErrorBoundary}
+              />
+              <HistoryPlugin />
+              <LinkPlugin />
+              <FloatingToolbarPlugin />
+              <ToggleBodySyncPlugin parentEditor={editor} nodeKey={nodeKey} initialHtml={contentHtml} />
+            </LexicalNestedComposer>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── ToggleNode ───────────────────────────────────────────────────────────────
+
+export class ToggleNode extends DecoratorNode {
+  static getType() { return 'toggle' }
+
+  static clone(node) {
+    return new ToggleNode(node.__summaryHtml, node.__contentHtml, node.__key)
+  }
+
+  static importJSON(data) {
+    return new ToggleNode(data.summaryHtml || '', data.contentHtml || '')
+  }
+
+  exportJSON() {
+    return { type: 'toggle', version: 1, summaryHtml: this.__summaryHtml, contentHtml: this.__contentHtml }
+  }
+
+  static importDOM() {
+    return {
+      details: (node) => {
+        if (!node.classList?.contains('toggle')) return null
+        return {
+          conversion: (domNode) => {
+            const summaryHtml = domNode.querySelector('.toggle-summary')?.innerHTML || ''
+            const contentHtml = domNode.querySelector('.toggle-body')?.innerHTML || ''
+            return { node: new ToggleNode(summaryHtml, contentHtml) }
+          },
+          priority: 2,
+        }
+      },
+    }
+  }
+
+  constructor(summaryHtml = '', contentHtml = '', key) {
+    super(key)
+    this.__summaryHtml = summaryHtml
+    this.__contentHtml = contentHtml
+  }
+
+  createDOM() {
+    const span = document.createElement('span')
+    span.style.display = 'contents'
+    return span
+  }
+
+  updateDOM() { return false }
+  isInline() { return false }
+
+  setSummaryHtml(val) { this.getWritable().__summaryHtml = val }
+  setContentHtml(val) { this.getWritable().__contentHtml = val }
+
+  exportDOM() {
+    const details = document.createElement('details')
+    details.className = 'toggle'
+
+    const summary = document.createElement('summary')
+    summary.className = 'toggle-summary not-prose'
+    summary.innerHTML = this.__summaryHtml || ''
+    details.appendChild(summary)
+
+    const body = document.createElement('div')
+    body.className = 'toggle-body not-prose'
+    body.innerHTML = this.__contentHtml || ''
+    details.appendChild(body)
+
+    return { element: details }
+  }
+
+  decorate(editor) {
+    return (
+      <ToggleNodeComponent
+        summaryHtml={this.__summaryHtml}
+        contentHtml={this.__contentHtml}
+        nodeKey={this.getKey()}
+        editor={editor}
+      />
+    )
+  }
+}
+
+export function $createToggleNode() {
+  return new ToggleNode('', '')
 }
