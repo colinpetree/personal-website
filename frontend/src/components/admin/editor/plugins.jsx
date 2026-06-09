@@ -3,7 +3,7 @@ import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 import {
   Bold, Italic, Underline, Strikethrough, Code, Link2,
   Type, Heading1, Heading2, Heading3, Quote, Code2,
-  List, ListOrdered, Minus, Image, Video, Music, Paperclip, LayoutGrid, Plus, MessageSquare, MousePointerClick,
+  List, ListOrdered, Minus, Image, Video, Music, Paperclip, LayoutGrid, Plus, MessageSquare, MousePointerClick, ChevronDown,
 } from 'lucide-react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
@@ -19,7 +19,7 @@ import {
   $getNodeByKey, $isParagraphNode, $isDecoratorNode, $isElementNode,
   $createNodeSelection, $setSelection,
 } from 'lexical'
-import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode } from './nodes'
+import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createToggleNode } from './nodes'
 import { handleUpload, handleUploadFull } from './upload'
 import { Tooltip } from '../../ui/Tooltip'
 
@@ -174,6 +174,7 @@ const SLASH_ITEMS = [
   { label: 'Divider',       description: 'Horizontal rule',        Icon: Minus,       action: 'divider' },
   { label: 'Callout',       description: 'Highlighted callout box', Icon: MessageSquare,      action: 'callout' },
   { label: 'Button',        description: 'Clickable link button',  Icon: MousePointerClick,  action: 'button' },
+  { label: 'Toggle',        description: 'Collapsible section',   Icon: ChevronDown,        action: 'toggle' },
   { label: 'Image',         description: 'Upload an image',       Icon: Image,       action: 'image' },
   { label: 'Video',         description: 'Upload a video',        Icon: Video,       action: 'video' },
   { label: 'Audio',         description: 'Upload an audio file',  Icon: Music,       action: 'audio' },
@@ -418,6 +419,24 @@ export function SlashCommandPlugin() {
         } else {
           const para = $createParagraphNode()
           btn.insertAfter(para)
+          para.selectStart()
+        }
+      })
+      return
+    }
+
+    if (item.action === 'toggle') {
+      editor.update(() => {
+        const node = $getNodeByKey(nodeKey)
+        if (!node || !$isParagraphNode(node)) return
+        const toggle = $createToggleNode()
+        node.replace(toggle)
+        const next = toggle.getNextSibling()
+        if ($isElementNode(next)) {
+          next.selectStart()
+        } else {
+          const para = $createParagraphNode()
+          toggle.insertAfter(para)
           para.selectStart()
         }
       })
