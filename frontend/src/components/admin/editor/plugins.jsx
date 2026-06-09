@@ -14,9 +14,9 @@ import { $findMatchingParent } from '@lexical/utils'
 import { TOGGLE_LINK_COMMAND } from '@lexical/link'
 import { $createCodeNode } from '@lexical/code'
 import {
-  $getSelection, $isRangeSelection, $createParagraphNode, $getRoot,
+  $getSelection, $isRangeSelection, $isNodeSelection, $createParagraphNode, $getRoot,
   FORMAT_TEXT_COMMAND, KEY_DOWN_COMMAND, COMMAND_PRIORITY_HIGH,
-  $getNodeByKey, $isParagraphNode, $isDecoratorNode,
+  $getNodeByKey, $isParagraphNode, $isDecoratorNode, $isElementNode,
   $createNodeSelection, $setSelection,
 } from 'lexical'
 import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode } from './nodes'
@@ -181,6 +181,7 @@ export function SlashCommandPlugin() {
   const menuRef = useRef(menu)
   menuRef.current = menu
   const [plusButton, setPlusButton] = useState({ visible: false, top: 0, left: 0, nodeKey: null })
+  const focusedParaRef = useRef(null)
   const fileRef = useRef(null)
   const pendingNodeKeyRef = useRef(null)
   const pendingActionRef = useRef(null)
@@ -200,11 +201,20 @@ export function SlashCommandPlugin() {
   const filteredItemsRef = useRef(filteredItems)
   filteredItemsRef.current = filteredItems
 
+  function setFocusedPara(el) {
+    if (focusedParaRef.current && focusedParaRef.current !== el) {
+      focusedParaRef.current.classList.remove('is-cursor-para')
+    }
+    focusedParaRef.current = el || null
+    if (el) el.classList.add('is-cursor-para')
+  }
+
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }) => {
       editorState.read(() => {
         const selection = $getSelection()
         if (!$isRangeSelection(selection)) {
+          setFocusedPara(null)
           setMenu(m => m.visible ? { ...m, visible: false } : m)
           setPlusButton(b => b.visible ? { ...b, visible: false } : b)
           return
@@ -215,12 +225,14 @@ export function SlashCommandPlugin() {
         try {
           topLevel = node.getKey() === 'root' ? node : node.getTopLevelElementOrThrow()
         } catch {
+          setFocusedPara(null)
           setMenu(m => m.visible ? { ...m, visible: false } : m)
           setPlusButton(b => b.visible ? { ...b, visible: false } : b)
           return
         }
 
         if (!$isParagraphNode(topLevel)) {
+          setFocusedPara(null)
           setMenu(m => m.visible ? { ...m, visible: false } : m)
           setPlusButton(b => b.visible ? { ...b, visible: false } : b)
           return
@@ -228,6 +240,7 @@ export function SlashCommandPlugin() {
 
         const text = topLevel.getTextContent()
         const domEl = editor.getElementByKey(topLevel.getKey())
+        setFocusedPara(domEl)
 
         if (text.startsWith('/')) {
           if (!domEl) return
@@ -542,39 +555,60 @@ export function DecoratorArrowNavigationPlugin() {
         const isDown = event.key === 'ArrowDown'
 
         const selection = $getSelection()
-        if (!$isRangeSelection(selection)) return false
 
-        let topElement
-        try {
-          topElement = selection.anchor.getNode().getTopLevelElementOrThrow()
-        } catch {
-          return false
-        }
-
-        const sibling = isDown ? topElement.getNextSibling() : topElement.getPreviousSibling()
-        if (!sibling || !$isDecoratorNode(sibling) || sibling.isInline()) return false
-
-        // Only intercept when the cursor is visually at the edge of the block.
-        // This lets normal line-by-line movement work inside multi-line paragraphs.
-        const domEl = editor.getElementByKey(topElement.getKey())
-        const domSel = window.getSelection()
-        if (domEl && domSel && domSel.rangeCount > 0) {
-          const elRect = domEl.getBoundingClientRect()
-          const lineH = parseFloat(window.getComputedStyle(domEl).lineHeight) || 24
-          // getBoundingClientRect() returns a zero rect for collapsed ranges in Chrome;
-          // getClientRects() correctly reflects the cursor's line position.
-          const rects = domSel.getRangeAt(0).getClientRects()
-          if (rects.length > 0) {
-            if (isDown && rects[rects.length - 1].bottom < elRect.bottom - lineH) return false
-            if (!isDown && rects[0].top > elRect.top + lineH) return false
+        if ($isRangeSelection(selection)) {
+          let topElement
+          try {
+            topElement = selection.anchor.getNode().getTopLevelElementOrThrow()
+          } catch {
+            return false
           }
+
+          const sibling = isDown ? topElement.getNextSibling() : topElement.getPreviousSibling()
+          if (!sibling || !$isDecoratorNode(sibling) || sibling.isInline()) return false
+
+          // Only intercept when the cursor is visually at the edge of the block.
+          // This lets normal line-by-line movement work inside multi-line paragraphs.
+          const domEl = editor.getElementByKey(topElement.getKey())
+          const domSel = window.getSelection()
+          if (domEl && domSel && domSel.rangeCount > 0) {
+            const elRect = domEl.getBoundingClientRect()
+            const lineH = parseFloat(window.getComputedStyle(domEl).lineHeight) || 24
+            // getBoundingClientRect() returns a zero rect for collapsed ranges in Chrome;
+            // getClientRects() correctly reflects the cursor's line position.
+            const rects = domSel.getRangeAt(0).getClientRects()
+            if (rects.length > 0) {
+              if (isDown && rects[rects.length - 1].bottom < elRect.bottom - lineH) return false
+              if (!isDown && rects[0].top > elRect.top + lineH) return false
+            }
+          }
+
+          event.preventDefault()
+          const sel = $createNodeSelection()
+          sel.add(sibling.getKey())
+          $setSelection(sel)
+          return true
         }
 
-        event.preventDefault()
-        const sel = $createNodeSelection()
-        sel.add(sibling.getKey())
-        $setSelection(sel)
-        return true
+        if ($isNodeSelection(selection)) {
+          const nodes = selection.getNodes()
+          if (nodes.length !== 1 || !$isDecoratorNode(nodes[0]) || nodes[0].isInline()) return false
+
+          const sibling = isDown ? nodes[0].getNextSibling() : nodes[0].getPreviousSibling()
+          if (!sibling) return false
+
+          event.preventDefault()
+          if ($isDecoratorNode(sibling) && !sibling.isInline()) {
+            const sel = $createNodeSelection()
+            sel.add(sibling.getKey())
+            $setSelection(sel)
+          } else if ($isElementNode(sibling)) {
+            isDown ? sibling.selectStart() : sibling.selectEnd()
+          }
+          return true
+        }
+
+        return false
       },
       COMMAND_PRIORITY_HIGH
     )
