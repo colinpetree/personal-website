@@ -1521,7 +1521,7 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, edito
   const nestedEditor = useMemo(() => createEditor({
     namespace: 'CalloutBody',
     nodes: [LinkNode],
-    theme: { text: { bold: 'font-bold', italic: 'italic', underline: 'underline' }, paragraph: 'my-0' },
+    theme: { text: { bold: 'font-bold', italic: 'italic', underline: 'underline', strikethrough: 'line-through', code: 'bg-gray-100 rounded px-1 font-mono text-sm' }, paragraph: 'my-0' },
     onError: console.error,
   }), [])
 
@@ -1637,7 +1637,7 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, edito
             }
           }}
         >
-          <LexicalNestedComposer initialEditor={nestedEditor} initialTheme={{ text: { bold: 'font-bold', italic: 'italic', underline: 'underline' }, paragraph: 'my-0' }}>
+          <LexicalNestedComposer initialEditor={nestedEditor} initialTheme={{ text: { bold: 'font-bold', italic: 'italic', underline: 'underline', strikethrough: 'line-through', code: 'bg-gray-100 rounded px-1 font-mono text-sm' }, paragraph: 'my-0' }}>
             <RichTextPlugin
               contentEditable={
                 <ContentEditable
@@ -2204,14 +2204,14 @@ function ToggleNodeComponent({ summaryHtml, contentHtml, nodeKey, editor }) {
   const summaryEditor = useMemo(() => createEditor({
     namespace: 'ToggleSummary',
     nodes: [LinkNode],
-    theme: { text: { bold: 'font-bold', italic: 'italic', underline: 'underline' }, paragraph: 'my-0' },
+    theme: { text: { bold: 'font-bold', italic: 'italic', underline: 'underline', strikethrough: 'line-through', code: 'bg-gray-100 rounded px-1 font-mono text-sm' }, paragraph: 'my-0' },
     onError: console.error,
   }), [])
 
   const bodyEditor = useMemo(() => createEditor({
     namespace: 'ToggleBody',
     nodes: [LinkNode],
-    theme: { text: { bold: 'font-bold', italic: 'italic', underline: 'underline' }, paragraph: 'my-0' },
+    theme: { text: { bold: 'font-bold', italic: 'italic', underline: 'underline', strikethrough: 'line-through', code: 'bg-gray-100 rounded px-1 font-mono text-sm' }, paragraph: 'my-0' },
     onError: console.error,
   }), [])
 
@@ -2285,7 +2285,7 @@ function ToggleNodeComponent({ summaryHtml, contentHtml, nodeKey, editor }) {
           >
             <LexicalNestedComposer
               initialEditor={summaryEditor}
-              initialTheme={{ text: { bold: 'font-bold', italic: 'italic', underline: 'underline' }, paragraph: 'my-0' }}
+              initialTheme={{ text: { bold: 'font-bold', italic: 'italic', underline: 'underline', strikethrough: 'line-through', code: 'bg-gray-100 rounded px-1 font-mono text-sm' }, paragraph: 'my-0' }}
             >
               <RichTextPlugin
                 contentEditable={
@@ -2331,7 +2331,7 @@ function ToggleNodeComponent({ summaryHtml, contentHtml, nodeKey, editor }) {
           >
             <LexicalNestedComposer
               initialEditor={bodyEditor}
-              initialTheme={{ text: { bold: 'font-bold', italic: 'italic', underline: 'underline' }, paragraph: 'my-0' }}
+              initialTheme={{ text: { bold: 'font-bold', italic: 'italic', underline: 'underline', strikethrough: 'line-through', code: 'bg-gray-100 rounded px-1 font-mono text-sm' }, paragraph: 'my-0' }}
             >
               <RichTextPlugin
                 contentEditable={
