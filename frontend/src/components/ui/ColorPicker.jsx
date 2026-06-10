@@ -260,6 +260,7 @@ export function ColorSwatchMenu({
   onImageUpload,
   onImageSelect,
   onImageDelete,
+  onOpenChange,
 }) {
   const initialCustom = isValidHex(value) && !presets.map(p => p.toLowerCase()).includes(value.toLowerCase())
     ? value
@@ -280,6 +281,10 @@ export function ColorSwatchMenu({
   const swatchPopoverRef = useRef(null)
   const pickerPopoverRef = useRef(null)
   const imgMgmtPopoverRef = useRef(null)
+
+  useEffect(() => {
+    onOpenChange?.(swatchesOpen || pickerOpen || imgMgmtOpen)
+  }, [swatchesOpen, pickerOpen, imgMgmtOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!swatchesOpen && !pickerOpen && !imgMgmtOpen) return
