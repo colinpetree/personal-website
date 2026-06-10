@@ -153,6 +153,34 @@ html {
   padding-right: 0;
 }
 
+/* Header block — break wide/full/split out of the max-w-3xl page container */
+.blog-content header.header-wide,
+.blog-content header.header-full,
+.blog-content header.header-split {
+  width: 100vw !important;
+  margin-left: calc(50% - 50vw) !important;
+  position: relative;
+}
+
+/* Wide inner: center and cap at 80rem within the full-width breakout */
+.blog-content header.header-wide .header-inner {
+  max-width: 80rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Header block — reset prose margins on nested paragraphs */
+.blog-content .header-heading p,
+.blog-content .header-subheading p {
+  margin: 0;
+  padding: 0;
+}
+
+/* Header button — reset prose link styles */
+.blog-content .header-btn {
+  text-decoration: none !important;
+}
+
 /* Toggle (collapsible) block */
 .blog-content .toggle {
   margin: 1rem 0;
