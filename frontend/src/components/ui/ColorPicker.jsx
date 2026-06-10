@@ -1,8 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 
-const DEFAULT_PRESETS = ['#000000', '#ffffff', '#9ca3af', '#3b82f6']
-
 function hexToHsv(hex) {
   const r = parseInt(hex.slice(1, 3), 16) / 255
   const g = parseInt(hex.slice(3, 5), 16) / 255
@@ -44,18 +42,18 @@ function isValidHex(hex) {
   return /^#[0-9a-f]{6}$/i.test(hex)
 }
 
-export default function ColorPicker({ value = '#000000', onChange, presets = DEFAULT_PRESETS }) {
-  const safe = isValidHex(value) ? value : '#000000'
+const RAINBOW = 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)'
+
+// ─── Shared picker popup UI (no trigger, no portal) ───────────────────────────
+
+function PickerPopup({ value, onChange }) {
+  const safe = isValidHex(value) ? value : '#3b82f6'
   const initial = hexToHsv(safe)
   const [h, setH] = useState(initial.h)
   const [s, setS] = useState(initial.s)
   const [v, setV] = useState(initial.v)
   const [hexInput, setHexInput] = useState(safe.slice(1))
-  const [open, setOpen] = useState(false)
-  const [popPos, setPopPos] = useState({ top: 0, left: 0 })
 
-  const triggerRef = useRef(null)
-  const popoverRef = useRef(null)
   const svRef = useRef(null)
   const dragging = useRef(false)
   const onChangeRef = useRef(onChange)
@@ -64,7 +62,6 @@ export default function ColorPicker({ value = '#000000', onChange, presets = DEF
   hRef.current = h
   const lastEmittedRef = useRef(safe)
 
-  // Sync when value changes externally (not from our own emits)
   useEffect(() => {
     if (!isValidHex(value)) return
     if (value.toLowerCase() === lastEmittedRef.current.toLowerCase()) return
@@ -76,18 +73,6 @@ export default function ColorPicker({ value = '#000000', onChange, presets = DEF
     lastEmittedRef.current = value
   }, [value])
 
-  // Close popover on outside click
-  useEffect(() => {
-    if (!open) return
-    function handle(e) {
-      if (popoverRef.current?.contains(e.target) || triggerRef.current?.contains(e.target)) return
-      setOpen(false)
-    }
-    document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
-  }, [open])
-
-  // Global mousemove/up for SV drag
   useEffect(() => {
     function onMove(e) {
       if (!dragging.current) return
@@ -119,16 +104,6 @@ export default function ColorPicker({ value = '#000000', onChange, presets = DEF
     onChangeRef.current(hex)
   }
 
-  function openPicker() {
-    const rect = triggerRef.current?.getBoundingClientRect()
-    if (rect) {
-      const top = rect.bottom + 6
-      const left = Math.min(rect.left, window.innerWidth - 216)
-      setPopPos({ top, left })
-    }
-    setOpen(true)
-  }
-
   function handleSVDown(e) {
     dragging.current = true
     const coords = getSVCoords(e)
@@ -158,18 +133,93 @@ export default function ColorPicker({ value = '#000000', onChange, presets = DEF
     }
   }
 
-  function selectPreset(hex) {
-    const hsv = hexToHsv(hex)
-    setH(hsv.h)
-    setS(hsv.s)
-    setV(hsv.v)
-    setHexInput(hex.slice(1))
-    lastEmittedRef.current = hex
-    onChangeRef.current(hex)
-  }
-
   const currentHex = hsvToHex(h, s, v)
   const pureHue = hsvToHex(h, 100, 100)
+
+  return (
+    <>
+      {/* Saturation / Brightness square */}
+      <div
+        ref={svRef}
+        className="relative w-full rounded-lg overflow-hidden mb-3 select-none"
+        style={{ height: '120px', cursor: 'crosshair' }}
+        onMouseDown={handleSVDown}
+      >
+        <div className="absolute inset-0" style={{ background: pureHue }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #ffffff, transparent)' }} />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, #000000, transparent)' }} />
+        <div
+          className="absolute w-3 h-3 rounded-full border-2 border-white shadow pointer-events-none"
+          style={{ left: `${s}%`, top: `${100 - v}%`, transform: 'translate(-50%, -50%)' }}
+        />
+      </div>
+
+      {/* Hue slider */}
+      <input
+        type="range"
+        min={0}
+        max={360}
+        value={h}
+        onChange={handleHue}
+        className="w-full mb-3 outline-none"
+        style={{
+          height: '10px', borderRadius: '5px',
+          WebkitAppearance: 'none', appearance: 'none',
+          background: 'linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)',
+        }}
+      />
+
+      {/* Hex input */}
+      <div className="flex items-center gap-1.5">
+        <div className="w-5 h-5 rounded-full border border-gray-200 shrink-0" style={{ background: currentHex }} />
+        <span className="text-xs text-gray-400 font-mono">#</span>
+        <input
+          type="text"
+          value={hexInput.toUpperCase()}
+          onChange={handleHexInput}
+          className="flex-1 min-w-0 text-xs font-mono border border-gray-200 rounded px-2 py-1 outline-none focus:border-blue-400"
+          maxLength={6}
+          spellCheck={false}
+        />
+      </div>
+    </>
+  )
+}
+
+// ─── ColorPicker — standalone rainbow-triggered picker ────────────────────────
+
+export default function ColorPicker({ value = '#3b82f6', onChange }) {
+  const [pickerColor, setPickerColor] = useState(isValidHex(value) ? value : '#3b82f6')
+  const [open, setOpen] = useState(false)
+  const [popPos, setPopPos] = useState({ top: 0, left: 0 })
+
+  const triggerRef = useRef(null)
+  const popoverRef = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    function handle(e) {
+      if (popoverRef.current?.contains(e.target) || triggerRef.current?.contains(e.target)) return
+      setOpen(false)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open])
+
+  function openPicker() {
+    const rect = triggerRef.current?.getBoundingClientRect()
+    if (rect) {
+      const top = rect.bottom + 6
+      const left = Math.min(rect.left, window.innerWidth - 216)
+      setPopPos({ top, left })
+    }
+    setOpen(true)
+  }
+
+  function handleChange(hex) {
+    setPickerColor(hex)
+    onChange(hex)
+  }
 
   return (
     <div className="relative inline-flex">
@@ -178,7 +228,7 @@ export default function ColorPicker({ value = '#000000', onChange, presets = DEF
         type="button"
         onMouseDown={e => { e.preventDefault(); open ? setOpen(false) : openPicker() }}
         className="w-5 h-5 rounded-full border-2 border-white shadow ring-1 ring-gray-300 shrink-0"
-        style={{ background: currentHex }}
+        style={{ background: RAINBOW }}
         aria-label="Pick color"
       />
       {open && createPortal(
@@ -188,66 +238,128 @@ export default function ColorPicker({ value = '#000000', onChange, presets = DEF
           className="bg-white rounded-xl shadow-2xl border border-gray-200 p-3 w-52"
           onMouseDown={e => e.stopPropagation()}
         >
-          {/* Saturation / Brightness square */}
-          <div
-            ref={svRef}
-            className="relative w-full rounded-lg overflow-hidden mb-3 select-none"
-            style={{ height: '120px', cursor: 'crosshair' }}
-            onMouseDown={handleSVDown}
-          >
-            <div className="absolute inset-0" style={{ background: pureHue }} />
-            <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #ffffff, transparent)' }} />
-            <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, #000000, transparent)' }} />
-            <div
-              className="absolute w-3 h-3 rounded-full border-2 border-white shadow pointer-events-none"
-              style={{ left: `${s}%`, top: `${100 - v}%`, transform: 'translate(-50%, -50%)' }}
+          <PickerPopup value={pickerColor} onChange={handleChange} />
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
+
+// ─── ColorSwatchMenu — current-color trigger → presets + rainbow picker ───────
+
+export function ColorSwatchMenu({ value = '#000000', onChange, presets = [] }) {
+  const initialCustom = isValidHex(value) && !presets.map(p => p.toLowerCase()).includes(value.toLowerCase())
+    ? value
+    : '#3b82f6'
+  const [swatchesOpen, setSwatchesOpen] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerColor, setPickerColor] = useState(initialCustom)
+  const [swatchPos, setSwatchPos] = useState({ top: 0, centerX: 0 })
+  const [pickerPos, setPickerPos] = useState({ top: 0, centerX: 0 })
+
+  const triggerRef = useRef(null)
+  const rainbowRef = useRef(null)
+  const swatchPopoverRef = useRef(null)
+  const pickerPopoverRef = useRef(null)
+
+  // Close everything on outside click
+  useEffect(() => {
+    if (!swatchesOpen && !pickerOpen) return
+    function handle(e) {
+      const inSwatch = swatchPopoverRef.current?.contains(e.target)
+      const inPicker = pickerPopoverRef.current?.contains(e.target)
+      const inTrigger = triggerRef.current?.contains(e.target)
+      if (!inSwatch && !inPicker && !inTrigger) {
+        setSwatchesOpen(false)
+        setPickerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [swatchesOpen, pickerOpen])
+
+  function openSwatches() {
+    const rect = triggerRef.current?.getBoundingClientRect()
+    if (rect) setSwatchPos({ top: rect.top - 6, centerX: rect.left + rect.width / 2 })
+    setSwatchesOpen(true)
+  }
+
+  function openPicker() {
+    const rect = rainbowRef.current?.getBoundingClientRect()
+    if (rect) setPickerPos({ top: rect.top - 6, centerX: rect.left + rect.width / 2 })
+    setPickerOpen(true)
+  }
+
+  function handlePreset(hex) {
+    onChange(hex)
+    setPickerOpen(false) // close picker if open, keep swatches open
+  }
+
+  function handlePickerChange(hex) {
+    setPickerColor(hex)
+    onChange(hex)
+  }
+
+  const safe = isValidHex(value) ? value : '#000000'
+  const isCustomColor = !presets.map(p => p.toLowerCase()).includes(safe.toLowerCase())
+
+  return (
+    <div className="relative inline-flex">
+      <button
+        ref={triggerRef}
+        type="button"
+        onMouseDown={e => { e.preventDefault(); swatchesOpen ? (setSwatchesOpen(false), setPickerOpen(false)) : openSwatches() }}
+        className="w-5 h-5 rounded-full border-2 border-white shadow ring-1 ring-gray-300 shrink-0"
+        style={{ background: safe }}
+        aria-label="Choose color"
+      />
+
+      {/* Swatch preset popover */}
+      {swatchesOpen && createPortal(
+        <div
+          ref={swatchPopoverRef}
+          style={{ position: 'fixed', top: swatchPos.top, left: swatchPos.centerX, transform: 'translateX(-50%) translateY(-100%)', zIndex: 99999 }}
+          className="bg-white rounded-xl shadow-2xl border border-gray-200 p-2.5"
+          onMouseDown={e => e.stopPropagation()}
+        >
+          <div className="flex gap-1.5">
+            {presets.map(p => (
+              <button
+                key={p}
+                type="button"
+                onMouseDown={e => { e.preventDefault(); handlePreset(p) }}
+                className="w-6 h-6 rounded-full border-2 shadow-sm transition-transform hover:scale-110 shrink-0"
+                style={{
+                  background: p,
+                  borderColor: safe.toLowerCase() === p.toLowerCase() ? '#3b82f6' : '#e5e7eb',
+                }}
+                aria-label={p}
+              />
+            ))}
+            {/* Rainbow swatch — opens the full picker */}
+            <button
+              ref={rainbowRef}
+              type="button"
+              onMouseDown={e => { e.preventDefault(); pickerOpen ? setPickerOpen(false) : (openPicker(), onChange(pickerColor)) }}
+              className="w-6 h-6 rounded-full border-2 shadow-sm transition-transform hover:scale-110 shrink-0"
+              style={{ background: RAINBOW, borderColor: (pickerOpen || isCustomColor) ? '#3b82f6' : '#e5e7eb' }}
+              aria-label="Custom color"
             />
           </div>
+        </div>,
+        document.body
+      )}
 
-          {/* Hue slider */}
-          <input
-            type="range"
-            min={0}
-            max={360}
-            value={h}
-            onChange={handleHue}
-            className="w-full mb-3 outline-none"
-            style={{
-              height: '10px', borderRadius: '5px',
-              WebkitAppearance: 'none', appearance: 'none',
-              background: 'linear-gradient(to right,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)',
-            }}
-          />
-
-          {/* Hex input */}
-          <div className="flex items-center gap-1.5 mb-3">
-            <div className="w-5 h-5 rounded-full border border-gray-200 shrink-0" style={{ background: currentHex }} />
-            <span className="text-xs text-gray-400 font-mono">#</span>
-            <input
-              type="text"
-              value={hexInput.toUpperCase()}
-              onChange={handleHexInput}
-              className="flex-1 text-xs font-mono border border-gray-200 rounded px-2 py-1 outline-none focus:border-blue-400"
-              maxLength={6}
-              spellCheck={false}
-            />
-          </div>
-
-          {/* Preset swatches */}
-          {presets.length > 0 && (
-            <div className="flex gap-1.5 flex-wrap">
-              {presets.map(p => (
-                <button
-                  key={p}
-                  type="button"
-                  onMouseDown={e => { e.preventDefault(); selectPreset(p) }}
-                  className="w-6 h-6 rounded-full border-2 shadow-sm transition-transform hover:scale-110"
-                  style={{ background: p, borderColor: currentHex.toLowerCase() === p.toLowerCase() ? '#3b82f6' : '#e5e7eb' }}
-                  aria-label={p}
-                />
-              ))}
-            </div>
-          )}
+      {/* Color picker popover — centered over the rainbow swatch */}
+      {pickerOpen && createPortal(
+        <div
+          ref={pickerPopoverRef}
+          style={{ position: 'fixed', top: pickerPos.top, left: pickerPos.centerX, transform: 'translateX(-50%) translateY(-100%)', zIndex: 100000 }}
+          className="bg-white rounded-xl shadow-2xl border border-gray-200 p-3 w-52"
+          onMouseDown={e => e.stopPropagation()}
+        >
+          <PickerPopup value={pickerColor} onChange={handlePickerChange} />
         </div>,
         document.body
       )}

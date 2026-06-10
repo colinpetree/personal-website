@@ -12,7 +12,7 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
 import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat, ChevronDown, Copy, Check } from 'lucide-react'
-import ColorPicker, { getContrastColor } from '../../ui/ColorPicker'
+import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
 import Picker from '@emoji-mart/react'
 import emojiData from '@emoji-mart/data'
 import { handleUpload } from './upload'
@@ -2343,7 +2343,7 @@ function ToggleNodeComponent({ summaryHtml, contentHtml, nodeKey, editor }) {
                   />
                 }
                 placeholder={
-                  <div className="text-gray-400 pointer-events-none absolute top-0 left-0 select-none text-sm">
+                  <div className="text-gray-400 pointer-events-none absolute top-3 left-4 select-none text-sm">
                     Toggle content…
                   </div>
                 }
@@ -2887,7 +2887,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
         <div
           ref={containerRef}
           style={{ background: backgroundColor }}
-          className={`${sideMargin} ${minHeightClass} ${paddingXClass} rounded-lg py-10 flex flex-col justify-center gap-3 ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+          className={`${sideMargin} ${minHeightClass} ${paddingXClass} py-10 flex flex-col justify-center gap-3 ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
         >
           <div
             ref={headingContainerRef}
@@ -3004,10 +3004,10 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
           {/* Layout */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-500">Layout</span>
-            <div className="flex gap-1">
+            <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
               <Tooltip content="Regular width">
                 <button
-                  className={`p-1.5 rounded ${layout === 'regular' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  className={`p-1.5 rounded-md transition-colors ${layout === 'regular' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   onClick={() => commitField('setLayout', 'regular')}
                 >
                   <AlignCenter size={15} />
@@ -3015,7 +3015,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
               </Tooltip>
               <Tooltip content="Wide">
                 <button
-                  className={`p-1.5 rounded ${layout === 'wide' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  className={`p-1.5 rounded-md transition-colors ${layout === 'wide' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   onClick={() => commitField('setLayout', 'wide')}
                 >
                   <AlignJustify size={15} />
@@ -3023,7 +3023,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
               </Tooltip>
               <Tooltip content="Full width">
                 <button
-                  className={`p-1.5 rounded ${layout === 'full' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  className={`p-1.5 rounded-md transition-colors ${layout === 'full' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   onClick={() => commitField('setLayout', 'full')}
                 >
                   <Maximize2 size={15} />
@@ -3032,15 +3032,13 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             </div>
           </div>
 
-          <div className="h-px bg-gray-100" />
-
           {/* Alignment */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-500">Alignment</span>
-            <div className="flex gap-1">
+            <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
               <Tooltip content="Align left">
                 <button
-                  className={`p-1.5 rounded ${textAlign !== 'center' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  className={`p-1.5 rounded-md transition-colors ${textAlign !== 'center' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   onClick={() => commitField('setTextAlign', 'left')}
                 >
                   <AlignLeft size={15} />
@@ -3048,7 +3046,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
               </Tooltip>
               <Tooltip content="Align center">
                 <button
-                  className={`p-1.5 rounded ${textAlign === 'center' ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  className={`p-1.5 rounded-md transition-colors ${textAlign === 'center' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   onClick={() => commitField('setTextAlign', 'center')}
                 >
                   <AlignCenter size={15} />
@@ -3057,42 +3055,36 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             </div>
           </div>
 
-          <div className="h-px bg-gray-100" />
-
           {/* Background */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-500">Background</span>
-            <ColorPicker
+            <ColorSwatchMenu
               value={backgroundColor}
               onChange={val => commitField('setBackgroundColor', val)}
-              presets={['#000000', '#1e293b', '#1e3a5f', '#ffffff']}
+              presets={['#000000', '#f3f4f6']}
             />
           </div>
-
-          <div className="h-px bg-gray-100" />
 
           {/* Button toggle */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-500">Button</span>
             <div
               onClick={() => commitField('setButtonEnabled', !buttonEnabled)}
-              className={`relative w-10 h-6 rounded-full cursor-pointer transition-colors ${buttonEnabled ? 'bg-gray-900' : 'bg-gray-300'}`}
+              className={`relative w-7 h-4 rounded-full cursor-pointer transition-colors ${buttonEnabled ? 'bg-blue-500' : 'bg-gray-300'}`}
             >
-              <span className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${buttonEnabled ? 'translate-x-4' : ''}`} />
+              <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${buttonEnabled ? 'translate-x-3' : ''}`} />
             </div>
           </div>
 
           {buttonEnabled && (
             <>
-              <div className="h-px bg-gray-100" />
-
               {/* Button color */}
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">Button Color</span>
-                <ColorPicker
+                <ColorSwatchMenu
                   value={buttonColor}
                   onChange={val => commitField('setButtonColor', val)}
-                  presets={['#3b82f6', '#22c55e', '#ef4444', '#ffffff']}
+                  presets={['#000000', '#ffffff']}
                 />
               </div>
 
