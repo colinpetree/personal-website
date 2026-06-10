@@ -3348,7 +3348,11 @@ export class HeaderNode extends DecoratorNode {
             const layout = domNode.getAttribute('data-layout') || 'regular'
             const heading = domNode.querySelector('.header-heading')?.innerHTML || ''
             const subheading = domNode.querySelector('.header-subheading')?.innerHTML || ''
-            const backgroundColor = domNode.style.background || '#1e293b'
+            const backgroundColor =
+              domNode.getAttribute('data-background-color') ||
+              domNode.querySelector('.header-inner')?.style.background ||
+              domNode.querySelector('.header-split-text')?.style.background ||
+              '#1e293b'
             const buttonEnabled = domNode.getAttribute('data-button-enabled') === 'true'
             const buttonText = domNode.getAttribute('data-button-text') || 'Learn More'
             const buttonUrl = domNode.getAttribute('data-button-url') || ''
@@ -3425,6 +3429,7 @@ export class HeaderNode extends DecoratorNode {
     header.setAttribute('data-text-align', this.__textAlign)
     if (this.__headerImage) header.setAttribute('data-header-image', this.__headerImage)
     header.setAttribute('data-flip-layout', String(this.__flipLayout))
+    header.setAttribute('data-background-color', this.__backgroundColor)
     header.setAttribute('data-background-type', this.__backgroundType)
     header.setAttribute('data-text-color-mode', this.__textColorMode)
     header.setAttribute('data-button-text-color-mode', this.__buttonTextColorMode)
@@ -3479,6 +3484,9 @@ export class HeaderNode extends DecoratorNode {
       textSide.appendChild(subEl)
 
       if (this.__buttonEnabled) {
+        const btnWrap = document.createElement('div')
+        btnWrap.style.textAlign = this.__textAlign || 'left'
+        btnWrap.style.marginTop = '0.5rem'
         const a = document.createElement('a')
         a.className = 'header-btn'
         a.href = this.__buttonUrl
@@ -3491,8 +3499,8 @@ export class HeaderNode extends DecoratorNode {
         a.style.borderRadius = '0.5rem'
         a.style.fontWeight = '500'
         a.style.textDecoration = 'none'
-        a.style.marginTop = '0.5rem'
-        textSide.appendChild(a)
+        btnWrap.appendChild(a)
+        textSide.appendChild(btnWrap)
       }
 
       header.appendChild(imgSide)
@@ -3541,6 +3549,9 @@ export class HeaderNode extends DecoratorNode {
       inner.appendChild(subEl)
 
       if (this.__buttonEnabled) {
+        const btnWrap = document.createElement('div')
+        btnWrap.style.textAlign = this.__textAlign || 'left'
+        btnWrap.style.marginTop = '0.5rem'
         const a = document.createElement('a')
         a.className = 'header-btn'
         a.href = this.__buttonUrl
@@ -3553,8 +3564,8 @@ export class HeaderNode extends DecoratorNode {
         a.style.borderRadius = '0.5rem'
         a.style.fontWeight = '500'
         a.style.textDecoration = 'none'
-        a.style.marginTop = '0.5rem'
-        inner.appendChild(a)
+        btnWrap.appendChild(a)
+        inner.appendChild(btnWrap)
       }
 
       header.appendChild(inner)

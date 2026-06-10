@@ -72,7 +72,29 @@ static importDOM() {
 
 `exportDOM` produces static HTML stored in the database. `importJSON` is used when the Lexical JSON state is loaded, but `importDOM` is what runs when that HTML is parsed back into the editor (via `LoadHtmlPlugin`). If `importDOM` can't recover all node fields, data is silently lost on every save/reload cycle.
 
-**Rule:** store every field that isn't visually derivable from the HTML as a `data-` attribute on the outermost element.
+**Rule:** store every field that isn't visually derivable from the HTML as a `data-` attribute on the **outermost element** — the same element that `importDOM` receives as `domNode`. A common mistake is setting a value as an inline style on a *child* element and then reading it from `domNode.style` in `importDOM` — `domNode` is the outer wrapper, so `domNode.style` will be empty and the value will silently fall back to a default on every reload/re-save cycle.
+
+**Example of the bug:** `exportDOM` sets `background` on an inner `.header-inner` div, but `importDOM` reads `domNode.style.background` (the outer `<header>`). Result: every re-save corrupts the color to the fallback default.
+
+**Fix pattern:** always use a `data-` attribute on the outermost element for any field you need to recover:
+
+```js
+// exportDOM — set on the outermost element
+wrap.setAttribute('data-background-color', this.__backgroundColor)
+wrap.style.background = this.__backgroundColor  // inner child styling is fine for visuals
+
+// importDOM — read from domNode (the outermost element), NOT from a child's style
+const backgroundColor = domNode.getAttribute('data-background-color') || '#000000'
+```
+
+If fixing an existing node that previously omitted the `data-` attribute, add a querySelector fallback for backwards compatibility with already-saved posts:
+
+```js
+const backgroundColor =
+  domNode.getAttribute('data-background-color') ||          // new format
+  domNode.querySelector('.header-inner')?.style.background || // old posts
+  '#000000'
+```
 
 ```js
 exportDOM() {
@@ -378,6 +400,7 @@ import { ..., $createNodeSelection, $setSelection } from 'lexical'
 - [ ] `importDOM()` — is there a handler for that outermost element?
 - [ ] Does the inner-element handler guard against duplicating work (`domNode.closest('figure.my-class') return null`)?
 - [ ] Are all non-visual fields stored as `data-` attributes so `importDOM` can fully reconstruct the node?
+- [ ] Are all `data-` attributes on the **outermost element** (the one `importDOM` receives as `domNode`)? Reading `domNode.style.*` from the outermost element when the style is actually set on a child silently falls back to the default every reload.
 - [ ] If changing an existing `exportDOM` structure, is there a backwards-compat handler for the old format?
 
 **Public-facing style parity**
