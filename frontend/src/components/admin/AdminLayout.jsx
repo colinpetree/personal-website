@@ -158,14 +158,14 @@ export default function AdminLayout() {
 
   return (
     <ToastProvider>
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
-      {!isEditorPage && <aside className="w-52 shrink-0 bg-gray-900 relative">
-        <div className="px-5 py-5 border-b border-gray-700">
+      {!isEditorPage && <aside className="w-52 shrink-0 bg-gray-900 flex flex-col relative">
+        <div className="px-5 py-5 border-b border-gray-700 shrink-0">
           <span className="text-white font-semibold text-sm">Admin Panel</span>
         </div>
 
-        <nav className="px-3 py-4 flex flex-col gap-1 overflow-y-auto" style={{ paddingBottom: '6rem' }}>
+        <nav className="flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto" style={{ paddingBottom: '6rem' }}>
           {filteredNav.map(group => (
             <NavGroup
               key={group.label}
