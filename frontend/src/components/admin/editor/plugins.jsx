@@ -13,7 +13,7 @@ import { INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, $isListItem
 import { $findMatchingParent } from '@lexical/utils'
 import { TOGGLE_LINK_COMMAND } from '@lexical/link'
 import {
-  $getSelection, $isRangeSelection, $isNodeSelection, $createParagraphNode, $getRoot,
+  $getSelection, $isRangeSelection, $isNodeSelection, $createParagraphNode, $createTextNode, $getRoot,
   FORMAT_TEXT_COMMAND, KEY_DOWN_COMMAND, COMMAND_PRIORITY_HIGH, COMMAND_PRIORITY_CRITICAL,
   $getNodeByKey, $isParagraphNode, $isDecoratorNode, $isElementNode,
   $createNodeSelection, $setSelection,
@@ -194,11 +194,20 @@ export function SlashCommandPlugin() {
   const fileRef = useRef(null)
   const pendingNodeKeyRef = useRef(null)
   const pendingActionRef = useRef(null)
+  const pendingSavedTextRef = useRef(null)
   const selectedItemRef = useRef(null)
 
   useEffect(() => {
     selectedItemRef.current?.scrollIntoView({ block: 'nearest' })
   }, [menu.selectedIndex])
+
+  useEffect(() => {
+    return () => {
+      pendingNodeKeyRef.current = null
+      pendingActionRef.current = null
+      pendingSavedTextRef.current = null
+    }
+  }, [])
 
   function getItems(filter) {
     if (!filter) return SLASH_ITEMS
@@ -359,12 +368,19 @@ export function SlashCommandPlugin() {
     setMenu(m => ({ ...m, visible: false }))
 
     if (UPLOAD_ACTIONS.has(item.action)) {
+      let paragraphFound = false
+      let savedText = ''
       editor.update(() => {
         const node = $getNodeByKey(nodeKey)
-        if (node && $isParagraphNode(node)) node.clear()
+        if (!node || !$isParagraphNode(node)) return
+        paragraphFound = true
+        savedText = node.getTextContent()
+        node.clear()
       })
+      if (!paragraphFound) return
       pendingNodeKeyRef.current = nodeKey
       pendingActionRef.current = item.action
+      pendingSavedTextRef.current = savedText
       fileRef.current.accept = ACCEPT_MAP[item.action]
       fileRef.current.multiple = item.action === 'gallery'
       fileRef.current?.click()
@@ -507,6 +523,22 @@ export function SlashCommandPlugin() {
     })
   }
 
+  function handleMediaCancel() {
+    const nodeKey = pendingNodeKeyRef.current
+    const savedText = pendingSavedTextRef.current
+    pendingNodeKeyRef.current = null
+    pendingActionRef.current = null
+    pendingSavedTextRef.current = null
+    if (!nodeKey || !savedText) return
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node && $isParagraphNode(node)) {
+        node.append($createTextNode(savedText))
+        node.selectEnd()
+      }
+    })
+  }
+
   async function handleMediaFile(e) {
     const files = [...(e.target.files || [])]
     if (!files.length) return
@@ -514,6 +546,7 @@ export function SlashCommandPlugin() {
     const action = pendingActionRef.current
     pendingNodeKeyRef.current = null
     pendingActionRef.current = null
+    pendingSavedTextRef.current = null
     e.target.value = ''
 
     try {
@@ -601,7 +634,7 @@ export function SlashCommandPlugin() {
           ))}
         </div>
       )}
-      <input ref={fileRef} type="file" className="hidden" onChange={handleMediaFile} />
+      <input ref={fileRef} type="file" className="hidden" onChange={handleMediaFile} onCancel={handleMediaCancel} />
     </>,
     document.body
   )
