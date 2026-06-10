@@ -12,7 +12,7 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
 import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat, ChevronDown, Copy, Check } from 'lucide-react'
-import ColorPicker from '../../ui/ColorPicker'
+import ColorPicker, { getContrastColor } from '../../ui/ColorPicker'
 import Picker from '@emoji-mart/react'
 import emojiData from '@emoji-mart/data'
 import { handleUpload } from './upload'
@@ -2908,11 +2908,12 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                   <ContentEditable
                     onFocus={() => setHeadingFocused(true)}
                     onBlur={() => setHeadingFocused(false)}
-                    className={`bg-transparent text-white ${headingTextClass} font-bold outline-none w-full caret-white`}
+                    style={{ color: getContrastColor(backgroundColor) }}
+                    className={`bg-transparent ${headingTextClass} font-bold outline-none w-full`}
                   />
                 }
                 placeholder={
-                  <div className={`text-white/50 pointer-events-none absolute top-0 left-0 ${headingTextClass} font-bold select-none`}>Heading</div>
+                  <div style={{ color: getContrastColor(backgroundColor), opacity: 0.5 }} className={`pointer-events-none absolute top-0 left-0 ${headingTextClass} font-bold select-none`}>Heading</div>
                 }
                 ErrorBoundary={LexicalErrorBoundary}
               />
@@ -2948,11 +2949,12 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                   <ContentEditable
                     onFocus={() => setSubheadingFocused(true)}
                     onBlur={() => setSubheadingFocused(false)}
-                    className={`bg-transparent text-white/80 ${subTextClass} outline-none w-full caret-white`}
+                    style={{ color: getContrastColor(backgroundColor), opacity: 0.8 }}
+                    className={`bg-transparent ${subTextClass} outline-none w-full`}
                   />
                 }
                 placeholder={
-                  <div className={`text-white/40 pointer-events-none absolute top-0 left-0 ${subTextClass} select-none`}>Subheading</div>
+                  <div style={{ color: getContrastColor(backgroundColor), opacity: 0.4 }} className={`pointer-events-none absolute top-0 left-0 ${subTextClass} select-none`}>Subheading</div>
                 }
                 ErrorBoundary={LexicalErrorBoundary}
               />
@@ -2981,8 +2983,8 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
           {buttonEnabled && (
             <div className={`mt-2 ${textAlignClass}`}>
               <span
-                className={`inline-block px-5 py-2 rounded-lg text-white ${btnTextClass} font-medium pointer-events-none select-none`}
-                style={{ background: buttonColor }}
+                className={`inline-block px-5 py-2 rounded-lg ${btnTextClass} font-medium pointer-events-none select-none`}
+                style={{ background: buttonColor, color: getContrastColor(buttonColor) }}
               >
                 {localButtonText || 'Learn More'}
               </span>
@@ -3260,14 +3262,15 @@ export class HeaderNode extends DecoratorNode {
     headingEl.className = 'header-heading'
     headingEl.style.fontSize = headingSizes[this.__layout] || '36px'
     headingEl.style.fontWeight = 'bold'
-    headingEl.style.color = 'white'
+    const headingColor = getContrastColor(this.__backgroundColor)
+    headingEl.style.color = headingColor
     headingEl.innerHTML = this.__heading
     inner.appendChild(headingEl)
 
     const subEl = document.createElement('div')
     subEl.className = 'header-subheading'
     subEl.style.fontSize = subSizes[this.__layout] || '20px'
-    subEl.style.color = 'rgba(255,255,255,0.8)'
+    subEl.style.color = headingColor === 'white' ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)'
     subEl.innerHTML = this.__subheading
     inner.appendChild(subEl)
 
@@ -3277,6 +3280,7 @@ export class HeaderNode extends DecoratorNode {
       a.href = this.__buttonUrl
       a.textContent = this.__buttonText
       a.style.background = this.__buttonColor
+      a.style.color = getContrastColor(this.__buttonColor)
       a.style.fontSize = btnSizes[this.__layout] || '16px'
       inner.appendChild(a)
     }
