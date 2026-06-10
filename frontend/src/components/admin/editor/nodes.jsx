@@ -2446,15 +2446,32 @@ export function $createToggleNode() {
 
 // ─── CodeBlockNode ────────────────────────────────────────────────────────────
 
-function CodeBlockComponent({ code, nodeKey, editor }) {
+function CodeBlockComponent({ code, showLineNumbers, nodeKey, editor }) {
   const [localCode, setLocalCode] = useState(code)
   const [copied, setCopied] = useState(false)
   const [textareaFocused, setTextareaFocused] = useState(false)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [isHovered, setIsHovered] = useState(false)
+  const [toolbarPos, setToolbarPos] = useState(null)
   const containerRef = useRef(null)
 
   useEffect(() => { setLocalCode(code) }, [code])
+
+  useLayoutEffect(() => {
+    if ((!isSelected && !textareaFocused) || !containerRef.current) { setToolbarPos(null); return }
+    function calc() {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const left = rect.left + window.scrollX + rect.width / 2
+      let top = rect.top + window.scrollY - 40 - 8
+      if (top < window.scrollY + 8) top = rect.bottom + window.scrollY + 8
+      setToolbarPos({ top, left })
+    }
+    calc()
+    window.addEventListener('scroll', calc, true)
+    window.addEventListener('resize', calc)
+    return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
+  }, [isSelected, textareaFocused])
 
   const showRing = isSelected || textareaFocused
 
@@ -2469,6 +2486,13 @@ function CodeBlockComponent({ code, nodeKey, editor }) {
     navigator.clipboard.writeText(localCode)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
+  }
+
+  function commitShowLineNumbers(val) {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node) node.getWritable().setShowLineNumbers(val)
+    })
   }
 
   useEffect(() => {
@@ -2507,13 +2531,55 @@ function CodeBlockComponent({ code, nodeKey, editor }) {
   }, [isSelected, editor, nodeKey])
 
   return (
+    <>
     <div
       ref={containerRef}
-      className={`max-w-3xl mx-auto my-3 rounded transition-all ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+      className="max-w-3xl mx-auto my-3"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="mx-6 relative bg-gray-100 rounded px-4 py-2">
+      <div className={`mx-6 relative bg-gray-100 rounded overflow-hidden transition-all ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}>
+        <div className="flex">
+          {showLineNumbers && (
+            <div className="select-none text-right font-mono text-sm leading-relaxed text-gray-300 pl-3 py-2 flex-shrink-0">
+              {Array.from({ length: Math.max(3, localCode.split('\n').length) }, (_, i) => (
+                <div key={i}>{i < localCode.split('\n').length ? i + 1 : ''}</div>
+              ))}
+            </div>
+          )}
+          <textarea
+            value={localCode}
+            onChange={e => { setLocalCode(e.target.value); commitCode(e.target.value) }}
+            onFocus={() => setTextareaFocused(true)}
+            onBlur={() => setTextareaFocused(false)}
+            onKeyDown={e => {
+              e.stopPropagation()
+              if (e.key === 'Tab') {
+                e.preventDefault()
+                const { selectionStart, selectionEnd, value } = e.target
+                const newVal = value.substring(0, selectionStart) + '  ' + value.substring(selectionEnd)
+                setLocalCode(newVal)
+                commitCode(newVal)
+                requestAnimationFrame(() => {
+                  e.target.selectionStart = e.target.selectionEnd = selectionStart + 2
+                })
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                e.target.blur()
+                const root = editor.getRootElement()
+                if (root) root.focus({ preventScroll: true })
+                editor.update(() => {
+                  const sel = $createNodeSelection()
+                  sel.add(nodeKey)
+                  $setSelection(sel)
+                })
+              }
+            }}
+            rows={Math.max(3, localCode.split('\n').length)}
+            className="block flex-1 p-0 pl-3 pr-8 py-2 bg-transparent outline-none resize-none font-mono text-sm leading-relaxed text-gray-800"
+          />
+        </div>
         <button
           onClick={handleCopy}
           onMouseDown={e => e.preventDefault()}
@@ -2521,70 +2587,71 @@ function CodeBlockComponent({ code, nodeKey, editor }) {
         >
           {copied ? <Check size={14} /> : <Copy size={14} />}
         </button>
-        <textarea
-          value={localCode}
-          onChange={e => { setLocalCode(e.target.value); commitCode(e.target.value) }}
-          onFocus={() => setTextareaFocused(true)}
-          onBlur={() => setTextareaFocused(false)}
-          onKeyDown={e => {
-            e.stopPropagation()
-            if (e.key === 'Tab') {
-              e.preventDefault()
-              const { selectionStart, selectionEnd, value } = e.target
-              const newVal = value.substring(0, selectionStart) + '  ' + value.substring(selectionEnd)
-              setLocalCode(newVal)
-              commitCode(newVal)
-              requestAnimationFrame(() => {
-                e.target.selectionStart = e.target.selectionEnd = selectionStart + 2
-              })
-            }
-            if (e.key === 'Escape' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-              e.preventDefault()
-              e.target.blur()
-              const root = editor.getRootElement()
-              if (root) root.focus({ preventScroll: true })
-              editor.update(() => {
-                const sel = $createNodeSelection()
-                sel.add(nodeKey)
-                $setSelection(sel)
-              })
-            }
-          }}
-          rows={Math.max(3, localCode.split('\n').length)}
-          className="block w-full bg-transparent outline-none resize-none font-mono text-sm leading-relaxed text-gray-800 pr-6"
-        />
       </div>
     </div>
+    {(isSelected || textareaFocused) && toolbarPos && createPortal(
+      <div
+        style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999, transform: 'translateX(-50%)' }}
+        className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-lg shadow-lg"
+        onMouseDown={e => e.preventDefault()}
+      >
+        <span className="text-xs text-gray-500 select-none">Line count</span>
+        <button
+          onMouseDown={e => { e.preventDefault(); commitShowLineNumbers(!showLineNumbers) }}
+          className={`relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors duration-200 ${showLineNumbers ? 'bg-blue-500' : 'bg-gray-300'}`}
+        >
+          <span className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 mt-0.5 ${showLineNumbers ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+        </button>
+      </div>,
+      document.body
+    )}
+    </>
   )
 }
 
 export class CodeBlockNode extends DecoratorNode {
   static getType() { return 'code-block' }
-  static clone(node) { return new CodeBlockNode(node.__code, node.__key) }
+  static clone(node) { return new CodeBlockNode(node.__code, node.__showLineNumbers, node.__key) }
 
   static importJSON(data) {
-    return new CodeBlockNode(data.code || '')
+    return new CodeBlockNode(data.code || '', data.showLineNumbers !== false)
   }
 
   exportJSON() {
-    return { type: 'code-block', version: 1, code: this.__code }
+    return { type: 'code-block', version: 1, code: this.__code, showLineNumbers: this.__showLineNumbers }
   }
 
   static importDOM() {
     return {
+      // New format: wrapper div
+      div: (node) => {
+        if (!node.classList?.contains('code-block-wrapper')) return null
+        return {
+          conversion: (domNode) => {
+            const pre = domNode.querySelector('pre.code-block')
+            const code = pre?.textContent || ''
+            const showLineNumbers = domNode.getAttribute('data-show-line-numbers') !== 'false'
+            return { node: new CodeBlockNode(code, showLineNumbers) }
+          },
+          priority: 3,
+        }
+      },
+      // Old format: bare <pre class="code-block"> (backwards compat)
       pre: (node) => {
         if (!node.classList?.contains('code-block')) return null
+        if (node.closest('.code-block-wrapper')) return null
         return {
-          conversion: (domNode) => ({ node: new CodeBlockNode(domNode.textContent || '') }),
+          conversion: (domNode) => ({ node: new CodeBlockNode(domNode.textContent || '', true) }),
           priority: 2,
         }
       },
     }
   }
 
-  constructor(code = '', key) {
+  constructor(code = '', showLineNumbers = true, key) {
     super(key)
     this.__code = code
+    this.__showLineNumbers = showLineNumbers
   }
 
   createDOM() {
@@ -2597,18 +2664,52 @@ export class CodeBlockNode extends DecoratorNode {
   isInline() { return false }
 
   setCode(val) { this.getWritable().__code = val }
+  setShowLineNumbers(val) { this.getWritable().__showLineNumbers = val }
 
   exportDOM() {
+    const COPY_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`
+    const CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
+
+    const wrapper = document.createElement('div')
+    wrapper.className = 'code-block-wrapper'
+    wrapper.setAttribute('data-show-line-numbers', String(this.__showLineNumbers))
+
+    const inner = document.createElement('div')
+    inner.className = 'code-block-inner'
+
+    if (this.__showLineNumbers) {
+      const gutter = document.createElement('div')
+      gutter.className = 'code-block-gutter'
+      this.__code.split('\n').forEach((_, i) => {
+        const div = document.createElement('div')
+        div.textContent = String(i + 1)
+        gutter.appendChild(div)
+      })
+      inner.appendChild(gutter)
+    }
+
     const pre = document.createElement('pre')
     pre.className = 'code-block'
     pre.textContent = this.__code
-    return { element: pre }
+    inner.appendChild(pre)
+
+    wrapper.appendChild(inner)
+
+    const btn = document.createElement('button')
+    btn.className = 'code-block-copy'
+    btn.setAttribute('aria-label', 'Copy code')
+    btn.setAttribute('onclick', `var p=this.closest('.code-block-wrapper').querySelector('.code-block');navigator.clipboard.writeText(p.textContent);var b=this;b.innerHTML='${CHECK_ICON}';setTimeout(function(){b.innerHTML='${COPY_ICON}'},1500)`)
+    btn.innerHTML = COPY_ICON
+    wrapper.appendChild(btn)
+
+    return { element: wrapper }
   }
 
   decorate(editor) {
     return (
       <CodeBlockComponent
         code={this.__code}
+        showLineNumbers={this.__showLineNumbers}
         nodeKey={this.getKey()}
         editor={editor}
       />
