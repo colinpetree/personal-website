@@ -11,8 +11,14 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Columns2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2 } from 'lucide-react'
+import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Columns2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon } from 'lucide-react'
 import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
+
+function resolveTextColor(mode, bgHex) {
+  if (mode === 'light') return 'white'
+  if (mode === 'dark') return 'black'
+  return getContrastColor(bgHex)
+}
 import Picker from '@emoji-mart/react'
 import emojiData from '@emoji-mart/data'
 import { handleUpload } from './upload'
@@ -2779,7 +2785,7 @@ const HEADER_NESTED_THEME = {
   paragraph: 'my-0',
 }
 
-function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, flipLayout, backgroundType, nodeKey, editor }) {
+function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, flipLayout, backgroundType, textColorMode, buttonTextColorMode, nodeKey, editor }) {
   const PANEL_WIDTH = 280
   const containerRef = useRef(null)
   const headingContainerRef = useRef(null)
@@ -2882,6 +2888,9 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
     ? { backgroundImage: `url(/api/uploads/${headerImage})`, backgroundSize: '100% auto', backgroundRepeat: 'no-repeat', backgroundPosition: 'center center' }
     : { background: backgroundColor }
 
+  const resolvedTextColor = resolveTextColor(textColorMode, backgroundColor)
+  const resolvedButtonTextColor = resolveTextColor(buttonTextColorMode, buttonColor)
+
   const textContent = (
     <>
       <div
@@ -2903,12 +2912,12 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
               <ContentEditable
                 onFocus={() => setHeadingFocused(true)}
                 onBlur={() => setHeadingFocused(false)}
-                style={{ color: getContrastColor(backgroundColor) }}
+                style={{ color: resolvedTextColor }}
                 className={`bg-transparent ${headingTextClass} font-bold outline-none w-full`}
               />
             }
             placeholder={
-              <div style={{ color: getContrastColor(backgroundColor), opacity: 0.5 }} className={`pointer-events-none absolute top-0 left-0 right-0 ${headingTextClass} font-bold select-none ${textAlignClass}`}>Heading</div>
+              <div style={{ color: resolvedTextColor, opacity: 0.5 }} className={`pointer-events-none absolute top-0 left-0 right-0 ${headingTextClass} font-bold select-none ${textAlignClass}`}>Heading</div>
             }
             ErrorBoundary={LexicalErrorBoundary}
           />
@@ -2944,12 +2953,12 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
               <ContentEditable
                 onFocus={() => setSubheadingFocused(true)}
                 onBlur={() => setSubheadingFocused(false)}
-                style={{ color: getContrastColor(backgroundColor), opacity: 0.8 }}
+                style={{ color: resolvedTextColor, opacity: 0.8 }}
                 className={`bg-transparent ${subTextClass} outline-none w-full`}
               />
             }
             placeholder={
-              <div style={{ color: getContrastColor(backgroundColor), opacity: 0.4 }} className={`pointer-events-none absolute top-0 left-0 right-0 ${subTextClass} select-none ${textAlignClass}`}>Subheading</div>
+              <div style={{ color: resolvedTextColor, opacity: 0.4 }} className={`pointer-events-none absolute top-0 left-0 right-0 ${subTextClass} select-none ${textAlignClass}`}>Subheading</div>
             }
             ErrorBoundary={LexicalErrorBoundary}
           />
@@ -2980,7 +2989,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
         <div className={`mt-2 ${textAlignClass}`}>
           <span
             className={`inline-block px-5 py-2 rounded-lg ${btnTextClass} font-medium pointer-events-none select-none`}
-            style={{ background: buttonColor, color: getContrastColor(buttonColor) }}
+            style={{ background: buttonColor, color: resolvedButtonTextColor }}
           >
             {localButtonText || 'Learn More'}
           </span>
@@ -3177,6 +3186,22 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             />
           </div>
 
+          {/* Text color */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-500">Text color</span>
+            <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
+              <Tooltip content="Auto">
+                <button onMouseDown={e => e.stopPropagation()} onClick={() => commitField('setTextColorMode', 'auto')} className={`p-1.5 rounded-md transition-colors ${textColorMode === 'auto' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Eclipse size={15} /></button>
+              </Tooltip>
+              <Tooltip content="Light">
+                <button onMouseDown={e => e.stopPropagation()} onClick={() => commitField('setTextColorMode', 'light')} className={`p-1.5 rounded-md transition-colors ${textColorMode === 'light' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Sun size={15} /></button>
+              </Tooltip>
+              <Tooltip content="Dark">
+                <button onMouseDown={e => e.stopPropagation()} onClick={() => commitField('setTextColorMode', 'dark')} className={`p-1.5 rounded-md transition-colors ${textColorMode === 'dark' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Moon size={15} /></button>
+              </Tooltip>
+            </div>
+          </div>
+
           {/* Button toggle */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-500">Button</span>
@@ -3198,6 +3223,22 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                   onChange={val => commitField('setButtonColor', val)}
                   presets={['#000000', '#ffffff']}
                 />
+              </div>
+
+              {/* Button text color */}
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-500">Button text color</span>
+                <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
+                  <Tooltip content="Auto">
+                    <button onMouseDown={e => e.stopPropagation()} onClick={() => commitField('setButtonTextColorMode', 'auto')} className={`p-1.5 rounded-md transition-colors ${buttonTextColorMode === 'auto' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Eclipse size={15} /></button>
+                  </Tooltip>
+                  <Tooltip content="Light">
+                    <button onMouseDown={e => e.stopPropagation()} onClick={() => commitField('setButtonTextColorMode', 'light')} className={`p-1.5 rounded-md transition-colors ${buttonTextColorMode === 'light' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Sun size={15} /></button>
+                  </Tooltip>
+                  <Tooltip content="Dark">
+                    <button onMouseDown={e => e.stopPropagation()} onClick={() => commitField('setButtonTextColorMode', 'dark')} className={`p-1.5 rounded-md transition-colors ${buttonTextColorMode === 'dark' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Moon size={15} /></button>
+                  </Tooltip>
+                </div>
               </div>
 
               {/* Button text */}
@@ -3249,7 +3290,7 @@ export class HeaderNode extends DecoratorNode {
   static getType() { return 'header' }
 
   static clone(node) {
-    return new HeaderNode(node.__layout, node.__textAlign, node.__heading, node.__subheading, node.__backgroundColor, node.__buttonEnabled, node.__buttonText, node.__buttonUrl, node.__buttonColor, node.__headerImage, node.__flipLayout, node.__backgroundType, node.__key)
+    return new HeaderNode(node.__layout, node.__textAlign, node.__heading, node.__subheading, node.__backgroundColor, node.__buttonEnabled, node.__buttonText, node.__buttonUrl, node.__buttonColor, node.__headerImage, node.__flipLayout, node.__backgroundType, node.__textColorMode, node.__buttonTextColorMode, node.__key)
   }
 
   static importJSON(data) {
@@ -3266,6 +3307,8 @@ export class HeaderNode extends DecoratorNode {
       data.headerImage || null,
       data.flipLayout || false,
       data.backgroundType || 'color',
+      data.textColorMode || 'auto',
+      data.buttonTextColorMode || 'auto',
     )
   }
 
@@ -3284,6 +3327,8 @@ export class HeaderNode extends DecoratorNode {
       headerImage: this.__headerImage,
       flipLayout: this.__flipLayout,
       backgroundType: this.__backgroundType,
+      textColorMode: this.__textColorMode,
+      buttonTextColorMode: this.__buttonTextColorMode,
     }
   }
 
@@ -3308,7 +3353,9 @@ export class HeaderNode extends DecoratorNode {
             const headerImage = domNode.getAttribute('data-header-image') || null
             const flipLayout = domNode.getAttribute('data-flip-layout') === 'true'
             const backgroundType = domNode.getAttribute('data-background-type') || 'color'
-            return { node: new HeaderNode(layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, flipLayout, backgroundType) }
+            const textColorMode = domNode.getAttribute('data-text-color-mode') || 'auto'
+            const buttonTextColorMode = domNode.getAttribute('data-button-text-color-mode') || 'auto'
+            return { node: new HeaderNode(layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, flipLayout, backgroundType, textColorMode, buttonTextColorMode) }
           },
           priority: 2,
         }
@@ -3316,7 +3363,7 @@ export class HeaderNode extends DecoratorNode {
     }
   }
 
-  constructor(layout = 'regular', textAlign = 'left', heading = '', subheading = '', backgroundColor = '#000000', buttonEnabled = false, buttonText = 'Learn More', buttonUrl = '', buttonColor = '#3b82f6', headerImage = null, flipLayout = false, backgroundType = 'color', key) {
+  constructor(layout = 'regular', textAlign = 'left', heading = '', subheading = '', backgroundColor = '#000000', buttonEnabled = false, buttonText = 'Learn More', buttonUrl = '', buttonColor = '#3b82f6', headerImage = null, flipLayout = false, backgroundType = 'color', textColorMode = 'auto', buttonTextColorMode = 'auto', key) {
     super(key)
     this.__layout = layout
     this.__textAlign = textAlign
@@ -3330,6 +3377,8 @@ export class HeaderNode extends DecoratorNode {
     this.__headerImage = headerImage
     this.__flipLayout = flipLayout
     this.__backgroundType = backgroundType
+    this.__textColorMode = textColorMode
+    this.__buttonTextColorMode = buttonTextColorMode
   }
 
   createDOM() {
@@ -3353,6 +3402,8 @@ export class HeaderNode extends DecoratorNode {
   setHeaderImage(val) { this.getWritable().__headerImage = val }
   setFlipLayout(val) { this.getWritable().__flipLayout = val }
   setBackgroundType(val) { this.getWritable().__backgroundType = val }
+  setTextColorMode(val) { this.getWritable().__textColorMode = val }
+  setButtonTextColorMode(val) { this.getWritable().__buttonTextColorMode = val }
 
   exportDOM() {
     const heights      = { regular: '347px', wide: '447px', full: '551px', split: '600px' }
@@ -3371,6 +3422,8 @@ export class HeaderNode extends DecoratorNode {
     if (this.__headerImage) header.setAttribute('data-header-image', this.__headerImage)
     header.setAttribute('data-flip-layout', String(this.__flipLayout))
     header.setAttribute('data-background-type', this.__backgroundType)
+    header.setAttribute('data-text-color-mode', this.__textColorMode)
+    header.setAttribute('data-button-text-color-mode', this.__buttonTextColorMode)
 
     if (this.__layout === 'split') {
       header.style.display = 'flex'
@@ -3404,7 +3457,7 @@ export class HeaderNode extends DecoratorNode {
       textSide.style.padding = '40px 48px 40px 96px'
       textSide.style.textAlign = this.__textAlign || 'left'
 
-      const headingColor = getContrastColor(this.__backgroundColor)
+      const headingColor = resolveTextColor(this.__textColorMode, this.__backgroundColor)
 
       const headingEl = document.createElement('div')
       headingEl.className = 'header-heading'
@@ -3427,7 +3480,7 @@ export class HeaderNode extends DecoratorNode {
         a.href = this.__buttonUrl
         a.textContent = this.__buttonText
         a.style.background = this.__buttonColor
-        a.style.color = getContrastColor(this.__buttonColor)
+        a.style.color = resolveTextColor(this.__buttonTextColorMode, this.__buttonColor)
         a.style.fontSize = btnSizes.split
         a.style.display = 'inline-block'
         a.style.padding = '0.5rem 1.25rem'
@@ -3466,7 +3519,7 @@ export class HeaderNode extends DecoratorNode {
         inner.style.marginRight = '1.5rem'
       }
 
-      const headingColor = getContrastColor(this.__backgroundColor)
+      const headingColor = resolveTextColor(this.__textColorMode, this.__backgroundColor)
 
       const headingEl = document.createElement('div')
       headingEl.className = 'header-heading'
@@ -3489,7 +3542,7 @@ export class HeaderNode extends DecoratorNode {
         a.href = this.__buttonUrl
         a.textContent = this.__buttonText
         a.style.background = this.__buttonColor
-        a.style.color = getContrastColor(this.__buttonColor)
+        a.style.color = resolveTextColor(this.__buttonTextColorMode, this.__buttonColor)
         a.style.fontSize = btnSizes[this.__layout] || '16px'
         a.style.display = 'inline-block'
         a.style.padding = '0.5rem 1.25rem'
@@ -3521,6 +3574,8 @@ export class HeaderNode extends DecoratorNode {
         headerImage={this.__headerImage}
         flipLayout={this.__flipLayout}
         backgroundType={this.__backgroundType}
+        textColorMode={this.__textColorMode}
+        buttonTextColorMode={this.__buttonTextColorMode}
         nodeKey={this.getKey()}
         editor={editor}
       />
