@@ -178,6 +178,7 @@ html {
 
 /* Header button — reset prose link styles */
 .blog-content .header-btn {
+  display: inline-block !important;
   text-decoration: none !important;
 }
 
