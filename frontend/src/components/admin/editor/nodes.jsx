@@ -2796,6 +2796,8 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   const [headingFocused, setHeadingFocused] = useState(false)
   const [subheadingFocused, setSubheadingFocused] = useState(false)
   const [panelFocused, setPanelFocused] = useState(false)
+  const [bgPickerOpen, setBgPickerOpen] = useState(false)
+  const [btnPickerOpen, setBtnPickerOpen] = useState(false)
   const [panelPos, setPanelPos] = useState(null)
   const [localButtonText, setLocalButtonText] = useState(buttonText)
   const [localButtonUrl, setLocalButtonUrl] = useState(buttonUrl)
@@ -2807,7 +2809,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   const subheadingEditor = useMemo(() => createEditor({ namespace: 'HeaderSubheading', nodes: [LinkNode], theme: HEADER_NESTED_THEME, onError: console.error }), [])
 
   const showRing = isSelected || headingFocused || subheadingFocused
-  const showPanel = isSelected || headingFocused || subheadingFocused || panelFocused
+  const showPanel = isSelected || headingFocused || subheadingFocused || panelFocused || bgPickerOpen || btnPickerOpen
 
   function commitField(setter, val) {
     editor.update(() => {
@@ -3091,7 +3093,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
         <div
           style={{ position: 'absolute', top: panelPos.top, left: panelPos.left, zIndex: 9999, width: PANEL_WIDTH }}
           className="bg-white border border-gray-200 rounded-xl shadow-xl py-4 px-4 flex flex-col gap-3"
-          onMouseDown={e => e.preventDefault()}
+          onMouseDown={e => { e.preventDefault(); e.stopPropagation() }}
           onFocus={() => setPanelFocused(true)}
           onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setPanelFocused(false) }}
         >
@@ -3183,6 +3185,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
               onImageUpload={filename => { commitField('setHeaderImage', filename); commitField('setBackgroundType', 'image') }}
               onImageSelect={() => commitField('setBackgroundType', 'image')}
               onImageDelete={() => { commitField('setHeaderImage', null); commitField('setBackgroundType', 'color') }}
+              onOpenChange={setBgPickerOpen}
             />
           </div>
 
@@ -3191,13 +3194,13 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             <span className="text-sm text-gray-500">Text color</span>
             <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
               <Tooltip content="Auto">
-                <button onMouseDown={e => e.stopPropagation()} onClick={() => commitField('setTextColorMode', 'auto')} className={`p-1.5 rounded-md transition-colors ${textColorMode === 'auto' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Eclipse size={15} /></button>
+                <button onMouseDown={e => { e.preventDefault(); e.stopPropagation() }} onClick={() => commitField('setTextColorMode', 'auto')} className={`p-1.5 rounded-md transition-colors ${textColorMode === 'auto' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Eclipse size={15} /></button>
               </Tooltip>
               <Tooltip content="Light">
-                <button onMouseDown={e => e.stopPropagation()} onClick={() => commitField('setTextColorMode', 'light')} className={`p-1.5 rounded-md transition-colors ${textColorMode === 'light' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Sun size={15} /></button>
+                <button onMouseDown={e => { e.preventDefault(); e.stopPropagation() }} onClick={() => commitField('setTextColorMode', 'light')} className={`p-1.5 rounded-md transition-colors ${textColorMode === 'light' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Sun size={15} /></button>
               </Tooltip>
               <Tooltip content="Dark">
-                <button onMouseDown={e => e.stopPropagation()} onClick={() => commitField('setTextColorMode', 'dark')} className={`p-1.5 rounded-md transition-colors ${textColorMode === 'dark' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Moon size={15} /></button>
+                <button onMouseDown={e => { e.preventDefault(); e.stopPropagation() }} onClick={() => commitField('setTextColorMode', 'dark')} className={`p-1.5 rounded-md transition-colors ${textColorMode === 'dark' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Moon size={15} /></button>
               </Tooltip>
             </div>
           </div>
@@ -3222,6 +3225,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                   value={buttonColor}
                   onChange={val => commitField('setButtonColor', val)}
                   presets={['#000000', '#ffffff']}
+                  onOpenChange={setBtnPickerOpen}
                 />
               </div>
 
@@ -3230,13 +3234,13 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                 <span className="text-sm text-gray-500">Button text color</span>
                 <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
                   <Tooltip content="Auto">
-                    <button onMouseDown={e => e.stopPropagation()} onClick={() => commitField('setButtonTextColorMode', 'auto')} className={`p-1.5 rounded-md transition-colors ${buttonTextColorMode === 'auto' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Eclipse size={15} /></button>
+                    <button onMouseDown={e => { e.preventDefault(); e.stopPropagation() }} onClick={() => commitField('setButtonTextColorMode', 'auto')} className={`p-1.5 rounded-md transition-colors ${buttonTextColorMode === 'auto' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Eclipse size={15} /></button>
                   </Tooltip>
                   <Tooltip content="Light">
-                    <button onMouseDown={e => e.stopPropagation()} onClick={() => commitField('setButtonTextColorMode', 'light')} className={`p-1.5 rounded-md transition-colors ${buttonTextColorMode === 'light' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Sun size={15} /></button>
+                    <button onMouseDown={e => { e.preventDefault(); e.stopPropagation() }} onClick={() => commitField('setButtonTextColorMode', 'light')} className={`p-1.5 rounded-md transition-colors ${buttonTextColorMode === 'light' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Sun size={15} /></button>
                   </Tooltip>
                   <Tooltip content="Dark">
-                    <button onMouseDown={e => e.stopPropagation()} onClick={() => commitField('setButtonTextColorMode', 'dark')} className={`p-1.5 rounded-md transition-colors ${buttonTextColorMode === 'dark' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Moon size={15} /></button>
+                    <button onMouseDown={e => { e.preventDefault(); e.stopPropagation() }} onClick={() => commitField('setButtonTextColorMode', 'dark')} className={`p-1.5 rounded-md transition-colors ${buttonTextColorMode === 'dark' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Moon size={15} /></button>
                   </Tooltip>
                 </div>
               </div>
