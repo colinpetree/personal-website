@@ -3,6 +3,7 @@ import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
 import { ToastProvider } from './Toast'
 import StaffProfileModal, { AvatarCircle, ROLE_BADGE, ROLE_LABELS } from './StaffProfileModal'
+import { useSiteConfig } from '../../hooks/useSiteConfig'
 
 const NAV_GROUPS = [
   {
@@ -131,6 +132,25 @@ export default function AdminLayout() {
   const { admin, loading, logout, refreshAdmin } = useAdminAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const { config } = useSiteConfig()
+
+  useEffect(() => {
+    if (config?.favicon_filename) {
+      let link = document.querySelector("link[rel~='icon']")
+      if (!link) {
+        link = document.createElement('link')
+        link.rel = 'icon'
+        document.head.appendChild(link)
+      }
+      link.href = `/api/uploads/${config.favicon_filename}`
+    }
+  }, [config?.favicon_filename])
+
+  useEffect(() => {
+    if (config?.site_title) {
+      document.title = `Admin - ${config.site_title}`
+    }
+  }, [config?.site_title])
   const [showSelfProfile, setShowSelfProfile] = useState(false)
 
   const isEditorPage = /^\/admin\/blog\/posts\/[^/]+/.test(location.pathname)
