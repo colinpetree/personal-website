@@ -11,7 +11,8 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, Maximize2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat, ChevronDown, Copy, Check } from 'lucide-react'
+import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat, ChevronDown, Copy, Check } from 'lucide-react'
+import ColorPicker from '../../ui/ColorPicker'
 import Picker from '@emoji-mart/react'
 import emojiData from '@emoji-mart/data'
 import { handleUpload } from './upload'
@@ -2719,4 +2720,379 @@ export class CodeBlockNode extends DecoratorNode {
 
 export function $createCodeBlockNode(code = '') {
   return new CodeBlockNode(code)
+}
+
+// ─── HeaderNodeComponent ──────────────────────────────────────────────────────
+
+function HeaderNodeComponent({ layout, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, nodeKey, editor }) {
+  const TOOLBAR_WIDTH = 520
+  const containerRef = useRef(null)
+  const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
+  const [isHovered, setIsHovered] = useState(false)
+  const [headingFocused, setHeadingFocused] = useState(false)
+  const [subheadingFocused, setSubheadingFocused] = useState(false)
+  const [toolbarPos, setToolbarPos] = useState(null)
+  const [localHeading, setLocalHeading] = useState(heading)
+  const [localSubheading, setLocalSubheading] = useState(subheading)
+  const [localButtonText, setLocalButtonText] = useState(buttonText)
+  const [localButtonUrl, setLocalButtonUrl] = useState(buttonUrl)
+
+  useEffect(() => { setLocalHeading(heading) }, [heading])
+  useEffect(() => { setLocalSubheading(subheading) }, [subheading])
+  useEffect(() => { setLocalButtonText(buttonText) }, [buttonText])
+  useEffect(() => { setLocalButtonUrl(buttonUrl) }, [buttonUrl])
+
+  const showRing = isSelected || headingFocused || subheadingFocused
+
+  function commitField(setter, val) {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (!node) return
+      node[setter](val)
+    })
+  }
+
+  function handleInputKeyDown(e) {
+    e.stopPropagation()
+    if (e.key === 'Enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      e.target.blur()
+      const root = editor.getRootElement()
+      if (root) root.focus({ preventScroll: true })
+      editor.update(() => {
+        const sel = $createNodeSelection()
+        sel.add(nodeKey)
+        $setSelection(sel)
+      })
+    }
+  }
+
+  useEffect(() => {
+    return editor.registerCommand(
+      CLICK_COMMAND,
+      (event) => {
+        const el = containerRef.current
+        if (!el || !el.contains(event.target)) return false
+        if (event.target.tagName === 'INPUT') return false
+        clearSelection()
+        setSelected(true)
+        return true
+      },
+      COMMAND_PRIORITY_LOW
+    )
+  }, [editor, setSelected, clearSelection])
+
+  useEffect(() => {
+    if (!isSelected) return
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key !== 'Enter') return false
+        event.preventDefault()
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (!node) return
+          const para = $createParagraphNode()
+          node.insertAfter(para)
+          para.selectStart()
+        })
+        return true
+      },
+      COMMAND_PRIORITY_HIGH
+    )
+  }, [isSelected, editor, nodeKey])
+
+  useLayoutEffect(() => {
+    if (!isSelected || !containerRef.current) { setToolbarPos(null); return }
+    function calc() {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      let left = rect.left + window.scrollX + rect.width / 2 - TOOLBAR_WIDTH / 2
+      left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - TOOLBAR_WIDTH - 8))
+      let top = rect.top + window.scrollY - 48
+      if (top < window.scrollY + 8) top = rect.bottom + window.scrollY + 8
+      setToolbarPos({ top, left })
+    }
+    calc()
+    window.addEventListener('scroll', calc, true)
+    window.addEventListener('resize', calc)
+    return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
+  }, [isSelected])
+
+  const outerClass = layout === 'full' ? 'w-full' : layout === 'wide' ? 'max-w-5xl mx-auto' : 'max-w-3xl mx-auto'
+  const sideMargin = layout === 'full' ? '' : 'mx-6'
+
+  return (
+    <>
+      <div
+        className={`my-4 ${outerClass}`}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        <div
+          ref={containerRef}
+          style={{ background: backgroundColor }}
+          className={`${sideMargin} rounded-lg px-10 py-10 flex flex-col gap-3 ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+        >
+          <input
+            value={localHeading}
+            onChange={e => setLocalHeading(e.target.value)}
+            onFocus={() => setHeadingFocused(true)}
+            onBlur={e => { setHeadingFocused(false); commitField('setHeading', e.target.value) }}
+            onKeyDown={handleInputKeyDown}
+            onMouseDown={e => e.stopPropagation()}
+            placeholder="Heading"
+            className="bg-transparent text-white text-3xl font-bold outline-none w-full placeholder-white/50"
+          />
+          <input
+            value={localSubheading}
+            onChange={e => setLocalSubheading(e.target.value)}
+            onFocus={() => setSubheadingFocused(true)}
+            onBlur={e => { setSubheadingFocused(false); commitField('setSubheading', e.target.value) }}
+            onKeyDown={handleInputKeyDown}
+            onMouseDown={e => e.stopPropagation()}
+            placeholder="Subheading"
+            className="bg-transparent text-white/80 text-lg outline-none w-full placeholder-white/40"
+          />
+          {buttonEnabled && (
+            <div className="mt-2">
+              <span
+                className="inline-block px-5 py-2 rounded-lg text-white text-sm font-medium pointer-events-none select-none"
+                style={{ background: buttonColor }}
+              >
+                {localButtonText || 'Learn More'}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isSelected && toolbarPos && createPortal(
+        <div
+          style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999, width: TOOLBAR_WIDTH }}
+          className="flex items-center gap-1 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 shadow-2xl"
+          onMouseDown={e => e.preventDefault()}
+        >
+          <Tooltip content="Regular width">
+            <button
+              className={`p-1 rounded ${layout === 'regular' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+              onClick={() => commitField('setLayout', 'regular')}
+            >
+              <AlignCenter size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Wide">
+            <button
+              className={`p-1 rounded ${layout === 'wide' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+              onClick={() => commitField('setLayout', 'wide')}
+            >
+              <AlignJustify size={16} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Full width">
+            <button
+              className={`p-1 rounded ${layout === 'full' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+              onClick={() => commitField('setLayout', 'full')}
+            >
+              <Maximize2 size={16} />
+            </button>
+          </Tooltip>
+
+          <div className="w-px h-4 bg-gray-600 mx-1 flex-shrink-0" />
+          <span className="text-gray-400 text-xs">BG</span>
+          <ColorPicker
+            value={backgroundColor}
+            onChange={val => commitField('setBackgroundColor', val)}
+            presets={['#000000', '#1e293b', '#1e3a5f', '#ffffff']}
+          />
+
+          <div className="w-px h-4 bg-gray-600 mx-1 flex-shrink-0" />
+          <button
+            className={`text-xs px-2 py-1 rounded ${buttonEnabled ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-white'}`}
+            onClick={() => commitField('setButtonEnabled', !buttonEnabled)}
+          >
+            Button: {buttonEnabled ? 'ON' : 'OFF'}
+          </button>
+
+          {buttonEnabled && (
+            <>
+              <div className="w-px h-4 bg-gray-600 mx-1 flex-shrink-0" />
+              <input
+                value={localButtonText}
+                onChange={e => setLocalButtonText(e.target.value)}
+                onBlur={e => commitField('setButtonText', e.target.value)}
+                onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur() }}
+                onMouseDown={e => e.stopPropagation()}
+                placeholder="Button label"
+                className="bg-gray-800 text-white text-sm px-2 py-1 rounded border border-gray-600 w-24 min-w-0"
+              />
+              <input
+                value={localButtonUrl}
+                onChange={e => setLocalButtonUrl(e.target.value)}
+                onBlur={e => commitField('setButtonUrl', e.target.value)}
+                onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur() }}
+                onMouseDown={e => e.stopPropagation()}
+                placeholder="https://..."
+                className="bg-gray-800 text-white text-sm px-2 py-1 rounded border border-gray-600 w-28 min-w-0"
+              />
+              <ColorPicker
+                value={buttonColor}
+                onChange={val => commitField('setButtonColor', val)}
+                presets={['#3b82f6', '#22c55e', '#ef4444', '#ffffff']}
+              />
+            </>
+          )}
+        </div>,
+        document.body
+      )}
+    </>
+  )
+}
+
+// ─── HeaderNode ───────────────────────────────────────────────────────────────
+
+export class HeaderNode extends DecoratorNode {
+  static getType() { return 'header' }
+
+  static clone(node) {
+    return new HeaderNode(node.__layout, node.__heading, node.__subheading, node.__backgroundColor, node.__buttonEnabled, node.__buttonText, node.__buttonUrl, node.__buttonColor, node.__key)
+  }
+
+  static importJSON(data) {
+    return new HeaderNode(
+      data.layout || 'regular',
+      data.heading || '',
+      data.subheading || '',
+      data.backgroundColor || '#1e293b',
+      data.buttonEnabled || false,
+      data.buttonText || 'Learn More',
+      data.buttonUrl || '',
+      data.buttonColor || '#3b82f6',
+    )
+  }
+
+  exportJSON() {
+    return {
+      type: 'header', version: 1,
+      layout: this.__layout,
+      heading: this.__heading,
+      subheading: this.__subheading,
+      backgroundColor: this.__backgroundColor,
+      buttonEnabled: this.__buttonEnabled,
+      buttonText: this.__buttonText,
+      buttonUrl: this.__buttonUrl,
+      buttonColor: this.__buttonColor,
+    }
+  }
+
+  static importDOM() {
+    return {
+      header: (node) => {
+        if (!node.classList?.contains('header-regular') &&
+            !node.classList?.contains('header-wide') &&
+            !node.classList?.contains('header-full')) return null
+        return {
+          conversion: (domNode) => {
+            const layout = domNode.getAttribute('data-layout') || 'regular'
+            const heading = domNode.querySelector('.header-heading')?.textContent || ''
+            const subheading = domNode.querySelector('.header-subheading')?.textContent || ''
+            const backgroundColor = domNode.style.background || '#1e293b'
+            const buttonEnabled = domNode.getAttribute('data-button-enabled') === 'true'
+            const buttonText = domNode.getAttribute('data-button-text') || 'Learn More'
+            const buttonUrl = domNode.getAttribute('data-button-url') || ''
+            const buttonColor = domNode.getAttribute('data-button-color') || '#3b82f6'
+            return { node: new HeaderNode(layout, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor) }
+          },
+          priority: 2,
+        }
+      },
+    }
+  }
+
+  constructor(layout = 'regular', heading = '', subheading = '', backgroundColor = '#1e293b', buttonEnabled = false, buttonText = 'Learn More', buttonUrl = '', buttonColor = '#3b82f6', key) {
+    super(key)
+    this.__layout = layout
+    this.__heading = heading
+    this.__subheading = subheading
+    this.__backgroundColor = backgroundColor
+    this.__buttonEnabled = buttonEnabled
+    this.__buttonText = buttonText
+    this.__buttonUrl = buttonUrl
+    this.__buttonColor = buttonColor
+  }
+
+  createDOM() {
+    const span = document.createElement('span')
+    span.style.display = 'contents'
+    return span
+  }
+
+  updateDOM() { return false }
+  isInline() { return false }
+
+  setLayout(val) { this.getWritable().__layout = val }
+  setHeading(val) { this.getWritable().__heading = val }
+  setSubheading(val) { this.getWritable().__subheading = val }
+  setBackgroundColor(val) { this.getWritable().__backgroundColor = val }
+  setButtonEnabled(val) { this.getWritable().__buttonEnabled = val }
+  setButtonText(val) { this.getWritable().__buttonText = val }
+  setButtonUrl(val) { this.getWritable().__buttonUrl = val }
+  setButtonColor(val) { this.getWritable().__buttonColor = val }
+
+  exportDOM() {
+    const header = document.createElement('header')
+    header.className = `header-${this.__layout}`
+    header.style.background = this.__backgroundColor
+    header.setAttribute('data-layout', this.__layout)
+    header.setAttribute('data-button-enabled', String(this.__buttonEnabled))
+    header.setAttribute('data-button-text', this.__buttonText)
+    header.setAttribute('data-button-url', this.__buttonUrl)
+    header.setAttribute('data-button-color', this.__buttonColor)
+
+    const inner = document.createElement('div')
+    inner.className = 'header-inner'
+
+    const h2 = document.createElement('h2')
+    h2.className = 'header-heading'
+    h2.textContent = this.__heading
+    inner.appendChild(h2)
+
+    const p = document.createElement('p')
+    p.className = 'header-subheading'
+    p.textContent = this.__subheading
+    inner.appendChild(p)
+
+    if (this.__buttonEnabled) {
+      const a = document.createElement('a')
+      a.className = 'header-btn'
+      a.href = this.__buttonUrl
+      a.textContent = this.__buttonText
+      a.style.background = this.__buttonColor
+      inner.appendChild(a)
+    }
+
+    header.appendChild(inner)
+    return { element: header }
+  }
+
+  decorate(editor) {
+    return (
+      <HeaderNodeComponent
+        layout={this.__layout}
+        heading={this.__heading}
+        subheading={this.__subheading}
+        backgroundColor={this.__backgroundColor}
+        buttonEnabled={this.__buttonEnabled}
+        buttonText={this.__buttonText}
+        buttonUrl={this.__buttonUrl}
+        buttonColor={this.__buttonColor}
+        nodeKey={this.getKey()}
+        editor={editor}
+      />
+    )
+  }
+}
+
+export function $createHeaderNode() {
+  return new HeaderNode()
 }

@@ -3,7 +3,7 @@ import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 import {
   Bold, Italic, Underline, Strikethrough, Code, Link2,
   Type, Heading1, Heading2, Heading3, Quote, Code2,
-  List, ListOrdered, Minus, Image, Video, Music, Paperclip, LayoutGrid, Plus, MessageSquare, MousePointerClick, ChevronDown,
+  List, ListOrdered, Minus, Image, Video, Music, Paperclip, LayoutGrid, Plus, MessageSquare, MousePointerClick, ChevronDown, PanelTop,
 } from 'lucide-react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
@@ -18,7 +18,7 @@ import {
   $getNodeByKey, $isParagraphNode, $isDecoratorNode, $isElementNode,
   $createNodeSelection, $setSelection,
 } from 'lexical'
-import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createToggleNode, $createCodeBlockNode } from './nodes'
+import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createToggleNode, $createCodeBlockNode, $createHeaderNode } from './nodes'
 import { handleUpload, handleUploadFull } from './upload'
 import { Tooltip } from '../../ui/Tooltip'
 
@@ -174,6 +174,7 @@ const SLASH_ITEMS = [
   { label: 'Callout',       description: 'Highlighted callout box', Icon: MessageSquare,      action: 'callout' },
   { label: 'Button',        description: 'Clickable link button',  Icon: MousePointerClick,  action: 'button' },
   { label: 'Toggle',        description: 'Collapsible section',   Icon: ChevronDown,        action: 'toggle' },
+  { label: 'Header',        description: 'Full-width banner with heading and button', Icon: PanelTop, action: 'header' },
   { label: 'Image',         description: 'Upload an image',       Icon: Image,       action: 'image' },
   { label: 'Video',         description: 'Upload a video',        Icon: Video,       action: 'video' },
   { label: 'Audio',         description: 'Upload an audio file',  Icon: Music,       action: 'audio' },
@@ -454,6 +455,24 @@ export function SlashCommandPlugin() {
         } else {
           const para = $createParagraphNode()
           codeBlock.insertAfter(para)
+          para.selectStart()
+        }
+      })
+      return
+    }
+
+    if (item.action === 'header') {
+      editor.update(() => {
+        const node = $getNodeByKey(nodeKey)
+        if (!node || !$isParagraphNode(node)) return
+        const headerNode = $createHeaderNode()
+        node.replace(headerNode)
+        const next = headerNode.getNextSibling()
+        if ($isElementNode(next)) {
+          next.selectStart()
+        } else {
+          const para = $createParagraphNode()
+          headerNode.insertAfter(para)
           para.selectStart()
         }
       })
