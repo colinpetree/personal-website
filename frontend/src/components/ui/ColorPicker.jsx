@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { Image as ImageIcon, Upload, Trash2 } from 'lucide-react'
+import { handleUpload } from '../admin/editor/upload'
 
 function hexToHsv(hex) {
   const r = parseInt(hex.slice(1, 3), 16) / 255
@@ -248,36 +250,53 @@ export default function ColorPicker({ value = '#3b82f6', onChange }) {
 
 // ─── ColorSwatchMenu — current-color trigger → presets + rainbow picker ───────
 
-export function ColorSwatchMenu({ value = '#000000', onChange, presets = [] }) {
+export function ColorSwatchMenu({
+  value = '#000000',
+  onChange,
+  presets = [],
+  imageFilename = null,
+  imageActive = false,
+  imageHidden = false,
+  onImageUpload,
+  onImageSelect,
+  onImageDelete,
+}) {
   const initialCustom = isValidHex(value) && !presets.map(p => p.toLowerCase()).includes(value.toLowerCase())
     ? value
     : '#3b82f6'
   const [swatchesOpen, setSwatchesOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [imgMgmtOpen, setImgMgmtOpen] = useState(false)
   const [pickerColor, setPickerColor] = useState(initialCustom)
   const [swatchPos, setSwatchPos] = useState({ top: 0, centerX: 0 })
   const [pickerPos, setPickerPos] = useState({ top: 0, centerX: 0 })
+  const [imgMgmtPos, setImgMgmtPos] = useState({ top: 0, centerX: 0 })
 
   const triggerRef = useRef(null)
   const rainbowRef = useRef(null)
+  const imageSwatchRef = useRef(null)
+  const fileInputRef = useRef(null)
+  const replaceFileInputRef = useRef(null)
   const swatchPopoverRef = useRef(null)
   const pickerPopoverRef = useRef(null)
+  const imgMgmtPopoverRef = useRef(null)
 
-  // Close everything on outside click
   useEffect(() => {
-    if (!swatchesOpen && !pickerOpen) return
+    if (!swatchesOpen && !pickerOpen && !imgMgmtOpen) return
     function handle(e) {
       const inSwatch = swatchPopoverRef.current?.contains(e.target)
       const inPicker = pickerPopoverRef.current?.contains(e.target)
+      const inImgMgmt = imgMgmtPopoverRef.current?.contains(e.target)
       const inTrigger = triggerRef.current?.contains(e.target)
-      if (!inSwatch && !inPicker && !inTrigger) {
+      if (!inSwatch && !inPicker && !inImgMgmt && !inTrigger) {
         setSwatchesOpen(false)
         setPickerOpen(false)
+        setImgMgmtOpen(false)
       }
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
-  }, [swatchesOpen, pickerOpen])
+  }, [swatchesOpen, pickerOpen, imgMgmtOpen])
 
   function openSwatches() {
     const rect = triggerRef.current?.getBoundingClientRect()
@@ -293,7 +312,7 @@ export function ColorSwatchMenu({ value = '#000000', onChange, presets = [] }) {
 
   function handlePreset(hex) {
     onChange(hex)
-    setPickerOpen(false) // close picker if open, keep swatches open
+    setPickerOpen(false)
   }
 
   function handlePickerChange(hex) {
@@ -301,17 +320,64 @@ export function ColorSwatchMenu({ value = '#000000', onChange, presets = [] }) {
     onChange(hex)
   }
 
+  async function doImageUpload(file) {
+    if (!file) return
+    try {
+      const filename = await handleUpload(file)
+      onImageUpload?.(filename)
+      setSwatchesOpen(false)
+      setImgMgmtOpen(false)
+    } catch {}
+  }
+
+  function handleImageSwatch() {
+    if (!imageFilename) {
+      fileInputRef.current?.click()
+    } else {
+      const rect = imageSwatchRef.current?.getBoundingClientRect()
+      if (rect) setImgMgmtPos({ top: rect.top - 6, centerX: rect.left + rect.width / 2 })
+      onImageSelect?.()
+      setImgMgmtOpen(v => !v)
+      setPickerOpen(false)
+    }
+  }
+
   const safe = isValidHex(value) ? value : '#000000'
   const isCustomColor = !presets.map(p => p.toLowerCase()).includes(safe.toLowerCase())
+  const showImageSwatch = !!onImageUpload && !imageHidden
+
+  const triggerStyle = imageActive && imageFilename
+    ? { backgroundImage: `url(/api/uploads/${imageFilename})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    : { background: safe }
 
   return (
     <div className="relative inline-flex">
+      {/* Hidden file inputs */}
+      {showImageSwatch && (
+        <>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={e => { doImageUpload(e.target.files?.[0]); e.target.value = '' }}
+          />
+          <input
+            ref={replaceFileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={e => { doImageUpload(e.target.files?.[0]); e.target.value = '' }}
+          />
+        </>
+      )}
+
       <button
         ref={triggerRef}
         type="button"
-        onMouseDown={e => { e.preventDefault(); swatchesOpen ? (setSwatchesOpen(false), setPickerOpen(false)) : openSwatches() }}
-        className="w-5 h-5 rounded-full border-2 border-white shadow ring-1 ring-gray-300 shrink-0"
-        style={{ background: safe }}
+        onMouseDown={e => { e.preventDefault(); swatchesOpen ? (setSwatchesOpen(false), setPickerOpen(false), setImgMgmtOpen(false)) : openSwatches() }}
+        className="w-5 h-5 rounded-full border-2 border-white shadow ring-1 ring-gray-300 shrink-0 overflow-hidden"
+        style={triggerStyle}
         aria-label="Choose color"
       />
 
@@ -324,6 +390,22 @@ export function ColorSwatchMenu({ value = '#000000', onChange, presets = [] }) {
           onMouseDown={e => e.stopPropagation()}
         >
           <div className="flex gap-1.5">
+            {/* Image swatch — leftmost */}
+            {showImageSwatch && (
+              <button
+                ref={imageSwatchRef}
+                type="button"
+                onMouseDown={e => { e.preventDefault(); handleImageSwatch() }}
+                className="w-6 h-6 rounded-full border-2 shadow-sm transition-transform hover:scale-110 shrink-0 flex items-center justify-center overflow-hidden bg-gray-100"
+                style={{ borderColor: imageActive ? '#3b82f6' : '#e5e7eb' }}
+                aria-label="Background image"
+              >
+                {imageFilename
+                  ? <img src={`/api/uploads/${imageFilename}`} className="w-full h-full object-cover" alt="" />
+                  : <ImageIcon size={12} className="text-gray-400" />
+                }
+              </button>
+            )}
             {presets.map(p => (
               <button
                 key={p}
@@ -332,18 +414,18 @@ export function ColorSwatchMenu({ value = '#000000', onChange, presets = [] }) {
                 className="w-6 h-6 rounded-full border-2 shadow-sm transition-transform hover:scale-110 shrink-0"
                 style={{
                   background: p,
-                  borderColor: safe.toLowerCase() === p.toLowerCase() ? '#3b82f6' : '#e5e7eb',
+                  borderColor: !imageActive && safe.toLowerCase() === p.toLowerCase() ? '#3b82f6' : '#e5e7eb',
                 }}
                 aria-label={p}
               />
             ))}
-            {/* Rainbow swatch — opens the full picker */}
+            {/* Rainbow swatch */}
             <button
               ref={rainbowRef}
               type="button"
               onMouseDown={e => { e.preventDefault(); pickerOpen ? setPickerOpen(false) : (openPicker(), onChange(pickerColor)) }}
               className="w-6 h-6 rounded-full border-2 shadow-sm transition-transform hover:scale-110 shrink-0"
-              style={{ background: RAINBOW, borderColor: (pickerOpen || isCustomColor) ? '#3b82f6' : '#e5e7eb' }}
+              style={{ background: RAINBOW, borderColor: (!imageActive && (pickerOpen || isCustomColor)) ? '#3b82f6' : '#e5e7eb' }}
               aria-label="Custom color"
             />
           </div>
@@ -351,7 +433,7 @@ export function ColorSwatchMenu({ value = '#000000', onChange, presets = [] }) {
         document.body
       )}
 
-      {/* Color picker popover — centered over the rainbow swatch */}
+      {/* Color picker popover */}
       {pickerOpen && createPortal(
         <div
           ref={pickerPopoverRef}
@@ -360,6 +442,36 @@ export function ColorSwatchMenu({ value = '#000000', onChange, presets = [] }) {
           onMouseDown={e => e.stopPropagation()}
         >
           <PickerPopup value={pickerColor} onChange={handlePickerChange} />
+        </div>,
+        document.body
+      )}
+
+      {/* Image management popover */}
+      {imgMgmtOpen && createPortal(
+        <div
+          ref={imgMgmtPopoverRef}
+          style={{ position: 'fixed', top: imgMgmtPos.top, left: imgMgmtPos.centerX, transform: 'translateX(-50%) translateY(-100%)', zIndex: 100000 }}
+          className="bg-white rounded-xl shadow-2xl border border-gray-200 p-2.5"
+          onMouseDown={e => e.stopPropagation()}
+        >
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onMouseDown={e => { e.preventDefault(); replaceFileInputRef.current?.click() }}
+              className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition-colors"
+              aria-label="Replace image"
+            >
+              <Upload size={12} className="text-gray-500" />
+            </button>
+            <button
+              type="button"
+              onMouseDown={e => { e.preventDefault(); onImageDelete?.(); setImgMgmtOpen(false); setSwatchesOpen(false) }}
+              className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
+              aria-label="Delete image"
+            >
+              <Trash2 size={12} className="text-red-400" />
+            </button>
+          </div>
         </div>,
         document.body
       )}

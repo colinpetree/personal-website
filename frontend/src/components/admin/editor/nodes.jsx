@@ -11,7 +11,7 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat, ChevronDown, Copy, Check } from 'lucide-react'
+import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Columns2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2 } from 'lucide-react'
 import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
 import Picker from '@emoji-mart/react'
 import emojiData from '@emoji-mart/data'
@@ -2779,11 +2779,12 @@ const HEADER_NESTED_THEME = {
   paragraph: 'my-0',
 }
 
-function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, nodeKey, editor }) {
+function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, flipLayout, backgroundType, nodeKey, editor }) {
   const PANEL_WIDTH = 280
   const containerRef = useRef(null)
   const headingContainerRef = useRef(null)
   const subheadingContainerRef = useRef(null)
+  const splitImageInputRef = useRef(null)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [isHovered, setIsHovered] = useState(false)
   const [headingFocused, setHeadingFocused] = useState(false)
@@ -2855,6 +2856,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
         regular: { rightShift: 140, overlap: 220 },
         wide:    { rightShift: -40, overlap: 320 },
         full:    { rightShift: -160, overlap: 380 },
+        split:   { rightShift: -160, overlap: 380 },
       }
       const { rightShift, overlap } = offsets[layout] || offsets.regular
       let left = rect.right + window.scrollX - PANEL_WIDTH + rightShift
@@ -2868,129 +2870,212 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
     return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
   }, [showPanel, layout])
 
-  const outerClass = layout === 'full' ? 'w-full' : layout === 'wide' ? 'max-w-7xl mx-auto' : 'max-w-3xl mx-auto'
-  const sideMargin = layout === 'full' ? '' : 'mx-6'
-  const paddingXClass    = layout === 'regular' ? 'px-20' : 'px-64'
+  const outerClass = (layout === 'full' || layout === 'split') ? 'w-full' : layout === 'wide' ? 'max-w-7xl mx-auto' : 'max-w-3xl mx-auto'
+  const sideMargin = (layout === 'full' || layout === 'split') ? '' : 'mx-6'
   const textAlignClass   = textAlign === 'center' ? 'text-center' : 'text-left'
-  const minHeightClass   = layout === 'full' ? 'min-h-[551px]' : layout === 'wide' ? 'min-h-[447px]' : 'min-h-[347px]'
-  const headingTextClass = layout === 'full' ? 'text-6xl' : layout === 'wide' ? 'text-5xl' : 'text-4xl'
-  const subTextClass     = layout === 'full' ? 'text-2xl' : layout === 'wide' ? 'text-[22px]' : 'text-xl'
-  const btnTextClass     = layout === 'full' ? 'text-lg' : 'text-base'
+  const minHeightClass   = layout === 'split' ? 'min-h-[600px]' : layout === 'full' ? 'min-h-[551px]' : layout === 'wide' ? 'min-h-[447px]' : 'min-h-[347px]'
+  const headingTextClass = (layout === 'full' || layout === 'split') ? 'text-6xl' : layout === 'wide' ? 'text-5xl' : 'text-4xl'
+  const subTextClass     = (layout === 'full' || layout === 'split') ? 'text-2xl' : layout === 'wide' ? 'text-[22px]' : 'text-xl'
+  const btnTextClass     = (layout === 'full' || layout === 'split') ? 'text-lg' : 'text-base'
+
+  const bgStyle = layout !== 'split' && backgroundType === 'image' && headerImage
+    ? { backgroundImage: `url(/api/uploads/${headerImage})`, backgroundSize: '100% auto', backgroundRepeat: 'no-repeat', backgroundPosition: 'center center' }
+    : { background: backgroundColor }
+
+  const textContent = (
+    <>
+      <div
+        ref={headingContainerRef}
+        className={`relative ${textAlignClass}`}
+        onClick={e => e.stopPropagation()}
+        onKeyDown={e => {
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            const root = editor.getRootElement()
+            if (root) root.focus({ preventScroll: true })
+            editor.update(() => { const sel = $createNodeSelection(); sel.add(nodeKey); $setSelection(sel) })
+          }
+        }}
+      >
+        <LexicalNestedComposer initialEditor={headingEditor} initialTheme={HEADER_NESTED_THEME}>
+          <RichTextPlugin
+            contentEditable={
+              <ContentEditable
+                onFocus={() => setHeadingFocused(true)}
+                onBlur={() => setHeadingFocused(false)}
+                style={{ color: getContrastColor(backgroundColor) }}
+                className={`bg-transparent ${headingTextClass} font-bold outline-none w-full`}
+              />
+            }
+            placeholder={
+              <div style={{ color: getContrastColor(backgroundColor), opacity: 0.5 }} className={`pointer-events-none absolute top-0 left-0 right-0 ${headingTextClass} font-bold select-none ${textAlignClass}`}>Heading</div>
+            }
+            ErrorBoundary={LexicalErrorBoundary}
+          />
+          <HistoryPlugin />
+          <LinkPlugin />
+          <FloatingToolbarPlugin />
+          <HeaderFieldSyncPlugin
+            parentEditor={editor}
+            nodeKey={nodeKey}
+            setterName="setHeading"
+            initialHtml={heading}
+            onEnterKey={() => subheadingEditor.getRootElement()?.focus()}
+          />
+        </LexicalNestedComposer>
+      </div>
+
+      <div
+        ref={subheadingContainerRef}
+        className={`relative ${textAlignClass}`}
+        onClick={e => e.stopPropagation()}
+        onKeyDown={e => {
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            const root = editor.getRootElement()
+            if (root) root.focus({ preventScroll: true })
+            editor.update(() => { const sel = $createNodeSelection(); sel.add(nodeKey); $setSelection(sel) })
+          }
+        }}
+      >
+        <LexicalNestedComposer initialEditor={subheadingEditor} initialTheme={HEADER_NESTED_THEME}>
+          <RichTextPlugin
+            contentEditable={
+              <ContentEditable
+                onFocus={() => setSubheadingFocused(true)}
+                onBlur={() => setSubheadingFocused(false)}
+                style={{ color: getContrastColor(backgroundColor), opacity: 0.8 }}
+                className={`bg-transparent ${subTextClass} outline-none w-full`}
+              />
+            }
+            placeholder={
+              <div style={{ color: getContrastColor(backgroundColor), opacity: 0.4 }} className={`pointer-events-none absolute top-0 left-0 right-0 ${subTextClass} select-none ${textAlignClass}`}>Subheading</div>
+            }
+            ErrorBoundary={LexicalErrorBoundary}
+          />
+          <HistoryPlugin />
+          <LinkPlugin />
+          <FloatingToolbarPlugin />
+          <HeaderFieldSyncPlugin
+            parentEditor={editor}
+            nodeKey={nodeKey}
+            setterName="setSubheading"
+            initialHtml={subheading}
+            onEnterKey={() => {
+              editor.update(() => {
+                const node = $getNodeByKey(nodeKey)
+                if (!node) return
+                const para = $createParagraphNode()
+                node.insertAfter(para)
+                para.selectStart()
+              })
+              const root = editor.getRootElement()
+              if (root) root.focus({ preventScroll: true })
+            }}
+          />
+        </LexicalNestedComposer>
+      </div>
+
+      {buttonEnabled && (
+        <div className={`mt-2 ${textAlignClass}`}>
+          <span
+            className={`inline-block px-5 py-2 rounded-lg ${btnTextClass} font-medium pointer-events-none select-none`}
+            style={{ background: buttonColor, color: getContrastColor(buttonColor) }}
+          >
+            {localButtonText || 'Learn More'}
+          </span>
+        </div>
+      )}
+    </>
+  )
 
   return (
     <>
+      {/* Hidden file input for split image upload */}
+      <input
+        ref={splitImageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={async e => {
+          const file = e.target.files?.[0]
+          e.target.value = ''
+          if (!file) return
+          try {
+            const filename = await handleUpload(file)
+            commitField('setHeaderImage', filename)
+          } catch {}
+        }}
+      />
+
       <div
         className={`my-4 ${outerClass}`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        <div
-          ref={containerRef}
-          style={{ background: backgroundColor }}
-          className={`${sideMargin} ${minHeightClass} ${paddingXClass} py-10 flex flex-col justify-center gap-3 ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
-        >
+        {layout === 'split' ? (
           <div
-            ref={headingContainerRef}
-            className={`relative ${textAlignClass}`}
-            onClick={e => e.stopPropagation()}
-            onKeyDown={e => {
-              if (e.key === 'Escape') {
-                e.preventDefault()
-                const root = editor.getRootElement()
-                if (root) root.focus({ preventScroll: true })
-                editor.update(() => { const sel = $createNodeSelection(); sel.add(nodeKey); $setSelection(sel) })
-              }
-            }}
+            ref={containerRef}
+            className={`${sideMargin} ${minHeightClass} flex ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''} ${flipLayout ? 'flex-row-reverse' : 'flex-row'}`}
           >
-            <LexicalNestedComposer initialEditor={headingEditor} initialTheme={HEADER_NESTED_THEME}>
-              <RichTextPlugin
-                contentEditable={
-                  <ContentEditable
-                    onFocus={() => setHeadingFocused(true)}
-                    onBlur={() => setHeadingFocused(false)}
-                    style={{ color: getContrastColor(backgroundColor) }}
-                    className={`bg-transparent ${headingTextClass} font-bold outline-none w-full`}
-                  />
-                }
-                placeholder={
-                  <div style={{ color: getContrastColor(backgroundColor), opacity: 0.5 }} className={`pointer-events-none absolute top-0 left-0 ${headingTextClass} font-bold select-none`}>Heading</div>
-                }
-                ErrorBoundary={LexicalErrorBoundary}
-              />
-              <HistoryPlugin />
-              <LinkPlugin />
-              <FloatingToolbarPlugin />
-              <HeaderFieldSyncPlugin
-                parentEditor={editor}
-                nodeKey={nodeKey}
-                setterName="setHeading"
-                initialHtml={heading}
-                onEnterKey={() => subheadingEditor.getRootElement()?.focus()}
-              />
-            </LexicalNestedComposer>
-          </div>
-
-          <div
-            ref={subheadingContainerRef}
-            className={`relative ${textAlignClass}`}
-            onClick={e => e.stopPropagation()}
-            onKeyDown={e => {
-              if (e.key === 'Escape') {
-                e.preventDefault()
-                const root = editor.getRootElement()
-                if (root) root.focus({ preventScroll: true })
-                editor.update(() => { const sel = $createNodeSelection(); sel.add(nodeKey); $setSelection(sel) })
-              }
-            }}
-          >
-            <LexicalNestedComposer initialEditor={subheadingEditor} initialTheme={HEADER_NESTED_THEME}>
-              <RichTextPlugin
-                contentEditable={
-                  <ContentEditable
-                    onFocus={() => setSubheadingFocused(true)}
-                    onBlur={() => setSubheadingFocused(false)}
-                    style={{ color: getContrastColor(backgroundColor), opacity: 0.8 }}
-                    className={`bg-transparent ${subTextClass} outline-none w-full`}
-                  />
-                }
-                placeholder={
-                  <div style={{ color: getContrastColor(backgroundColor), opacity: 0.4 }} className={`pointer-events-none absolute top-0 left-0 ${subTextClass} select-none`}>Subheading</div>
-                }
-                ErrorBoundary={LexicalErrorBoundary}
-              />
-              <HistoryPlugin />
-              <LinkPlugin />
-              <FloatingToolbarPlugin />
-              <HeaderFieldSyncPlugin
-                parentEditor={editor}
-                nodeKey={nodeKey}
-                setterName="setSubheading"
-                initialHtml={subheading}
-                onEnterKey={() => {
-                  editor.update(() => {
-                    const node = $getNodeByKey(nodeKey)
-                    if (!node) return
-                    const para = $createParagraphNode()
-                    node.insertAfter(para)
-                    para.selectStart()
-                  })
-                  const root = editor.getRootElement()
-                  if (root) root.focus({ preventScroll: true })
-                }}
-              />
-            </LexicalNestedComposer>
-          </div>
-          {buttonEnabled && (
-            <div className={`mt-2 ${textAlignClass}`}>
-              <span
-                className={`inline-block px-5 py-2 rounded-lg ${btnTextClass} font-medium pointer-events-none select-none`}
-                style={{ background: buttonColor, color: getContrastColor(buttonColor) }}
-              >
-                {localButtonText || 'Learn More'}
-              </span>
+            {/* Image side */}
+            <div
+              className={`w-1/2 bg-white flex items-center justify-center overflow-hidden relative group ${!headerImage ? 'cursor-pointer' : ''}`}
+              onClick={!headerImage ? () => splitImageInputRef.current?.click() : undefined}
+            >
+              {headerImage ? (
+                <img
+                  src={`/api/uploads/${headerImage}`}
+                  className="w-full h-full object-contain"
+                  alt=""
+                  draggable={false}
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-2 border-2 border-dashed border-gray-200 rounded-lg px-10 py-8 pointer-events-none">
+                  <ImageIcon size={40} strokeWidth={1.5} className="text-gray-300" />
+                  <span className="text-sm text-gray-400">Click to upload image</span>
+                </div>
+              )}
+              {/* Upload / delete buttons — only shown when image exists, visible on hover */}
+              {headerImage && (
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white border border-gray-200 rounded-lg shadow-sm p-1">
+                  <button
+                    type="button"
+                    onMouseDown={e => { e.preventDefault(); e.stopPropagation(); splitImageInputRef.current?.click() }}
+                    className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition-colors"
+                    aria-label="Upload image"
+                  >
+                    <Upload size={12} className="text-gray-500" />
+                  </button>
+                  <button
+                    type="button"
+                    onMouseDown={e => { e.preventDefault(); e.stopPropagation(); commitField('setHeaderImage', null) }}
+                    className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
+                    aria-label="Delete image"
+                  >
+                    <Trash2 size={12} className="text-red-400" />
+                  </button>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+
+            {/* Text side */}
+            <div
+              className={`w-1/2 flex flex-col justify-center gap-3 pl-24 pr-12 py-10`}
+              style={{ background: backgroundColor }}
+            >
+              {textContent}
+            </div>
+          </div>
+        ) : (
+          <div
+            ref={containerRef}
+            style={bgStyle}
+            className={`${sideMargin} ${minHeightClass} ${layout === 'regular' ? 'px-20' : 'px-64'} py-10 flex flex-col justify-center gap-3 ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+          >
+            {textContent}
+          </div>
+        )}
       </div>
 
       {showPanel && panelPos && createPortal(
@@ -3029,8 +3114,29 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                   <Maximize2 size={15} />
                 </button>
               </Tooltip>
+              <Tooltip content="Split">
+                <button
+                  className={`p-1.5 rounded-md transition-colors ${layout === 'split' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  onClick={() => commitField('setLayout', 'split')}
+                >
+                  <Columns2 size={15} />
+                </button>
+              </Tooltip>
             </div>
           </div>
+
+          {/* Flip Layout — split only */}
+          {layout === 'split' && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">Flip Layout</span>
+              <div
+                onClick={() => commitField('setFlipLayout', !flipLayout)}
+                className={`relative w-7 h-4 rounded-full cursor-pointer transition-colors ${flipLayout ? 'bg-blue-500' : 'bg-gray-300'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${flipLayout ? 'translate-x-3' : ''}`} />
+              </div>
+            </div>
+          )}
 
           {/* Alignment */}
           <div className="flex items-center justify-between">
@@ -3060,8 +3166,14 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             <span className="text-sm text-gray-500">Background</span>
             <ColorSwatchMenu
               value={backgroundColor}
-              onChange={val => commitField('setBackgroundColor', val)}
+              onChange={val => { commitField('setBackgroundColor', val); commitField('setBackgroundType', 'color') }}
               presets={['#000000', '#f3f4f6']}
+              imageFilename={headerImage}
+              imageActive={backgroundType === 'image'}
+              imageHidden={layout === 'split'}
+              onImageUpload={filename => { commitField('setHeaderImage', filename); commitField('setBackgroundType', 'image') }}
+              onImageSelect={() => commitField('setBackgroundType', 'image')}
+              onImageDelete={() => { commitField('setHeaderImage', null); commitField('setBackgroundType', 'color') }}
             />
           </div>
 
@@ -3137,7 +3249,7 @@ export class HeaderNode extends DecoratorNode {
   static getType() { return 'header' }
 
   static clone(node) {
-    return new HeaderNode(node.__layout, node.__textAlign, node.__heading, node.__subheading, node.__backgroundColor, node.__buttonEnabled, node.__buttonText, node.__buttonUrl, node.__buttonColor, node.__key)
+    return new HeaderNode(node.__layout, node.__textAlign, node.__heading, node.__subheading, node.__backgroundColor, node.__buttonEnabled, node.__buttonText, node.__buttonUrl, node.__buttonColor, node.__headerImage, node.__flipLayout, node.__backgroundType, node.__key)
   }
 
   static importJSON(data) {
@@ -3146,11 +3258,14 @@ export class HeaderNode extends DecoratorNode {
       data.textAlign || 'left',
       data.heading || '',
       data.subheading || '',
-      data.backgroundColor || '#1e293b',
+      data.backgroundColor || '#000000',
       data.buttonEnabled || false,
       data.buttonText || 'Learn More',
       data.buttonUrl || '',
       data.buttonColor || '#3b82f6',
+      data.headerImage || null,
+      data.flipLayout || false,
+      data.backgroundType || 'color',
     )
   }
 
@@ -3166,6 +3281,9 @@ export class HeaderNode extends DecoratorNode {
       buttonText: this.__buttonText,
       buttonUrl: this.__buttonUrl,
       buttonColor: this.__buttonColor,
+      headerImage: this.__headerImage,
+      flipLayout: this.__flipLayout,
+      backgroundType: this.__backgroundType,
     }
   }
 
@@ -3174,7 +3292,8 @@ export class HeaderNode extends DecoratorNode {
       header: (node) => {
         if (!node.classList?.contains('header-regular') &&
             !node.classList?.contains('header-wide') &&
-            !node.classList?.contains('header-full')) return null
+            !node.classList?.contains('header-full') &&
+            !node.classList?.contains('header-split')) return null
         return {
           conversion: (domNode) => {
             const layout = domNode.getAttribute('data-layout') || 'regular'
@@ -3186,7 +3305,10 @@ export class HeaderNode extends DecoratorNode {
             const buttonUrl = domNode.getAttribute('data-button-url') || ''
             const buttonColor = domNode.getAttribute('data-button-color') || '#3b82f6'
             const textAlign = domNode.getAttribute('data-text-align') || 'left'
-            return { node: new HeaderNode(layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor) }
+            const headerImage = domNode.getAttribute('data-header-image') || null
+            const flipLayout = domNode.getAttribute('data-flip-layout') === 'true'
+            const backgroundType = domNode.getAttribute('data-background-type') || 'color'
+            return { node: new HeaderNode(layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, flipLayout, backgroundType) }
           },
           priority: 2,
         }
@@ -3194,7 +3316,7 @@ export class HeaderNode extends DecoratorNode {
     }
   }
 
-  constructor(layout = 'regular', textAlign = 'left', heading = '', subheading = '', backgroundColor = '#1e293b', buttonEnabled = false, buttonText = 'Learn More', buttonUrl = '', buttonColor = '#3b82f6', key) {
+  constructor(layout = 'regular', textAlign = 'left', heading = '', subheading = '', backgroundColor = '#000000', buttonEnabled = false, buttonText = 'Learn More', buttonUrl = '', buttonColor = '#3b82f6', headerImage = null, flipLayout = false, backgroundType = 'color', key) {
     super(key)
     this.__layout = layout
     this.__textAlign = textAlign
@@ -3205,6 +3327,9 @@ export class HeaderNode extends DecoratorNode {
     this.__buttonText = buttonText
     this.__buttonUrl = buttonUrl
     this.__buttonColor = buttonColor
+    this.__headerImage = headerImage
+    this.__flipLayout = flipLayout
+    this.__backgroundType = backgroundType
   }
 
   createDOM() {
@@ -3225,59 +3350,159 @@ export class HeaderNode extends DecoratorNode {
   setButtonText(val) { this.getWritable().__buttonText = val }
   setButtonUrl(val) { this.getWritable().__buttonUrl = val }
   setButtonColor(val) { this.getWritable().__buttonColor = val }
+  setHeaderImage(val) { this.getWritable().__headerImage = val }
+  setFlipLayout(val) { this.getWritable().__flipLayout = val }
+  setBackgroundType(val) { this.getWritable().__backgroundType = val }
 
   exportDOM() {
-    const heights      = { regular: '347px', wide: '447px', full: '551px' }
-    const headingSizes = { regular: '36px',  wide: '48px',  full: '60px' }
-    const subSizes     = { regular: '20px',  wide: '22px',  full: '24px' }
-    const btnSizes     = { regular: '16px',  wide: '16px',  full: '18px' }
+    const heights      = { regular: '347px', wide: '447px', full: '551px', split: '600px' }
+    const headingSizes = { regular: '36px',  wide: '48px',  full: '60px',  split: '60px' }
+    const subSizes     = { regular: '20px',  wide: '22px',  full: '24px',  split: '24px' }
+    const btnSizes     = { regular: '16px',  wide: '16px',  full: '18px',  split: '18px' }
 
     const header = document.createElement('header')
     header.className = `header-${this.__layout}`
-    header.style.background = this.__backgroundColor
     header.setAttribute('data-layout', this.__layout)
     header.setAttribute('data-button-enabled', String(this.__buttonEnabled))
     header.setAttribute('data-button-text', this.__buttonText)
     header.setAttribute('data-button-url', this.__buttonUrl)
     header.setAttribute('data-button-color', this.__buttonColor)
     header.setAttribute('data-text-align', this.__textAlign)
+    if (this.__headerImage) header.setAttribute('data-header-image', this.__headerImage)
+    header.setAttribute('data-flip-layout', String(this.__flipLayout))
+    header.setAttribute('data-background-type', this.__backgroundType)
 
-    const inner = document.createElement('div')
-    inner.className = 'header-inner'
-    inner.style.minHeight = heights[this.__layout] || '347px'
-    inner.style.textAlign = this.__textAlign || 'left'
-    inner.style.display = 'flex'
-    inner.style.flexDirection = 'column'
-    inner.style.justifyContent = 'center'
+    if (this.__layout === 'split') {
+      header.style.display = 'flex'
+      header.style.flexDirection = this.__flipLayout ? 'row-reverse' : 'row'
+      header.style.minHeight = heights.split
 
-    const headingEl = document.createElement('div')
-    headingEl.className = 'header-heading'
-    headingEl.style.fontSize = headingSizes[this.__layout] || '36px'
-    headingEl.style.fontWeight = 'bold'
-    const headingColor = getContrastColor(this.__backgroundColor)
-    headingEl.style.color = headingColor
-    headingEl.innerHTML = this.__heading
-    inner.appendChild(headingEl)
+      const imgSide = document.createElement('div')
+      imgSide.className = 'header-split-image'
+      imgSide.style.width = '50%'
+      imgSide.style.background = '#ffffff'
+      imgSide.style.display = 'flex'
+      imgSide.style.alignItems = 'center'
+      imgSide.style.justifyContent = 'center'
+      imgSide.style.overflow = 'hidden'
+      if (this.__headerImage) {
+        const img = document.createElement('img')
+        img.src = `/api/uploads/${this.__headerImage}`
+        img.style.width = '100%'
+        img.style.height = '100%'
+        img.style.objectFit = 'contain'
+        imgSide.appendChild(img)
+      }
 
-    const subEl = document.createElement('div')
-    subEl.className = 'header-subheading'
-    subEl.style.fontSize = subSizes[this.__layout] || '20px'
-    subEl.style.color = headingColor === 'white' ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)'
-    subEl.innerHTML = this.__subheading
-    inner.appendChild(subEl)
+      const textSide = document.createElement('div')
+      textSide.className = 'header-split-text'
+      textSide.style.width = '50%'
+      textSide.style.background = this.__backgroundColor
+      textSide.style.display = 'flex'
+      textSide.style.flexDirection = 'column'
+      textSide.style.justifyContent = 'center'
+      textSide.style.padding = '40px 48px 40px 96px'
+      textSide.style.textAlign = this.__textAlign || 'left'
 
-    if (this.__buttonEnabled) {
-      const a = document.createElement('a')
-      a.className = 'header-btn'
-      a.href = this.__buttonUrl
-      a.textContent = this.__buttonText
-      a.style.background = this.__buttonColor
-      a.style.color = getContrastColor(this.__buttonColor)
-      a.style.fontSize = btnSizes[this.__layout] || '16px'
-      inner.appendChild(a)
+      const headingColor = getContrastColor(this.__backgroundColor)
+
+      const headingEl = document.createElement('div')
+      headingEl.className = 'header-heading'
+      headingEl.style.fontSize = headingSizes.split
+      headingEl.style.fontWeight = 'bold'
+      headingEl.style.color = headingColor
+      headingEl.innerHTML = this.__heading
+      textSide.appendChild(headingEl)
+
+      const subEl = document.createElement('div')
+      subEl.className = 'header-subheading'
+      subEl.style.fontSize = subSizes.split
+      subEl.style.color = headingColor === 'white' ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)'
+      subEl.innerHTML = this.__subheading
+      textSide.appendChild(subEl)
+
+      if (this.__buttonEnabled) {
+        const a = document.createElement('a')
+        a.className = 'header-btn'
+        a.href = this.__buttonUrl
+        a.textContent = this.__buttonText
+        a.style.background = this.__buttonColor
+        a.style.color = getContrastColor(this.__buttonColor)
+        a.style.fontSize = btnSizes.split
+        a.style.display = 'inline-block'
+        a.style.padding = '0.5rem 1.25rem'
+        a.style.borderRadius = '0.5rem'
+        a.style.fontWeight = '500'
+        a.style.textDecoration = 'none'
+        a.style.marginTop = '0.5rem'
+        textSide.appendChild(a)
+      }
+
+      header.appendChild(imgSide)
+      header.appendChild(textSide)
+    } else {
+      const bgStyle = this.__backgroundType === 'image' && this.__headerImage
+        ? { backgroundImage: `url(/api/uploads/${this.__headerImage})`, backgroundSize: '100% auto', backgroundRepeat: 'no-repeat', backgroundPosition: 'center center' }
+        : { background: this.__backgroundColor }
+
+      if (this.__layout === 'regular') {
+        header.style.maxWidth = '48rem'
+        header.style.marginLeft = 'auto'
+        header.style.marginRight = 'auto'
+      }
+
+      const inner = document.createElement('div')
+      inner.className = 'header-inner'
+      Object.assign(inner.style, bgStyle)
+      inner.style.minHeight = heights[this.__layout] || '347px'
+      inner.style.textAlign = this.__textAlign || 'left'
+      inner.style.display = 'flex'
+      inner.style.flexDirection = 'column'
+      inner.style.justifyContent = 'center'
+      inner.style.padding = `40px ${this.__layout === 'regular' ? '80px' : '256px'}`
+      inner.style.boxSizing = 'border-box'
+      if (this.__layout === 'regular') {
+        inner.style.marginLeft = '1.5rem'
+        inner.style.marginRight = '1.5rem'
+      }
+
+      const headingColor = getContrastColor(this.__backgroundColor)
+
+      const headingEl = document.createElement('div')
+      headingEl.className = 'header-heading'
+      headingEl.style.fontSize = headingSizes[this.__layout] || '36px'
+      headingEl.style.fontWeight = 'bold'
+      headingEl.style.color = headingColor
+      headingEl.innerHTML = this.__heading
+      inner.appendChild(headingEl)
+
+      const subEl = document.createElement('div')
+      subEl.className = 'header-subheading'
+      subEl.style.fontSize = subSizes[this.__layout] || '20px'
+      subEl.style.color = headingColor === 'white' ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)'
+      subEl.innerHTML = this.__subheading
+      inner.appendChild(subEl)
+
+      if (this.__buttonEnabled) {
+        const a = document.createElement('a')
+        a.className = 'header-btn'
+        a.href = this.__buttonUrl
+        a.textContent = this.__buttonText
+        a.style.background = this.__buttonColor
+        a.style.color = getContrastColor(this.__buttonColor)
+        a.style.fontSize = btnSizes[this.__layout] || '16px'
+        a.style.display = 'inline-block'
+        a.style.padding = '0.5rem 1.25rem'
+        a.style.borderRadius = '0.5rem'
+        a.style.fontWeight = '500'
+        a.style.textDecoration = 'none'
+        a.style.marginTop = '0.5rem'
+        inner.appendChild(a)
+      }
+
+      header.appendChild(inner)
     }
 
-    header.appendChild(inner)
     return { element: header }
   }
 
@@ -3293,6 +3518,9 @@ export class HeaderNode extends DecoratorNode {
         buttonText={this.__buttonText}
         buttonUrl={this.__buttonUrl}
         buttonColor={this.__buttonColor}
+        headerImage={this.__headerImage}
+        flipLayout={this.__flipLayout}
+        backgroundType={this.__backgroundType}
         nodeKey={this.getKey()}
         editor={editor}
       />
