@@ -884,7 +884,7 @@ export default function AdminBlogEditorPage() {
 
           <Field label="Slug">
             <InputWithPrefix
-              prefix={`${siteConfig?.domain || 'example.com'}/blog/`}
+              prefix={`/${siteConfig?.blog_slug || 'blog'}/`}
               value={slug}
               onChange={handleSlugChange}
               onBlur={handleSidebarSave}
