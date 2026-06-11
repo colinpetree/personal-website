@@ -174,12 +174,12 @@ html {
   padding-right: 0;
 }
 
-/* Hide markers on Lexical's empty wrapper <li> elements (those that only contain a nested list).
-   These are set directly on <li> so they override the inherited value from the <ul>/<ol> below. */
+/* In the editor, Lexical's live DOM uses empty wrapper <li> elements to hold nested lists.
+   Hide their markers so only the content <li> at each depth shows the tiered style.
+   (The public blog's exported HTML has no wrapper <li> — Lexical's exportDOM moves the
+   nested <ul>/<ol> directly into the previous content <li>, so no suppression is needed there.) */
 [contenteditable="true"] li:has(> ul),
-[contenteditable="true"] li:has(> ol),
-.blog-content li:has(> ul),
-.blog-content li:has(> ol) { list-style-type: none; }
+[contenteditable="true"] li:has(> ol) { list-style-type: none; }
 
 /* Tiered bullet list styles set on the <ul> so content <li> inherit them,
    while wrapper <li> (with list-style-type: none above) are unaffected. */
