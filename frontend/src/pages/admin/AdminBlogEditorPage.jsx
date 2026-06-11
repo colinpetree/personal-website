@@ -466,6 +466,7 @@ export default function AdminBlogEditorPage() {
   const excerptEdited = useRef(false)
   const editorRef = useRef(null)
   const featureImageInputRef = useRef(null)
+  const scrollContainerRef = useRef(null)
 
   useEffect(() => {
     fetch(`/api/admin/blog/posts/${id}`, { credentials: 'include' })
@@ -831,7 +832,7 @@ export default function AdminBlogEditorPage() {
   return (
     <div className="flex flex-col h-screen">
       {/* Header */}
-      <div className="sticky top-0 z-10 flex items-center gap-3 px-5 py-3 bg-white border-b border-gray-200 shrink-0">
+      <div className="sticky top-0 z-[10000] flex items-center gap-3 px-5 py-3 bg-white border-b border-gray-200 shrink-0">
         <Link to="/admin/blog/posts" className="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 shrink-0">
           <ArrowLeft size={14} strokeWidth={1.5} />Posts
         </Link>
@@ -853,7 +854,7 @@ export default function AdminBlogEditorPage() {
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
         {/* Editor area */}
-        <div className="flex-1 overflow-y-auto bg-white relative">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-white relative">
           <div className="max-w-3xl mx-auto px-6 pt-10">
             {/* Feature Image */}
             {thumbnailFilename ? (
@@ -940,7 +941,12 @@ export default function AdminBlogEditorPage() {
             onChange={handleContentChange}
             placeholder=""
           />
-          <div style={{ height: '33vh' }} onClick={() => editorRef.current?.focusAtEnd()} />
+          <div style={{ height: '33vh' }} onClick={() => {
+            editorRef.current?.focusAtEnd()
+            requestAnimationFrame(() => {
+              scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight })
+            })
+          }} />
         </div>
 
         {/* Settings sidebar — outer shell clips during slide, inner div stays full-width */}

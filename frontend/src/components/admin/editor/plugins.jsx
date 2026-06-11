@@ -243,6 +243,20 @@ export function SlashCommandPlugin() {
     return () => document.removeEventListener('scroll', update, { capture: true })
   }, [editor, menu.visible, menu.nodeKey])
 
+  // Re-pin plus button on any scroll.
+  useEffect(() => {
+    if (!plusButton.visible || !plusButton.nodeKey) return
+    const nodeKey = plusButton.nodeKey
+    const update = () => {
+      const domEl = editor.getElementByKey(nodeKey)
+      if (!domEl) return
+      const rect = domEl.getBoundingClientRect()
+      setPlusButton(b => ({ ...b, top: rect.top + rect.height / 2, left: rect.left - 44 }))
+    }
+    document.addEventListener('scroll', update, { capture: true, passive: true })
+    return () => document.removeEventListener('scroll', update, { capture: true })
+  }, [editor, plusButton.visible, plusButton.nodeKey])
+
   useEffect(() => {
     return () => {
       pendingNodeKeyRef.current = null
@@ -914,6 +928,7 @@ export function EditorHandlePlugin({ handleRef }) {
       })
     },
     focusAtEnd() {
+      editor.getRootElement()?.focus({ preventScroll: true })
       editor.update(() => {
         const root = $getRoot()
         const lastChild = root.getLastChild()
@@ -925,7 +940,6 @@ export function EditorHandlePlugin({ handleRef }) {
           paragraph.select()
         }
       })
-      editor.getRootElement()?.focus()
     },
   }), [editor])
   return null
