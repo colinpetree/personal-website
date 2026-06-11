@@ -142,7 +142,7 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
           className="w-full h-auto block"
           draggable={false}
         />
-        <figcaption>
+        <figcaption className="mt-0">
           <input
             type="text"
             value={caption}
@@ -462,7 +462,7 @@ function VideoNodeComponent({ src, caption, width, loop, nodeKey, editor }) {
         className={`my-4 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
       >
         <video src={src} controls loop={loop || undefined} className="w-full block bg-black" />
-        <figcaption>
+        <figcaption className="mt-0">
           <input
             type="text"
             value={caption}
@@ -690,7 +690,7 @@ function AudioNodeComponent({ src, filename, title, duration, thumbnailSrc, node
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-gray-700 truncate mb-1">
+          <p className="text-sm font-medium text-gray-700 truncate mt-0 mb-1">
             {displayName}
             {durationStr && <span className="ml-2 text-xs text-gray-400 font-normal">{durationStr}</span>}
           </p>
@@ -702,7 +702,7 @@ function AudioNodeComponent({ src, filename, title, duration, thumbnailSrc, node
               href={`${src}?name=${encodeURIComponent(displayName)}`}
               download={displayName}
               onClick={e => e.stopPropagation()}
-              className="shrink-0 p-2 text-gray-400 hover:text-gray-600 rounded transition-colors select-auto"
+              className="shrink-0 self-start p-2 text-gray-400 hover:text-gray-600 rounded transition-colors select-auto"
             >
               <Download size={16} />
             </a>
@@ -958,7 +958,7 @@ function FileNodeComponent({ src, filename, mimeType, size, title, description, 
           maxLength={100}
           className="w-full text-xs text-gray-500 bg-transparent border-0 outline-none mt-0.5 placeholder-gray-400 select-text"
         />
-        <p className="text-xs text-gray-400 mt-1">{ext}{sizeStr ? ` · ${sizeStr}` : ''}</p>
+        <p className="text-xs text-gray-400 mt-1 mb-0">{ext}{sizeStr ? ` · ${sizeStr}` : ''}</p>
       </div>
       <Tooltip content="Download" side="left">
         <a
