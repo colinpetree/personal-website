@@ -81,6 +81,21 @@ html {
   background-color: #e5e7eb;
 }
 
+/* Code block editor textarea scrollbar */
+.code-block-textarea::-webkit-scrollbar {
+  height: 4px;
+}
+.code-block-textarea::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+.code-block-textarea::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+}
+.code-block-textarea::-webkit-scrollbar-button {
+  display: none;
+}
+
 /* Blog post prose overrides */
 /* Empty paragraph placeholder in the editor */
 .editor-paragraph.is-cursor-para:has(> br:only-child)::before {
