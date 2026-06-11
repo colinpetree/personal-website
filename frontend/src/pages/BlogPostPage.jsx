@@ -550,6 +550,21 @@ export default function BlogPostPage() {
         />
       )}
 
+      {post.thumbnail_filename && (
+        <div className="max-w-[740px] mx-auto mb-8">
+          <div className="rounded-lg overflow-hidden h-[356px]">
+            <img
+              src={`/api/uploads/${post.thumbnail_filename}`}
+              alt={post.title}
+              className="h-full w-auto block"
+            />
+          </div>
+          {post.thumbnail_caption && (
+            <p className="text-sm text-gray-500 text-center py-2 px-4">{post.thumbnail_caption}</p>
+          )}
+        </div>
+      )}
+
       <h1 className="text-4xl font-bold text-gray-900 mb-3 leading-tight">{post.title}</h1>
 
       {/* Author + date */}
@@ -584,14 +599,6 @@ export default function BlogPostPage() {
           </span>
         )}
       </div>
-
-      {post.thumbnail_filename && (
-        <img
-          src={`/api/uploads/${post.thumbnail_filename}`}
-          alt={post.title}
-          className="w-full h-64 object-cover rounded-xl mb-8"
-        />
-      )}
 
       <article
         className="prose prose-gray max-w-none mb-16 blog-content"

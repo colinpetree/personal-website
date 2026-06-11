@@ -108,6 +108,7 @@ class BlogPost(db.Model):
     status = db.Column(db.String(20), nullable=False, default='draft')  # draft | scheduled | published
     publish_date = db.Column(db.DateTime, nullable=True)
     thumbnail_filename = db.Column(db.String(255), nullable=True)
+    thumbnail_caption = db.Column(db.String(500), nullable=True)
     author_id = db.Column(db.Integer, db.ForeignKey('admin_account.id'), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
