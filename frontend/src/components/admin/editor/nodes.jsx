@@ -533,13 +533,26 @@ export class VideoNode extends DecoratorNode {
 
   static importDOM() {
     return {
+      figure: (domNode) => {
+        if (!domNode.querySelector(':scope > video')) return null
+        return {
+          conversion: (domNode) => {
+            const video = domNode.querySelector('video')
+            if (!video) return null
+            const caption = domNode.querySelector('figcaption')?.textContent?.trim() || ''
+            const widthClass = domNode.className?.match(/kg-width-(\w+)/)?.[1] || 'regular'
+            const loop = video.hasAttribute('loop')
+            const thumbnailSrc = video.getAttribute('poster') || ''
+            return { node: new VideoNode(video.getAttribute('src') || '', caption, widthClass, loop, thumbnailSrc) }
+          },
+          priority: 1,
+        }
+      },
       video: () => ({
         conversion: (domNode) => {
           if (!(domNode instanceof HTMLVideoElement)) return null
-          const figure = domNode.closest('figure')
-          const caption = figure?.querySelector('figcaption')?.textContent?.trim() || ''
-          const widthClass = figure?.className?.match(/kg-width-(\w+)/)?.[1] || 'regular'
-          return { node: new VideoNode(domNode.getAttribute('src') || '', caption, widthClass, domNode.hasAttribute('loop')) }
+          if (domNode.closest('figure')) return null
+          return { node: new VideoNode(domNode.getAttribute('src') || '', '') }
         },
         priority: 1,
       }),
@@ -717,20 +730,22 @@ export class AudioNode extends DecoratorNode {
 
   static importDOM() {
     return {
-      figure: () => ({
-        conversion: (domNode) => {
-          if (!domNode.classList.contains('audio-player')) return null
-          const audio = domNode.querySelector('audio')
-          if (!audio) return null
-          const src = domNode.getAttribute('data-src') || audio.getAttribute('src') || ''
-          const filename = domNode.getAttribute('data-filename') || ''
-          const title = domNode.getAttribute('data-title') || domNode.querySelector('figcaption')?.textContent?.trim() || ''
-          const duration = parseFloat(domNode.getAttribute('data-duration') || '0')
-          const thumbnailSrc = domNode.getAttribute('data-thumbnail-src') || ''
-          return { node: new AudioNode(src, filename, title, duration, thumbnailSrc) }
-        },
-        priority: 1,
-      }),
+      figure: (domNode) => {
+        if (!domNode.classList.contains('audio-player')) return null
+        return {
+          conversion: (domNode) => {
+            const audio = domNode.querySelector('audio')
+            if (!audio) return null
+            const src = domNode.getAttribute('data-src') || audio.getAttribute('src') || ''
+            const filename = domNode.getAttribute('data-filename') || ''
+            const title = domNode.getAttribute('data-title') || domNode.querySelector('figcaption')?.textContent?.trim() || ''
+            const duration = parseFloat(domNode.getAttribute('data-duration') || '0')
+            const thumbnailSrc = domNode.getAttribute('data-thumbnail-src') || ''
+            return { node: new AudioNode(src, filename, title, duration, thumbnailSrc) }
+          },
+          priority: 1,
+        }
+      },
       audio: () => ({
         conversion: (domNode) => {
           if (!(domNode instanceof HTMLAudioElement)) return null

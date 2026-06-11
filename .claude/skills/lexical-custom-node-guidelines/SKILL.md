@@ -1,6 +1,6 @@
 ---
 name: lexical-custom-node-guidelines
-description: Implementation and debugging reference for custom Lexical DecoratorNode classes in the WYSIWYG HTML editor. Invoke this BEFORE opening any editor file when building or modifying any node — it contains the required patterns, gotchas, and reusable primitives for this project.
+description: Implementation and debugging reference for the Lexical-based post editor (WYSIWYG / HTML editor). Invoke whenever "lexical", "post editor", "WYSIWYG editor", or "HTML editor" is mentioned, and BEFORE opening any editor file when building or modifying any node — it contains required patterns, gotchas, and reusable primitives for this project.
 ---
 
 # Lexical DecoratorNode Implementation Guide
@@ -31,25 +31,62 @@ If `exportDOM()` wraps its content in a container element (e.g. `<figure>`), the
 
 **Why this matters:** `$generateNodesFromDOM` (called by `LoadHtmlPlugin` on editor reload) descends into any element that has no registered handler and processes its children individually. A `<figcaption>` inside an unhandled `<figure>` becomes a stray text paragraph in the editor — the classic symptom is ghost text appearing below the node after each save cycle.
 
-## Correct pattern
+## Critical: put the class guard in the OUTER function, not the conversion function
+
+`importDOM()` returns a map of `tagName → outerFn`. The outer function receives the DOM node and returns either `null` (skip) or a `{ conversion, priority }` descriptor. **The class/type check that decides whether this handler applies must go in the outer function**, not inside `conversion`.
+
+**Why this matters — the tie-breaking rule:** When two node classes register handlers for the same tag at the same priority, Lexical picks the **last registered** handler (verified in `@lexical/html` source: *"Given equal priority, prefer the last registered importer"*). If the guard is inside `conversion` (which returns `null` for non-matching elements), Lexical selects the last-registered handler, calls its conversion, gets `null` back, then treats the element as unhandled — hoisting its children and creating stray paragraphs.
+
+If the guard is in the **outer function**, Lexical skips that handler entirely when the outer function returns `null`, and falls through to the next-highest-priority non-null handler. Multiple node types can safely share the same tag without stomping on each other.
+
+**Wrong (guard inside conversion — shadows other nodes' handlers):**
+```js
+figure: () => ({                           // outer fn always returns a handler
+  conversion: (domNode) => {
+    if (!domNode.classList.contains('my-class')) return null  // too late — already selected
+    // ...
+  },
+  priority: 1,
+}),
+```
+
+**Correct (guard in outer fn — allows fallthrough to other handlers):**
+```js
+figure: (domNode) => {                     // outer fn returns null for non-matching figures
+  if (!domNode.classList.contains('my-class')) return null
+  return {
+    conversion: (domNode) => {
+      // no class check needed here
+      const inner = domNode.querySelector('video, audio, img')
+      if (!inner) return null
+      const caption = domNode.querySelector('figcaption')?.textContent?.trim() || ''
+      return { node: new MyNode(inner.getAttribute('src') || '', caption) }
+    },
+    priority: 1,
+  }
+},
+```
+
+## Full correct pattern
 
 ```js
 static importDOM() {
   return {
-    // Handle the wrapper — this prevents Lexical from processing children separately
-    figure: () => ({
-      conversion: (domNode) => {
-        if (!domNode.classList.contains('my-node-class')) return null  // ignore other figures
-        const inner = domNode.querySelector('video, audio, img')       // whatever is inside
-        if (!inner) return null
-        const figcaption = domNode.querySelector('figcaption')
-        const caption = figcaption?.textContent?.trim() || ''
-        return { node: new MyNode(inner.getAttribute('src') || '', caption) }
-      },
-      priority: 1,
-    }),
+    // Handle the wrapper — class guard in outer fn so other nodes' figure handlers still work
+    figure: (domNode) => {
+      if (!domNode.classList.contains('my-node-class')) return null
+      return {
+        conversion: (domNode) => {
+          const inner = domNode.querySelector('video, audio, img')
+          if (!inner) return null
+          const caption = domNode.querySelector('figcaption')?.textContent?.trim() || ''
+          return { node: new MyNode(inner.getAttribute('src') || '', caption) }
+        },
+        priority: 1,
+      }
+    },
 
-    // Keep a fallback for bare inner elements (e.g. pasted content without a figure)
+    // Fallback for bare inner elements (e.g. pasted content without a figure)
     video: () => ({
       conversion: (domNode) => {
         if (!(domNode instanceof HTMLVideoElement)) return null
@@ -62,9 +99,20 @@ static importDOM() {
 }
 ```
 
-## Real example in this project
+## Real examples in this project
 
-`ImageNode` (line ~229) is the reference implementation — it handles `<figure>`, `<a>` wrappers, and bare `<img>` elements. `AudioNode` had this bug (figcaption became stray text after save) and was fixed by adding a `figure` handler.
+Multiple nodes register `figure` handlers. Each uses the outer-function guard pattern so they co-exist safely:
+
+| Node | Figure class | Outer fn guard |
+|------|-------------|----------------|
+| `GalleryNode` | `gallery` | `!classList.contains('gallery')` → null |
+| `AudioNode` | `audio-player` | `!classList.contains('audio-player')` → null |
+| `VideoNode` | `kg-width-*` | `!querySelector(':scope > video')` → null |
+| `ImageNode` | none (uses `data-width`) | always returns handler (last resort) |
+
+`ImageNode` is the only one whose outer fn always returns a handler — it acts as the catch-all for generic figures. It safely wins only when all other outer fns have returned null. Registration order in `index.jsx` (line 31): `... ImageNode, VideoNode, AudioNode, ..., GalleryNode`. GalleryNode uses `priority: 2` to win over others for gallery figures; the rest all use `priority: 1` and rely on the outer-fn guard to avoid conflicts.
+
+Processing is per-element and stateless — multiple instances of the same node type in one post are each processed independently with no shared state between them (`$createNodesFromDOM` passes `new Map(forChildMap)` to each sibling, not a reference).
 
 ---
 
@@ -398,6 +446,7 @@ import { ..., $createNodeSelection, $setSelection } from 'lexical'
 **HTML round-trip**
 - [ ] `exportDOM()` — what is the outermost element returned?
 - [ ] `importDOM()` — is there a handler for that outermost element?
+- [ ] If multiple nodes share the same wrapper tag (e.g. `figure`): is the class/type guard in the **outer function** (not inside `conversion`)? A guard inside `conversion` that returns `null` causes Lexical to hoist children, creating stray paragraphs. See the "outer function" section above.
 - [ ] Does the inner-element handler guard against duplicating work (`domNode.closest('figure.my-class') return null`)?
 - [ ] Are all non-visual fields stored as `data-` attributes so `importDOM` can fully reconstruct the node?
 - [ ] Are all `data-` attributes on the **outermost element** (the one `importDOM` receives as `domNode`)? Reading `domNode.style.*` from the outermost element when the style is actually set on a child silently falls back to the default every reload.
