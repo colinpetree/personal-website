@@ -118,17 +118,29 @@ html {
 }
 .blog-content .btn {
   display: inline-block;
+  position: relative;
   background: #2563eb;
-  color: #fff !important;
+  color: var(--btn-text-color, #fff) !important;
   padding: 0.5rem 1.25rem;
   border-radius: 0.5rem;
   font-size: 0.875rem;
   font-weight: 500;
   text-decoration: none !important;
-  transition: background 0.15s;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  overflow: hidden;
 }
-.blog-content .btn:hover {
-  background: #1d4ed8;
+.blog-content .btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: white;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.blog-content .btn:hover::after {
+  opacity: 0.18;
 }
 
 /* Strip the editor's outer px-6 from text elements on the public page */
@@ -179,7 +191,23 @@ html {
 /* Header button — reset prose link styles */
 .blog-content .header-btn {
   display: inline-block !important;
+  position: relative;
   text-decoration: none !important;
+  cursor: pointer;
+  overflow: hidden;
+}
+.blog-content .header-btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: white;
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.blog-content .header-btn:hover::after {
+  opacity: 0.18;
 }
 
 /* Toggle (collapsible) block */
