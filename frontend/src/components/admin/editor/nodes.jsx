@@ -1848,17 +1848,30 @@ export function $createCalloutNode() {
 
 // ─── ButtonNodeComponent ──────────────────────────────────────────────────────
 
-function ButtonNodeComponent({ label, href, align, nodeKey, editor }) {
-  const TOOLBAR_WIDTH = 380
+function ButtonNodeComponent({ label, href, align, buttonColor, textColorMode, nodeKey, editor }) {
+  const PANEL_W = 240
   const containerRef = useRef(null)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [isHovered, setIsHovered] = useState(false)
-  const [toolbarPos, setToolbarPos] = useState(null)
+  const [colorPickerOpen, setColorPickerOpen] = useState(false)
+  const [panelFocused, setPanelFocused] = useState(false)
+  const [panelPos, setPanelPos] = useState(null)
   const [localLabel, setLocalLabel] = useState(label)
   const [localHref, setLocalHref] = useState(href)
 
+  const showPanel = isSelected || colorPickerOpen || panelFocused
+  const resolvedTextColor = resolveTextColor(textColorMode, buttonColor)
+
   useEffect(() => { setLocalLabel(label) }, [label])
   useEffect(() => { setLocalHref(href) }, [href])
+
+  function commitField(setter, val) {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (!node) return
+      node[setter](val)
+    })
+  }
 
   function commitLabel(val) {
     editor.update(() => {
@@ -1869,7 +1882,8 @@ function ButtonNodeComponent({ label, href, align, nodeKey, editor }) {
   }
 
   function commitHref(val) {
-    const normalized = val && !val.startsWith('http://') && !val.startsWith('https://') ? `https://${val}` : val
+    const trimmed = val.trim()
+    const normalized = trimmed && !trimmed.startsWith('http://') && !trimmed.startsWith('https://') ? `https://${trimmed}` : trimmed
     editor.update(() => {
       const node = $getNodeByKey(nodeKey)
       if (!node) return
@@ -1920,21 +1934,20 @@ function ButtonNodeComponent({ label, href, align, nodeKey, editor }) {
   }, [isSelected, editor, nodeKey])
 
   useLayoutEffect(() => {
-    if (!isSelected || !containerRef.current) { setToolbarPos(null); return }
+    if (!showPanel || !containerRef.current) { setPanelPos(null); return }
     function calc() {
       const rect = containerRef.current?.getBoundingClientRect()
       if (!rect) return
-      let left = rect.left + window.scrollX + rect.width / 2 - TOOLBAR_WIDTH / 2
-      left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - TOOLBAR_WIDTH - 8))
-      let top = rect.top + window.scrollY - 48
-      if (top < window.scrollY + 8) top = rect.bottom + window.scrollY + 8
-      setToolbarPos({ top, left })
+      let left = rect.right + window.scrollX - PANEL_W + 140
+      left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - PANEL_W - 8))
+      const top = rect.bottom + window.scrollY + 6
+      setPanelPos({ top, left })
     }
     calc()
     window.addEventListener('scroll', calc, true)
     window.addEventListener('resize', calc)
     return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
-  }, [isSelected])
+  }, [showPanel])
 
   return (
     <div
@@ -1944,54 +1957,88 @@ function ButtonNodeComponent({ label, href, align, nodeKey, editor }) {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <a className="inline-block bg-blue-600 text-white text-sm font-medium px-5 py-2 rounded-lg pointer-events-none select-none no-underline">
-        {localLabel || 'Click here'}
+      <a
+        style={{ backgroundColor: buttonColor, color: resolvedTextColor }}
+        className="inline-block text-sm font-medium px-5 py-2 rounded-lg pointer-events-none select-none no-underline"
+      >
+        {localLabel || <span style={{ color: 'white' }}>Add button text</span>}
       </a>
 
-      {isSelected && toolbarPos && createPortal(
+      {showPanel && panelPos && createPortal(
         <div
-          style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999, width: TOOLBAR_WIDTH }}
-          className="flex items-center gap-1 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 shadow-2xl"
-          onMouseDown={e => e.preventDefault()}
+          style={{ position: 'absolute', top: panelPos.top, left: panelPos.left, zIndex: 9999, width: PANEL_W }}
+          className="bg-white border border-gray-200 rounded-xl shadow-xl py-4 px-4 flex flex-col gap-3"
+          onMouseDown={e => { e.preventDefault(); e.stopPropagation() }}
+          onFocus={() => setPanelFocused(true)}
+          onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setPanelFocused(false) }}
         >
-          <Tooltip content="Align left">
-            <button
-              className={`p-1 rounded ${align === 'left' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
-              onClick={() => commitAlign('left')}
-            >
-              <AlignLeft size={16} />
-            </button>
-          </Tooltip>
-          <Tooltip content="Align center">
-            <button
-              className={`p-1 rounded ${align === 'center' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
-              onClick={() => commitAlign('center')}
-            >
-              <AlignCenter size={16} />
-            </button>
-          </Tooltip>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-500">Align</span>
+            <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
+              <Tooltip content="Left">
+                <button
+                  onMouseDown={e => { e.preventDefault(); e.stopPropagation() }}
+                  onClick={() => commitAlign('left')}
+                  className={`p-1.5 rounded-md transition-colors ${align === 'left' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                ><AlignLeft size={15} /></button>
+              </Tooltip>
+              <Tooltip content="Center">
+                <button
+                  onMouseDown={e => { e.preventDefault(); e.stopPropagation() }}
+                  onClick={() => commitAlign('center')}
+                  className={`p-1.5 rounded-md transition-colors ${align === 'center' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                ><AlignCenter size={15} /></button>
+              </Tooltip>
+            </div>
+          </div>
 
-          <div className="w-px h-4 bg-gray-600 mx-1 flex-shrink-0" />
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-500">Color</span>
+            <ColorSwatchMenu
+              value={buttonColor}
+              presets={['#000000', '#146AF8']}
+              onChange={val => commitField('setButtonColor', val)}
+              onOpenChange={setColorPickerOpen}
+            />
+          </div>
 
-          <input
-            value={localLabel}
-            onChange={e => setLocalLabel(e.target.value)}
-            onBlur={e => commitLabel(e.target.value)}
-            onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur() }}
-            onMouseDown={e => e.stopPropagation()}
-            placeholder="Button label"
-            className="bg-gray-800 text-white text-sm px-2 py-1 rounded border border-gray-600 w-28 min-w-0"
-          />
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-500">Text color</span>
+            <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
+              <Tooltip content="Light">
+                <button onMouseDown={e => { e.preventDefault(); e.stopPropagation() }} onClick={() => commitField('setTextColorMode', 'light')} className={`p-1.5 rounded-md transition-colors ${textColorMode === 'light' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Sun size={15} /></button>
+              </Tooltip>
+              <Tooltip content="Dark">
+                <button onMouseDown={e => { e.preventDefault(); e.stopPropagation() }} onClick={() => commitField('setTextColorMode', 'dark')} className={`p-1.5 rounded-md transition-colors ${textColorMode === 'dark' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}><Moon size={15} /></button>
+              </Tooltip>
+            </div>
+          </div>
 
-          <input
-            value={localHref}
-            onChange={e => setLocalHref(e.target.value)}
-            onBlur={e => commitHref(e.target.value)}
-            onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur() }}
-            onMouseDown={e => e.stopPropagation()}
-            placeholder="https://..."
-            className="bg-gray-800 text-white text-sm px-2 py-1 rounded border border-gray-600 flex-1 min-w-0"
-          />
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-gray-500">Button text</span>
+            <input
+              value={localLabel}
+              onChange={e => setLocalLabel(e.target.value)}
+              onBlur={e => commitLabel(e.target.value)}
+              onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur() }}
+              onMouseDown={e => e.stopPropagation()}
+              placeholder="Add button text"
+              className="text-sm px-2 py-1.5 rounded-lg border border-gray-200 bg-gray-50 focus:outline-none focus:border-blue-400 w-full"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm text-gray-500">Button URL</span>
+            <input
+              value={localHref}
+              onChange={e => setLocalHref(e.target.value)}
+              onBlur={e => commitHref(e.target.value)}
+              onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') e.target.blur() }}
+              onMouseDown={e => e.stopPropagation()}
+              placeholder="Add link"
+              className="text-sm px-2 py-1.5 rounded-lg border border-gray-200 bg-gray-50 focus:outline-none focus:border-blue-400 w-full"
+            />
+          </div>
         </div>,
         document.body
       )}
@@ -2005,15 +2052,21 @@ export class ButtonNode extends DecoratorNode {
   static getType() { return 'button' }
 
   static clone(node) {
-    return new ButtonNode(node.__label, node.__href, node.__align, node.__key)
+    return new ButtonNode(node.__label, node.__href, node.__align, node.__buttonColor, node.__textColorMode, node.__key)
   }
 
   static importJSON(data) {
-    return new ButtonNode(data.label || 'Click here', data.href || '', data.align || 'center')
+    return new ButtonNode(
+      data.label || 'Click here',
+      data.href || '',
+      data.align || 'center',
+      data.buttonColor || '#3b82f6',
+      data.textColorMode || 'auto',
+    )
   }
 
   exportJSON() {
-    return { type: 'button', version: 1, label: this.__label, href: this.__href, align: this.__align }
+    return { type: 'button', version: 1, label: this.__label, href: this.__href, align: this.__align, buttonColor: this.__buttonColor, textColorMode: this.__textColorMode }
   }
 
   static importDOM() {
@@ -2025,7 +2078,9 @@ export class ButtonNode extends DecoratorNode {
             const label = domNode.getAttribute('data-label') || domNode.querySelector('a')?.textContent || ''
             const href  = domNode.getAttribute('data-href')  || domNode.querySelector('a')?.getAttribute('href') || ''
             const align = domNode.getAttribute('data-align') || 'center'
-            return { node: new ButtonNode(label, href, align) }
+            const buttonColor = domNode.getAttribute('data-button-color') || '#3b82f6'
+            const textColorMode = domNode.getAttribute('data-text-color-mode') || 'auto'
+            return { node: new ButtonNode(label, href, align, buttonColor, textColorMode) }
           },
           priority: 2,
         }
@@ -2033,11 +2088,13 @@ export class ButtonNode extends DecoratorNode {
     }
   }
 
-  constructor(label = 'Click here', href = '', align = 'center', key) {
+  constructor(label = 'Click here', href = '', align = 'center', buttonColor = '#3b82f6', textColorMode = 'auto', key) {
     super(key)
     this.__label = label
     this.__href = href
     this.__align = align
+    this.__buttonColor = buttonColor
+    this.__textColorMode = textColorMode
   }
 
   createDOM() {
@@ -2052,6 +2109,8 @@ export class ButtonNode extends DecoratorNode {
   setLabel(label) { this.getWritable().__label = label }
   setHref(href) { this.getWritable().__href = href }
   setAlign(align) { this.getWritable().__align = align }
+  setButtonColor(val) { this.getWritable().__buttonColor = val }
+  setTextColorMode(val) { this.getWritable().__textColorMode = val }
 
   exportDOM() {
     const wrap = document.createElement('div')
@@ -2059,10 +2118,14 @@ export class ButtonNode extends DecoratorNode {
     wrap.setAttribute('data-label', this.__label)
     wrap.setAttribute('data-href', this.__href)
     wrap.setAttribute('data-align', this.__align)
+    wrap.setAttribute('data-button-color', this.__buttonColor)
+    wrap.setAttribute('data-text-color-mode', this.__textColorMode)
     const a = document.createElement('a')
     a.className = 'btn'
-    a.href = this.__href
+    if (this.__href) a.href = this.__href
     a.textContent = this.__label
+    a.style.background = this.__buttonColor
+    a.style.setProperty('--btn-text-color', resolveTextColor(this.__textColorMode, this.__buttonColor))
     wrap.appendChild(a)
     return { element: wrap }
   }
@@ -2073,6 +2136,8 @@ export class ButtonNode extends DecoratorNode {
         label={this.__label}
         href={this.__href}
         align={this.__align}
+        buttonColor={this.__buttonColor}
+        textColorMode={this.__textColorMode}
         nodeKey={this.getKey()}
         editor={editor}
       />
@@ -2081,7 +2146,7 @@ export class ButtonNode extends DecoratorNode {
 }
 
 export function $createButtonNode() {
-  return new ButtonNode('Click here', '', 'center')
+  return new ButtonNode('', '', 'center', '#000000', 'light')
 }
 
 // ─── ToggleSummarySyncPlugin ──────────────────────────────────────────────────
@@ -2993,7 +3058,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             className={`inline-block px-5 py-2 rounded-lg ${btnTextClass} font-medium pointer-events-none select-none`}
             style={{ background: buttonColor, color: resolvedButtonTextColor }}
           >
-            {localButtonText || 'Learn More'}
+            {localButtonText || <span style={{ color: resolvedButtonTextColor }}>Add button text</span>}
           </span>
         </div>
       )}
@@ -3224,7 +3289,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                 <ColorSwatchMenu
                   value={buttonColor}
                   onChange={val => commitField('setButtonColor', val)}
-                  presets={['#000000', '#ffffff']}
+                  presets={['#ffffff', '#000000']}
                   onOpenChange={setBtnPickerOpen}
                 />
               </div>
@@ -3305,7 +3370,7 @@ export class HeaderNode extends DecoratorNode {
       data.subheading || '',
       data.backgroundColor || '#000000',
       data.buttonEnabled || false,
-      data.buttonText || 'Learn More',
+      data.buttonText || '',
       data.buttonUrl || '',
       data.buttonColor || '#3b82f6',
       data.headerImage || null,
@@ -3354,9 +3419,9 @@ export class HeaderNode extends DecoratorNode {
               domNode.querySelector('.header-split-text')?.style.background ||
               '#1e293b'
             const buttonEnabled = domNode.getAttribute('data-button-enabled') === 'true'
-            const buttonText = domNode.getAttribute('data-button-text') || 'Learn More'
+            const buttonText = domNode.getAttribute('data-button-text') || ''
             const buttonUrl = domNode.getAttribute('data-button-url') || ''
-            const buttonColor = domNode.getAttribute('data-button-color') || '#3b82f6'
+            const buttonColor = domNode.getAttribute('data-button-color') || '#ffffff'
             const textAlign = domNode.getAttribute('data-text-align') || 'left'
             const headerImage = domNode.getAttribute('data-header-image') || null
             const flipLayout = domNode.getAttribute('data-flip-layout') === 'true'
@@ -3371,7 +3436,7 @@ export class HeaderNode extends DecoratorNode {
     }
   }
 
-  constructor(layout = 'regular', textAlign = 'left', heading = '', subheading = '', backgroundColor = '#000000', buttonEnabled = false, buttonText = 'Learn More', buttonUrl = '', buttonColor = '#3b82f6', headerImage = null, flipLayout = false, backgroundType = 'color', textColorMode = 'auto', buttonTextColorMode = 'auto', key) {
+  constructor(layout = 'regular', textAlign = 'left', heading = '', subheading = '', backgroundColor = '#000000', buttonEnabled = false, buttonText = '', buttonUrl = '', buttonColor = '#ffffff', headerImage = null, flipLayout = false, backgroundType = 'color', textColorMode = 'auto', buttonTextColorMode = 'auto', key) {
     super(key)
     this.__layout = layout
     this.__textAlign = textAlign
@@ -3489,7 +3554,7 @@ export class HeaderNode extends DecoratorNode {
         btnWrap.style.marginTop = '0.5rem'
         const a = document.createElement('a')
         a.className = 'header-btn'
-        a.href = this.__buttonUrl
+        if (this.__buttonUrl) a.href = this.__buttonUrl
         a.textContent = this.__buttonText
         a.style.background = this.__buttonColor
         a.style.color = resolveTextColor(this.__buttonTextColorMode, this.__buttonColor)
@@ -3554,7 +3619,7 @@ export class HeaderNode extends DecoratorNode {
         btnWrap.style.marginTop = '0.5rem'
         const a = document.createElement('a')
         a.className = 'header-btn'
-        a.href = this.__buttonUrl
+        if (this.__buttonUrl) a.href = this.__buttonUrl
         a.textContent = this.__buttonText
         a.style.background = this.__buttonColor
         a.style.color = resolveTextColor(this.__buttonTextColorMode, this.__buttonColor)
