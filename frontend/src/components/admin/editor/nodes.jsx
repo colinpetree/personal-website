@@ -3601,3 +3601,539 @@ export class HeaderNode extends DecoratorNode {
 export function $createHeaderNode() {
   return new HeaderNode()
 }
+
+// ─── YouTubeNodeComponent ─────────────────────────────────────────────────────
+
+function YouTubeNodeComponent({ videoId, caption, nodeKey, editor }) {
+  const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
+  const [captionFocused, setCaptionFocused] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
+  const figRef = useRef(null)
+
+  const showRing = isSelected || captionFocused
+
+  useEffect(() => {
+    return editor.registerCommand(
+      CLICK_COMMAND,
+      (event) => {
+        const el = figRef.current
+        if (!el || !el.contains(event.target)) return false
+        if (event.target.tagName === 'INPUT') return false
+        clearSelection()
+        setSelected(true)
+        return true
+      },
+      COMMAND_PRIORITY_LOW
+    )
+  }, [editor, setSelected, clearSelection])
+
+  useEffect(() => {
+    if (!isSelected) return
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key !== 'Enter') return false
+        event.preventDefault()
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (!node) return
+          const para = $createParagraphNode()
+          node.insertAfter(para)
+          para.selectStart()
+        })
+        return true
+      },
+      COMMAND_PRIORITY_HIGH
+    )
+  }, [isSelected, editor, nodeKey])
+
+  function handleCaptionChange(e) {
+    const val = e.target.value
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node instanceof YouTubeNode) node.getWritable().__caption = val
+    })
+  }
+
+  return (
+    <figure
+      ref={figRef}
+      style={{ maxWidth: '740px' }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className={`my-4 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+    >
+      <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+        <iframe
+          src={`https://www.youtube.com/embed/${videoId}`}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          title="YouTube video"
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+        />
+      </div>
+      <figcaption className="mt-0">
+        <input
+          type="text"
+          value={caption}
+          onChange={handleCaptionChange}
+          onFocus={() => setCaptionFocused(true)}
+          onBlur={() => setCaptionFocused(false)}
+          onClick={e => e.stopPropagation()}
+          placeholder="Type caption (optional)"
+          className="w-full text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
+        />
+      </figcaption>
+    </figure>
+  )
+}
+
+// ─── YouTubeNode ──────────────────────────────────────────────────────────────
+
+export class YouTubeNode extends DecoratorNode {
+  static getType() { return 'youtube' }
+  static clone(node) { return new YouTubeNode(node.__videoId, node.__caption, node.__key) }
+
+  static importJSON(data) {
+    return new YouTubeNode(data.videoId || '', data.caption || '')
+  }
+  exportJSON() {
+    return { type: 'youtube', version: 1, videoId: this.__videoId, caption: this.__caption }
+  }
+
+  static importDOM() {
+    return {
+      figure: (node) => {
+        if (!node.classList?.contains('embed-youtube')) return null
+        return {
+          conversion: (domNode) => {
+            const iframe = domNode.querySelector('iframe')
+            if (!iframe) return null
+            const src = iframe.getAttribute('src') || ''
+            const videoId = src.split('/embed/')[1]?.split('?')[0] || ''
+            const caption = domNode.querySelector('figcaption')?.textContent?.trim() || ''
+            return { node: new YouTubeNode(videoId, caption) }
+          },
+          priority: 2,
+        }
+      },
+    }
+  }
+
+  constructor(videoId = '', caption = '', key) {
+    super(key)
+    this.__videoId = videoId
+    this.__caption = caption
+  }
+
+  createDOM() {
+    const span = document.createElement('span')
+    span.style.display = 'contents'
+    return span
+  }
+  updateDOM() { return false }
+  isInline() { return false }
+
+  exportDOM() {
+    if (!this.__videoId) return { element: null }
+
+    const figure = document.createElement('figure')
+    figure.className = 'embed embed-youtube'
+    figure.style.cssText = 'max-width:740px;margin:1.5rem auto;border-radius:0.5rem;overflow:hidden'
+
+    const wrapper = document.createElement('div')
+    wrapper.style.cssText = 'position:relative;padding-bottom:56.25%;height:0'
+
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('src', `https://www.youtube.com/embed/${this.__videoId}`)
+    iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture')
+    iframe.setAttribute('allowfullscreen', '')
+    iframe.setAttribute('title', 'YouTube video')
+    iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none'
+
+    wrapper.appendChild(iframe)
+    figure.appendChild(wrapper)
+
+    if (this.__caption) {
+      const figcaption = document.createElement('figcaption')
+      figcaption.textContent = this.__caption
+      figcaption.style.textAlign = 'center'
+      figure.appendChild(figcaption)
+    }
+
+    return { element: figure }
+  }
+
+  decorate(editor) {
+    return (
+      <YouTubeNodeComponent
+        videoId={this.__videoId}
+        caption={this.__caption}
+        nodeKey={this.getKey()}
+        editor={editor}
+      />
+    )
+  }
+}
+
+export function $createYouTubeNode(videoId, caption = '') {
+  return new YouTubeNode(videoId, caption)
+}
+
+// ─── VimeoNodeComponent ───────────────────────────────────────────────────────
+
+function VimeoNodeComponent({ videoId, caption, nodeKey, editor }) {
+  const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
+  const [captionFocused, setCaptionFocused] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
+  const figRef = useRef(null)
+
+  const showRing = isSelected || captionFocused
+
+  useEffect(() => {
+    return editor.registerCommand(
+      CLICK_COMMAND,
+      (event) => {
+        const el = figRef.current
+        if (!el || !el.contains(event.target)) return false
+        if (event.target.tagName === 'INPUT') return false
+        clearSelection()
+        setSelected(true)
+        return true
+      },
+      COMMAND_PRIORITY_LOW
+    )
+  }, [editor, setSelected, clearSelection])
+
+  useEffect(() => {
+    if (!isSelected) return
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key !== 'Enter') return false
+        event.preventDefault()
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (!node) return
+          const para = $createParagraphNode()
+          node.insertAfter(para)
+          para.selectStart()
+        })
+        return true
+      },
+      COMMAND_PRIORITY_HIGH
+    )
+  }, [isSelected, editor, nodeKey])
+
+  function handleCaptionChange(e) {
+    const val = e.target.value
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node instanceof VimeoNode) node.getWritable().__caption = val
+    })
+  }
+
+  return (
+    <figure
+      ref={figRef}
+      style={{ maxWidth: '740px' }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className={`my-4 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+    >
+      <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+        <iframe
+          src={`https://player.vimeo.com/video/${videoId}`}
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
+          title="Vimeo video"
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+        />
+      </div>
+      <figcaption className="mt-0">
+        <input
+          type="text"
+          value={caption}
+          onChange={handleCaptionChange}
+          onFocus={() => setCaptionFocused(true)}
+          onBlur={() => setCaptionFocused(false)}
+          onClick={e => e.stopPropagation()}
+          placeholder="Type caption (optional)"
+          className="w-full text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
+        />
+      </figcaption>
+    </figure>
+  )
+}
+
+// ─── VimeoNode ────────────────────────────────────────────────────────────────
+
+export class VimeoNode extends DecoratorNode {
+  static getType() { return 'vimeo' }
+  static clone(node) { return new VimeoNode(node.__videoId, node.__caption, node.__key) }
+
+  static importJSON(data) {
+    return new VimeoNode(data.videoId || '', data.caption || '')
+  }
+  exportJSON() {
+    return { type: 'vimeo', version: 1, videoId: this.__videoId, caption: this.__caption }
+  }
+
+  static importDOM() {
+    return {
+      figure: (node) => {
+        if (!node.classList?.contains('embed-vimeo')) return null
+        return {
+          conversion: (domNode) => {
+            const iframe = domNode.querySelector('iframe')
+            if (!iframe) return null
+            const src = iframe.getAttribute('src') || ''
+            const videoId = src.split('/video/')[1]?.split('?')[0] || ''
+            const caption = domNode.querySelector('figcaption')?.textContent?.trim() || ''
+            return { node: new VimeoNode(videoId, caption) }
+          },
+          priority: 2,
+        }
+      },
+    }
+  }
+
+  constructor(videoId = '', caption = '', key) {
+    super(key)
+    this.__videoId = videoId
+    this.__caption = caption
+  }
+
+  createDOM() {
+    const span = document.createElement('span')
+    span.style.display = 'contents'
+    return span
+  }
+  updateDOM() { return false }
+  isInline() { return false }
+
+  exportDOM() {
+    if (!this.__videoId) return { element: null }
+
+    const figure = document.createElement('figure')
+    figure.className = 'embed embed-vimeo'
+    figure.style.cssText = 'max-width:740px;margin:1.5rem auto;border-radius:0.5rem;overflow:hidden'
+
+    const wrapper = document.createElement('div')
+    wrapper.style.cssText = 'position:relative;padding-bottom:56.25%;height:0'
+
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('src', `https://player.vimeo.com/video/${this.__videoId}`)
+    iframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture')
+    iframe.setAttribute('allowfullscreen', '')
+    iframe.setAttribute('title', 'Vimeo video')
+    iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none'
+
+    wrapper.appendChild(iframe)
+    figure.appendChild(wrapper)
+
+    if (this.__caption) {
+      const figcaption = document.createElement('figcaption')
+      figcaption.textContent = this.__caption
+      figcaption.style.textAlign = 'center'
+      figure.appendChild(figcaption)
+    }
+
+    return { element: figure }
+  }
+
+  decorate(editor) {
+    return (
+      <VimeoNodeComponent
+        videoId={this.__videoId}
+        caption={this.__caption}
+        nodeKey={this.getKey()}
+        editor={editor}
+      />
+    )
+  }
+}
+
+export function $createVimeoNode(videoId, caption = '') {
+  return new VimeoNode(videoId, caption)
+}
+
+// ─── SpotifyNodeComponent ─────────────────────────────────────────────────────
+
+function SpotifyNodeComponent({ embedPath, caption, nodeKey, editor }) {
+  const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
+  const [captionFocused, setCaptionFocused] = useState(false)
+  const [isHovered, setIsHovered] = useState(false)
+  const figRef = useRef(null)
+
+  const showRing = isSelected || captionFocused
+  const type = embedPath.split('/')[0]
+  const iframeHeight = (type === 'track' || type === 'episode') ? 152 : 352
+
+  useEffect(() => {
+    return editor.registerCommand(
+      CLICK_COMMAND,
+      (event) => {
+        const el = figRef.current
+        if (!el || !el.contains(event.target)) return false
+        if (event.target.tagName === 'INPUT') return false
+        clearSelection()
+        setSelected(true)
+        return true
+      },
+      COMMAND_PRIORITY_LOW
+    )
+  }, [editor, setSelected, clearSelection])
+
+  useEffect(() => {
+    if (!isSelected) return
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key !== 'Enter') return false
+        event.preventDefault()
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (!node) return
+          const para = $createParagraphNode()
+          node.insertAfter(para)
+          para.selectStart()
+        })
+        return true
+      },
+      COMMAND_PRIORITY_HIGH
+    )
+  }, [isSelected, editor, nodeKey])
+
+  function handleCaptionChange(e) {
+    const val = e.target.value
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node instanceof SpotifyNode) node.getWritable().__caption = val
+    })
+  }
+
+  return (
+    <figure
+      ref={figRef}
+      style={{ maxWidth: '740px' }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className={`my-4 mx-auto rounded-xl overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+    >
+      <iframe
+        src={`https://open.spotify.com/embed/${embedPath}`}
+        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+        allowFullScreen
+        loading="lazy"
+        title="Spotify player"
+        style={{ width: '100%', height: `${iframeHeight}px`, border: 'none', borderRadius: '12px', display: 'block' }}
+      />
+      <figcaption className="mt-0">
+        <input
+          type="text"
+          value={caption}
+          onChange={handleCaptionChange}
+          onFocus={() => setCaptionFocused(true)}
+          onBlur={() => setCaptionFocused(false)}
+          onClick={e => e.stopPropagation()}
+          placeholder="Type caption (optional)"
+          className="w-full text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
+        />
+      </figcaption>
+    </figure>
+  )
+}
+
+// ─── SpotifyNode ──────────────────────────────────────────────────────────────
+
+export class SpotifyNode extends DecoratorNode {
+  static getType() { return 'spotify' }
+  static clone(node) { return new SpotifyNode(node.__embedPath, node.__caption, node.__key) }
+
+  static importJSON(data) {
+    return new SpotifyNode(data.embedPath || '', data.caption || '')
+  }
+  exportJSON() {
+    return { type: 'spotify', version: 1, embedPath: this.__embedPath, caption: this.__caption }
+  }
+
+  static importDOM() {
+    return {
+      figure: (node) => {
+        if (!node.classList?.contains('embed-spotify')) return null
+        return {
+          conversion: (domNode) => {
+            const iframe = domNode.querySelector('iframe')
+            if (!iframe) return null
+            const src = iframe.getAttribute('src') || ''
+            const m = src.match(/open\.spotify\.com\/embed\/(.+)$/)
+            const embedPath = m ? m[1].split('?')[0] : ''
+            const caption = domNode.querySelector('figcaption')?.textContent?.trim() || ''
+            return { node: new SpotifyNode(embedPath, caption) }
+          },
+          priority: 2,
+        }
+      },
+    }
+  }
+
+  constructor(embedPath = '', caption = '', key) {
+    super(key)
+    this.__embedPath = embedPath
+    this.__caption = caption
+  }
+
+  createDOM() {
+    const span = document.createElement('span')
+    span.style.display = 'contents'
+    return span
+  }
+  updateDOM() { return false }
+  isInline() { return false }
+
+  exportDOM() {
+    if (!this.__embedPath) return { element: null }
+
+    const type = this.__embedPath.split('/')[0]
+    const iframeHeight = (type === 'track' || type === 'episode') ? 152 : 352
+
+    const figure = document.createElement('figure')
+    figure.className = 'embed embed-spotify'
+    figure.style.cssText = 'max-width:740px;margin:1.5rem auto'
+
+    const iframe = document.createElement('iframe')
+    iframe.setAttribute('src', `https://open.spotify.com/embed/${this.__embedPath}`)
+    iframe.setAttribute('allow', 'autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture')
+    iframe.setAttribute('allowfullscreen', '')
+    iframe.setAttribute('loading', 'lazy')
+    iframe.setAttribute('title', 'Spotify player')
+    iframe.style.cssText = `width:100%;height:${iframeHeight}px;border:none;border-radius:12px;display:block`
+
+    figure.appendChild(iframe)
+
+    if (this.__caption) {
+      const figcaption = document.createElement('figcaption')
+      figcaption.textContent = this.__caption
+      figcaption.style.textAlign = 'center'
+      figure.appendChild(figcaption)
+    }
+
+    return { element: figure }
+  }
+
+  decorate(editor) {
+    return (
+      <SpotifyNodeComponent
+        embedPath={this.__embedPath}
+        caption={this.__caption}
+        nodeKey={this.getKey()}
+        editor={editor}
+      />
+    )
+  }
+}
+
+export function $createSpotifyNode(embedPath, caption = '') {
+  return new SpotifyNode(embedPath, caption)
+}

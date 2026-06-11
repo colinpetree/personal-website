@@ -4,6 +4,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Code, Link2,
   Type, Heading1, Heading2, Heading3, Quote, Code2,
   List, ListOrdered, Minus, Image, Video, Music, Paperclip, LayoutGrid, Plus, MessageSquare, MousePointerClick, ChevronDown, PanelTop,
+  PlayCircle, Film, Music2,
 } from 'lucide-react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
@@ -18,7 +19,7 @@ import {
   $getNodeByKey, $isParagraphNode, $isDecoratorNode, $isElementNode,
   $createNodeSelection, $setSelection,
 } from 'lexical'
-import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createToggleNode, $createCodeBlockNode, $createHeaderNode } from './nodes'
+import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createToggleNode, $createCodeBlockNode, $createHeaderNode, $createYouTubeNode, $createVimeoNode, $createSpotifyNode } from './nodes'
 import { handleUpload, handleUploadFull } from './upload'
 import { Tooltip } from '../../ui/Tooltip'
 
@@ -180,15 +181,43 @@ const SLASH_ITEMS = [
   { label: 'Audio',         description: 'Upload an audio file',  Icon: Music,       action: 'audio' },
   { label: 'File',          description: 'Upload any file',       Icon: Paperclip,   action: 'file' },
   { label: 'Gallery',       description: 'Image grid',            Icon: LayoutGrid,  action: 'gallery' },
+  { label: 'YouTube',       description: 'Embed a YouTube video',  Icon: PlayCircle,  action: 'youtube' },
+  { label: 'Vimeo',         description: 'Embed a Vimeo video',    Icon: Film,        action: 'vimeo' },
+  { label: 'Spotify',       description: 'Embed Spotify audio',    Icon: Music2,      action: 'spotify' },
 ]
+
+function parseYouTubeId(url) {
+  const patterns = [
+    /[?&]v=([^&#]+)/,
+    /youtu\.be\/([^?&#]+)/,
+    /youtube\.com\/embed\/([^?&#]+)/,
+    /youtube\.com\/shorts\/([^?&#]+)/,
+  ]
+  for (const p of patterns) {
+    const m = url.match(p)
+    if (m) return m[1]
+  }
+  return null
+}
+
+function parseVimeoId(url) {
+  const m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/)
+  return m ? m[1] : null
+}
+
+function parseSpotifyPath(url) {
+  const m = url.match(/open\.spotify\.com\/(track|album|playlist|episode|artist)\/([a-zA-Z0-9]+)/)
+  return m ? `${m[1]}/${m[2]}` : null
+}
 
 export function SlashCommandPlugin() {
   const [editor] = useLexicalComposerContext()
   const [menu, setMenu] = useState({
-    visible: false, top: 0, left: 0, filter: '', selectedIndex: 0, nodeKey: null, plusTriggered: false,
+    visible: false, top: 0, left: 0, filter: '', selectedIndex: 0, nodeKey: null, plusTriggered: false, embedAction: null,
   })
   const menuRef = useRef(menu)
   menuRef.current = menu
+  const [embedUrl, setEmbedUrl] = useState('')
   const [plusButton, setPlusButton] = useState({ visible: false, top: 0, left: 0, nodeKey: null })
   const focusedParaRef = useRef(null)
   const fileRef = useRef(null)
@@ -233,7 +262,7 @@ export function SlashCommandPlugin() {
         const selection = $getSelection()
         if (!$isRangeSelection(selection)) {
           setFocusedPara(null)
-          setMenu(m => m.visible ? { ...m, visible: false } : m)
+          setMenu(m => m.visible && !menuRef.current.embedAction ? { ...m, visible: false } : m)
           setPlusButton(b => b.visible ? { ...b, visible: false } : b)
           return
         }
@@ -251,7 +280,7 @@ export function SlashCommandPlugin() {
 
         if (!$isParagraphNode(topLevel)) {
           setFocusedPara(null)
-          setMenu(m => m.visible ? { ...m, visible: false } : m)
+          setMenu(m => m.visible && !menuRef.current.embedAction ? { ...m, visible: false } : m)
           setPlusButton(b => b.visible ? { ...b, visible: false } : b)
           return
         }
@@ -285,7 +314,7 @@ export function SlashCommandPlugin() {
             setMenu(m => ({ ...m, visible: false, plusTriggered: false }))
           }
         } else {
-          setMenu(m => m.visible ? { ...m, visible: false } : m)
+          setMenu(m => m.visible && !menuRef.current.embedAction ? { ...m, visible: false } : m)
 
           // Show plus button when cursor is collapsed in an empty paragraph
           if (selection.isCollapsed() && text === '' && domEl) {
@@ -363,8 +392,56 @@ export function SlashCommandPlugin() {
   const UPLOAD_ACTIONS = new Set(['image', 'video', 'audio', 'file', 'gallery'])
   const ACCEPT_MAP = { image: 'image/*', video: 'video/*', audio: 'audio/*', file: '*', gallery: 'image/*' }
 
+  function submitEmbedUrl() {
+    const url = embedUrl.trim()
+    if (!url) return
+    const action = menuRef.current.embedAction
+    const nodeKey = menuRef.current.nodeKey
+
+    let isValid = false
+    if (action === 'youtube') isValid = !!parseYouTubeId(url)
+    else if (action === 'vimeo') isValid = !!parseVimeoId(url)
+    else if (action === 'spotify') isValid = !!parseSpotifyPath(url)
+    if (!isValid) return
+
+    setMenu(m => ({ ...m, visible: false, embedAction: null }))
+    setEmbedUrl('')
+
+    editor.update(() => {
+      const para = $getNodeByKey(nodeKey)
+      if (!para || !$isParagraphNode(para)) return
+
+      let newNode
+      if (action === 'youtube') {
+        newNode = $createYouTubeNode(parseYouTubeId(url))
+      } else if (action === 'vimeo') {
+        newNode = $createVimeoNode(parseVimeoId(url))
+      } else if (action === 'spotify') {
+        newNode = $createSpotifyNode(parseSpotifyPath(url))
+      }
+      if (!newNode) return
+
+      para.replace(newNode)
+      const next = newNode.getNextSibling()
+      if ($isElementNode(next)) {
+        next.selectStart()
+      } else {
+        const newPara = $createParagraphNode()
+        newNode.insertAfter(newPara)
+        newPara.selectStart()
+      }
+    })
+  }
+
   function applyItem(item) {
     const nodeKey = menuRef.current.nodeKey
+
+    if (item.action === 'youtube' || item.action === 'vimeo' || item.action === 'spotify') {
+      setMenu(m => ({ ...m, embedAction: item.action, filter: '', selectedIndex: 0 }))
+      setEmbedUrl('')
+      return
+    }
+
     setMenu(m => ({ ...m, visible: false }))
 
     if (UPLOAD_ACTIONS.has(item.action)) {
@@ -608,7 +685,33 @@ export function SlashCommandPlugin() {
           </button>
         </Tooltip>
       )}
-      {menu.visible && filteredItems.length > 0 && (
+      {menu.visible && menu.embedAction && (
+        <div
+          style={{ position: 'absolute', top: menu.top, left: menu.left, zIndex: 9999 }}
+          className="bg-white border border-gray-200 rounded-xl shadow-2xl p-3 w-72"
+        >
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+            {menu.embedAction === 'youtube' ? 'YouTube URL' : menu.embedAction === 'vimeo' ? 'Vimeo URL' : 'Spotify URL'}
+          </p>
+          <input
+            autoFocus
+            type="text"
+            value={embedUrl}
+            onChange={e => setEmbedUrl(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); submitEmbedUrl() }
+              if (e.key === 'Escape') { e.preventDefault(); setMenu(m => ({ ...m, visible: false, embedAction: null })); setEmbedUrl('') }
+            }}
+            placeholder={
+              menu.embedAction === 'youtube' ? 'https://www.youtube.com/watch?v=…' :
+              menu.embedAction === 'vimeo' ? 'https://vimeo.com/…' :
+              'https://open.spotify.com/track/…'
+            }
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500"
+          />
+        </div>
+      )}
+      {menu.visible && !menu.embedAction && filteredItems.length > 0 && (
         <div
           style={{ position: 'absolute', top: menu.top, left: menu.left, zIndex: 9999 }}
           className="bg-white border border-gray-200 rounded-xl shadow-2xl py-2 w-72 max-h-80 overflow-y-auto"

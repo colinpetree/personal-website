@@ -10,7 +10,7 @@ import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListNode, ListItemNode } from '@lexical/list'
 import { LinkNode } from '@lexical/link'
 import theme from './theme'
-import { ImageNode, VideoNode, AudioNode, FileNode, GalleryNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, CodeBlockNode, HeaderNode } from './nodes'
+import { ImageNode, VideoNode, AudioNode, FileNode, GalleryNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, CodeBlockNode, HeaderNode, YouTubeNode, VimeoNode, SpotifyNode } from './nodes'
 import {
   LoadHtmlPlugin,
   HtmlOutputPlugin,
@@ -28,7 +28,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
   const initialConfig = {
     namespace: 'BlogEditor',
     theme,
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, CodeBlockNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, HeaderNode, ImageNode, VideoNode, AudioNode, FileNode, GalleryNode],
+    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, CodeBlockNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, HeaderNode, ImageNode, VideoNode, AudioNode, FileNode, GalleryNode, YouTubeNode, VimeoNode, SpotifyNode],
     onError: (error) => { throw error },
   }
 
