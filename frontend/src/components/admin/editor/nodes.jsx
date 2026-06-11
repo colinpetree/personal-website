@@ -2621,6 +2621,7 @@ function CodeBlockComponent({ code, showLineNumbers, nodeKey, editor }) {
           )}
           <textarea
             value={localCode}
+            wrap="off"
             onChange={e => { setLocalCode(e.target.value); commitCode(e.target.value) }}
             onFocus={() => setTextareaFocused(true)}
             onBlur={() => setTextareaFocused(false)}
@@ -2649,7 +2650,7 @@ function CodeBlockComponent({ code, showLineNumbers, nodeKey, editor }) {
               }
             }}
             rows={Math.max(3, localCode.split('\n').length)}
-            className="block flex-1 p-0 pl-3 pr-8 py-2 bg-transparent outline-none resize-none font-mono text-sm leading-relaxed text-gray-800"
+            className="code-block-textarea block flex-1 p-0 pl-3 pr-8 py-2 bg-transparent outline-none resize-none font-mono text-sm leading-relaxed text-gray-800"
           />
         </div>
         <button
