@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Calendar, ChevronRight, ExternalLink, PanelRight, X } from 'lucide-react'
+import { ArrowLeft, Calendar, ChevronRight, ExternalLink, PanelRight, Plus, Trash2, Upload, X } from 'lucide-react'
 import { DayPicker } from 'react-day-picker'
 import RichTextEditor from '../../components/admin/editor'
 import { Field, Input, InputWithPrefix, Textarea } from '../../components/admin/AdminPage'
@@ -456,12 +456,14 @@ export default function AdminBlogEditorPage() {
   const [dialogDatePart, setDialogDatePart] = useState('')
   const [dialogTimePart, setDialogTimePart] = useState('')
   const [thumbnailFilename, setThumbnailFilename] = useState('')
+  const [thumbnailCaption, setThumbnailCaption] = useState('')
 
   const autosaveTimer = useRef(null)
   const pendingFields = useRef({})
   const slugEdited = useRef(false)
   const excerptEdited = useRef(false)
   const editorRef = useRef(null)
+  const featureImageInputRef = useRef(null)
 
   useEffect(() => {
     fetch(`/api/admin/blog/posts/${id}`, { credentials: 'include' })
@@ -479,6 +481,7 @@ export default function AdminBlogEditorPage() {
         setPublishDatePart(dtStr ? dtStr.slice(0, 10) : '')
         setPublishTimePart(dtStr ? dtStr.slice(11, 16) : '')
         setThumbnailFilename(data.thumbnail_filename || '')
+        setThumbnailCaption(data.thumbnail_caption || '')
         const s = data.status || 'draft'
         setStatus(s)
         setContentHtml(data.content_html || '')
@@ -594,6 +597,7 @@ export default function AdminBlogEditorPage() {
       meta_description: metaDescription,
       publish_date: combineDate(dp),
       thumbnail_filename: thumbnailFilename || null,
+      thumbnail_caption: thumbnailCaption || null,
     }).catch(() => {})
   }
 
@@ -637,6 +641,7 @@ export default function AdminBlogEditorPage() {
         excerpt,
         meta_description: metaDescription,
         thumbnail_filename: thumbnailFilename || null,
+        thumbnail_caption: thumbnailCaption || null,
       })
       setPublishDialog(null)
       navigate('/admin/blog/posts', {
@@ -681,6 +686,7 @@ export default function AdminBlogEditorPage() {
         meta_description: metaDescription,
         publish_date: combineDate(),
         thumbnail_filename: thumbnailFilename || null,
+        thumbnail_caption: thumbnailCaption || null,
         content_html: contentHtml,
         title,
       })
@@ -833,6 +839,68 @@ export default function AdminBlogEditorPage() {
         {/* Editor area */}
         <div className="flex-1 overflow-y-auto bg-white relative">
           <div className="max-w-3xl mx-auto px-6 pt-10">
+            {/* Feature Image */}
+            {thumbnailFilename ? (
+              <div className="relative group mb-6">
+                <div className="max-w-[740px] mx-auto rounded-lg overflow-hidden h-[356px]">
+                  <img
+                    src={`/api/uploads/${thumbnailFilename}`}
+                    alt="Feature image"
+                    className="h-full w-auto block"
+                  />
+                </div>
+                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white border border-gray-200 rounded-lg shadow-sm p-1">
+                  <button
+                    type="button"
+                    onClick={() => featureImageInputRef.current?.click()}
+                    className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition-colors"
+                    aria-label="Replace feature image"
+                  >
+                    <Upload size={12} className="text-gray-500" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setThumbnailFilename(null); markDirty() }}
+                    className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
+                    aria-label="Remove feature image"
+                  >
+                    <Trash2 size={12} className="text-red-400" />
+                  </button>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={featureImageInputRef}
+                  onChange={handleThumbnailUpload}
+                />
+                <input
+                  type="text"
+                  value={thumbnailCaption}
+                  onChange={e => { setThumbnailCaption(e.target.value); markDirty() }}
+                  placeholder="Type caption for feature image (optional)"
+                  className="w-full text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400"
+                />
+              </div>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => featureImageInputRef.current?.click()}
+                  className="w-full mb-6 py-3 text-sm text-gray-400 bg-white hover:bg-gray-50 transition-colors rounded-lg flex items-center justify-center gap-1.5"
+                >
+                  <Plus size={14} />
+                  Add feature image
+                </button>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={featureImageInputRef}
+                  onChange={handleThumbnailUpload}
+                />
+              </>
+            )}
             <input
               type="text"
               value={title}
@@ -920,27 +988,14 @@ export default function AdminBlogEditorPage() {
             onBlur={handleSidebarSave}
           />
 
-          <Field label="Thumbnail">
-            {thumbnailFilename && (
-              <img
-                src={`/api/uploads/${thumbnailFilename}`}
-                alt="Thumbnail"
-                className="w-full h-28 object-cover rounded mb-2"
-              />
-            )}
-            <label className="cursor-pointer rounded-md border border-gray-300 px-3 py-2 text-xs text-center text-gray-600 hover:bg-gray-100 transition-colors block">
-              {thumbnailFilename ? 'Replace image' : 'Upload image'}
-              <input type="file" accept="image/*" className="hidden" onChange={handleThumbnailUpload} />
-            </label>
-            {post && (
-              <button
-                onClick={() => setDeleteDialog(true)}
-                className="mt-1 w-full rounded-md border border-red-400 px-3 py-2 text-xs text-center text-red-500 hover:bg-red-50 transition-colors block"
-              >
-                Delete post
-              </button>
-            )}
-          </Field>
+          {post && (
+            <button
+              onClick={() => setDeleteDialog(true)}
+              className="w-full rounded-md border border-red-400 px-3 py-2 text-xs text-center text-red-500 hover:bg-red-50 transition-colors block"
+            >
+              Delete post
+            </button>
+          )}
         </div>
         </div>
       </div>

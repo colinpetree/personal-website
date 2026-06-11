@@ -57,6 +57,7 @@ def _post_to_dict(post, include_content=False):
         'status': post.status,
         'publish_date': post.publish_date.isoformat() if post.publish_date else None,
         'thumbnail_filename': post.thumbnail_filename,
+        'thumbnail_caption': post.thumbnail_caption,
         'author_id': post.author_id,
         'created_at': post.created_at.isoformat() + 'Z',
         'updated_at': post.updated_at.isoformat() + 'Z',
@@ -133,7 +134,7 @@ def update_post(post_id):
             return jsonify({'error': 'A post with this slug already exists.'}), 400
         post.slug = new_slug
 
-    for field in ('content_html', 'excerpt', 'meta_description', 'thumbnail_filename'):
+    for field in ('content_html', 'excerpt', 'meta_description', 'thumbnail_filename', 'thumbnail_caption'):
         if field in data:
             setattr(post, field, data[field])
 

@@ -20,6 +20,7 @@ def _post_to_dict(post, include_content=False):
         'status': post.status,
         'publish_date': post.publish_date.isoformat() if post.publish_date else None,
         'thumbnail_filename': post.thumbnail_filename,
+        'thumbnail_caption': post.thumbnail_caption,
         'created_at': post.created_at.isoformat() + 'Z',
         'updated_at': post.updated_at.isoformat() + 'Z',
     }
