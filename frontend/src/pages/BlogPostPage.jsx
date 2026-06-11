@@ -552,11 +552,13 @@ export default function BlogPostPage() {
 
       {post.thumbnail_filename && (
         <div className="max-w-[740px] mx-auto mb-8">
-          <div className="rounded-lg overflow-hidden h-[356px]">
+          <div className="rounded-lg overflow-hidden">
             <img
               src={`/api/uploads/${post.thumbnail_filename}`}
               alt={post.title}
-              className="h-full w-auto block"
+              width={post.thumbnail_width || undefined}
+              height={post.thumbnail_height || undefined}
+              className="max-w-full max-h-[600px] w-auto h-auto block"
             />
           </div>
           {post.thumbnail_caption && (

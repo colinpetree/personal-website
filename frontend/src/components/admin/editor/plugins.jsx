@@ -230,6 +230,19 @@ export function SlashCommandPlugin() {
     selectedItemRef.current?.scrollIntoView({ block: 'nearest' })
   }, [menu.selectedIndex])
 
+  // Re-pin menu to paragraph on any scroll (window or inner editor div).
+  useEffect(() => {
+    if (!menu.visible || !menu.nodeKey) return
+    const update = () => {
+      const domEl = editor.getElementByKey(menuRef.current.nodeKey)
+      if (!domEl) return
+      const rect = domEl.getBoundingClientRect()
+      setMenu(m => ({ ...m, top: calcMenuTop(rect), left: rect.left }))
+    }
+    document.addEventListener('scroll', update, { capture: true, passive: true })
+    return () => document.removeEventListener('scroll', update, { capture: true })
+  }, [editor, menu.visible, menu.nodeKey])
+
   useEffect(() => {
     return () => {
       pendingNodeKeyRef.current = null
@@ -242,6 +255,17 @@ export function SlashCommandPlugin() {
     if (!filter) return SLASH_ITEMS
     const q = filter.toLowerCase()
     return SLASH_ITEMS.filter(i => i.label.toLowerCase().includes(q))
+  }
+
+  // Returns a viewport-relative top for the menu. Only flips above the cursor
+  // when there is genuinely very little space below (<120px) AND more space above.
+  function calcMenuTop(rect) {
+    const spaceBelow = window.innerHeight - rect.bottom - 6
+    const spaceAbove = rect.top - 6
+    if (spaceBelow < 120 && spaceAbove > spaceBelow) {
+      return Math.max(8, rect.top - 6 - Math.min(320, spaceAbove))
+    }
+    return rect.bottom + 6
   }
 
   const filteredItems = getItems(menu.filter)
@@ -295,8 +319,8 @@ export function SlashCommandPlugin() {
           setPlusButton(b => b.visible ? { ...b, visible: false } : b)
           setMenu({
             visible: true,
-            top: rect.bottom + window.scrollY + 6,
-            left: rect.left + window.scrollX,
+            top: calcMenuTop(rect),
+            left: rect.left,
             filter: text.slice(1),
             selectedIndex: 0,
             nodeKey: topLevel.getKey(),
@@ -308,7 +332,7 @@ export function SlashCommandPlugin() {
             // Still on the same empty paragraph; keep menu open and update position
             if (domEl) {
               const rect = domEl.getBoundingClientRect()
-              setMenu(m => ({ ...m, top: rect.bottom + window.scrollY + 6, left: rect.left + window.scrollX }))
+              setMenu(m => ({ ...m, top: calcMenuTop(rect), left: rect.left }))
             }
           } else {
             setMenu(m => ({ ...m, visible: false, plusTriggered: false }))
@@ -321,8 +345,8 @@ export function SlashCommandPlugin() {
             const rect = domEl.getBoundingClientRect()
             setPlusButton({
               visible: true,
-              top: rect.top + window.scrollY + rect.height / 2,
-              left: rect.left + window.scrollX - 44,
+              top: rect.top + rect.height / 2,
+              left: rect.left - 44,
               nodeKey: topLevel.getKey(),
             })
           } else {
@@ -342,8 +366,8 @@ export function SlashCommandPlugin() {
     setPlusButton(b => ({ ...b, visible: false }))
     setMenu({
       visible: true,
-      top: rect.bottom + window.scrollY + 6,
-      left: rect.left + window.scrollX,
+      top: calcMenuTop(rect),
+      left: rect.left,
       filter: '',
       selectedIndex: 0,
       nodeKey,
@@ -675,7 +699,7 @@ export function SlashCommandPlugin() {
       {plusButton.visible && (
         <Tooltip content="Insert block" side="right">
           <button
-            style={{ position: 'absolute', top: plusButton.top, left: plusButton.left, transform: 'translateY(-50%)', zIndex: 9999 }}
+            style={{ position: 'fixed', top: plusButton.top, left: plusButton.left, transform: 'translateY(-50%)', zIndex: 9999 }}
             className="w-9 h-9 flex items-center justify-center rounded-full border border-gray-300 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
             onMouseDown={handlePlusClick}
             tabIndex={-1}
@@ -687,7 +711,7 @@ export function SlashCommandPlugin() {
       )}
       {menu.visible && menu.embedAction && (
         <div
-          style={{ position: 'absolute', top: menu.top, left: menu.left, zIndex: 9999 }}
+          style={{ position: 'fixed', top: menu.top, left: menu.left, zIndex: 9999 }}
           className="bg-white border border-gray-200 rounded-xl shadow-2xl p-3 w-72"
         >
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
@@ -713,8 +737,8 @@ export function SlashCommandPlugin() {
       )}
       {menu.visible && !menu.embedAction && filteredItems.length > 0 && (
         <div
-          style={{ position: 'absolute', top: menu.top, left: menu.left, zIndex: 9999 }}
-          className="bg-white border border-gray-200 rounded-xl shadow-2xl py-2 w-72 max-h-80 overflow-y-auto"
+          style={{ position: 'fixed', top: menu.top, left: menu.left, zIndex: 9999, maxHeight: Math.min(320, window.innerHeight - menu.top - 8) }}
+          className="bg-white border border-gray-200 rounded-xl shadow-2xl py-2 w-72 overflow-y-auto"
         >
           <p className="px-3 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Blocks</p>
           {filteredItems.map((item, i) => (

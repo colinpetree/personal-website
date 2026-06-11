@@ -457,6 +457,8 @@ export default function AdminBlogEditorPage() {
   const [dialogTimePart, setDialogTimePart] = useState('')
   const [thumbnailFilename, setThumbnailFilename] = useState('')
   const [thumbnailCaption, setThumbnailCaption] = useState('')
+  const [thumbnailWidth, setThumbnailWidth] = useState(null)
+  const [thumbnailHeight, setThumbnailHeight] = useState(null)
 
   const autosaveTimer = useRef(null)
   const pendingFields = useRef({})
@@ -482,6 +484,8 @@ export default function AdminBlogEditorPage() {
         setPublishTimePart(dtStr ? dtStr.slice(11, 16) : '')
         setThumbnailFilename(data.thumbnail_filename || '')
         setThumbnailCaption(data.thumbnail_caption || '')
+        setThumbnailWidth(data.thumbnail_width || null)
+        setThumbnailHeight(data.thumbnail_height || null)
         const s = data.status || 'draft'
         setStatus(s)
         setContentHtml(data.content_html || '')
@@ -598,6 +602,8 @@ export default function AdminBlogEditorPage() {
       publish_date: combineDate(dp),
       thumbnail_filename: thumbnailFilename || null,
       thumbnail_caption: thumbnailCaption || null,
+      thumbnail_width: thumbnailWidth || null,
+      thumbnail_height: thumbnailHeight || null,
     }).catch(() => {})
   }
 
@@ -614,6 +620,12 @@ export default function AdminBlogEditorPage() {
     if (res.ok) {
       const { filename } = await res.json()
       setThumbnailFilename(filename)
+      const img = new Image()
+      img.onload = () => {
+        setThumbnailWidth(img.naturalWidth)
+        setThumbnailHeight(img.naturalHeight)
+      }
+      img.src = `/api/uploads/${filename}`
       markDirty()
     }
     e.target.value = ''
@@ -642,6 +654,8 @@ export default function AdminBlogEditorPage() {
         meta_description: metaDescription,
         thumbnail_filename: thumbnailFilename || null,
         thumbnail_caption: thumbnailCaption || null,
+        thumbnail_width: thumbnailWidth || null,
+        thumbnail_height: thumbnailHeight || null,
       })
       setPublishDialog(null)
       navigate('/admin/blog/posts', {
@@ -687,6 +701,8 @@ export default function AdminBlogEditorPage() {
         publish_date: combineDate(),
         thumbnail_filename: thumbnailFilename || null,
         thumbnail_caption: thumbnailCaption || null,
+        thumbnail_width: thumbnailWidth || null,
+        thumbnail_height: thumbnailHeight || null,
         content_html: contentHtml,
         title,
       })
@@ -842,11 +858,13 @@ export default function AdminBlogEditorPage() {
             {/* Feature Image */}
             {thumbnailFilename ? (
               <div className="relative group mb-6">
-                <div className="max-w-[740px] mx-auto rounded-lg overflow-hidden h-[356px]">
+                <div className="max-w-[740px] mx-auto rounded-lg overflow-hidden">
                   <img
                     src={`/api/uploads/${thumbnailFilename}`}
                     alt="Feature image"
-                    className="h-full w-auto block"
+                    width={thumbnailWidth || undefined}
+                    height={thumbnailHeight || undefined}
+                    className="max-w-full max-h-[600px] w-auto h-auto block"
                   />
                 </div>
                 <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white border border-gray-200 rounded-lg shadow-sm p-1">
