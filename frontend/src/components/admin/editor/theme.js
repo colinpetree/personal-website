@@ -5,8 +5,8 @@ const theme = {
     h3: 'max-w-3xl mx-auto px-6 text-xl font-semibold mt-4 mb-2',
   },
   paragraph: 'editor-paragraph max-w-3xl mx-auto px-6 mb-3 leading-relaxed',
-  // pl-10 = px-6 (24px align) + pl-4 (16px indent from border), pr-6 for right alignment
-  quote: 'max-w-3xl mx-auto pl-10 pr-6 border-l-4 border-gray-300 italic text-gray-600 my-3',
+  // Border is drawn via background-gradient in .editor-quote so it aligns with px-6 text position
+  quote: 'editor-quote max-w-3xl mx-auto border-l-0 pr-6 italic text-gray-600 my-3',
   text: {
     bold: 'font-bold',
     italic: 'italic',
