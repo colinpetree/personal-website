@@ -852,7 +852,7 @@ export default function AdminBlogEditorPage() {
       </div>
 
       {/* Body */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative">
         {/* Editor area */}
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-white relative">
           <div className="max-w-3xl mx-auto px-6 pt-10">
@@ -949,8 +949,16 @@ export default function AdminBlogEditorPage() {
           }} />
         </div>
 
-        {/* Settings sidebar — outer shell clips during slide, inner div stays full-width */}
-        <div className={`shrink-0 overflow-hidden transition-all duration-200 ${panelOpen ? 'w-80' : 'w-0'}`}>
+        {/* Backdrop — mobile only, dismisses the overlay sidebar */}
+        {panelOpen && (
+          <div
+            className="lg:hidden absolute inset-0 z-40 bg-black/20"
+            onClick={() => setPanelOpen(false)}
+          />
+        )}
+
+        {/* Settings sidebar — overlay on mobile, push on md+ */}
+        <div className={`absolute lg:static inset-y-0 right-0 z-50 lg:z-auto shrink-0 overflow-hidden transition-all duration-200 ${panelOpen ? 'w-80' : 'w-0'}`}>
         <div className="w-80 h-full border-l border-gray-200 bg-gray-50 overflow-y-auto p-4 flex flex-col gap-4">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Post settings</h3>
 

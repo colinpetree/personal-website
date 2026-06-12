@@ -2963,9 +2963,9 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   const outerClass = (layout === 'full' || layout === 'split') ? 'w-full' : layout === 'wide' ? 'max-w-7xl mx-auto' : 'max-w-3xl mx-auto'
   const sideMargin = (layout === 'full' || layout === 'split') ? '' : 'mx-6'
   const textAlignClass   = textAlign === 'center' ? 'text-center' : 'text-left'
-  const minHeightClass   = layout === 'split' ? 'min-h-[600px]' : layout === 'full' ? 'min-h-[551px]' : layout === 'wide' ? 'min-h-[447px]' : 'min-h-[347px]'
-  const headingTextClass = (layout === 'full' || layout === 'split') ? 'text-6xl' : layout === 'wide' ? 'text-5xl' : 'text-4xl'
-  const subTextClass     = (layout === 'full' || layout === 'split') ? 'text-2xl' : layout === 'wide' ? 'text-[22px]' : 'text-xl'
+  const minHeightClass   = layout === 'split' ? 'md:min-h-[600px]' : layout === 'full' ? 'md:min-h-[551px]' : layout === 'wide' ? 'md:min-h-[447px]' : 'md:min-h-[347px]'
+  const headingTextClass = (layout === 'full' || layout === 'split') ? 'text-3xl md:text-6xl' : layout === 'wide' ? 'text-3xl md:text-5xl' : 'text-2xl md:text-4xl'
+  const subTextClass     = (layout === 'full' || layout === 'split') ? 'text-lg md:text-2xl' : layout === 'wide' ? 'text-base md:text-[22px]' : 'text-base md:text-xl'
   const btnTextClass     = (layout === 'full' || layout === 'split') ? 'text-lg' : 'text-base'
 
   const bgStyle = layout !== 'split' && backgroundType === 'image' && headerImage
@@ -3109,11 +3109,11 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
         {layout === 'split' ? (
           <div
             ref={containerRef}
-            className={`${sideMargin} ${minHeightClass} flex ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''} ${flipLayout ? 'flex-row-reverse' : 'flex-row'}`}
+            className={`${sideMargin} ${minHeightClass} flex flex-col ${flipLayout ? 'md:flex-row-reverse' : 'md:flex-row'} ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
           >
             {/* Image side */}
             <div
-              className={`w-1/2 bg-white flex items-center justify-center overflow-hidden relative group ${!headerImage ? 'cursor-pointer' : ''}`}
+              className={`w-full md:w-1/2 min-h-[220px] md:min-h-0 bg-white flex items-center justify-center overflow-hidden relative group ${!headerImage ? 'cursor-pointer' : ''}`}
               onClick={!headerImage ? () => splitImageInputRef.current?.click() : undefined}
             >
               {headerImage ? (
@@ -3154,7 +3154,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
 
             {/* Text side */}
             <div
-              className={`w-1/2 flex flex-col justify-center gap-3 pl-24 pr-12 py-10`}
+              className={`w-full md:w-1/2 flex flex-col justify-center gap-3 pl-8 pr-8 py-8 md:pl-24 md:pr-12 md:py-10`}
               style={{ background: backgroundColor }}
             >
               {textContent}
@@ -3164,7 +3164,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
           <div
             ref={containerRef}
             style={bgStyle}
-            className={`${sideMargin} ${minHeightClass} ${layout === 'regular' ? 'px-20' : 'px-64'} py-10 flex flex-col justify-center gap-3 ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+            className={`${sideMargin} ${minHeightClass} ${layout === 'regular' ? 'px-8 md:px-20' : 'px-8 md:px-64'} py-6 md:py-10 flex flex-col justify-center gap-3 ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
           >
             {textContent}
           </div>
