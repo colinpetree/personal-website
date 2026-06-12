@@ -261,6 +261,8 @@ export function ColorSwatchMenu({
   onImageSelect,
   onImageDelete,
   onOpenChange,
+  initialOpen = false,
+  anchorEl = null,
 }) {
   const initialCustom = isValidHex(value) && !presets.map(p => p.toLowerCase()).includes(value.toLowerCase())
     ? value
@@ -281,10 +283,17 @@ export function ColorSwatchMenu({
   const swatchPopoverRef = useRef(null)
   const pickerPopoverRef = useRef(null)
   const imgMgmtPopoverRef = useRef(null)
+  const prevOpenRef = useRef(false)
 
   useEffect(() => {
-    onOpenChange?.(swatchesOpen || pickerOpen || imgMgmtOpen)
+    const open = swatchesOpen || pickerOpen || imgMgmtOpen
+    if (open !== prevOpenRef.current) {
+      prevOpenRef.current = open
+      onOpenChange?.(open)
+    }
   }, [swatchesOpen, pickerOpen, imgMgmtOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { if (initialOpen) openSwatches() }, []) // eslint-disable-line
 
   useEffect(() => {
     if (!swatchesOpen && !pickerOpen && !imgMgmtOpen) return
@@ -304,7 +313,8 @@ export function ColorSwatchMenu({
   }, [swatchesOpen, pickerOpen, imgMgmtOpen])
 
   function openSwatches() {
-    const rect = triggerRef.current?.getBoundingClientRect()
+    const el = anchorEl || triggerRef.current
+    const rect = el?.getBoundingClientRect()
     if (rect) setSwatchPos({ top: rect.top - 6, centerX: rect.left + rect.width / 2 })
     setSwatchesOpen(true)
   }
@@ -377,14 +387,16 @@ export function ColorSwatchMenu({
         </>
       )}
 
-      <button
-        ref={triggerRef}
-        type="button"
-        onMouseDown={e => { e.preventDefault(); swatchesOpen ? (setSwatchesOpen(false), setPickerOpen(false), setImgMgmtOpen(false)) : openSwatches() }}
-        className="w-5 h-5 rounded-full border-2 border-white shadow ring-1 ring-gray-300 shrink-0 overflow-hidden"
-        style={triggerStyle}
-        aria-label="Choose color"
-      />
+      {!anchorEl && (
+        <button
+          ref={triggerRef}
+          type="button"
+          onMouseDown={e => { e.preventDefault(); swatchesOpen ? (setSwatchesOpen(false), setPickerOpen(false), setImgMgmtOpen(false)) : openSwatches() }}
+          className="w-5 h-5 rounded-full border-2 border-white shadow ring-1 ring-gray-300 shrink-0 overflow-hidden"
+          style={triggerStyle}
+          aria-label="Choose color"
+        />
+      )}
 
       {/* Swatch preset popover */}
       {swatchesOpen && createPortal(
