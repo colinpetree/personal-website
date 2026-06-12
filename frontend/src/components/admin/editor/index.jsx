@@ -23,6 +23,7 @@ import {
   EditorHandlePlugin,
   TableActionMenuPlugin,
   TableColumnResizePlugin,
+  TableDragScrollPlugin,
 } from './plugins'
 
 const RichTextEditor = forwardRef(function RichTextEditor(
@@ -61,7 +62,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
       <HistoryPlugin />
       <ListPlugin />
       <LinkPlugin />
-      <TablePlugin hasCellMerge hasCellBackgroundColor hasTabHandler />
+      <TablePlugin hasCellMerge hasCellBackgroundColor hasTabHandler hasHorizontalScroll />
       <LoadHtmlPlugin html={initialHtml} />
       <HtmlOutputPlugin onChange={onChange} />
       <FloatingToolbarPlugin />
@@ -70,6 +71,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
       <DecoratorArrowNavigationPlugin />
       <TableActionMenuPlugin />
       <TableColumnResizePlugin />
+      <TableDragScrollPlugin />
       <EditorHandlePlugin handleRef={ref} />
     </LexicalComposer>
   )

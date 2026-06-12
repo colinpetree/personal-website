@@ -24,6 +24,7 @@ const theme = {
     },
   },
   link: 'text-blue-600 underline',
+  tableScrollableWrapper: 'blog-table-scroll-wrapper',
   table: 'blog-table',
   tableRow: 'blog-table-row',
   tableCell: 'blog-table-cell',

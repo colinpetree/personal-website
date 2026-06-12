@@ -1165,7 +1165,7 @@ export function TableActionMenuPlugin() {
       updated.setColWidths(Array(newCount).fill(Math.floor(targetTotal / newCount)))
     })
   }
-  const insertRow = (after) => { run(() => $insertTableRow__EXPERIMENTAL(after)); setPanel(null) }
+  const insertRow = (after) => { run(() => $insertTableRow__EXPERIMENTAL(after)) }
   const deleteColumn = () => {
     run(() => {
       $deleteTableColumn__EXPERIMENTAL()
@@ -1342,7 +1342,8 @@ export function TableColumnResizePlugin() {
 
   function onHandleDown(e, handle) {
     e.preventDefault()
-    const tableEl = editor.getElementByKey(tableKey)
+    const raw = editor.getElementByKey(tableKey)
+    const tableEl = raw?.nodeName === 'TABLE' ? raw : raw?.querySelector('table') || raw
     if (!tableEl) return
     let count = 0
     editor.getEditorState().read(() => { const t = $getNodeByKey(tableKey); if (t) count = t.getColumnCount() })
@@ -1409,4 +1410,64 @@ export function TableColumnResizePlugin() {
     </>,
     document.body
   )
+}
+
+// Auto-scrolls the nearest .blog-table-scroll-wrapper horizontally when the user
+// drags a cell selection toward the left or right edge of the visible area.
+export function TableDragScrollPlugin() {
+  useEffect(() => {
+    let wrapper = null
+    let animId = null
+    let vx = 0
+
+    function step() {
+      animId = null
+      if (!wrapper || vx === 0) return
+      wrapper.scrollLeft += vx
+      animId = requestAnimationFrame(step)
+    }
+
+    function onMouseDown(e) {
+      if (!(e.buttons & 1)) return
+      const cell = e.target.closest?.('td, th')
+      if (!cell) return
+      const w = cell.closest('.blog-table-scroll-wrapper')
+      if (!w) return
+      wrapper = w
+    }
+
+    function onMouseMove(e) {
+      if (!wrapper) return
+      if (!(e.buttons & 1)) { stop(); return }
+      const rect = wrapper.getBoundingClientRect()
+      const ZONE = 80
+      const MAX = 12
+      if (e.clientX < rect.left + ZONE) {
+        vx = -MAX * Math.max(0, 1 - (e.clientX - rect.left) / ZONE)
+      } else if (e.clientX > rect.right - ZONE) {
+        vx = MAX * Math.max(0, 1 - (rect.right - e.clientX) / ZONE)
+      } else {
+        vx = 0
+      }
+      if (vx !== 0 && animId === null) animId = requestAnimationFrame(step)
+    }
+
+    function stop() {
+      wrapper = null
+      vx = 0
+      if (animId !== null) { cancelAnimationFrame(animId); animId = null }
+    }
+
+    document.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', stop)
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', stop)
+      if (animId !== null) cancelAnimationFrame(animId)
+    }
+  }, [])
+
+  return null
 }
