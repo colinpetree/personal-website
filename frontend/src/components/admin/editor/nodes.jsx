@@ -4297,6 +4297,10 @@ export class WideTableNode extends TableNode {
         decorateTableElement(el, width, colWidths, borderColor)
         el.setAttribute('data-width', width)
         el.setAttribute('data-border-color', borderColor)
+        const wrapper = document.createElement('div')
+        wrapper.className = `blog-table-wrapper blog-table-wrapper-${width === 'wide' ? 'wide' : 'regular'}`
+        wrapper.appendChild(el.cloneNode(true))
+        return wrapper
       }
       return el
     }
@@ -4306,6 +4310,9 @@ export class WideTableNode extends TableNode {
   static importDOM() {
     const base = TableNode.importDOM()
     return {
+      // Handles both the old format (bare <table>) and the new format (wrapper div
+      // is unhandled/transparent, so Lexical descends into it and finds this <table>).
+      // data-width and data-border-color live on the <table> in both cases.
       table: (domNode) => {
         const baseRes = base.table(domNode)
         if (!baseRes) return null

@@ -267,6 +267,36 @@ table.blog-table {
   margin-top: 1.5rem;
   margin-bottom: 1.5rem;
 }
+/* Scrollable wrapper (new format): overflow-x: auto lets tables keep their
+   natural column widths on mobile — users scroll horizontally instead of
+   squishing. Legacy bare tables (posts saved before this change) still use
+   the rules below this block. */
+.blog-table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.blog-table-wrapper table.blog-table {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.blog-content .blog-table-wrapper-regular {
+  max-width: 100%;
+}
+.blog-content .blog-table-wrapper-wide {
+  max-width: min(80rem, calc(100vw - 2rem));
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+/* On mobile, wide wrapper drops the breakout and uses full prose width */
+@media (max-width: 640px) {
+  .blog-content .blog-table-wrapper-wide {
+    max-width: 100%;
+    margin-left: 0;
+    transform: none;
+  }
+}
 /* Placement + size caps are derived from width mode (no manual alignment):
    regular → left-aligned and capped to the body-text column; wide → centered
    and capped to 80rem (matching the wide header), breaking out of the column.
@@ -275,7 +305,8 @@ table.blog-table {
    differs between the editor (each block centered in a 48rem column → text
    spans the central 45rem) and the public page (the container already IS the
    ~45rem column), so the two are scoped separately. margin:auto does NOT
-   center an element wider than its container, so wide uses translateX. */
+   center an element wider than its container, so wide uses translateX.
+   Legacy: posts saved before the wrapper format was introduced. */
 .blog-content table.blog-table-regular {
   max-width: 100%;
   margin-left: 0;

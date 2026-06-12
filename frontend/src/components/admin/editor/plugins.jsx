@@ -64,7 +64,8 @@ export function HtmlOutputPlugin({ onChange }) {
   onChangeRef.current = onChange
 
   useEffect(() => {
-    return editor.registerUpdateListener(() => {
+    return editor.registerUpdateListener(({ dirtyElements, dirtyLeaves }) => {
+      if (dirtyElements.size === 0 && dirtyLeaves.size === 0) return
       editor.read(() => {
         const html = $generateHtmlFromNodes(editor, null)
         onChangeRef.current(html)
@@ -1054,12 +1055,20 @@ const TABLE_MAX_DIM = 20
 // selection), or null when the selection is outside any table.
 function $activeTableCell() {
   const sel = $getSelection()
-  if ($isRangeSelection(sel)) {
-    return $findMatchingParent(sel.anchor.getNode(), n => $isTableCellNode(n))
+  const isRange = $isRangeSelection(sel)
+  const isTable = $isTableSelection(sel)
+  if (!isRange && !isTable) {
+    return null
   }
-  if ($isTableSelection(sel)) {
+  if (isRange) {
+    const anchorNode = sel.anchor.getNode()
+    const cell = $findMatchingParent(anchorNode, n => $isTableCellNode(n))
+    return cell
+  }
+  if (isTable) {
     const n = sel.anchor.getNode()
-    return $isTableCellNode(n) ? n : $findMatchingParent(n, x => $isTableCellNode(x))
+    const cell = $isTableCellNode(n) ? n : $findMatchingParent(n, x => $isTableCellNode(x))
+    return cell
   }
   return null
 }
