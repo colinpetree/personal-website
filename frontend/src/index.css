@@ -293,9 +293,62 @@ table.blog-table {
 @media (max-width: 640px) {
   .blog-content .blog-table-wrapper-wide {
     max-width: 100%;
-    margin-left: 0;
+    margin-left: 0.4rem;
+    margin-right: 0.4rem;
     transform: none;
   }
+}
+/* ─── Editor table scroll wrapper (created by @lexical/table hasHorizontalScroll) ─── */
+.blog-table-scroll-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+.blog-table-scroll-wrapper table.blog-table {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+/* Remove width cap for both so tables keep their inline pixel width and scroll. */
+[contenteditable] .blog-table-scroll-wrapper table.blog-table-wide,
+[contenteditable] .blog-table-scroll-wrapper table.blog-table-regular {
+  max-width: none;
+}
+/* Wide tables: replace the 50%/translateX centering trick with margin:auto — this centers
+   the table when it fits the wrapper and left-aligns (no bidirectional overflow) when it
+   needs to scroll. */
+[contenteditable] .blog-table-scroll-wrapper table.blog-table-wide {
+  margin-left: auto;
+  margin-right: auto;
+  transform: none;
+}
+/* Keep scroll wrappers clear of the viewport edge at all sizes.
+   Editor wrapper and public regular wrapper apply unconditionally; the wide wrapper's
+   large-screen centering (margin-left:50%) provides its own clearance via calc(100vw-2rem),
+   and its mobile override above already sets the margin. */
+.blog-table-scroll-wrapper,
+.blog-content .blog-table-wrapper-regular {
+  margin-left: 0.4rem;
+  margin-right: 0.4rem;
+}
+/* Thin scrollbar matching code-block style — both editor wrapper and public page wrapper */
+.blog-table-scroll-wrapper::-webkit-scrollbar,
+.blog-table-wrapper::-webkit-scrollbar {
+  height: 4px;
+}
+.blog-table-scroll-wrapper::-webkit-scrollbar-track,
+.blog-table-wrapper::-webkit-scrollbar-track {
+  background: #f3f4f6;
+}
+.blog-table-scroll-wrapper::-webkit-scrollbar-thumb,
+.blog-table-wrapper::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.blog-table-scroll-wrapper::-webkit-scrollbar-button,
+.blog-table-wrapper::-webkit-scrollbar-button {
+  display: none;
 }
 /* Placement + size caps are derived from width mode (no manual alignment):
    regular → left-aligned and capped to the body-text column; wide → centered
@@ -339,6 +392,14 @@ table.blog-table th {
 table.blog-table td > p,
 table.blog-table th > p {
   margin: 0;
+}
+/* Tailwind Typography sets an explicit color on <strong>/<b> that overrides inherited
+   cell color. Force them to inherit the cell's custom text color instead. */
+table.blog-table td strong,
+table.blog-table th strong,
+table.blog-table td b,
+table.blog-table th b {
+  color: inherit;
 }
 table.blog-table td > p + p,
 table.blog-table th > p + p {
