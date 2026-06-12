@@ -24,6 +24,12 @@ const theme = {
     },
   },
   link: 'text-blue-600 underline',
+  table: 'blog-table',
+  tableRow: 'blog-table-row',
+  tableCell: 'blog-table-cell',
+  tableCellHeader: 'blog-table-cell-header',
+  tableSelection: 'blog-table-selection',
+  tableCellSelected: 'blog-table-cell-selected',
 }
 
 export default theme

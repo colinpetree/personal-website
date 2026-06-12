@@ -10,6 +10,7 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
+import { TableNode, TableCellNode } from '@lexical/table'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
 import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Columns2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon } from 'lucide-react'
 import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
@@ -4217,4 +4218,211 @@ export class SpotifyNode extends DecoratorNode {
 
 export function $createSpotifyNode(embedPath, caption = '') {
   return new SpotifyNode(embedPath, caption)
+}
+
+// ─── Table nodes (subclasses of @lexical/table) ──────────────────────────────
+// We use the official @lexical/table package so cells are part of the single
+// main editor (native rich text — no nested editors). These two subclasses add
+// the project-specific fields the package doesn't have: a regular/wide width
+// mode + block alignment on the table, and an auto/light/dark text-color mode
+// on each cell. They also control the exported HTML so it round-trips and so
+// the public blog renders with our light borders instead of the package's
+// hardcoded black ones.
+
+function decorateTableElement(tableEl, width, colWidths, borderColor) {
+  if (!tableEl) return
+  tableEl.classList.add('blog-table')
+  tableEl.classList.toggle('blog-table-wide', width === 'wide')
+  tableEl.classList.toggle('blog-table-regular', width !== 'wide')
+  // Pixel width = sum of column widths (drives column drag-resize). Horizontal
+  // placement (regular → left, wide → centered) is handled in CSS, scoped
+  // separately for the editor and the public blog (their containers differ).
+  const sum = colWidths && colWidths.length ? colWidths.reduce((a, b) => a + (b || 0), 0) : 0
+  tableEl.style.width = sum ? `${sum}px` : ''
+  tableEl.style.setProperty('--table-border-color', borderColor || '#e5e7eb')
+}
+
+function tableElFromDOM(dom) {
+  return dom?.nodeName === 'TABLE' ? dom : dom?.querySelector?.('table') || null
+}
+
+export class WideTableNode extends TableNode {
+  __tableWidth // 'regular' | 'wide'
+  __borderColor // hex or 'transparent'
+
+  static getType() { return 'wide-table' }
+
+  static clone(node) {
+    return new WideTableNode(node.__key)
+  }
+
+  afterCloneFrom(prevNode) {
+    super.afterCloneFrom(prevNode)
+    this.__tableWidth = prevNode.__tableWidth
+    this.__borderColor = prevNode.__borderColor
+  }
+
+  constructor(key) {
+    super(key)
+    this.__tableWidth = 'regular'
+    this.__borderColor = '#e5e7eb'
+  }
+
+  getTableWidth() { return this.getLatest().__tableWidth }
+  setTableWidth(width) { const self = this.getWritable(); self.__tableWidth = width; return self }
+  getBorderColor() { return this.getLatest().__borderColor }
+  setBorderColor(color) { const self = this.getWritable(); self.__borderColor = color; return self }
+
+  createDOM(config, editor) {
+    const dom = super.createDOM(config, editor)
+    decorateTableElement(tableElFromDOM(dom), this.__tableWidth, this.getColWidths(), this.__borderColor)
+    return dom
+  }
+
+  updateDOM(prevNode, dom, config) {
+    const result = super.updateDOM(prevNode, dom, config)
+    decorateTableElement(tableElFromDOM(dom), this.__tableWidth, this.getColWidths(), this.__borderColor)
+    return result
+  }
+
+  exportDOM(editor) {
+    const out = super.exportDOM(editor)
+    const prevAfter = out.after
+    const width = this.__tableWidth
+    const borderColor = this.__borderColor
+    const colWidths = this.getColWidths()
+    out.after = (tableElement) => {
+      const el = prevAfter ? prevAfter(tableElement) : tableElement
+      if (el && el.nodeName === 'TABLE') {
+        decorateTableElement(el, width, colWidths, borderColor)
+        el.setAttribute('data-width', width)
+        el.setAttribute('data-border-color', borderColor)
+      }
+      return el
+    }
+    return out
+  }
+
+  static importDOM() {
+    const base = TableNode.importDOM()
+    return {
+      table: (domNode) => {
+        const baseRes = base.table(domNode)
+        if (!baseRes) return null
+        return {
+          ...baseRes,
+          priority: 2,
+          conversion: (node) => {
+            const res = baseRes.conversion(node)
+            if (res && res.node) {
+              const width = node.getAttribute('data-width') || (node.classList.contains('blog-table-wide') ? 'wide' : 'regular')
+              res.node.setTableWidth(width)
+              res.node.setBorderColor(node.getAttribute('data-border-color') || '#e5e7eb')
+            }
+            return res
+          },
+        }
+      },
+    }
+  }
+
+  static importJSON(serializedNode) {
+    return new WideTableNode().updateFromJSON(serializedNode)
+  }
+
+  updateFromJSON(serializedNode) {
+    return super.updateFromJSON(serializedNode)
+      .setTableWidth(serializedNode.tableWidth || 'regular')
+      .setBorderColor(serializedNode.borderColor || '#e5e7eb')
+  }
+
+  exportJSON() {
+    return { ...super.exportJSON(), tableWidth: this.__tableWidth, borderColor: this.__borderColor }
+  }
+}
+
+export class StyledTableCellNode extends TableCellNode {
+  __textColorMode // 'auto' | 'light' | 'dark'
+
+  static getType() { return 'styled-tablecell' }
+
+  static clone(node) {
+    const cell = new StyledTableCellNode(node.__headerState, node.__colSpan, node.__width, node.__key)
+    cell.__textColorMode = node.__textColorMode
+    return cell
+  }
+
+  afterCloneFrom(node) {
+    super.afterCloneFrom(node)
+    this.__textColorMode = node.__textColorMode
+  }
+
+  constructor(headerState, colSpan, width, key) {
+    super(headerState, colSpan, width, key)
+    this.__textColorMode = 'auto'
+  }
+
+  getTextColorMode() { return this.getLatest().__textColorMode }
+  setTextColorMode(mode) { const self = this.getWritable(); self.__textColorMode = mode; return self }
+
+  resolvedTextColor() {
+    const bg = this.getBackgroundColor()
+    return resolveTextColor(this.__textColorMode, bg && bg !== 'transparent' ? bg : '#ffffff')
+  }
+
+  createDOM(config) {
+    const el = super.createDOM(config)
+    el.style.color = this.resolvedTextColor()
+    return el
+  }
+
+  updateDOM(prevNode) {
+    return super.updateDOM(prevNode) || prevNode.__textColorMode !== this.__textColorMode
+  }
+
+  exportDOM(editor) {
+    const out = super.exportDOM(editor)
+    const el = out.element
+    if (el && el.nodeType === 1) {
+      el.style.border = '1px solid #e5e7eb'
+      el.style.color = this.resolvedTextColor()
+      el.setAttribute('data-text-color', this.__textColorMode)
+      if (this.getBackgroundColor() === 'transparent') el.style.backgroundColor = ''
+    }
+    return out
+  }
+
+  static importDOM() {
+    const base = TableCellNode.importDOM()
+    const wrap = (baseEntryFn) => (domNode) => {
+      const baseRes = baseEntryFn(domNode)
+      if (!baseRes) return null
+      const conv = baseRes.conversion
+      return {
+        ...baseRes,
+        conversion: (node) => {
+          const mode = node.getAttribute('data-text-color') || 'auto'
+          // Strip the resolved color before the base converter bakes it onto
+          // child text nodes — we recover it from the mode instead.
+          node.style.removeProperty('color')
+          const res = conv(node)
+          if (res && res.node) res.node.setTextColorMode(mode)
+          return res
+        },
+      }
+    }
+    return { td: wrap(base.td), th: wrap(base.th) }
+  }
+
+  static importJSON(serializedNode) {
+    return new StyledTableCellNode().updateFromJSON(serializedNode)
+  }
+
+  updateFromJSON(serializedNode) {
+    return super.updateFromJSON(serializedNode).setTextColorMode(serializedNode.textColorMode || 'auto')
+  }
+
+  exportJSON() {
+    return { ...super.exportJSON(), textColorMode: this.__textColorMode }
+  }
 }

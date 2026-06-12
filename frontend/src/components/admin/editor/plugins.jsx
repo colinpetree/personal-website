@@ -1,10 +1,13 @@
 import { createPortal } from 'react-dom'
-import { useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useImperativeHandle, useRef, useState } from 'react'
 import {
   Bold, Italic, Underline, Strikethrough, Code, Link2,
   Type, Heading1, Heading2, Heading3, Quote, Code2,
   List, ListOrdered, Minus, Image, Video, Music, Paperclip, LayoutGrid, Plus, MessageSquare, MousePointerClick, ChevronDown, PanelTop,
   PlayCircle, Film, Music2,
+  Table, AlignLeft, AlignCenter, AlignJustify, StretchHorizontal, Trash2, Undo2, Redo2,
+  ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, ArrowDownToLine,
+  Eclipse, Sun, Moon, Columns3Cog, RectangleHorizontal, RectangleVertical, Grid2x2, PaintBucket,
 } from 'lucide-react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
@@ -14,14 +17,22 @@ import { INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, $isListItem
 import { $findMatchingParent } from '@lexical/utils'
 import { TOGGLE_LINK_COMMAND } from '@lexical/link'
 import {
+  INSERT_TABLE_COMMAND, $isTableNode, $isTableCellNode, $isTableSelection,
+  $getTableNodeFromLexicalNodeOrThrow,
+  $insertTableRow__EXPERIMENTAL, $insertTableColumn__EXPERIMENTAL,
+  $deleteTableRow__EXPERIMENTAL, $deleteTableColumn__EXPERIMENTAL,
+} from '@lexical/table'
+import {
   $getSelection, $isRangeSelection, $isNodeSelection, $createParagraphNode, $createTextNode, $getRoot,
-  FORMAT_TEXT_COMMAND, KEY_DOWN_COMMAND, COMMAND_PRIORITY_HIGH, COMMAND_PRIORITY_CRITICAL,
+  FORMAT_TEXT_COMMAND, FORMAT_ELEMENT_COMMAND, UNDO_COMMAND, REDO_COMMAND,
+  KEY_DOWN_COMMAND, COMMAND_PRIORITY_HIGH, COMMAND_PRIORITY_CRITICAL,
   $getNodeByKey, $isParagraphNode, $isDecoratorNode, $isElementNode,
   $createNodeSelection, $setSelection,
 } from 'lexical'
 import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createToggleNode, $createCodeBlockNode, $createHeaderNode, $createYouTubeNode, $createVimeoNode, $createSpotifyNode } from './nodes'
 import { handleUpload, handleUploadFull } from './upload'
 import { Tooltip } from '../../ui/Tooltip'
+import { ColorSwatchMenu } from '../../ui/ColorPicker'
 
 // ─── LoadHtmlPlugin ───────────────────────────────────────────────────────────
 
@@ -181,6 +192,7 @@ const SLASH_ITEMS = [
   { label: 'Audio',         description: 'Upload an audio file',  Icon: Music,       action: 'audio' },
   { label: 'File',          description: 'Upload any file',       Icon: Paperclip,   action: 'file' },
   { label: 'Gallery',       description: 'Image grid',            Icon: LayoutGrid,  action: 'gallery' },
+  { label: 'Table',         description: 'Rows and columns',      Icon: Table,       action: 'table' },
   { label: 'YouTube',       description: 'Embed a YouTube video',  Icon: PlayCircle,  action: 'youtube' },
   { label: 'Vimeo',         description: 'Embed a Vimeo video',    Icon: Film,        action: 'vimeo' },
   { label: 'Spotify',       description: 'Embed Spotify audio',    Icon: Music2,      action: 'spotify' },
@@ -218,6 +230,7 @@ export function SlashCommandPlugin() {
   const menuRef = useRef(menu)
   menuRef.current = menu
   const [embedUrl, setEmbedUrl] = useState('')
+  const [tableHover, setTableHover] = useState({ rows: 1, cols: 1 })
   const [plusButton, setPlusButton] = useState({ visible: false, top: 0, left: 0, nodeKey: null })
   const focusedParaRef = useRef(null)
   const fileRef = useRef(null)
@@ -296,6 +309,9 @@ export function SlashCommandPlugin() {
 
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }) => {
+      // While the table grid picker is open, freeze the slash menu so editor
+      // updates don't reset it (the slash paragraph still holds "/table").
+      if (menuRef.current.tablePicker) return
       editorState.read(() => {
         const selection = $getSelection()
         if (!$isRangeSelection(selection)) {
@@ -306,6 +322,15 @@ export function SlashCommandPlugin() {
         }
 
         const node = selection.anchor.getNode()
+
+        // Suppress slash menu and plus button inside table cells
+        if ($findMatchingParent(node, n => $isTableCellNode(n))) {
+          setFocusedPara(null)
+          setMenu(m => m.visible && !menuRef.current.embedAction ? { ...m, visible: false } : m)
+          setPlusButton(b => b.visible ? { ...b, visible: false } : b)
+          return
+        }
+
         let topLevel
         try {
           topLevel = node.getKey() === 'root' ? node : node.getTopLevelElementOrThrow()
@@ -397,6 +422,11 @@ export function SlashCommandPlugin() {
       (event) => {
         const items = filteredItemsRef.current
         const m = menuRef.current
+        if (m.tablePicker) {
+          if (event.key === 'Escape') { event.preventDefault(); setMenu(x => ({ ...x, visible: false, tablePicker: false })); return true }
+          event.preventDefault()
+          return true
+        }
         if (event.key === 'ArrowDown') {
           event.preventDefault()
           setMenu(prev => ({ ...prev, selectedIndex: Math.min(prev.selectedIndex + 1, items.length - 1) }))
@@ -471,12 +501,52 @@ export function SlashCommandPlugin() {
     })
   }
 
+  const TABLE_MAX = 20
+
+  function insertTable(cols, rows) {
+    const nodeKey = menuRef.current.nodeKey
+    setMenu(m => ({ ...m, visible: false, tablePicker: false }))
+
+    editor.update(() => {
+      const para = $getNodeByKey(nodeKey)
+      if (para && $isParagraphNode(para)) { para.clear(); para.selectStart() }
+    })
+    editor.dispatchCommand(INSERT_TABLE_COMMAND, { columns: String(cols), rows: String(rows), includeHeaders: false })
+    editor.update(() => {
+      // Remove the now-empty slash paragraph (the table was inserted after it).
+      const para = $getNodeByKey(nodeKey)
+      if (para && $isParagraphNode(para) && para.getTextContent() === '' && para.getNextSibling()) {
+        para.remove()
+      }
+      // The insert command leaves the selection inside the first cell — use it
+      // to find the new table, then set default widths + width mode.
+      const sel = $getSelection()
+      if (!$isRangeSelection(sel)) return
+      const cell = $findMatchingParent(sel.anchor.getNode(), n => $isTableCellNode(n))
+      if (!cell) return
+      const table = $getTableNodeFromLexicalNodeOrThrow(cell)
+      // Fixed default column width: small tables stay narrow (and rest left),
+      // bigger ones grow toward / past the column. CSS max-width caps prevent
+      // overflow (regular → text column, wide → 80rem like the wide header).
+      if (table.setColWidths) table.setColWidths(Array(cols).fill(170))
+      if (table.setTableWidth) table.setTableWidth(cols >= 5 ? 'wide' : 'regular')
+      // Ensure there is always a paragraph after the table to escape into.
+      if (!table.getNextSibling()) table.insertAfter($createParagraphNode())
+    })
+  }
+
   function applyItem(item) {
     const nodeKey = menuRef.current.nodeKey
 
     if (item.action === 'youtube' || item.action === 'vimeo' || item.action === 'spotify') {
       setMenu(m => ({ ...m, embedAction: item.action, filter: '', selectedIndex: 0 }))
       setEmbedUrl('')
+      return
+    }
+
+    if (item.action === 'table') {
+      setTableHover({ rows: 1, cols: 1 })
+      setMenu(m => ({ ...m, tablePicker: true, filter: '', selectedIndex: 0 }))
       return
     }
 
@@ -749,7 +819,38 @@ export function SlashCommandPlugin() {
           />
         </div>
       )}
-      {menu.visible && !menu.embedAction && filteredItems.length > 0 && (
+      {menu.visible && menu.tablePicker && (() => {
+        const dispCols = Math.min(TABLE_MAX, Math.max(5, tableHover.cols + 1))
+        const dispRows = Math.min(TABLE_MAX, Math.max(5, tableHover.rows + 1))
+        return (
+          <div
+            style={{ position: 'fixed', top: menu.top, left: menu.left, zIndex: 9999 }}
+            className="bg-white border border-gray-200 rounded-xl shadow-2xl p-3 select-none"
+            onMouseDown={e => e.preventDefault()}
+          >
+            <div className="flex flex-col gap-1" onMouseLeave={() => setTableHover({ rows: 1, cols: 1 })}>
+              {Array.from({ length: dispRows }).map((_, ri) => (
+                <div key={ri} className="flex gap-1">
+                  {Array.from({ length: dispCols }).map((_, ci) => {
+                    const active = ri < tableHover.rows && ci < tableHover.cols
+                    return (
+                      <button
+                        key={ci}
+                        onMouseEnter={() => setTableHover({ rows: ri + 1, cols: ci + 1 })}
+                        onMouseDown={e => { e.preventDefault(); insertTable(ci + 1, ri + 1) }}
+                        className={`w-4 h-4 rounded-sm border ${active ? 'bg-blue-100 border-blue-500' : 'bg-gray-50 border-gray-300'}`}
+                        aria-label={`${ci + 1} by ${ri + 1}`}
+                      />
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+            <p className="text-center text-xs text-gray-500 mt-2">{tableHover.cols} × {tableHover.rows}</p>
+          </div>
+        )
+      })()}
+      {menu.visible && !menu.embedAction && !menu.tablePicker && filteredItems.length > 0 && (
         <div
           style={{ position: 'fixed', top: menu.top, left: menu.left, zIndex: 9999, maxHeight: Math.min(320, window.innerHeight - menu.top - 8) }}
           className="bg-white border border-gray-200 rounded-xl shadow-2xl py-2 w-72 overflow-y-auto"
@@ -943,4 +1044,346 @@ export function EditorHandlePlugin({ handleRef }) {
     },
   }), [editor])
   return null
+}
+
+// ─── Table helpers / floating menu ───────────────────────────────────────────
+
+const TABLE_MAX_DIM = 20
+
+// Resolve the table cell that currently holds the selection (range or table
+// selection), or null when the selection is outside any table.
+function $activeTableCell() {
+  const sel = $getSelection()
+  if ($isRangeSelection(sel)) {
+    return $findMatchingParent(sel.anchor.getNode(), n => $isTableCellNode(n))
+  }
+  if ($isTableSelection(sel)) {
+    const n = sel.anchor.getNode()
+    return $isTableCellNode(n) ? n : $findMatchingParent(n, x => $isTableCellNode(x))
+  }
+  return null
+}
+
+// Light-mode floating toolbar shown above a table whenever the cursor is in one
+// of its cells. Provides width/alignment, cell styling, add/delete rows &
+// columns, undo/redo, and delete-table.
+export function TableActionMenuPlugin() {
+  const [editor] = useLexicalComposerContext()
+  const [info, setInfo] = useState(null) // { tableKey, cellKey, width, align, cols, rows, bg, textMode, cellAlign }
+  const [pos, setPos] = useState(null)
+  const [panel, setPanel] = useState(null) // 'cell' | 'add' | null
+  const [swatchOpen, setSwatchOpen] = useState(false)
+  const toolbarRef = useRef(null)
+
+  useEffect(() => {
+    return editor.registerUpdateListener(({ editorState }) => {
+      editorState.read(() => {
+        const cell = $activeTableCell()
+        if (!cell) { setInfo(prev => (prev ? null : prev)); return }
+        const table = $getTableNodeFromLexicalNodeOrThrow(cell)
+        let cellAlign = 'left'
+        const firstEl = cell.getChildren().find(c => $isElementNode(c))
+        if (firstEl && firstEl.getFormatType) {
+          cellAlign = firstEl.getFormatType() === 'center' ? 'center' : 'left'
+        }
+        // Collect all selected cell keys so multi-cell operations apply to all of them.
+        const sel = $getSelection()
+        let cellKeys = [cell.getKey()]
+        if ($isTableSelection(sel)) {
+          const selected = sel.getNodes().filter(n => $isTableCellNode(n))
+          if (selected.length > 0) cellKeys = selected.map(n => n.getKey())
+        }
+        setInfo({
+          tableKey: table.getKey(),
+          cellKey: cell.getKey(),
+          cellKeys,
+          width: table.getTableWidth ? table.getTableWidth() : 'regular',
+          borderColor: table.getBorderColor ? table.getBorderColor() : '#e5e7eb',
+          cols: table.getColumnCount(),
+          rows: table.getChildrenSize(),
+          bg: cell.getBackgroundColor ? cell.getBackgroundColor() : null,
+          textMode: cell.getTextColorMode ? cell.getTextColorMode() : 'auto',
+          cellAlign,
+        })
+      })
+    })
+  }, [editor])
+
+  // Hide panels when the menu hides.
+  useEffect(() => { if (!info) { setPanel(null); setSwatchOpen(false) } }, [info])
+
+  // Position the toolbar above the table.
+  useLayoutEffect(() => {
+    if (!info) { setPos(null); return }
+    function calc() {
+      const tableEl = editor.getElementByKey(info.tableKey)
+      if (!tableEl) { setPos(null); return }
+      const rect = tableEl.getBoundingClientRect()
+      const width = toolbarRef.current?.offsetWidth || 360
+      let left = rect.left + window.scrollX + rect.width / 2 - width / 2
+      left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - width - 8))
+      let top = rect.top + window.scrollY - 48
+      if (top < window.scrollY + 8) top = rect.bottom + window.scrollY + 8
+      setPos({ top, left })
+    }
+    calc()
+    window.addEventListener('scroll', calc, true)
+    window.addEventListener('resize', calc)
+    return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
+  }, [editor, info])
+
+  if (!info || !pos) return null
+
+  const run = (fn) => editor.update(fn)
+  const onTable = (fn) => run(() => { const t = $getNodeByKey(info.tableKey); if (t && $isTableNode(t)) fn(t) })
+  const onCells = (fn) => run(() => { info.cellKeys.forEach(key => { const c = $getNodeByKey(key); if (c && $isTableCellNode(c)) fn(c) }) })
+
+  const setWidth = (w) => onTable(t => t.setTableWidth && t.setTableWidth(w))
+  const insertColumn = (after) => { run(() => $insertTableColumn__EXPERIMENTAL(after)); setPanel(null) }
+  const insertRow = (after) => { run(() => $insertTableRow__EXPERIMENTAL(after)); setPanel(null) }
+  const deleteColumn = () => run(() => $deleteTableColumn__EXPERIMENTAL())
+  const deleteRow = () => run(() => $deleteTableRow__EXPERIMENTAL())
+  const deleteTable = () => run(() => {
+    const t = $getNodeByKey(info.tableKey)
+    if (!t) return
+    const para = $createParagraphNode()
+    t.insertAfter(para)
+    t.remove()
+    para.selectStart()
+  })
+  const setCellBg = (hex) => onCells(c => c.setBackgroundColor(hex === 'transparent' ? null : hex))
+  const setCellTextMode = (mode) => onCells(c => c.setTextColorMode && c.setTextColorMode(mode))
+  const setCellAlign = (a) => {
+    run(() => {
+      info.cellKeys.forEach(key => {
+        const c = $getNodeByKey(key)
+        if (!c || !$isTableCellNode(c)) return
+        c.getChildren().forEach(child => { if ($isElementNode(child)) child.setFormat(a) })
+      })
+    })
+    setInfo(prev => prev ? { ...prev, cellAlign: a } : prev)
+  }
+  const setBorderColor = (hex) => onTable(t => t.setBorderColor && t.setBorderColor(hex))
+
+  const grp = 'flex gap-0.5 bg-gray-100 rounded-lg p-0.5'
+  const btn = (active) => `p-1.5 rounded-md transition-colors ${active ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
+  const ico = 'p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors'
+  const divider = <div className="w-px h-5 bg-gray-200 mx-0.5" />
+  const colsAtMax = info.cols >= TABLE_MAX_DIM
+  const rowsAtMax = info.rows >= TABLE_MAX_DIM
+
+  return createPortal(
+    <div
+      ref={toolbarRef}
+      style={{ position: 'absolute', top: pos.top, left: pos.left, zIndex: 9999 }}
+      className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl px-1.5 py-1 shadow-2xl"
+      onMouseDown={e => e.preventDefault()}
+    >
+      {/* Width */}
+      <div className={grp}>
+        <Tooltip content="Regular width"><button className={btn(info.width !== 'wide')} onClick={() => setWidth('regular')}><AlignJustify size={15} /></button></Tooltip>
+        <Tooltip content="Wide width"><button className={btn(info.width === 'wide')} onClick={() => setWidth('wide')}><StretchHorizontal size={15} /></button></Tooltip>
+      </div>
+      {divider}
+      {/* Cell alignment */}
+      <div className={grp}>
+        <Tooltip content="Align left"><button className={btn(info.cellAlign !== 'center')} onClick={() => setCellAlign('left')}><AlignLeft size={15} /></button></Tooltip>
+        <Tooltip content="Align center"><button className={btn(info.cellAlign === 'center')} onClick={() => setCellAlign('center')}><AlignCenter size={15} /></button></Tooltip>
+      </div>
+      {/* Color options */}
+      <div className="relative">
+        <Tooltip content="Color options">
+          <button className={`${ico} ${panel === 'cell' ? 'bg-gray-100 text-gray-800' : ''}`} onClick={() => setPanel(p => p === 'cell' ? null : 'cell')}><PaintBucket size={15} /></button>
+        </Tooltip>
+        {panel === 'cell' && (
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white border border-gray-200 rounded-xl shadow-2xl p-3 w-56 space-y-3" onMouseDown={e => e.preventDefault()}>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">Background color</span>
+              <ColorSwatchMenu
+                value={info.bg && info.bg !== 'transparent' ? info.bg : 'transparent'}
+                onChange={setCellBg}
+                presets={['transparent', '#f3f4f6', '#e5e7eb', '#9ca3af', '#fde047']}
+                onOpenChange={setSwatchOpen}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">Text color</span>
+              <div className={grp}>
+                <Tooltip content="Auto"><button className={btn(info.textMode === 'auto')} onClick={() => setCellTextMode('auto')}><Eclipse size={15} /></button></Tooltip>
+                <Tooltip content="Light"><button className={btn(info.textMode === 'light')} onClick={() => setCellTextMode('light')}><Sun size={15} /></button></Tooltip>
+                <Tooltip content="Dark"><button className={btn(info.textMode === 'dark')} onClick={() => setCellTextMode('dark')}><Moon size={15} /></button></Tooltip>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+      {divider}
+      {/* Table options */}
+      <div className="relative">
+        <Tooltip content="Table options">
+          <button className={`${ico} ${panel === 'add' ? 'bg-gray-100 text-gray-800' : ''}`} onClick={() => setPanel(p => p === 'add' ? null : 'add')}><Columns3Cog size={16} /></button>
+        </Tooltip>
+        {panel === 'add' && (
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white border border-gray-200 rounded-xl shadow-2xl px-2 py-1.5 flex items-center gap-0.5" onMouseDown={e => e.preventDefault()}>
+            <Tooltip content="Insert column left"><button className={ico} disabled={colsAtMax} onClick={() => insertColumn(false)} style={colsAtMax ? { opacity: 0.3, pointerEvents: 'none' } : {}}><ArrowLeftToLine size={15} /></button></Tooltip>
+            <Tooltip content="Insert column right"><button className={ico} disabled={colsAtMax} onClick={() => insertColumn(true)} style={colsAtMax ? { opacity: 0.3, pointerEvents: 'none' } : {}}><ArrowRightToLine size={15} /></button></Tooltip>
+            <Tooltip content="Insert row above"><button className={ico} disabled={rowsAtMax} onClick={() => insertRow(false)} style={rowsAtMax ? { opacity: 0.3, pointerEvents: 'none' } : {}}><ArrowUpToLine size={15} /></button></Tooltip>
+            <Tooltip content="Insert row below"><button className={ico} disabled={rowsAtMax} onClick={() => insertRow(true)} style={rowsAtMax ? { opacity: 0.3, pointerEvents: 'none' } : {}}><ArrowDownToLine size={15} /></button></Tooltip>
+            <div className="w-px h-5 bg-gray-200 mx-1" />
+            <Tooltip content="Delete column"><button className={`${ico} hover:text-red-600`} onClick={deleteColumn}><RectangleVertical size={15} /></button></Tooltip>
+            <Tooltip content="Delete row"><button className={`${ico} hover:text-red-600`} onClick={deleteRow}><RectangleHorizontal size={15} /></button></Tooltip>
+          </div>
+        )}
+      </div>
+      {/* Table borders */}
+      <div className="relative">
+        <Tooltip content="Table borders">
+          <button className={`${ico} ${panel === 'border' ? 'bg-gray-100 text-gray-800' : ''}`} onClick={() => setPanel(p => p === 'border' ? null : 'border')}><Grid2x2 size={15} /></button>
+        </Tooltip>
+        {panel === 'border' && (
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white border border-gray-200 rounded-xl shadow-2xl p-3 w-52" onMouseDown={e => e.preventDefault()}>
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-sm text-gray-500">Border color</span>
+              <ColorSwatchMenu
+                value={info.borderColor || '#e5e7eb'}
+                onChange={setBorderColor}
+                presets={['transparent', '#e5e7eb', '#9ca3af', '#6b7280', '#374151', '#111827']}
+                onOpenChange={setSwatchOpen}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+      {divider}
+      <Tooltip content="Undo"><button className={ico} onClick={() => editor.dispatchCommand(UNDO_COMMAND, undefined)}><Undo2 size={15} /></button></Tooltip>
+      <Tooltip content="Redo"><button className={ico} onClick={() => editor.dispatchCommand(REDO_COMMAND, undefined)}><Redo2 size={15} /></button></Tooltip>
+      {divider}
+      <Tooltip content="Delete table"><button className={`${ico} hover:text-red-600`} onClick={deleteTable}><Trash2 size={15} /></button></Tooltip>
+    </div>,
+    document.body
+  )
+}
+
+
+// ─── Table column resize ─────────────────────────────────────────────────────
+// Renders thin drag handles at each column boundary of the active table.
+// Interior handles redistribute width between two neighbouring columns; the
+// right-most handle grows/shrinks the whole table.
+export function TableColumnResizePlugin() {
+  const [editor] = useLexicalComposerContext()
+  const [tableKey, setTableKey] = useState(null)
+  const [handles, setHandles] = useState([])
+  const dragRef = useRef(null)
+
+  useEffect(() => {
+    return editor.registerUpdateListener(({ editorState }) => {
+      editorState.read(() => {
+        const cell = $activeTableCell()
+        if (!cell) { setTableKey(k => (k ? null : k)); return }
+        const table = $getTableNodeFromLexicalNodeOrThrow(cell)
+        setTableKey(table.getKey())
+      })
+    })
+  }, [editor])
+
+  useLayoutEffect(() => {
+    if (!tableKey) { setHandles([]); return }
+    function calc() {
+      if (dragRef.current) return
+      const tableEl = editor.getElementByKey(tableKey)
+      const firstRow = tableEl?.querySelector('tr')
+      if (!tableEl || !firstRow) { setHandles([]); return }
+      const tableRect = tableEl.getBoundingClientRect()
+      const cells = [...firstRow.children]
+      setHandles(cells.map((c, i) => {
+        const r = c.getBoundingClientRect()
+        return { index: i, isLast: i === cells.length - 1, x: r.right + window.scrollX, top: tableRect.top + window.scrollY, height: tableRect.height }
+      }))
+    }
+    calc()
+    const unreg = editor.registerUpdateListener(() => calc())
+    window.addEventListener('scroll', calc, true)
+    window.addEventListener('resize', calc)
+    return () => { unreg(); window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
+  }, [editor, tableKey])
+
+  function currentWidths(tableEl, count) {
+    const cols = tableEl.querySelectorAll(':scope > colgroup > col')
+    if (cols.length === count) {
+      const ws = [...cols].map(c => parseFloat(c.style.width) || 0)
+      if (ws.every(w => w > 0)) return ws
+    }
+    const firstRow = tableEl.querySelector('tr')
+    return [...firstRow.children].map(c => Math.round(c.getBoundingClientRect().width))
+  }
+
+  function onHandleDown(e, handle) {
+    e.preventDefault()
+    const tableEl = editor.getElementByKey(tableKey)
+    if (!tableEl) return
+    let count = 0
+    editor.getEditorState().read(() => { const t = $getNodeByKey(tableKey); if (t) count = t.getColumnCount() })
+    const startWidths = currentWidths(tableEl, count)
+    dragRef.current = { ...handle, startX: e.clientX, startWidths, tableEl, count }
+
+    const move = (ev) => {
+      const d = dragRef.current
+      if (!d) return
+      const dx = ev.clientX - d.startX
+      const widths = liveWidths(d, dx)
+      applyDOMWidths(d.tableEl, widths)
+    }
+    const up = (ev) => {
+      const d = dragRef.current
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', up)
+      dragRef.current = null
+      if (!d) return
+      const widths = liveWidths(d, ev.clientX - d.startX)
+      editor.update(() => {
+        const t = $getNodeByKey(tableKey)
+        if (t && $isTableNode(t)) t.setColWidths(widths)
+      })
+    }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+  }
+
+  function liveWidths(d, dx) {
+    const MIN = 48
+    const w = [...d.startWidths]
+    const i = d.index
+    if (d.isLast) {
+      w[i] = Math.max(MIN, d.startWidths[i] + dx)
+    } else {
+      const delta = Math.max(MIN - d.startWidths[i], Math.min(d.startWidths[i + 1] - MIN, dx))
+      w[i] = d.startWidths[i] + delta
+      w[i + 1] = d.startWidths[i + 1] - delta
+    }
+    return w
+  }
+
+  function applyDOMWidths(tableEl, widths) {
+    const cols = tableEl.querySelectorAll(':scope > colgroup > col')
+    if (cols.length === widths.length) widths.forEach((wpx, i) => { cols[i].style.width = `${wpx}px` })
+    tableEl.style.width = `${widths.reduce((a, b) => a + b, 0)}px`
+  }
+
+  if (!tableKey || !handles.length) return null
+
+  return createPortal(
+    <>
+      {handles.map(h => (
+        <div
+          key={h.index}
+          onMouseDown={e => onHandleDown(e, h)}
+          style={{ position: 'absolute', top: h.top, left: h.x - 3, height: h.height, width: 7, zIndex: 9998, cursor: 'col-resize' }}
+          className="group"
+        >
+          <div className="mx-auto w-px h-full bg-transparent group-hover:bg-blue-400" />
+        </div>
+      ))}
+    </>,
+    document.body
+  )
 }
