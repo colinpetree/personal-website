@@ -5,7 +5,7 @@ import {
   Type, Heading1, Heading2, Heading3, Quote, Code2,
   List, ListOrdered, Minus, Image, Video, Music, Paperclip, LayoutGrid, Plus, MessageSquare, MousePointerClick, ChevronDown, PanelTop,
   PlayCircle, Film, Music2,
-  Table, AlignLeft, AlignCenter, AlignJustify, StretchHorizontal, Trash2, Undo2, Redo2,
+  Table, AlignLeft, AlignCenter, Trash2, Undo2, Redo2,
   ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, ArrowDownToLine,
   Eclipse, Sun, Moon, Columns3Cog, RectangleHorizontal, RectangleVertical, Grid2x2, PaintBucket,
 } from 'lucide-react'
@@ -529,7 +529,7 @@ export function SlashCommandPlugin() {
       // bigger ones grow toward / past the column. CSS max-width caps prevent
       // overflow (regular → text column, wide → 80rem like the wide header).
       if (table.setColWidths) table.setColWidths(Array(cols).fill(170))
-      if (table.setTableWidth) table.setTableWidth(cols >= 5 ? 'wide' : 'regular')
+      if (table.setTableWidth) table.setTableWidth(cols >= 6 ? 'wide' : 'regular')
       // Ensure there is always a paragraph after the table to escape into.
       if (!table.getNextSibling()) table.insertAfter($createParagraphNode())
     })
@@ -1138,10 +1138,32 @@ export function TableActionMenuPlugin() {
   const onTable = (fn) => run(() => { const t = $getNodeByKey(info.tableKey); if (t && $isTableNode(t)) fn(t) })
   const onCells = (fn) => run(() => { info.cellKeys.forEach(key => { const c = $getNodeByKey(key); if (c && $isTableCellNode(c)) fn(c) }) })
 
-  const setWidth = (w) => onTable(t => t.setTableWidth && t.setTableWidth(w))
-  const insertColumn = (after) => { run(() => $insertTableColumn__EXPERIMENTAL(after)); setPanel(null) }
+  const insertColumn = (after) => {
+    run(() => {
+      const t = $getNodeByKey(info.tableKey)
+      if (!t || !$isTableNode(t)) return
+      const oldWidths = t.getColWidths() || []
+      const oldTotal = oldWidths.reduce((a, b) => a + (b || 0), 0) || info.cols * 170
+      $insertTableColumn__EXPERIMENTAL(after)
+      const updated = $getNodeByKey(info.tableKey)
+      if (!updated || !$isTableNode(updated)) return
+      const newCount = info.cols + 1
+      updated.setTableWidth(newCount >= 6 ? 'wide' : 'regular')
+      const maxPx = newCount >= 6 ? 1280 : 720
+      const targetTotal = Math.min(oldTotal + 170, maxPx)
+      updated.setColWidths(Array(newCount).fill(Math.floor(targetTotal / newCount)))
+    })
+  }
   const insertRow = (after) => { run(() => $insertTableRow__EXPERIMENTAL(after)); setPanel(null) }
-  const deleteColumn = () => run(() => $deleteTableColumn__EXPERIMENTAL())
+  const deleteColumn = () => {
+    run(() => {
+      $deleteTableColumn__EXPERIMENTAL()
+      const updated = $getNodeByKey(info.tableKey)
+      if (!updated || !$isTableNode(updated)) return
+      const newCount = info.cols - 1
+      updated.setTableWidth(newCount >= 6 ? 'wide' : 'regular')
+    })
+  }
   const deleteRow = () => run(() => $deleteTableRow__EXPERIMENTAL())
   const deleteTable = () => run(() => {
     const t = $getNodeByKey(info.tableKey)
@@ -1179,12 +1201,6 @@ export function TableActionMenuPlugin() {
       className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl px-1.5 py-1 shadow-2xl"
       onMouseDown={e => e.preventDefault()}
     >
-      {/* Width */}
-      <div className={grp}>
-        <Tooltip content="Regular width"><button className={btn(info.width !== 'wide')} onClick={() => setWidth('regular')}><AlignJustify size={15} /></button></Tooltip>
-        <Tooltip content="Wide width"><button className={btn(info.width === 'wide')} onClick={() => setWidth('wide')}><StretchHorizontal size={15} /></button></Tooltip>
-      </div>
-      {divider}
       {/* Cell alignment */}
       <div className={grp}>
         <Tooltip content="Align left"><button className={btn(info.cellAlign !== 'center')} onClick={() => setCellAlign('left')}><AlignLeft size={15} /></button></Tooltip>

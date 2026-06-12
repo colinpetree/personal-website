@@ -12,7 +12,7 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { TableNode, TableCellNode } from '@lexical/table'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Columns2, Expand, Link2, X, Music, FileText, Plus, Download, Repeat, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon } from 'lucide-react'
+import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Columns2, StretchHorizontal, Link2, X, Music, FileText, Plus, Download, Repeat, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon } from 'lucide-react'
 import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
 
 function resolveTextColor(mode, bgHex) {
@@ -164,9 +164,9 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
           onMouseDown={e => e.preventDefault()}
         >
           {[
-            { key: 'regular', icon: AlignCenter, title: 'Regular width' },
-            { key: 'wide',    icon: Maximize2,   title: 'Wide' },
-            { key: 'full',    icon: Expand,      title: 'Full width' },
+            { key: 'regular', icon: AlignJustify,      title: 'Regular width' },
+            { key: 'wide',    icon: StretchHorizontal, title: 'Wide width' },
+            { key: 'full',    icon: Maximize2,           title: 'Full width' },
           ].map(({ key: w, icon: Icon, title }) => (
             <Tooltip key={w} content={title}>
               <button
@@ -484,9 +484,9 @@ function VideoNodeComponent({ src, caption, width, loop, nodeKey, editor }) {
           onMouseDown={e => e.preventDefault()}
         >
           {[
-            { key: 'regular', icon: AlignCenter, title: 'Regular width' },
-            { key: 'wide',    icon: Maximize2,   title: 'Wide' },
-            { key: 'full',    icon: Expand,      title: 'Full width' },
+            { key: 'regular', icon: AlignJustify,      title: 'Regular width' },
+            { key: 'wide',    icon: StretchHorizontal, title: 'Wide width' },
+            { key: 'full',    icon: Maximize2,           title: 'Full width' },
           ].map(({ key: w, icon: Icon, title }) => (
             <Tooltip key={w} content={title}>
               <button
@@ -3188,15 +3188,15 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                   className={`p-1.5 rounded-md transition-colors ${layout === 'regular' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   onClick={() => commitField('setLayout', 'regular')}
                 >
-                  <AlignCenter size={15} />
+                  <AlignJustify size={15} />
                 </button>
               </Tooltip>
-              <Tooltip content="Wide">
+              <Tooltip content="Wide width">
                 <button
                   className={`p-1.5 rounded-md transition-colors ${layout === 'wide' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   onClick={() => commitField('setLayout', 'wide')}
                 >
-                  <AlignJustify size={15} />
+                  <StretchHorizontal size={15} />
                 </button>
               </Tooltip>
               <Tooltip content="Full width">
