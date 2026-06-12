@@ -255,6 +255,97 @@ html {
   padding: 0;
 }
 
+/* ─── Tables — shared by the editor and the public blog ─────────────────────
+   The table's pixel width is set inline (sum of column widths) so column
+   drag-resize is deterministic; table-layout: fixed makes the <colgroup>
+   widths authoritative. Tailwind Typography styles tables via zero-specificity
+   :where() selectors, so these plain selectors override them. */
+table.blog-table {
+  table-layout: fixed;
+  border-collapse: collapse;
+  box-sizing: border-box;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+/* Placement + size caps are derived from width mode (no manual alignment):
+   regular → left-aligned and capped to the body-text column; wide → centered
+   and capped to 80rem (matching the wide header), breaking out of the column.
+   The inline pixel width (sum of column widths) drives drag-resize; max-width
+   here guarantees the table never overflows its allowed area. The container
+   differs between the editor (each block centered in a 48rem column → text
+   spans the central 45rem) and the public page (the container already IS the
+   ~45rem column), so the two are scoped separately. margin:auto does NOT
+   center an element wider than its container, so wide uses translateX. */
+.blog-content table.blog-table-regular {
+  max-width: 100%;
+  margin-left: 0;
+  margin-right: auto;
+}
+.blog-content table.blog-table-wide {
+  max-width: min(80rem, calc(100vw - 2rem));
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+[contenteditable] table.blog-table-regular {
+  max-width: min(45rem, 100%);
+  margin-left: max(0px, calc((100% - 45rem) / 2));
+  margin-right: auto;
+}
+[contenteditable] table.blog-table-wide {
+  max-width: min(80rem, 100%);
+  margin-left: 50%;
+  transform: translateX(-50%);
+}
+table.blog-table td,
+table.blog-table th {
+  border: 1px solid var(--table-border-color, #e5e7eb);
+  padding: 8px 12px;
+  vertical-align: top;
+  min-width: 48px;
+  word-break: break-word;
+}
+/* Reset prose paragraph spacing inside cells so rows hug their content */
+table.blog-table td > p,
+table.blog-table th > p {
+  margin: 0;
+}
+table.blog-table td > p + p,
+table.blog-table th > p + p {
+  margin-top: 0.5rem;
+}
+/* Strip the editor paragraph's max-width / px-6 indent inside cells */
+table.blog-table td .editor-paragraph,
+table.blog-table th .editor-paragraph {
+  max-width: none;
+  padding-left: 0;
+  padding-right: 0;
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 0;
+}
+table.blog-table td .editor-paragraph + .editor-paragraph,
+table.blog-table th .editor-paragraph + .editor-paragraph {
+  margin-top: 0.5rem;
+}
+/* Belt-and-suspenders: suppress slash prompt placeholder inside cells */
+table.blog-table td .editor-paragraph.is-cursor-para:has(> br:only-child)::before,
+table.blog-table th .editor-paragraph.is-cursor-para:has(> br:only-child)::before {
+  content: none;
+}
+/* Multi-cell drag selection highlight (editor only) */
+.blog-table-cell-selected {
+  caret-color: transparent;
+  position: relative;
+}
+.blog-table-cell-selected::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid #3b82f6;
+  pointer-events: none;
+  z-index: 2;
+}
+
 /* Header button — reset prose link styles */
 .blog-content .header-btn {
   display: inline-block !important;

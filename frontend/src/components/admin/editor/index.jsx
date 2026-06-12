@@ -9,8 +9,10 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListNode, ListItemNode } from '@lexical/list'
 import { LinkNode } from '@lexical/link'
+import { TablePlugin } from '@lexical/react/LexicalTablePlugin'
+import { TableNode, TableRowNode, TableCellNode } from '@lexical/table'
 import theme from './theme'
-import { ImageNode, VideoNode, AudioNode, FileNode, GalleryNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, CodeBlockNode, HeaderNode, YouTubeNode, VimeoNode, SpotifyNode } from './nodes'
+import { ImageNode, VideoNode, AudioNode, FileNode, GalleryNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, CodeBlockNode, HeaderNode, YouTubeNode, VimeoNode, SpotifyNode, WideTableNode, StyledTableCellNode } from './nodes'
 import {
   LoadHtmlPlugin,
   HtmlOutputPlugin,
@@ -19,6 +21,8 @@ import {
   ListIndentPlugin,
   DecoratorArrowNavigationPlugin,
   EditorHandlePlugin,
+  TableActionMenuPlugin,
+  TableColumnResizePlugin,
 } from './plugins'
 
 const RichTextEditor = forwardRef(function RichTextEditor(
@@ -28,7 +32,12 @@ const RichTextEditor = forwardRef(function RichTextEditor(
   const initialConfig = {
     namespace: 'BlogEditor',
     theme,
-    nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, CodeBlockNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, HeaderNode, ImageNode, VideoNode, AudioNode, FileNode, GalleryNode, YouTubeNode, VimeoNode, SpotifyNode],
+    nodes: [
+      HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, CodeBlockNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, HeaderNode, ImageNode, VideoNode, AudioNode, FileNode, GalleryNode, YouTubeNode, VimeoNode, SpotifyNode,
+      TableNode, TableRowNode, TableCellNode, WideTableNode, StyledTableCellNode,
+      { replace: TableNode, with: () => new WideTableNode(), withKlass: WideTableNode },
+      { replace: TableCellNode, with: (n) => new StyledTableCellNode(n.__headerState, n.__colSpan, n.__width), withKlass: StyledTableCellNode },
+    ],
     onError: (error) => { throw error },
   }
 
@@ -52,12 +61,15 @@ const RichTextEditor = forwardRef(function RichTextEditor(
       <HistoryPlugin />
       <ListPlugin />
       <LinkPlugin />
+      <TablePlugin hasCellMerge hasCellBackgroundColor hasTabHandler />
       <LoadHtmlPlugin html={initialHtml} />
       <HtmlOutputPlugin onChange={onChange} />
       <FloatingToolbarPlugin />
       <SlashCommandPlugin />
       <ListIndentPlugin />
       <DecoratorArrowNavigationPlugin />
+      <TableActionMenuPlugin />
+      <TableColumnResizePlugin />
       <EditorHandlePlugin handleRef={ref} />
     </LexicalComposer>
   )
