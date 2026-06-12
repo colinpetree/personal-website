@@ -91,6 +91,7 @@ html {
 .code-block-textarea::-webkit-scrollbar-thumb {
   background: #d1d5db;
   border-radius: 2px;
+  cursor: pointer;
 }
 .code-block-textarea::-webkit-scrollbar-button {
   display: none;
