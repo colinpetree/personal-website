@@ -7,7 +7,7 @@ import {
   PlayCircle, Film, Music2,
   Table, AlignLeft, AlignCenter, Trash2, Undo2, Redo2,
   ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, ArrowDownToLine,
-  Eclipse, Sun, Moon, Columns3Cog, RectangleHorizontal, RectangleVertical, Grid2x2, PaintBucket,
+  Columns3Cog, RectangleHorizontal, RectangleVertical, Grid2x2, PaintBucket,
 } from 'lucide-react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
@@ -1078,11 +1078,13 @@ function $activeTableCell() {
 // columns, undo/redo, and delete-table.
 export function TableActionMenuPlugin() {
   const [editor] = useLexicalComposerContext()
-  const [info, setInfo] = useState(null) // { tableKey, cellKey, width, align, cols, rows, bg, textMode, cellAlign }
+  const [info, setInfo] = useState(null) // { tableKey, cellKey, width, align, cols, rows, bg, textColor, cellAlign }
   const [pos, setPos] = useState(null)
-  const [panel, setPanel] = useState(null) // 'cell' | 'add' | null
-  const [swatchOpen, setSwatchOpen] = useState(false)
+  const [panel, setPanel] = useState(null) // 'textColor' | 'cellBg' | 'border' | 'add' | null
   const toolbarRef = useRef(null)
+  const textColorBtnRef = useRef(null)
+  const cellBgBtnRef = useRef(null)
+  const borderBtnRef = useRef(null)
 
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }) => {
@@ -1111,7 +1113,7 @@ export function TableActionMenuPlugin() {
           cols: table.getColumnCount(),
           rows: table.getChildrenSize(),
           bg: cell.getBackgroundColor ? cell.getBackgroundColor() : null,
-          textMode: cell.getTextColorMode ? cell.getTextColorMode() : 'auto',
+          textColor: cell.getTextColor ? cell.getTextColor() : null,
           cellAlign,
         })
       })
@@ -1119,7 +1121,7 @@ export function TableActionMenuPlugin() {
   }, [editor])
 
   // Hide panels when the menu hides.
-  useEffect(() => { if (!info) { setPanel(null); setSwatchOpen(false) } }, [info])
+  useEffect(() => { if (!info) setPanel(null) }, [info])
 
   // Position the toolbar above the table.
   useLayoutEffect(() => {
@@ -1183,7 +1185,7 @@ export function TableActionMenuPlugin() {
     para.selectStart()
   })
   const setCellBg = (hex) => onCells(c => c.setBackgroundColor(hex === 'transparent' ? null : hex))
-  const setCellTextMode = (mode) => onCells(c => c.setTextColorMode && c.setTextColorMode(mode))
+  const setCellTextColor = (hex) => onCells(c => c.setTextColor && c.setTextColor(hex))
   const setCellAlign = (a) => {
     run(() => {
       info.cellKeys.forEach(key => {
@@ -1215,33 +1217,48 @@ export function TableActionMenuPlugin() {
         <Tooltip content="Align left"><button className={btn(info.cellAlign !== 'center')} onClick={() => setCellAlign('left')}><AlignLeft size={15} /></button></Tooltip>
         <Tooltip content="Align center"><button className={btn(info.cellAlign === 'center')} onClick={() => setCellAlign('center')}><AlignCenter size={15} /></button></Tooltip>
       </div>
-      {/* Color options */}
-      <div className="relative">
-        <Tooltip content="Color options">
-          <button className={`${ico} ${panel === 'cell' ? 'bg-gray-100 text-gray-800' : ''}`} onClick={() => setPanel(p => p === 'cell' ? null : 'cell')}><PaintBucket size={15} /></button>
-        </Tooltip>
-        {panel === 'cell' && (
-          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white border border-gray-200 rounded-xl shadow-2xl p-3 w-56 space-y-3" onMouseDown={e => e.preventDefault()}>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500">Background color</span>
-              <ColorSwatchMenu
-                value={info.bg && info.bg !== 'transparent' ? info.bg : 'transparent'}
-                onChange={setCellBg}
-                presets={['transparent', '#f3f4f6', '#e5e7eb', '#9ca3af', '#fde047']}
-                onOpenChange={setSwatchOpen}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-500">Text color</span>
-              <div className={grp}>
-                <Tooltip content="Auto"><button className={btn(info.textMode === 'auto')} onClick={() => setCellTextMode('auto')}><Eclipse size={15} /></button></Tooltip>
-                <Tooltip content="Light"><button className={btn(info.textMode === 'light')} onClick={() => setCellTextMode('light')}><Sun size={15} /></button></Tooltip>
-                <Tooltip content="Dark"><button className={btn(info.textMode === 'dark')} onClick={() => setCellTextMode('dark')}><Moon size={15} /></button></Tooltip>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+      {/* Text color */}
+      <Tooltip content="Text color">
+        <button ref={textColorBtnRef} className={`${ico} ${panel === 'textColor' ? 'bg-gray-100 text-gray-800' : ''}`} onMouseDown={e => { e.preventDefault(); e.stopPropagation() }} onClick={() => setPanel(p => p === 'textColor' ? null : 'textColor')}><Type size={15} /></button>
+      </Tooltip>
+      {panel === 'textColor' && (
+        <ColorSwatchMenu
+          anchorEl={textColorBtnRef.current}
+          value={info.textColor || '#000000'}
+          onChange={setCellTextColor}
+          presets={['#000000', '#1f2937', '#374151', '#6b7280', '#9ca3af', '#d1d5db', '#f9fafb', '#ffffff']}
+          onOpenChange={(open) => { if (!open) setPanel(null) }}
+          initialOpen
+        />
+      )}
+      {/* Color fill */}
+      <Tooltip content="Color fill">
+        <button ref={cellBgBtnRef} className={`${ico} ${panel === 'cellBg' ? 'bg-gray-100 text-gray-800' : ''}`} onMouseDown={e => { e.preventDefault(); e.stopPropagation() }} onClick={() => setPanel(p => p === 'cellBg' ? null : 'cellBg')}><PaintBucket size={15} /></button>
+      </Tooltip>
+      {panel === 'cellBg' && (
+        <ColorSwatchMenu
+          anchorEl={cellBgBtnRef.current}
+          value={info.bg && info.bg !== 'transparent' ? info.bg : 'transparent'}
+          onChange={setCellBg}
+          presets={['transparent', '#f3f4f6', '#e5e7eb', '#9ca3af', '#fde047']}
+          onOpenChange={(open) => { if (!open) setPanel(null) }}
+          initialOpen
+        />
+      )}
+      {/* Border color */}
+      <Tooltip content="Border color">
+        <button ref={borderBtnRef} className={`${ico} ${panel === 'border' ? 'bg-gray-100 text-gray-800' : ''}`} onMouseDown={e => { e.preventDefault(); e.stopPropagation() }} onClick={() => setPanel(p => p === 'border' ? null : 'border')}><Grid2x2 size={15} /></button>
+      </Tooltip>
+      {panel === 'border' && (
+        <ColorSwatchMenu
+          anchorEl={borderBtnRef.current}
+          value={info.borderColor || '#e5e7eb'}
+          onChange={setBorderColor}
+          presets={['transparent', '#e5e7eb', '#9ca3af', '#6b7280', '#374151', '#111827']}
+          onOpenChange={(open) => { if (!open) setPanel(null) }}
+          initialOpen
+        />
+      )}
       {divider}
       {/* Table options */}
       <div className="relative">
@@ -1257,25 +1274,6 @@ export function TableActionMenuPlugin() {
             <div className="w-px h-5 bg-gray-200 mx-1" />
             <Tooltip content="Delete column"><button className={`${ico} hover:text-red-600`} onClick={deleteColumn}><RectangleVertical size={15} /></button></Tooltip>
             <Tooltip content="Delete row"><button className={`${ico} hover:text-red-600`} onClick={deleteRow}><RectangleHorizontal size={15} /></button></Tooltip>
-          </div>
-        )}
-      </div>
-      {/* Table borders */}
-      <div className="relative">
-        <Tooltip content="Table borders">
-          <button className={`${ico} ${panel === 'border' ? 'bg-gray-100 text-gray-800' : ''}`} onClick={() => setPanel(p => p === 'border' ? null : 'border')}><Grid2x2 size={15} /></button>
-        </Tooltip>
-        {panel === 'border' && (
-          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 bg-white border border-gray-200 rounded-xl shadow-2xl p-3 w-52" onMouseDown={e => e.preventDefault()}>
-            <div className="flex items-center justify-between gap-4">
-              <span className="text-sm text-gray-500">Border color</span>
-              <ColorSwatchMenu
-                value={info.borderColor || '#e5e7eb'}
-                onChange={setBorderColor}
-                presets={['transparent', '#e5e7eb', '#9ca3af', '#6b7280', '#374151', '#111827']}
-                onOpenChange={setSwatchOpen}
-              />
-            </div>
           </div>
         )}
       </div>

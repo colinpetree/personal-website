@@ -4349,42 +4349,39 @@ export class WideTableNode extends TableNode {
 }
 
 export class StyledTableCellNode extends TableCellNode {
-  __textColorMode // 'auto' | 'light' | 'dark'
+  __textColor // hex string | null
 
   static getType() { return 'styled-tablecell' }
 
   static clone(node) {
     const cell = new StyledTableCellNode(node.__headerState, node.__colSpan, node.__width, node.__key)
-    cell.__textColorMode = node.__textColorMode
+    cell.__textColor = node.__textColor
     return cell
   }
 
   afterCloneFrom(node) {
     super.afterCloneFrom(node)
-    this.__textColorMode = node.__textColorMode
+    this.__textColor = node.__textColor
   }
 
   constructor(headerState, colSpan, width, key) {
     super(headerState, colSpan, width, key)
-    this.__textColorMode = 'auto'
+    this.__textColor = null
   }
 
-  getTextColorMode() { return this.getLatest().__textColorMode }
-  setTextColorMode(mode) { const self = this.getWritable(); self.__textColorMode = mode; return self }
-
-  resolvedTextColor() {
-    const bg = this.getBackgroundColor()
-    return resolveTextColor(this.__textColorMode, bg && bg !== 'transparent' ? bg : '#ffffff')
-  }
+  getTextColor() { return this.getLatest().__textColor }
+  setTextColor(hex) { const self = this.getWritable(); self.__textColor = hex || null; return self }
 
   createDOM(config) {
     const el = super.createDOM(config)
-    el.style.color = this.resolvedTextColor()
+    el.style.color = this.__textColor || ''
     return el
   }
 
-  updateDOM(prevNode) {
-    return super.updateDOM(prevNode) || prevNode.__textColorMode !== this.__textColorMode
+  updateDOM(prevNode, dom, config) {
+    const result = super.updateDOM(prevNode, dom, config)
+    dom.style.color = this.__textColor || ''
+    return result
   }
 
   exportDOM(editor) {
@@ -4392,8 +4389,13 @@ export class StyledTableCellNode extends TableCellNode {
     const el = out.element
     if (el && el.nodeType === 1) {
       el.style.border = '1px solid #e5e7eb'
-      el.style.color = this.resolvedTextColor()
-      el.setAttribute('data-text-color', this.__textColorMode)
+      if (this.__textColor) {
+        el.setAttribute('data-text-color', this.__textColor)
+        el.style.color = this.__textColor
+      } else {
+        el.removeAttribute('data-text-color')
+        el.style.removeProperty('color')
+      }
       if (this.getBackgroundColor() === 'transparent') el.style.backgroundColor = ''
     }
     return out
@@ -4408,12 +4410,12 @@ export class StyledTableCellNode extends TableCellNode {
       return {
         ...baseRes,
         conversion: (node) => {
-          const mode = node.getAttribute('data-text-color') || 'auto'
-          // Strip the resolved color before the base converter bakes it onto
-          // child text nodes — we recover it from the mode instead.
+          const raw = node.getAttribute('data-text-color') || null
+          // Backwards compat: old values 'auto'/'light'/'dark' → null
+          const textColor = raw && raw.startsWith('#') ? raw : null
           node.style.removeProperty('color')
           const res = conv(node)
-          if (res && res.node) res.node.setTextColorMode(mode)
+          if (res && res.node) res.node.setTextColor(textColor)
           return res
         },
       }
@@ -4426,10 +4428,11 @@ export class StyledTableCellNode extends TableCellNode {
   }
 
   updateFromJSON(serializedNode) {
-    return super.updateFromJSON(serializedNode).setTextColorMode(serializedNode.textColorMode || 'auto')
+    const hex = serializedNode.textColor || null
+    return super.updateFromJSON(serializedNode).setTextColor(hex)
   }
 
   exportJSON() {
-    return { ...super.exportJSON(), textColorMode: this.__textColorMode }
+    return { ...super.exportJSON(), textColor: this.__textColor }
   }
 }
