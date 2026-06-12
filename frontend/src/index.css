@@ -256,6 +256,40 @@ html {
   padding: 0;
 }
 
+/* Header block — mobile responsive overrides */
+@media (max-width: 768px) {
+  .blog-content header.header-regular .header-inner {
+    padding: 24px 32px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  .blog-content header.header-wide .header-inner {
+    padding: 24px 32px !important;
+  }
+  .blog-content header.header-full .header-inner {
+    padding: 24px 32px !important;
+  }
+  .blog-content header.header-split {
+    flex-direction: column !important;
+  }
+  .blog-content header.header-split .header-split-image,
+  .blog-content header.header-split .header-split-text {
+    width: 100% !important;
+  }
+  .blog-content header.header-split .header-split-image {
+    min-height: 240px;
+  }
+  .blog-content header.header-split .header-split-text {
+    padding: 24px 32px !important;
+  }
+  .blog-content .header-heading {
+    font-size: 28px !important;
+  }
+  .blog-content .header-subheading {
+    font-size: 16px !important;
+  }
+}
+
 /* ─── Tables — shared by the editor and the public blog ─────────────────────
    The table's pixel width is set inline (sum of column widths) so column
    drag-resize is deterministic; table-layout: fixed makes the <colgroup>
