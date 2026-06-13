@@ -12,7 +12,7 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { TableNode, TableCellNode } from '@lexical/table'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Columns2, StretchHorizontal, Link2, X, Music, FileText, Plus, Download, Repeat, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon } from 'lucide-react'
+import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Columns2, StretchHorizontal, Link2, Link2Off, X, Music, FileText, Plus, Download, Repeat, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon } from 'lucide-react'
 import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
 
 function resolveTextColor(mode, bgHex) {
@@ -33,8 +33,12 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
   const [captionFocused, setCaptionFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [toolbarPos, setToolbarPos] = useState(null)
-  const [showLinkInput, setShowLinkInput] = useState(false)
+  const [showLinkPopover, setShowLinkPopover] = useState(false)
   const [linkDraft, setLinkDraft] = useState('')
+  const showLinkPopoverRef = useRef(false)
+  showLinkPopoverRef.current = showLinkPopover
+  const linkButtonRef = useRef(null)
+  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 })
   const imgRef = useRef(null)
   const figRef = useRef(null)
 
@@ -79,13 +83,13 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
     )
   }, [isSelected, editor, nodeKey])
 
-  // Position toolbar above the figure whenever selection or link input state changes.
+  // Position toolbar above the figure whenever selection changes.
   useLayoutEffect(() => {
-    if (!isSelected || !figRef.current) { setToolbarPos(null); return }
+    if (!isSelected || !figRef.current) { setToolbarPos(null); if (showLinkPopoverRef.current) { setShowLinkPopover(false); setLinkDraft('') } return }
     function calc() {
       const rect = figRef.current?.getBoundingClientRect()
       if (!rect) return
-      const W = showLinkInput ? 380 : 200
+      const W = 200
       const H = 40
       let left = rect.left + window.scrollX + rect.width / 2 - W / 2
       left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - W - 8))
@@ -97,7 +101,7 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
     window.addEventListener('scroll', calc, true)
     window.addEventListener('resize', calc)
     return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
-  }, [isSelected, showLinkInput])
+  }, [isSelected])
 
   function handleCaptionChange(e) {
     const val = e.target.value
@@ -116,14 +120,50 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
     })
   }
 
-  function commitLink(value = linkDraft.trim()) {
+  function saveHref(value) {
     if (value && !/^https?:\/\//i.test(value)) value = 'https://' + value
     editor.update(() => {
       const node = $getNodeByKey(nodeKey)
       if (node instanceof ImageNode) node.getWritable().__href = value
     })
-    setShowLinkInput(false)
   }
+
+  function openLinkPopover() {
+    if (showLinkPopover) { cancelLink(); return }
+    if (!linkButtonRef.current) return
+    const rect = linkButtonRef.current.getBoundingClientRect()
+    setPopoverPos({ top: rect.top - 8, left: rect.left + rect.width / 2 })
+    setLinkDraft(href || '')
+    setShowLinkPopover(true)
+  }
+
+  function commitLink() {
+    saveHref(linkDraft.trim())
+    setShowLinkPopover(false)
+    setLinkDraft('')
+  }
+
+  function cancelLink() {
+    setShowLinkPopover(false)
+    setLinkDraft('')
+  }
+
+  function removeLink() {
+    saveHref('')
+    setShowLinkPopover(false)
+    setLinkDraft('')
+  }
+
+  useEffect(() => {
+    if (!showLinkPopover) return
+    const onScroll = () => {
+      if (!linkButtonRef.current) return
+      const r = linkButtonRef.current.getBoundingClientRect()
+      setPopoverPos({ top: r.top - 8, left: r.left + r.width / 2 })
+    }
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    return () => document.removeEventListener('scroll', onScroll, { capture: true })
+  }, [showLinkPopover])
 
   const widthMaxMap = { regular: '740px', wide: '1040px', full: '100%' }
 
@@ -184,42 +224,48 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
 
           <Tooltip content="Link">
             <button
-              onMouseDown={e => { e.preventDefault(); setLinkDraft(href); setShowLinkInput(v => !v) }}
+              ref={linkButtonRef}
+              onMouseDown={e => { e.preventDefault(); e.stopPropagation(); openLinkPopover() }}
               className={`p-1.5 rounded-md transition-colors ${
-                href ? 'text-blue-500 bg-blue-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                href ? 'text-blue-500 hover:bg-gray-100' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
               <Link2 size={14} strokeWidth={2} />
             </button>
           </Tooltip>
 
-          {showLinkInput && (
-            <div className="flex items-center gap-1 ml-1">
-              <input
-                autoFocus
-                type="text"
-                value={linkDraft}
-                onChange={e => setLinkDraft(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') { e.preventDefault(); commitLink() }
-                  if (e.key === 'Escape') setShowLinkInput(false)
-                }}
-                placeholder="Add link"
-                className="text-xs bg-white text-gray-800 border border-gray-200 rounded px-2 py-1 w-44 outline-none focus:border-blue-500"
-                onClick={e => e.stopPropagation()}
-              />
-              {href && (
-                <Tooltip content="Remove link">
-                  <button
-                    onMouseDown={e => { e.preventDefault(); commitLink('') }}
-                    className="text-gray-400 hover:text-red-500 p-1 rounded transition-colors"
-                  >
-                    <X size={12} />
-                  </button>
-                </Tooltip>
-              )}
-            </div>
+          {href && (
+            <Tooltip content="Remove link">
+              <button
+                onMouseDown={e => { e.preventDefault(); e.stopPropagation(); removeLink() }}
+                className="p-1.5 rounded-md transition-colors text-gray-500 hover:text-red-500 hover:bg-gray-100"
+              >
+                <Link2Off size={14} strokeWidth={2} />
+              </button>
+            </Tooltip>
           )}
+        </div>,
+        document.body
+      )}
+
+      {showLinkPopover && createPortal(
+        <div
+          style={{ position: 'fixed', top: popoverPos.top, left: popoverPos.left, transform: 'translate(-50%, -100%)', zIndex: 10000 }}
+          className="bg-white border border-gray-200 rounded-xl shadow-2xl px-2 py-2 flex items-center gap-1"
+        >
+          <input
+            autoFocus
+            type="text"
+            value={linkDraft}
+            onChange={e => setLinkDraft(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); commitLink() }
+              if (e.key === 'Escape') { e.preventDefault(); cancelLink() }
+            }}
+            onBlur={commitLink}
+            placeholder="Add link…"
+            className="text-xs bg-white text-gray-800 border border-gray-200 rounded px-2 py-1 w-52 outline-none focus:border-blue-500"
+          />
         </div>,
         document.body
       )}
