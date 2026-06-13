@@ -4293,17 +4293,24 @@ export class WideTableNode extends TableNode {
   exportDOM(editor) {
     const out = super.exportDOM(editor)
     const prevAfter = out.after
-    const width = this.__tableWidth
     const borderColor = this.__borderColor
     const colWidths = this.getColWidths()
+    const DEFAULT_COL_WIDTH = 150
     out.after = (tableElement) => {
       const el = prevAfter ? prevAfter(tableElement) : tableElement
       if (el && el.nodeName === 'TABLE') {
-        decorateTableElement(el, width, colWidths, borderColor)
-        el.setAttribute('data-width', width)
+        // Count columns from the built DOM — more reliable than reading Lexical node tree.
+        const colCount = el.rows[0]?.cells.length || el.querySelectorAll('col').length || 0
+        // Use stored widths if available; otherwise default 150px/col so the table
+        // always has an explicit pixel width and overflow-x: auto can fire.
+        const effectiveColWidths = (colWidths && colWidths.length) ? colWidths : Array(colCount).fill(DEFAULT_COL_WIDTH)
+        // 4+ columns → wide; 1–3 columns → regular.
+        const effectiveWidth = colCount >= 4 ? 'wide' : 'regular'
+        decorateTableElement(el, effectiveWidth, effectiveColWidths, borderColor)
+        el.setAttribute('data-width', effectiveWidth)
         el.setAttribute('data-border-color', borderColor)
         const wrapper = document.createElement('div')
-        wrapper.className = `blog-table-wrapper blog-table-wrapper-${width === 'wide' ? 'wide' : 'regular'}`
+        wrapper.className = `blog-table-wrapper blog-table-wrapper-${effectiveWidth}`
         wrapper.appendChild(el.cloneNode(true))
         return wrapper
       }
@@ -4393,7 +4400,6 @@ export class StyledTableCellNode extends TableCellNode {
     const out = super.exportDOM(editor)
     const el = out.element
     if (el && el.nodeType === 1) {
-      el.style.border = '1px solid #e5e7eb'
       if (this.__textColor) {
         el.setAttribute('data-text-color', this.__textColor)
         el.style.color = this.__textColor
