@@ -554,14 +554,16 @@ export function SlashCommandPlugin() {
     setMenu(m => ({ ...m, visible: false }))
 
     if (UPLOAD_ACTIONS.has(item.action)) {
+      // Read synchronously — editor.update() is deferred when called inside a
+      // Lexical command handler, so we can't rely on its callback having run
+      // before checking paragraphFound or before calling fileRef.current.click().
       let paragraphFound = false
       let savedText = ''
-      editor.update(() => {
+      editor.getEditorState().read(() => {
         const node = $getNodeByKey(nodeKey)
         if (!node || !$isParagraphNode(node)) return
         paragraphFound = true
         savedText = node.getTextContent()
-        node.clear()
       })
       if (!paragraphFound) return
       pendingNodeKeyRef.current = nodeKey
@@ -569,7 +571,12 @@ export function SlashCommandPlugin() {
       pendingSavedTextRef.current = savedText
       fileRef.current.accept = ACCEPT_MAP[item.action]
       fileRef.current.multiple = item.action === 'gallery'
-      fileRef.current?.click()
+      // Clear the slash text — can run async, we don't need to wait for it.
+      editor.update(() => {
+        const node = $getNodeByKey(nodeKey)
+        if (node && $isParagraphNode(node)) node.clear()
+      })
+      fileRef.current.click()
       return
     }
 
