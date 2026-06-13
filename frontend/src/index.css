@@ -114,8 +114,9 @@ html {
 }
 
 /* Blog post prose overrides */
-/* Quote: border drawn via gradient at the px-6 (1.5rem) position, aligned with paragraph text */
-.editor-quote {
+/* Quote: gradient bar only inside the editor (the theme class leaks into content_html via exportDOM,
+   so scope it to [contenteditable] to prevent the gradient appearing on the public blog) */
+[contenteditable] .editor-quote {
   padding-left: calc(1.5rem + 0.25rem + 1rem); /* offset + border-width + indent */
   background: linear-gradient(
     to right,
@@ -141,6 +142,16 @@ html {
 
 .blog-content figure img {
   margin: 0;
+}
+
+.blog-content figure.gallery {
+  margin: 1.5rem 0;
+}
+
+.blog-content figcaption {
+  text-align: center;
+  margin-top: 0;
+  padding: 0.5rem 1rem;
 }
 
 .blog-content hr {
@@ -243,10 +254,23 @@ html {
 [contenteditable="true"] ol ol ol ol ol ol,
 .blog-content ol ol ol ol ol ol { list-style-type: lower-roman; }
 
-/* Blockquote: remove outer px-6 but keep pl-4 (1rem) for the border indent */
+/* Blockquote: match editor appearance (gray-600 italic, normal weight, tight margins, no quote marks).
+   border-left-width re-enables the border suppressed by the editor-theme class border-l-0 that leaks
+   into content_html via QuoteNode.exportDOM() → createDOM(). Unlayered CSS beats @layer utilities. */
 .blog-content blockquote {
   padding-left: 1rem;
   padding-right: 0;
+  color: #4b5563;
+  font-weight: normal;
+  border-left-width: 0.25rem;
+  border-left-color: #d1d5db;
+  margin-top: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.blog-content blockquote p::before,
+.blog-content blockquote p::after {
+  content: none;
 }
 
 /* Header block — break wide/full/split out of the max-w-3xl page container */
