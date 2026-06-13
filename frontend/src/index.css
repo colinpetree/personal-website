@@ -448,14 +448,14 @@ table.blog-table {
   max-width: 100%;
 }
 .blog-content .blog-table-wrapper-wide {
-  max-width: min(80rem, calc(100vw - 2rem));
+  width: min(80rem, calc(100vw - 2rem));
   margin-left: 50%;
   transform: translateX(-50%);
 }
 /* On mobile, wide wrapper drops the breakout and uses full prose width */
 @media (max-width: 640px) {
   .blog-content .blog-table-wrapper-wide {
-    max-width: 100%;
+    width: auto;
     margin-left: 0.4rem;
     margin-right: 0.4rem;
     transform: none;
@@ -532,6 +532,14 @@ table.blog-table {
   max-width: min(80rem, calc(100vw - 2rem));
   margin-left: 50%;
   transform: translateX(-50%);
+}
+/* Wrapped tables: undo legacy max-width / margin / transform rules above.
+   The wrapper div handles all layout; these constraints would prevent overflow. */
+.blog-content .blog-table-wrapper table.blog-table {
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+  transform: none;
 }
 [contenteditable] table.blog-table-regular {
   max-width: min(45rem, 100%);
