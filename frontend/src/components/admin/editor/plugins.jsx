@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useLayoutEffect, useImperativeHandle, useRef, useState } from 'react'
 import {
-  Bold, Italic, Underline, Strikethrough, CodeXml, Link2,
+  Bold, Italic, Underline, Strikethrough, CodeXml, Link2, Link2Off,
   Heading1, Heading2, Heading3,
   Type, Quote, SquareCode,
   List, ListOrdered, SquareSplitVertical, Image, Play, Music, Paperclip, Images, Plus, MessageSquareWarning, MousePointerClick, SquareChevronDown,
@@ -15,7 +15,7 @@ import { $setBlocksType } from '@lexical/selection'
 import { $createHeadingNode, $createQuoteNode, $isHeadingNode } from '@lexical/rich-text'
 import { INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, $isListItemNode } from '@lexical/list'
 import { $findMatchingParent } from '@lexical/utils'
-import { TOGGLE_LINK_COMMAND } from '@lexical/link'
+import { TOGGLE_LINK_COMMAND, $isLinkNode } from '@lexical/link'
 import {
   INSERT_TABLE_COMMAND, $isTableNode, $isTableCellNode, $isTableSelection,
   $getTableNodeFromLexicalNodeOrThrow,
@@ -85,10 +85,11 @@ export function FloatingToolbarPlugin() {
     bold: false, italic: false, underline: false, strike: false, code: false,
     heading: null, showHeadings: false,
   })
-  const [showLinkInput, setShowLinkInput] = useState(false)
+  const [linkState, setLinkState] = useState({ hasLink: false, url: '', mixed: false })
+  const [showLinkPopover, setShowLinkPopover] = useState(false)
   const [linkDraft, setLinkDraft] = useState('')
-  const showLinkInputRef = useRef(false)
-  showLinkInputRef.current = showLinkInput
+  const linkButtonRef = useRef(null)
+  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 })
 
   function calcPos(rect) {
     const H = 40
@@ -103,7 +104,7 @@ export function FloatingToolbarPlugin() {
       editorState.read(() => {
         const selection = $getSelection()
         if (!$isRangeSelection(selection) || selection.isCollapsed()) {
-          if (!showLinkInputRef.current) setToolbar(t => t.visible ? { ...t, visible: false } : t)
+          setToolbar(t => t.visible ? { ...t, visible: false } : t)
           return
         }
 
@@ -118,6 +119,18 @@ export function FloatingToolbarPlugin() {
           setToolbar(t => t.visible ? { ...t, visible: false } : t)
           return
         }
+
+        const selNodes = selection.getNodes()
+        const linkUrls = new Set()
+        for (const node of selNodes) {
+          const linkNode = $findMatchingParent(node, $isLinkNode)
+          if (linkNode) linkUrls.add(linkNode.getURL())
+        }
+        setLinkState({
+          hasLink: linkUrls.size > 0,
+          url: linkUrls.size === 1 ? [...linkUrls][0] : '',
+          mixed: linkUrls.size > 1,
+        })
 
         const anchorNode = selection.anchor.getNode()
         const blockNode = $findMatchingParent(anchorNode, node => node.getParent() === $getRoot())
@@ -152,22 +165,43 @@ export function FloatingToolbarPlugin() {
     return () => document.removeEventListener('scroll', onScroll, { capture: true })
   }, [toolbar.visible])
 
-  function openLinkInput() {
-    setLinkDraft('')
-    setShowLinkInput(true)
+  function openLinkPopover() {
+    if (showLinkPopover) { cancelLink(); return }
+    if (!linkButtonRef.current) return
+    const rect = linkButtonRef.current.getBoundingClientRect()
+    setPopoverPos({ top: rect.top - 8, left: rect.left + rect.width / 2 })
+    setLinkDraft(linkState.mixed ? '' : linkState.url)
+    setShowLinkPopover(true)
   }
 
   function commitLink() {
     const url = linkDraft.trim()
     if (url) editor.dispatchCommand(TOGGLE_LINK_COMMAND, url)
-    setShowLinkInput(false)
+    setShowLinkPopover(false)
+    setLinkDraft('')
+  }
+
+  function removeLink() {
+    editor.dispatchCommand(TOGGLE_LINK_COMMAND, null)
+    setShowLinkPopover(false)
     setLinkDraft('')
   }
 
   function cancelLink() {
-    setShowLinkInput(false)
+    setShowLinkPopover(false)
     setLinkDraft('')
   }
+
+  useEffect(() => {
+    if (!showLinkPopover) return
+    const onScroll = () => {
+      if (!linkButtonRef.current) return
+      const r = linkButtonRef.current.getBoundingClientRect()
+      setPopoverPos({ top: r.top - 8, left: r.left + r.width / 2 })
+    }
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    return () => document.removeEventListener('scroll', onScroll, { capture: true })
+  }, [showLinkPopover])
 
   function toggleHeading(tag) {
     editor.update(() => {
@@ -198,9 +232,9 @@ export function FloatingToolbarPlugin() {
     )
   }
 
-  if (!toolbar.visible && !showLinkInput) return null
+  if (!toolbar.visible && !showLinkPopover) return null
 
-  return createPortal(
+  const toolbarPortal = createPortal(
     <div
       style={{ position: 'fixed', top: toolbar.top, left: toolbar.left, transform: 'translateX(-50%)', zIndex: 9999 }}
       className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl px-1.5 py-1 shadow-2xl"
@@ -235,33 +269,53 @@ export function FloatingToolbarPlugin() {
       <div className="w-px h-5 bg-gray-200 mx-0.5" />
       <Tooltip content="Link">
         <button
-          onMouseDown={e => { e.preventDefault(); openLinkInput() }}
+          ref={linkButtonRef}
+          onMouseDown={e => { e.preventDefault(); e.stopPropagation(); openLinkPopover() }}
           className={`p-1.5 rounded-md transition-colors ${
-            showLinkInput ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+            linkState.hasLink ? 'text-blue-500 hover:bg-gray-100' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
           }`}
         >
           <Link2 size={14} strokeWidth={2} />
         </button>
       </Tooltip>
-      {showLinkInput && (
-        <div className="flex items-center gap-1 ml-1">
-          <input
-            autoFocus
-            type="text"
-            value={linkDraft}
-            onChange={e => setLinkDraft(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter') { e.preventDefault(); commitLink() }
-              if (e.key === 'Escape') { e.preventDefault(); cancelLink() }
-            }}
-            placeholder="Add link"
-            className="text-xs bg-white text-gray-800 border border-gray-200 rounded px-2 py-1 w-44 outline-none focus:border-blue-500"
-          />
-        </div>
+      {linkState.hasLink && (
+        <Tooltip content="Remove link">
+          <button
+            onMouseDown={e => { e.preventDefault(); e.stopPropagation(); removeLink() }}
+            className="p-1.5 rounded-md transition-colors text-gray-500 hover:text-red-500 hover:bg-gray-100"
+          >
+            <Link2Off size={14} strokeWidth={2} />
+          </button>
+        </Tooltip>
       )}
     </div>,
     document.body
   )
+
+  return <>
+    {toolbarPortal}
+    {showLinkPopover && createPortal(
+      <div
+        style={{ position: 'fixed', top: popoverPos.top, left: popoverPos.left, transform: 'translate(-50%, -100%)', zIndex: 10000 }}
+        className="bg-white border border-gray-200 rounded-xl shadow-2xl px-2 py-2 flex items-center gap-1"
+      >
+        <input
+          autoFocus
+          type="text"
+          value={linkDraft}
+          onChange={e => setLinkDraft(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { e.preventDefault(); commitLink() }
+            if (e.key === 'Escape') { e.preventDefault(); cancelLink() }
+          }}
+          onBlur={commitLink}
+          placeholder="Add link…"
+          className="text-xs bg-white text-gray-800 border border-gray-200 rounded px-2 py-1 w-52 outline-none focus:border-blue-500"
+        />
+      </div>,
+      document.body
+    )}
+  </>
 }
 
 // ─── SlashCommandPlugin ───────────────────────────────────────────────────────
