@@ -333,6 +333,34 @@ html {
   content: none;
 }
 
+/* Callout block — align emoji baseline with the first text line. exportDOM sets line-height:1.625
+   on the emoji span, making its box ~32px vs the text's ~26px; flex-start then puts the text
+   center above the emoji center. baseline aligns the glyph baseline with the first line of text,
+   matching the editor's appearance for both single-line and multi-line callouts. */
+.blog-content .callout {
+  align-items: baseline !important;
+}
+
+/* Reset prose overrides inside the not-prose body */
+.blog-content .callout-body p {
+  margin: 0;
+  color: inherit;
+}
+.blog-content .callout-body p + p {
+  margin-top: 0.5em;
+}
+.blog-content .callout-body code {
+  background-color: #f3f4f6;
+  border-radius: 0.25rem;
+  padding: 0 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.875em;
+}
+.blog-content .callout-body a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 /* Header block — break wide/full/split out of the max-w-3xl page container */
 .blog-content header.header-wide,
 .blog-content header.header-full,
