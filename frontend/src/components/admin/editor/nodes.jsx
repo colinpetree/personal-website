@@ -160,7 +160,7 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
       {isSelected && toolbarPos && createPortal(
         <div
           style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999 }}
-          className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 shadow-2xl"
+          className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl px-1.5 py-1 shadow-2xl"
           onMouseDown={e => e.preventDefault()}
         >
           {[
@@ -171,8 +171,8 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
             <Tooltip key={w} content={title}>
               <button
                 onMouseDown={e => { e.preventDefault(); setWidth(w) }}
-                className={`p-1.5 rounded transition-colors ${
-                  width === w ? 'text-white bg-white/20' : 'text-gray-300 hover:text-white hover:bg-white/15'
+                className={`p-1.5 rounded-md transition-colors ${
+                  width === w ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 <Icon size={14} strokeWidth={2} />
@@ -180,13 +180,13 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
             </Tooltip>
           ))}
 
-          <div className="w-px h-4 bg-gray-600 mx-1" />
+          <div className="w-px h-5 bg-gray-200 mx-0.5" />
 
           <Tooltip content="Link">
             <button
               onMouseDown={e => { e.preventDefault(); setLinkDraft(href); setShowLinkInput(v => !v) }}
-              className={`p-1.5 rounded transition-colors ${
-                href ? 'text-blue-400 bg-white/10' : 'text-gray-300 hover:text-white hover:bg-white/15'
+              className={`p-1.5 rounded-md transition-colors ${
+                href ? 'text-blue-500 bg-blue-50' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
               <Link2 size={14} strokeWidth={2} />
@@ -204,15 +204,15 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
                   if (e.key === 'Enter') { e.preventDefault(); commitLink() }
                   if (e.key === 'Escape') setShowLinkInput(false)
                 }}
-                placeholder="https://..."
-                className="text-xs bg-gray-800 text-white border border-gray-600 rounded px-2 py-1 w-44 outline-none focus:border-blue-500"
+                placeholder="Add link"
+                className="text-xs bg-white text-gray-800 border border-gray-200 rounded px-2 py-1 w-44 outline-none focus:border-blue-500"
                 onClick={e => e.stopPropagation()}
               />
               {href && (
                 <Tooltip content="Remove link">
                   <button
                     onMouseDown={e => { e.preventDefault(); commitLink('') }}
-                    className="text-gray-400 hover:text-red-400 p-1 rounded transition-colors"
+                    className="text-gray-400 hover:text-red-500 p-1 rounded transition-colors"
                   >
                     <X size={12} />
                   </button>
@@ -480,7 +480,7 @@ function VideoNodeComponent({ src, caption, width, loop, nodeKey, editor }) {
       {isSelected && toolbarPos && createPortal(
         <div
           style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999 }}
-          className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 shadow-2xl"
+          className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl px-1.5 py-1 shadow-2xl"
           onMouseDown={e => e.preventDefault()}
         >
           {[
@@ -491,20 +491,20 @@ function VideoNodeComponent({ src, caption, width, loop, nodeKey, editor }) {
             <Tooltip key={w} content={title}>
               <button
                 onMouseDown={e => { e.preventDefault(); setWidth(w) }}
-                className={`p-1.5 rounded transition-colors ${
-                  width === w ? 'text-white bg-white/20' : 'text-gray-300 hover:text-white hover:bg-white/15'
+                className={`p-1.5 rounded-md transition-colors ${
+                  width === w ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
                 }`}
               >
                 <Icon size={14} strokeWidth={2} />
               </button>
             </Tooltip>
           ))}
-          <div className="w-px h-4 bg-gray-600 mx-1" />
+          <div className="w-px h-5 bg-gray-200 mx-0.5" />
           <Tooltip content="Loop">
             <button
               onMouseDown={e => { e.preventDefault(); toggleLoop() }}
-              className={`p-1.5 rounded transition-colors ${
-                loop ? 'text-white bg-white/20' : 'text-gray-300 hover:text-white hover:bg-white/15'
+              className={`p-1.5 rounded-md transition-colors ${
+                loop ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
               }`}
             >
               <Repeat size={14} strokeWidth={2} />
