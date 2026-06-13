@@ -605,6 +605,7 @@ export class VideoNode extends DecoratorNode {
     if (this.__caption) {
       const figcaption = document.createElement('figcaption')
       figcaption.textContent = this.__caption
+      figcaption.style.cssText = 'background:#fff'
       figure.appendChild(figcaption)
     }
     return { element: figure }
