@@ -1208,7 +1208,7 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
       ref={containerRef}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`my-4 rounded-lg overflow-hidden transition-all ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+      className={`my-6 rounded-lg overflow-hidden transition-all ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
     >
       <div className="grid grid-cols-3 gap-1">
         {images.map((img, i) => (
@@ -2964,8 +2964,8 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   const sideMargin = (layout === 'full' || layout === 'split') ? '' : 'mx-6'
   const textAlignClass   = textAlign === 'center' ? 'text-center' : 'text-left'
   const minHeightClass   = layout === 'split' ? 'md:min-h-[600px]' : layout === 'full' ? 'md:min-h-[551px]' : layout === 'wide' ? 'md:min-h-[447px]' : 'md:min-h-[347px]'
-  const headingTextClass = (layout === 'full' || layout === 'split') ? 'text-3xl md:text-6xl' : layout === 'wide' ? 'text-3xl md:text-5xl' : 'text-2xl md:text-4xl'
-  const subTextClass     = (layout === 'full' || layout === 'split') ? 'text-lg md:text-2xl' : layout === 'wide' ? 'text-base md:text-[22px]' : 'text-base md:text-xl'
+  const headingTextClass = (layout === 'full' || layout === 'split') ? 'text-[28px] md:text-6xl' : layout === 'wide' ? 'text-[28px] md:text-5xl' : 'text-[28px] md:text-4xl'
+  const subTextClass     = (layout === 'full' || layout === 'split') ? 'text-base md:text-2xl' : layout === 'wide' ? 'text-base md:text-[22px]' : 'text-base md:text-xl'
   const btnTextClass     = (layout === 'full' || layout === 'split') ? 'text-lg' : 'text-base'
 
   const bgStyle = layout !== 'split' && backgroundType === 'image' && headerImage
@@ -3113,7 +3113,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
           >
             {/* Image side */}
             <div
-              className={`w-full md:w-1/2 min-h-[220px] md:min-h-0 bg-white flex items-center justify-center overflow-hidden relative group ${!headerImage ? 'cursor-pointer' : ''}`}
+              className={`w-full md:w-1/2 min-h-[240px] md:min-h-0 bg-white flex items-center justify-center overflow-hidden relative group ${!headerImage ? 'cursor-pointer' : ''}`}
               onClick={!headerImage ? () => splitImageInputRef.current?.click() : undefined}
             >
               {headerImage ? (
@@ -3154,7 +3154,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
 
             {/* Text side */}
             <div
-              className={`w-full md:w-1/2 flex flex-col justify-center gap-3 pl-8 pr-8 py-8 md:pl-24 md:pr-12 md:py-10`}
+              className={`w-full md:w-1/2 flex flex-col justify-center gap-3 pl-8 pr-8 py-6 md:pl-24 md:pr-12 md:py-10`}
               style={{ background: backgroundColor }}
             >
               {textContent}
