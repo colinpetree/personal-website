@@ -1,10 +1,10 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useLayoutEffect, useImperativeHandle, useRef, useState } from 'react'
 import {
-  Bold, Italic, Underline, Strikethrough, Code, Link2,
-  Type, Heading1, Heading2, Heading3, Quote, Code2,
-  List, ListOrdered, Minus, Image, Video, Music, Paperclip, LayoutGrid, Plus, MessageSquare, MousePointerClick, ChevronDown, PanelTop,
-  PlayCircle, Film, Music2,
+  Bold, Italic, Underline, Strikethrough, CodeXml, Link2,
+  Heading1, Heading2, Heading3,
+  Type, Quote, SquareCode,
+  List, ListOrdered, SquareSplitVertical, Image, Play, Music, Paperclip, Images, Plus, MessageSquareWarning, MousePointerClick, SquareChevronDown,
   Table, AlignLeft, AlignCenter, Trash2, Undo2, Redo2,
   ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, ArrowDownToLine,
   Columns3Cog, RectangleHorizontal, RectangleVertical, Grid2x2, PaintBucket,
@@ -12,7 +12,7 @@ import {
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
 import { $setBlocksType } from '@lexical/selection'
-import { $createHeadingNode, $createQuoteNode } from '@lexical/rich-text'
+import { $createHeadingNode, $createQuoteNode, $isHeadingNode } from '@lexical/rich-text'
 import { INSERT_ORDERED_LIST_COMMAND, INSERT_UNORDERED_LIST_COMMAND, $isListItemNode } from '@lexical/list'
 import { $findMatchingParent } from '@lexical/utils'
 import { TOGGLE_LINK_COMMAND } from '@lexical/link'
@@ -83,14 +83,27 @@ export function FloatingToolbarPlugin() {
   const [toolbar, setToolbar] = useState({
     visible: false, top: 0, left: 0,
     bold: false, italic: false, underline: false, strike: false, code: false,
+    heading: null, showHeadings: false,
   })
+  const [showLinkInput, setShowLinkInput] = useState(false)
+  const [linkDraft, setLinkDraft] = useState('')
+  const showLinkInputRef = useRef(false)
+  showLinkInputRef.current = showLinkInput
+
+  function calcPos(rect) {
+    const H = 40
+    const left = Math.max(8, Math.min(rect.left + rect.width / 2, window.innerWidth - 8))
+    let top = rect.top - H - 8
+    if (top < 8) top = rect.bottom + 8
+    return { top, left }
+  }
 
   useEffect(() => {
     return editor.registerUpdateListener(({ editorState }) => {
       editorState.read(() => {
         const selection = $getSelection()
         if (!$isRangeSelection(selection) || selection.isCollapsed()) {
-          setToolbar(t => t.visible ? { ...t, visible: false } : t)
+          if (!showLinkInputRef.current) setToolbar(t => t.visible ? { ...t, visible: false } : t)
           return
         }
 
@@ -106,12 +119,11 @@ export function FloatingToolbarPlugin() {
           return
         }
 
-        const W = 272
-        const H = 40
-        let left = rect.left + window.scrollX + rect.width / 2 - W / 2
-        left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - W - 8))
-        let top = rect.top + window.scrollY - H - 8
-        if (top < window.scrollY + 8) top = rect.bottom + window.scrollY + 8
+        const anchorNode = selection.anchor.getNode()
+        const blockNode = $findMatchingParent(anchorNode, node => node.getParent() === $getRoot())
+        const heading = $isHeadingNode(blockNode) ? blockNode.getTag() : null
+        const showHeadings = $isParagraphNode(blockNode) || $isHeadingNode(blockNode)
+        const { top, left } = calcPos(rect)
 
         setToolbar({
           visible: true, top, left,
@@ -120,14 +132,55 @@ export function FloatingToolbarPlugin() {
           underline: selection.hasFormat('underline'),
           strike: selection.hasFormat('strikethrough'),
           code: selection.hasFormat('code'),
+          heading, showHeadings,
         })
       })
     })
   }, [editor])
 
-  function handleLink() {
-    const url = window.prompt('Enter URL:')
+  useEffect(() => {
+    if (!toolbar.visible) return
+    const onScroll = () => {
+      const nativeSel = window.getSelection()
+      if (!nativeSel || nativeSel.rangeCount === 0) return
+      const rect = nativeSel.getRangeAt(0).getBoundingClientRect()
+      if (!rect || rect.width === 0) return
+      const { top, left } = calcPos(rect)
+      setToolbar(t => ({ ...t, top, left }))
+    }
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    return () => document.removeEventListener('scroll', onScroll, { capture: true })
+  }, [toolbar.visible])
+
+  function openLinkInput() {
+    setLinkDraft('')
+    setShowLinkInput(true)
+  }
+
+  function commitLink() {
+    const url = linkDraft.trim()
     if (url) editor.dispatchCommand(TOGGLE_LINK_COMMAND, url)
+    setShowLinkInput(false)
+    setLinkDraft('')
+  }
+
+  function cancelLink() {
+    setShowLinkInput(false)
+    setLinkDraft('')
+  }
+
+  function toggleHeading(tag) {
+    editor.update(() => {
+      const sel = $getSelection()
+      if (!$isRangeSelection(sel)) return
+      const anchor = sel.anchor.getNode()
+      const block = $findMatchingParent(anchor, n => n.getParent() === $getRoot())
+      if ($isHeadingNode(block) && block.getTag() === tag) {
+        $setBlocksType(sel, () => $createParagraphNode())
+      } else {
+        $setBlocksType(sel, () => $createHeadingNode(tag))
+      }
+    })
   }
 
   function fmtBtn(active, Icon, format, label) {
@@ -135,8 +188,8 @@ export function FloatingToolbarPlugin() {
       <Tooltip key={format} content={label}>
         <button
           onMouseDown={e => { e.preventDefault(); editor.dispatchCommand(FORMAT_TEXT_COMMAND, format) }}
-          className={`p-1.5 rounded transition-colors ${
-            active ? 'text-white bg-white/20' : 'text-gray-300 hover:text-white hover:bg-white/15'
+          className={`p-1.5 rounded-md transition-colors ${
+            active ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
           }`}
         >
           <Icon size={14} strokeWidth={2} />
@@ -145,28 +198,67 @@ export function FloatingToolbarPlugin() {
     )
   }
 
-  if (!toolbar.visible) return null
+  if (!toolbar.visible && !showLinkInput) return null
 
   return createPortal(
     <div
-      style={{ position: 'absolute', top: toolbar.top, left: toolbar.left, zIndex: 9999 }}
-      className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 shadow-2xl"
+      style={{ position: 'fixed', top: toolbar.top, left: toolbar.left, transform: 'translateX(-50%)', zIndex: 9999 }}
+      className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl px-1.5 py-1 shadow-2xl"
       onMouseDown={e => e.preventDefault()}
     >
       {fmtBtn(toolbar.bold, Bold, 'bold', 'Bold')}
       {fmtBtn(toolbar.italic, Italic, 'italic', 'Italic')}
       {fmtBtn(toolbar.underline, Underline, 'underline', 'Underline')}
       {fmtBtn(toolbar.strike, Strikethrough, 'strikethrough', 'Strikethrough')}
-      {fmtBtn(toolbar.code, Code, 'code', 'Inline code')}
-      <div className="w-px h-4 bg-gray-600 mx-1" />
+      {fmtBtn(toolbar.code, CodeXml, 'code', 'Inline code')}
+      {toolbar.showHeadings && (
+        <>
+          <div className="w-px h-5 bg-gray-200 mx-0.5" />
+          {[
+            { tag: 'h1', Icon: Heading1, label: 'Heading 1' },
+            { tag: 'h2', Icon: Heading2, label: 'Heading 2' },
+            { tag: 'h3', Icon: Heading3, label: 'Heading 3' },
+          ].map(({ tag, Icon, label }) => (
+            <Tooltip key={tag} content={label}>
+              <button
+                onMouseDown={e => { e.preventDefault(); toggleHeading(tag) }}
+                className={`p-1.5 rounded-md transition-colors ${
+                  toolbar.heading === tag ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Icon size={14} strokeWidth={2} />
+              </button>
+            </Tooltip>
+          ))}
+        </>
+      )}
+      <div className="w-px h-5 bg-gray-200 mx-0.5" />
       <Tooltip content="Link">
         <button
-          onMouseDown={e => { e.preventDefault(); handleLink() }}
-          className="p-1.5 rounded text-gray-300 hover:text-white hover:bg-white/15 transition-colors"
+          onMouseDown={e => { e.preventDefault(); openLinkInput() }}
+          className={`p-1.5 rounded-md transition-colors ${
+            showLinkInput ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+          }`}
         >
           <Link2 size={14} strokeWidth={2} />
         </button>
       </Tooltip>
+      {showLinkInput && (
+        <div className="flex items-center gap-1 ml-1">
+          <input
+            autoFocus
+            type="text"
+            value={linkDraft}
+            onChange={e => setLinkDraft(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); commitLink() }
+              if (e.key === 'Escape') { e.preventDefault(); cancelLink() }
+            }}
+            placeholder="Add link"
+            className="text-xs bg-white text-gray-800 border border-gray-200 rounded px-2 py-1 w-44 outline-none focus:border-blue-500"
+          />
+        </div>
+      )}
     </div>,
     document.body
   )
@@ -174,29 +266,66 @@ export function FloatingToolbarPlugin() {
 
 // ─── SlashCommandPlugin ───────────────────────────────────────────────────────
 
-const SLASH_ITEMS = [
-  { label: 'Text',          description: 'Plain paragraph',      Icon: Type,        action: 'paragraph' },
-  { label: 'Heading 1',     description: 'Large section heading', Icon: Heading1,    action: 'h1' },
-  { label: 'Heading 2',     description: 'Medium heading',        Icon: Heading2,    action: 'h2' },
-  { label: 'Heading 3',     description: 'Small heading',         Icon: Heading3,    action: 'h3' },
-  { label: 'Quote',         description: 'Capture a quote',       Icon: Quote,       action: 'quote' },
-  { label: 'Code',          description: 'Code snippet',          Icon: Code2,       action: 'code' },
-  { label: 'Bulleted List', description: 'Unordered list',        Icon: List,        action: 'bullet' },
-  { label: 'Numbered List', description: 'Ordered list',          Icon: ListOrdered, action: 'number' },
-  { label: 'Divider',       description: 'Horizontal rule',        Icon: Minus,       action: 'divider' },
-  { label: 'Callout',       description: 'Highlighted callout box', Icon: MessageSquare,      action: 'callout' },
-  { label: 'Button',        description: 'Clickable link button',  Icon: MousePointerClick,  action: 'button' },
-  { label: 'Toggle',        description: 'Collapsible section',   Icon: ChevronDown,        action: 'toggle' },
-  { label: 'Header',        description: 'Full-width banner with heading and button', Icon: PanelTop, action: 'header' },
-  { label: 'Image',         description: 'Upload an image',       Icon: Image,       action: 'image' },
-  { label: 'Video',         description: 'Upload a video',        Icon: Video,       action: 'video' },
-  { label: 'Audio',         description: 'Upload an audio file',  Icon: Music,       action: 'audio' },
-  { label: 'File',          description: 'Upload any file',       Icon: Paperclip,   action: 'file' },
-  { label: 'Gallery',       description: 'Image grid',            Icon: LayoutGrid,  action: 'gallery' },
-  { label: 'Table',         description: 'Rows and columns',      Icon: Table,       action: 'table' },
-  { label: 'YouTube',       description: 'Embed a YouTube video',  Icon: PlayCircle,  action: 'youtube' },
-  { label: 'Vimeo',         description: 'Embed a Vimeo video',    Icon: Film,        action: 'vimeo' },
-  { label: 'Spotify',       description: 'Embed Spotify audio',    Icon: Music2,      action: 'spotify' },
+function YouTubeLogo() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.96C18.88 4 12 4 12 4s-6.88 0-8.59.46A2.78 2.78 0 0 0 1.46 6.42 29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58 2.78 2.78 0 0 0 1.95 1.96C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.95-1.96A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z" fill="#FF0000"/>
+      <path d="M9.75 15.02V8.98L15.5 12l-5.75 3.02z" fill="#fff"/>
+    </svg>
+  )
+}
+
+function VimeoLogo() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M22.396 7.164c-.093 2.026-1.507 4.799-4.245 8.32C15.322 19.16 12.928 21 10.97 21c-1.214 0-2.24-1.119-3.079-3.359l-1.68-6.172C5.54 9.23 4.893 8.11 4.2 8.11c-.16 0-.71.332-1.653.993L1.5 7.697c1.048-.92 2.08-1.84 3.094-2.76C5.939 3.788 7.005 3.105 7.7 3.04c1.67-.16 2.7.982 3.083 3.425.418 2.631.708 4.265.869 4.902.483 2.19 1.012 3.283 1.589 3.283.449 0 1.123-.71 2.022-2.127.897-1.418 1.376-2.497 1.435-3.237.127-1.225-.353-1.84-1.435-1.84-.512 0-1.038.118-1.578.35 1.048-3.43 3.05-5.097 6.005-5.003 2.19.065 3.223 1.485 3.106 4.37z" fill="#1AB7EA"/>
+    </svg>
+  )
+}
+
+function SpotifyLogo() {
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="12" cy="12" r="10" fill="#1DB954"/>
+      <path d="M16.5 16.5c-.2 0-.3-.1-.5-.2-2.1-1.3-4.7-1.6-7.8-.9-.3.1-.6-.1-.7-.4-.1-.3.1-.6.4-.7 3.4-.8 6.3-.4 8.6 1 .2.1.3.4.2.7-.1.3-.1.5-.2.5zm1.1-2.5c-.2 0-.4-.1-.5-.2-2.4-1.5-6-1.9-8.8-1-.3.1-.7-.1-.8-.4-.1-.3.1-.7.4-.8 3.2-.9 7.1-.5 9.8 1.2.3.2.4.5.2.8-.1.3-.3.4-.3.4zm.1-2.5c-2.8-1.7-7.5-1.8-10.2-1-.4.1-.8-.1-.9-.5-.1-.4.1-.8.5-.9 3.1-.9 8.2-.7 11.4 1.1.3.2.5.6.3.9-.2.3-.6.5-1.1.4z" fill="#fff"/>
+    </svg>
+  )
+}
+
+const SLASH_GROUPS = [
+  {
+    label: 'PRIMARY',
+    items: [
+      { label: 'Bulleted List', Icon: List,                 action: 'bullet'  },
+      { label: 'Numbered List', Icon: ListOrdered,          action: 'number'  },
+      { label: 'Code',          Icon: SquareCode,           action: 'code'    },
+      { label: 'Table',         Icon: Table,                action: 'table'   },
+      { label: 'Divider',       Icon: SquareSplitVertical,  action: 'divider' },
+      { label: 'Quote',         Icon: Quote,                action: 'quote'   },
+      { label: 'Toggle',        Icon: SquareChevronDown,    action: 'toggle'  },
+      { label: 'Button',        Icon: MousePointerClick,    action: 'button'  },
+      { label: 'Callout',       Icon: MessageSquareWarning, action: 'callout' },
+      { label: 'Header',        Icon: RectangleHorizontal,  action: 'header'  },
+    ],
+  },
+  {
+    label: 'UPLOADS',
+    items: [
+      { label: 'Image',   Icon: Image,     action: 'image'   },
+      { label: 'Gallery', Icon: Images,    action: 'gallery' },
+      { label: 'Video',   Icon: Play,      action: 'video'   },
+      { label: 'Audio',   Icon: Music,     action: 'audio'   },
+      { label: 'File',    Icon: Paperclip, action: 'file'    },
+    ],
+  },
+  {
+    label: 'EMBED',
+    items: [
+      { label: 'YouTube', Icon: YouTubeLogo, action: 'youtube' },
+      { label: 'Vimeo',   Icon: VimeoLogo,   action: 'vimeo'  },
+      { label: 'Spotify', Icon: SpotifyLogo, action: 'spotify' },
+    ],
+  },
 ]
 
 function parseYouTubeId(url) {
@@ -279,10 +408,12 @@ export function SlashCommandPlugin() {
     }
   }, [])
 
-  function getItems(filter) {
-    if (!filter) return SLASH_ITEMS
+  function getFilteredGroups(filter) {
+    if (!filter) return SLASH_GROUPS
     const q = filter.toLowerCase()
-    return SLASH_ITEMS.filter(i => i.label.toLowerCase().includes(q))
+    return SLASH_GROUPS
+      .map(g => ({ ...g, items: g.items.filter(i => i.label.toLowerCase().includes(q)) }))
+      .filter(g => g.items.length > 0)
   }
 
   // Returns a viewport-relative top for the menu. Only flips above the cursor
@@ -296,9 +427,10 @@ export function SlashCommandPlugin() {
     return rect.bottom + 6
   }
 
-  const filteredItems = getItems(menu.filter)
-  const filteredItemsRef = useRef(filteredItems)
-  filteredItemsRef.current = filteredItems
+  const filteredGroups = getFilteredGroups(menu.filter)
+  const allFilteredItems = filteredGroups.flatMap(g => g.items)
+  const filteredItemsRef = useRef(allFilteredItems)
+  filteredItemsRef.current = allFilteredItems
 
   function setFocusedPara(el) {
     if (focusedParaRef.current && focusedParaRef.current !== el) {
@@ -858,29 +990,33 @@ export function SlashCommandPlugin() {
           </div>
         )
       })()}
-      {menu.visible && !menu.embedAction && !menu.tablePicker && filteredItems.length > 0 && (
+      {menu.visible && !menu.embedAction && !menu.tablePicker && allFilteredItems.length > 0 && (
         <div
           style={{ position: 'fixed', top: menu.top, left: menu.left, zIndex: 9999, maxHeight: Math.min(320, window.innerHeight - menu.top - 8) }}
           className="bg-white border border-gray-200 rounded-xl shadow-2xl py-2 w-72 overflow-y-auto"
         >
-          <p className="px-3 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">Blocks</p>
-          {filteredItems.map((item, i) => (
-            <button
-              key={item.action}
-              ref={i === menu.selectedIndex ? selectedItemRef : null}
-              onMouseDown={e => { e.preventDefault(); applyItem(item) }}
-              className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
-                i === menu.selectedIndex ? 'bg-gray-100' : 'hover:bg-gray-50'
-              }`}
-            >
-              <span className="shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg text-gray-500">
-                <item.Icon size={16} strokeWidth={2} />
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-900 leading-tight">{item.label}</p>
-                <p className="text-xs text-gray-400 leading-tight">{item.description}</p>
-              </div>
-            </button>
+          {filteredGroups.map(group => (
+            <div key={group.label}>
+              <p className="px-3 pt-2 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">{group.label}</p>
+              {group.items.map(item => {
+                const flatIdx = allFilteredItems.indexOf(item)
+                return (
+                  <button
+                    key={item.action}
+                    ref={flatIdx === menu.selectedIndex ? selectedItemRef : null}
+                    onMouseDown={e => { e.preventDefault(); applyItem(item) }}
+                    className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
+                      flatIdx === menu.selectedIndex ? 'bg-gray-100' : 'hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 rounded-lg text-gray-500">
+                      <item.Icon size={16} strokeWidth={2} />
+                    </span>
+                    <p className="text-sm font-medium text-gray-900 leading-tight">{item.label}</p>
+                  </button>
+                )
+              })}
+            </div>
           ))}
         </div>
       )}
