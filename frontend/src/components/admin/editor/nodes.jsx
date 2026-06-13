@@ -2643,6 +2643,9 @@ function CodeBlockComponent({ code, showLineNumbers, nodeKey, editor }) {
             onBlur={() => setTextareaFocused(false)}
             onKeyDown={e => {
               e.stopPropagation()
+              if (e.key === 'Enter' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                requestAnimationFrame(() => { e.target.scrollLeft = 0 })
+              }
               if (e.key === 'Tab') {
                 e.preventDefault()
                 const { selectionStart, selectionEnd, value } = e.target
@@ -2669,13 +2672,15 @@ function CodeBlockComponent({ code, showLineNumbers, nodeKey, editor }) {
             className="code-block-textarea block flex-1 p-0 pl-3 pr-8 py-2 bg-transparent outline-none resize-none font-mono text-sm leading-relaxed text-gray-800"
           />
         </div>
-        <button
-          onClick={handleCopy}
-          onMouseDown={e => e.preventDefault()}
-          className="absolute top-2 right-2 p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-colors"
-        >
-          {copied ? <Check size={14} /> : <Copy size={14} />}
-        </button>
+        <Tooltip content="Copy code">
+          <button
+            onClick={handleCopy}
+            onMouseDown={e => e.preventDefault()}
+            className={`absolute top-2 right-2 p-1 rounded bg-white text-gray-400 hover:text-gray-700 hover:bg-gray-200 transition-all ${isHovered || showRing ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          >
+            {copied ? <Check size={14} /> : <Copy size={14} />}
+          </button>
+        </Tooltip>
       </div>
     </div>
     {(isSelected || textareaFocused) && toolbarPos && createPortal(
