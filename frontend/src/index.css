@@ -81,12 +81,28 @@ html {
   background-color: #e5e7eb;
 }
 
+/* Blog editor main scroll area scrollbar */
+.editor-scroll-area::-webkit-scrollbar {
+  width: 4px;
+}
+.editor-scroll-area::-webkit-scrollbar-track {
+  background: transparent;
+}
+.editor-scroll-area::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
+  cursor: pointer;
+}
+.editor-scroll-area::-webkit-scrollbar-button {
+  display: none;
+}
+
 /* Code block editor textarea scrollbar */
 .code-block-textarea::-webkit-scrollbar {
   height: 4px;
 }
 .code-block-textarea::-webkit-scrollbar-track {
-  background: #f3f4f6;
+  background: transparent;
 }
 .code-block-textarea::-webkit-scrollbar-thumb {
   background: #d1d5db;
@@ -373,7 +389,7 @@ table.blog-table {
 }
 .blog-table-scroll-wrapper::-webkit-scrollbar-track,
 .blog-table-wrapper::-webkit-scrollbar-track {
-  background: #f3f4f6;
+  background: transparent;
 }
 .blog-table-scroll-wrapper::-webkit-scrollbar-thumb,
 .blog-table-wrapper::-webkit-scrollbar-thumb {
