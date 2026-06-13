@@ -206,6 +206,14 @@ html {
 
 .blog-content figure.gallery {
   margin: 1.5rem 0;
+  width: min(1040px, calc(100vw - 2rem));
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.blog-content figure.gallery img {
+  cursor: zoom-in;
 }
 
 .blog-content figcaption {
