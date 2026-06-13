@@ -854,7 +854,7 @@ export default function AdminBlogEditorPage() {
       {/* Body */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* Editor area */}
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-white relative">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-white relative editor-scroll-area">
           <div className="max-w-3xl mx-auto px-6 pt-10">
             {/* Feature Image */}
             {thumbnailFilename ? (
@@ -979,7 +979,7 @@ export default function AdminBlogEditorPage() {
             ) : (
               <span className="text-sm text-gray-400">—</span>
             )}
-            <p className="text-xs text-gray-400">Edit the Owner account information to change the author</p>
+            <p className="text-xs text-gray-400">Edit the Owner account to change the author</p>
           </div>
 
           <Field label="Slug">
