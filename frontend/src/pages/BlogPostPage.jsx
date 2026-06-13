@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Heart, Reply, MoreHorizontal, ChevronDown, X } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
+import GalleryLightbox from '../components/GalleryLightbox'
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -481,6 +482,9 @@ export default function BlogPostPage() {
     try { return new Set(JSON.parse(localStorage.getItem('liked_comments') || '[]')) }
     catch { return new Set() }
   })
+  const [lightboxImages, setLightboxImages] = useState([])
+  const [lightboxIndex, setLightboxIndex] = useState(null)
+  const articleRef = useRef(null)
 
   async function fetchPost() {
     const res = await fetch(`/api/blog/${slug}`)
@@ -523,6 +527,16 @@ export default function BlogPostPage() {
       localStorage.setItem('liked_comments', JSON.stringify([...likedIds]))
     })
   }
+
+  const handleArticleClick = useCallback((e) => {
+    if (e.target.tagName !== 'IMG') return
+    const gallery = e.target.closest('figure.gallery')
+    if (!gallery) return
+    const allImgs = [...gallery.querySelectorAll('img')]
+    const clickedIndex = allImgs.indexOf(e.target)
+    setLightboxImages(allImgs.map(i => ({ src: i.src, alt: i.alt || '' })))
+    setLightboxIndex(clickedIndex)
+  }, [])
 
   if (loading) return <main className="max-w-3xl mx-auto px-6 py-16"><p className="text-gray-400">Loading…</p></main>
 
@@ -603,9 +617,20 @@ export default function BlogPostPage() {
       </div>
 
       <article
+        ref={articleRef}
         className="prose prose-gray max-w-none mb-16 blog-content"
         dangerouslySetInnerHTML={{ __html: post.content_html || '' }}
+        onClick={handleArticleClick}
       />
+
+      {lightboxIndex !== null && (
+        <GalleryLightbox
+          images={lightboxImages}
+          index={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+          onNavigate={setLightboxIndex}
+        />
+      )}
 
       <section>
         <div className="flex items-baseline justify-between mb-10">
