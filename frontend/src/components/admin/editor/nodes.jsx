@@ -22,19 +22,20 @@ function resolveTextColor(mode, bgHex) {
 }
 import Picker from '@emoji-mart/react'
 import emojiData from '@emoji-mart/data'
-import { handleUpload } from './upload'
+import { handleUpload, handleUploadFull } from './upload'
 import { FloatingToolbarPlugin } from './plugins'
 import { Tooltip } from '../../ui/Tooltip'
 
 // ─── ImageNodeComponent ───────────────────────────────────────────────────────
 
-function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor }) {
+function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, nodeKey, editor }) {
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
   const [toolbarPos, setToolbarPos] = useState(null)
   const [showLinkPopover, setShowLinkPopover] = useState(false)
   const [linkDraft, setLinkDraft] = useState('')
+  const [imgLoaded, setImgLoaded] = useState(false)
   const showLinkPopoverRef = useRef(false)
   showLinkPopoverRef.current = showLinkPopover
   const linkButtonRef = useRef(null)
@@ -176,13 +177,27 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
         onMouseLeave={() => setIsHovered(false)}
         className={`my-4 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
       >
-        <img
-          ref={imgRef}
-          src={src}
-          alt={alt}
-          className="w-full h-auto block"
-          draggable={false}
-        />
+        <div style={{ position: 'relative', overflow: 'hidden' }}>
+          {lqip && !imgLoaded && (
+            <img
+              src={lqip}
+              aria-hidden="true"
+              className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+              style={{ filter: 'blur(20px)', transform: 'scale(1.05)' }}
+            />
+          )}
+          <img
+            ref={imgRef}
+            src={src}
+            srcSet={srcset || undefined}
+            sizes={srcset ? '(max-width: 740px) 100vw, 740px' : undefined}
+            alt={alt}
+            onLoad={() => setImgLoaded(true)}
+            className="w-full h-auto block"
+            style={{ transition: 'opacity 0.4s', opacity: lqip && !imgLoaded ? 0 : 1 }}
+            draggable={false}
+          />
+        </div>
         <figcaption className="mt-0">
           <input
             type="text"
@@ -277,13 +292,13 @@ function ImageNodeComponent({ src, alt, caption, width, href, nodeKey, editor })
 
 export class ImageNode extends DecoratorNode {
   static getType() { return 'image' }
-  static clone(node) { return new ImageNode(node.__src, node.__alt, node.__caption, node.__width, node.__href, node.__key) }
+  static clone(node) { return new ImageNode(node.__src, node.__alt, node.__caption, node.__width, node.__href, node.__srcset, node.__lqip, node.__key) }
 
   static importJSON(data) {
-    return new ImageNode(data.src, data.alt || '', data.caption || '', data.width || 'regular', data.href || '')
+    return new ImageNode(data.src, data.alt || '', data.caption || '', data.width || 'regular', data.href || '', data.srcset || '', data.lqip || '')
   }
   exportJSON() {
-    return { type: 'image', version: 1, src: this.__src, alt: this.__alt, caption: this.__caption, width: this.__width, href: this.__href }
+    return { type: 'image', version: 1, src: this.__src, alt: this.__alt, caption: this.__caption, width: this.__width, href: this.__href, srcset: this.__srcset, lqip: this.__lqip }
   }
 
   static importDOM() {
@@ -304,7 +319,9 @@ export class ImageNode extends DecoratorNode {
           const width = domNode.getAttribute('data-width') || 'regular'
           const parent = domNode.parentElement
           const href = (parent?.tagName === 'A') ? (parent.getAttribute('href') || '') : ''
-          return { node: new ImageNode(img.getAttribute('src') || '', img.getAttribute('alt') || '', caption, width, href) }
+          const srcset = domNode.getAttribute('data-srcset') || img.getAttribute('srcset') || ''
+          const lqip = domNode.getAttribute('data-lqip') || ''
+          return { node: new ImageNode(img.getAttribute('src') || '', img.getAttribute('alt') || '', caption, width, href, srcset, lqip) }
         },
         priority: 1,
       }),
@@ -318,13 +335,15 @@ export class ImageNode extends DecoratorNode {
     }
   }
 
-  constructor(src, alt = '', caption = '', width = 'regular', href = '', key) {
+  constructor(src, alt = '', caption = '', width = 'regular', href = '', srcset = '', lqip = '', key) {
     super(key)
     this.__src = src
     this.__alt = alt
     this.__caption = caption
     this.__width = width
     this.__href = href
+    this.__srcset = srcset
+    this.__lqip = lqip
   }
 
   createDOM() {
@@ -341,10 +360,16 @@ export class ImageNode extends DecoratorNode {
     const img = document.createElement('img')
     img.setAttribute('src', this.__src)
     img.setAttribute('alt', this.__alt)
+    if (this.__srcset) {
+      img.setAttribute('srcset', this.__srcset)
+      img.setAttribute('sizes', '(max-width: 740px) 100vw, 740px')
+    }
     img.style.cssText = 'width:100%;height:auto;display:block;margin:0'
 
     const figure = document.createElement('figure')
     figure.setAttribute('data-width', this.__width || 'regular')
+    if (this.__srcset) figure.setAttribute('data-srcset', this.__srcset)
+    if (this.__lqip) figure.setAttribute('data-lqip', this.__lqip)
     figure.style.borderRadius = '0.5rem'
     figure.style.overflow = 'hidden'
 
@@ -383,6 +408,8 @@ export class ImageNode extends DecoratorNode {
         caption={this.__caption}
         width={this.__width}
         href={this.__href}
+        srcset={this.__srcset}
+        lqip={this.__lqip}
         nodeKey={this.getKey()}
         editor={editor}
       />
@@ -390,8 +417,8 @@ export class ImageNode extends DecoratorNode {
   }
 }
 
-export function $createImageNode(src, alt = '', caption = '') {
-  return new ImageNode(src, alt, caption)
+export function $createImageNode(src, alt = '', caption = '', width = 'regular', href = '', srcset = '', lqip = '') {
+  return new ImageNode(src, alt, caption, width, href, srcset, lqip)
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1235,13 +1262,13 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
     if (!files.length) return
     for (const file of files) {
       try {
-        const filename = await handleUpload(file)
-        const newSrc = `/api/uploads/${filename}`
+        const data = await handleUploadFull(file)
+        const newImg = { src: `/api/uploads/${data.filename}`, alt: '', srcset: data.srcset || '' }
         editor.update(() => {
           const node = $getNodeByKey(nodeKey)
           if (node instanceof GalleryNode) {
             const w = node.getWritable()
-            w.__images = [...w.__images, { src: newSrc, alt: '' }]
+            w.__images = [...w.__images, newImg]
           }
         })
       } catch {
@@ -1316,7 +1343,11 @@ export class GalleryNode extends DecoratorNode {
         return {
           conversion: (domNode) => {
             const imgs = [...domNode.querySelectorAll('img')]
-            const images = imgs.map(img => ({ src: img.getAttribute('src') || '', alt: img.getAttribute('alt') || '' }))
+            const images = imgs.map(img => ({
+              src: img.getAttribute('src') || '',
+              alt: img.getAttribute('alt') || '',
+              srcset: img.getAttribute('srcset') || '',
+            }))
             const caption = domNode.querySelector('figcaption')?.textContent?.trim() || ''
             return { node: new GalleryNode(images, caption) }
           },
@@ -1354,6 +1385,10 @@ export class GalleryNode extends DecoratorNode {
       const imgEl = document.createElement('img')
       imgEl.setAttribute('src', img.src)
       imgEl.setAttribute('alt', img.alt || '')
+      if (img.srcset) {
+        imgEl.setAttribute('srcset', img.srcset)
+        imgEl.setAttribute('sizes', '400px')
+      }
       imgEl.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block'
       wrapper.appendChild(imgEl)
       grid.appendChild(wrapper)

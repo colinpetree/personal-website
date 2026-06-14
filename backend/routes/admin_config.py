@@ -1,5 +1,7 @@
 import os
 import uuid
+import base64
+import io
 from flask import Blueprint, jsonify, request, current_app
 from flask_login import current_user
 from models import SiteConfig, SiteEventLog
@@ -15,6 +17,54 @@ ALLOWED_EXTENSIONS = {
     'mp3', 'wav', 'ogg', 'flac', 'm4a',
     'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip', 'csv',
 }
+
+IMAGE_OPTIMIZE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
+
+
+def _optimize_image(input_path, uploads_dir, base_name):
+    """Convert image to WebP, generate 400/800/1200w variants, and a base64 LQIP.
+
+    Returns (webp_filename, srcset_string, lqip_data_url).
+    """
+    from PIL import Image
+
+    img = Image.open(input_path)
+    # Flatten alpha to white for JPEG-based operations; keep alpha for WebP
+    if img.mode == 'RGBA':
+        bg = Image.new('RGB', img.size, (255, 255, 255))
+        bg.paste(img, mask=img.split()[3])
+        img = bg
+    elif img.mode not in ('RGB',):
+        img = img.convert('RGB')
+
+    original_width = img.width
+
+    # Full-size WebP
+    webp_filename = f'{base_name}.webp'
+    img.save(os.path.join(uploads_dir, webp_filename), 'WEBP', quality=82)
+
+    # Responsive variants
+    srcset_parts = []
+    for w in (400, 800, 1200):
+        if original_width > w:
+            h = max(1, round(img.height * w / original_width))
+            variant = img.resize((w, h), Image.LANCZOS)
+        else:
+            variant = img
+        vname = f'{base_name}_{w}w.webp'
+        variant.save(os.path.join(uploads_dir, vname), 'WEBP', quality=82)
+        srcset_parts.append(f'/api/uploads/{vname} {w}w')
+    srcset_parts.append(f'/api/uploads/{webp_filename}')
+    srcset = ', '.join(srcset_parts)
+
+    # LQIP: 32px wide blurred placeholder as base64 JPEG
+    lqip_h = max(1, round(img.height * 32 / original_width))
+    lqip_img = img.resize((32, lqip_h), Image.LANCZOS)
+    buf = io.BytesIO()
+    lqip_img.save(buf, 'JPEG', quality=20)
+    lqip = f'data:image/jpeg;base64,{base64.b64encode(buf.getvalue()).decode()}'
+
+    return webp_filename, srcset, lqip
 
 # Fields that are stored encrypted; GET returns _set booleans, PUT encrypts if provided
 ENCRYPTED_FIELDS = ('smtp_password', 'stripe_secret_key', 'google_oauth_client_secret')
@@ -163,14 +213,34 @@ def upload_file():
 
     ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
     if ext not in ALLOWED_EXTENSIONS:
-        return jsonify({'error': f'File type not allowed.'}), 400
+        return jsonify({'error': 'File type not allowed.'}), 400
 
-    filename = f'{uuid.uuid4().hex}.{ext}'
+    base_name = uuid.uuid4().hex
     uploads_dir = os.path.join(current_app.root_path, 'uploads')
     os.makedirs(uploads_dir, exist_ok=True)
+
+    if ext in IMAGE_OPTIMIZE_EXTENSIONS:
+        tmp_path = os.path.join(uploads_dir, f'{base_name}_tmp.{ext}')
+        file.save(tmp_path)
+        try:
+            filename, srcset, lqip = _optimize_image(tmp_path, uploads_dir, base_name)
+        except Exception:
+            return jsonify({'error': 'Could not process image. The file may be corrupted or unsupported.'}), 400
+        finally:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        return jsonify({
+            'filename': filename,
+            'original_name': file.filename,
+            'mime_type': 'image/webp',
+            'size': os.path.getsize(os.path.join(uploads_dir, filename)),
+            'srcset': srcset,
+            'lqip': lqip,
+        })
+
+    filename = f'{base_name}.{ext}'
     saved_path = os.path.join(uploads_dir, filename)
     file.save(saved_path)
-
     return jsonify({
         'filename': filename,
         'original_name': file.filename,

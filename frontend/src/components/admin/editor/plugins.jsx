@@ -930,10 +930,10 @@ export function SlashCommandPlugin() {
 
     try {
       if (action === 'image') {
-        const filename = await handleUpload(files[0])
+        const data = await handleUploadFull(files[0])
         editor.update(() => {
           const node = $getNodeByKey(paragraphKey)
-          if (node && $isParagraphNode(node)) node.replace($createImageNode(`/api/uploads/${filename}`, ''))
+          if (node && $isParagraphNode(node)) node.replace($createImageNode(`/api/uploads/${data.filename}`, '', '', 'regular', '', data.srcset || '', data.lqip || ''))
         })
       } else if (action === 'video') {
         const filename = await handleUpload(files[0])
@@ -956,8 +956,8 @@ export function SlashCommandPlugin() {
       } else if (action === 'gallery') {
         const uploaded = []
         for (const file of files) {
-          const filename = await handleUpload(file)
-          uploaded.push({ src: `/api/uploads/${filename}`, alt: '' })
+          const data = await handleUploadFull(file)
+          uploaded.push({ src: `/api/uploads/${data.filename}`, alt: '', srcset: data.srcset || '' })
         }
         if (uploaded.length) {
           editor.update(() => {

@@ -563,9 +563,42 @@ export default function BlogPostPage() {
     if (!gallery) return
     const allImgs = [...gallery.querySelectorAll('img')]
     const clickedIndex = allImgs.indexOf(e.target)
-    setLightboxImages(allImgs.map(i => ({ src: i.src, alt: i.alt || '' })))
+    setLightboxImages(allImgs.map(i => ({ src: i.getAttribute('src') || i.src, alt: i.alt || '' })))
     setLightboxIndex(clickedIndex)
   }, [])
+
+  useEffect(() => {
+    if (!articleRef.current || !post?.content_html) return
+    const figures = articleRef.current.querySelectorAll('figure[data-lqip]')
+    figures.forEach(figure => {
+      const img = figure.querySelector('img')
+      const lqipSrc = figure.getAttribute('data-lqip')
+      if (!img || !lqipSrc) return
+
+      const placeholder = document.createElement('img')
+      placeholder.src = lqipSrc
+      placeholder.setAttribute('aria-hidden', 'true')
+      placeholder.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(20px);transform:scale(1.05);pointer-events:none'
+      figure.style.position = 'relative'
+      figure.insertBefore(placeholder, img)
+
+      img.style.transition = 'opacity 0.4s'
+      img.style.opacity = '0'
+
+      function onLoad() {
+        img.style.opacity = '1'
+        placeholder.style.transition = 'opacity 0.4s'
+        placeholder.style.opacity = '0'
+        setTimeout(() => placeholder.remove(), 400)
+      }
+
+      if (img.complete && img.naturalWidth) {
+        onLoad()
+      } else {
+        img.addEventListener('load', onLoad, { once: true })
+      }
+    })
+  }, [post?.content_html])
 
   if (loading) return <BlogPostSkeleton />
 
