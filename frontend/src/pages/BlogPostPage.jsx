@@ -508,6 +508,12 @@ export default function BlogPostPage() {
     fetch('/api/blog/author').then(r => r.ok ? r.json() : null).then(d => { if (d?.name) setBlogAuthor(d) })
   }, [slug])
 
+  useEffect(() => {
+    if (post?.title) {
+      document.title = post.title
+    }
+  }, [post?.title])
+
   function handleLike(commentId, currentlyLiked) {
     const delta = currentlyLiked ? -1 : 1
     const newLikedIds = new Set(likedIds)
@@ -543,7 +549,7 @@ export default function BlogPostPage() {
   if (notFound) return (
     <main className="max-w-3xl mx-auto px-6 py-16">
       <h1 className="text-2xl font-bold text-gray-900 mb-4">Post not found</h1>
-      <Link to="/blog" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
+      <Link to={`/${siteConfig?.nav?.find(p => p.key === 'blog')?.path ?? 'blog'}`} className="inline-flex items-center gap-1 text-blue-600 hover:underline">
         <ArrowLeft size={14} strokeWidth={1.5} />Back to blog
       </Link>
     </main>

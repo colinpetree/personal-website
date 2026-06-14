@@ -3,7 +3,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 from extensions import db
-from models import BlogPost, Comment, User, SiteEventLog
+from models import BlogPost, Comment, User, SiteEventLog, SiteConfig
 from routes.admin_auth import admin_required, role_at_least
 
 
@@ -21,7 +21,17 @@ def _log(area, action_type, subject, subject_is_bold=False):
 
 admin_blog_bp = Blueprint('admin_blog', __name__)
 
-RESERVED_SLUGS = {'', 'blog', 'projects', 'about', 'contact', 'demo', 'donate', 'admin', 'api'}
+_STATIC_RESERVED = {'', 'admin', 'api', 'profile'}
+
+
+def _get_reserved_slugs():
+    config = SiteConfig.query.first()
+    if config:
+        return _STATIC_RESERVED | {
+            config.blog_slug, config.projects_slug, config.about_slug,
+            config.contact_slug, config.ai_demo_slug, config.donate_slug,
+        }
+    return _STATIC_RESERVED | {'blog', 'projects', 'about', 'contact', 'demo', 'donate'}
 
 
 def _slugify(text):
@@ -34,7 +44,8 @@ def _slugify(text):
 
 def _unique_slug(base, exclude_id=None):
     slug = base or 'untitled'
-    if slug in RESERVED_SLUGS:
+    reserved = _get_reserved_slugs()
+    if slug in reserved:
         slug = slug + '-post'
     counter = 1
     while True:
@@ -129,7 +140,7 @@ def update_post(post_id):
 
     if 'slug' in data:
         new_slug = _slugify(data['slug']) or _slugify(post.title) or 'untitled'
-        if new_slug in RESERVED_SLUGS:
+        if new_slug in _get_reserved_slugs():
             return jsonify({'error': f'"{new_slug}" is a reserved path and cannot be used as a slug.'}), 400
         conflict = BlogPost.query.filter(BlogPost.slug == new_slug, BlogPost.id != post_id).first()
         if conflict:

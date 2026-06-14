@@ -9,7 +9,7 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     if (config?.site_title) {
-      document.title = `${config.projects_page_name ?? 'Projects'} — ${config.site_title}`
+      document.title = `${config.projects_page_name ?? 'Projects'} - ${config.site_title}`
     }
   }, [config])
 

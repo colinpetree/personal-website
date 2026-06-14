@@ -6,7 +6,7 @@ export default function AboutPage() {
 
   useEffect(() => {
     if (config?.site_title) {
-      document.title = `About — ${config.site_title}`
+      document.title = `${config.about_page_name ?? 'About'} - ${config.site_title}`
     }
   }, [config])
 
