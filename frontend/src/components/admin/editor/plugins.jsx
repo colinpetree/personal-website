@@ -8,6 +8,7 @@ import {
   Table, AlignLeft, AlignCenter, Trash2, Undo2, Redo2,
   ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, ArrowDownToLine,
   Columns3Cog, RectangleHorizontal, RectangleVertical, Grid2x2, PaintBucket,
+  FileUp,
 } from 'lucide-react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
@@ -1671,6 +1672,27 @@ export function TableDragScrollPlugin() {
 
 // ─── DragDropPastePlugin ──────────────────────────────────────────────────────
 
+function scrollToBottom(el) {
+  let node = el.parentElement
+  while (node && node !== document.body) {
+    const { overflow, overflowY } = getComputedStyle(node)
+    if (/(auto|scroll)/.test(overflow + overflowY)) {
+      requestAnimationFrame(() => {
+        if (node.scrollHeight > node.clientHeight) {
+          node.scrollTo({ top: node.scrollHeight, behavior: 'smooth' })
+        }
+      })
+      return
+    }
+    node = node.parentElement
+  }
+  requestAnimationFrame(() => {
+    if (document.body.scrollHeight > window.innerHeight) {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })
+    }
+  })
+}
+
 async function uploadMediaFile(file) {
   const data = await handleUploadFull(file)
   return { data, file }
@@ -1738,10 +1760,32 @@ function extractBrowserImageUrl(dataTransfer) {
 
 export function DragDropPastePlugin() {
   const [editor] = useLexicalComposerContext()
+  const [overlayRect, setOverlayRect] = useState(null)
 
   useEffect(() => {
     const root = editor.getRootElement()
     if (!root) return
+    // editorWrapper  = div.relative.bg-white (index.jsx) — defines the visual top of the overlay
+    // dropContainer  = its parent, which also contains the 33vh bottom-padding div in the page
+    const editorWrapper = root.parentElement ?? root
+    const dropContainer = editorWrapper.parentElement ?? editorWrapper
+
+    const calcOverlayRect = () => {
+      const editorR = editorWrapper.getBoundingClientRect()
+      return { top: Math.max(0, editorR.top), left: editorR.left, width: editorR.width }
+    }
+
+    const onDragEnter = (e) => {
+      const types = Array.from(e.dataTransfer?.types ?? [])
+      if (types.includes('Files') || types.includes('text/uri-list')) {
+        setOverlayRect(calcOverlayRect())
+      }
+    }
+
+    const onDragLeave = (e) => {
+      if (dropContainer.contains(e.relatedTarget)) return
+      setOverlayRect(null)
+    }
 
     const onDragOver = (e) => {
       const types = Array.from(e.dataTransfer?.types ?? [])
@@ -1752,6 +1796,7 @@ export function DragDropPastePlugin() {
     }
 
     const onDrop = async (e) => {
+      setOverlayRect(null)
       const files = Array.from(e.dataTransfer?.files ?? [])
 
       if (files.length) {
@@ -1761,6 +1806,7 @@ export function DragDropPastePlugin() {
         try {
           const uploads = await Promise.all(files.map(uploadMediaFile))
           insertMediaNodes(editor, anchorKey, uploads)
+          scrollToBottom(root)
         } catch (err) {
           console.error('[DragDropPastePlugin] upload failed', err)
         }
@@ -1782,6 +1828,7 @@ export function DragDropPastePlugin() {
         const file = new File([blob], `dropped-image.${ext}`, { type: blob.type })
         const upload = await uploadMediaFile(file)
         insertMediaNodes(editor, anchorKey, [upload])
+        scrollToBottom(root)
       } catch {
         // CORS-blocked or network error — silently skip
       }
@@ -1803,15 +1850,38 @@ export function DragDropPastePlugin() {
       }
     }
 
-    root.addEventListener('dragover', onDragOver, true)
-    root.addEventListener('drop', onDrop, true)
+    dropContainer.addEventListener('dragenter', onDragEnter, true)
+    dropContainer.addEventListener('dragleave', onDragLeave, true)
+    dropContainer.addEventListener('dragover', onDragOver, true)
+    dropContainer.addEventListener('drop', onDrop, true)
     root.addEventListener('paste', onPaste, true)
     return () => {
-      root.removeEventListener('dragover', onDragOver, true)
-      root.removeEventListener('drop', onDrop, true)
+      dropContainer.removeEventListener('dragenter', onDragEnter, true)
+      dropContainer.removeEventListener('dragleave', onDragLeave, true)
+      dropContainer.removeEventListener('dragover', onDragOver, true)
+      dropContainer.removeEventListener('drop', onDrop, true)
       root.removeEventListener('paste', onPaste, true)
     }
   }, [editor])
 
-  return null
+  return overlayRect
+    ? createPortal(
+        <div
+          style={{
+            position: 'fixed',
+            top: overlayRect.top,
+            left: overlayRect.left,
+            width: overlayRect.width,
+            bottom: 0,
+            pointerEvents: 'none',
+            zIndex: 9999,
+          }}
+          className="flex flex-col items-center justify-center gap-3 bg-blue-50/90 backdrop-blur-sm"
+        >
+          <FileUp size={40} className="text-blue-400" strokeWidth={1.5} />
+          <p className="text-sm font-medium text-blue-500">Drop to insert file</p>
+        </div>,
+        document.body
+      )
+    : null
 }
