@@ -720,7 +720,7 @@ export default function AdminBlogEditorPage() {
         addToast({
           message: 'Post updated',
           subtext: 'View on site',
-          subtextHref: `/blog/${data.slug}`,
+          subtextHref: `/${data.slug}`,
         })
       }
     } finally {
@@ -984,7 +984,7 @@ export default function AdminBlogEditorPage() {
 
           <Field label="Slug">
             <InputWithPrefix
-              prefix={`/${siteConfig?.blog_slug || 'blog'}/`}
+              prefix="/"
               value={slug}
               onChange={handleSlugChange}
               onBlur={handleSidebarSave}

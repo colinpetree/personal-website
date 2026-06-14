@@ -11,7 +11,7 @@ export default function ContactPage() {
 
   useEffect(() => {
     if (config?.site_title) {
-      document.title = `${config.contact_page_name ?? 'Contact'} — ${config.site_title}`
+      document.title = `${config.contact_page_name ?? 'Contact'} - ${config.site_title}`
     }
   }, [config])
 
