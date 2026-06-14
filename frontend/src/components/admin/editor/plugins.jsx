@@ -1668,3 +1668,150 @@ export function TableDragScrollPlugin() {
 
   return null
 }
+
+// ─── DragDropPastePlugin ──────────────────────────────────────────────────────
+
+async function uploadMediaFile(file) {
+  const data = await handleUploadFull(file)
+  return { data, file }
+}
+
+function createNodeFromUpload({ data, file }) {
+  const url = `/api/uploads/${data.filename}`
+  const mime = file.type
+  if (mime.startsWith('image/')) return $createImageNode(url, '', '', 'regular', '', data.srcset || '', data.lqip || '')
+  if (mime.startsWith('video/')) return $createVideoNode(url, '')
+  if (mime.startsWith('audio/')) return $createAudioNode(url, data.original_name || file.name)
+  return $createFileNode(url, data.original_name || file.name, data.mime_type || file.type, data.size || file.size)
+}
+
+function captureAnchorKey(editor) {
+  let key = null
+  editor.read(() => {
+    const sel = $getSelection()
+    if ($isRangeSelection(sel)) {
+      key = sel.anchor.getNode().getTopLevelElement()?.getKey() ?? null
+    }
+    if (!key) key = $getRoot().getLastChild()?.getKey() ?? null
+  })
+  return key
+}
+
+function insertMediaNodes(editor, anchorKey, uploads) {
+  editor.update(() => {
+    const mediaNodes = uploads.map(createNodeFromUpload)
+    let insertAfter = (anchorKey ? $getNodeByKey(anchorKey) : null) ?? $getRoot().getLastChild()
+    const replaceAnchor =
+      mediaNodes.length === 1 &&
+      insertAfter &&
+      $isParagraphNode(insertAfter) &&
+      insertAfter.getTextContent() === ''
+
+    for (const node of mediaNodes) {
+      if (replaceAnchor && insertAfter) {
+        insertAfter.replace(node)
+      } else {
+        insertAfter.insertAfter(node)
+      }
+      insertAfter = node
+      const para = $createParagraphNode()
+      insertAfter.insertAfter(para)
+      insertAfter = para
+    }
+    if ($isParagraphNode(insertAfter)) insertAfter.selectStart()
+  })
+}
+
+function extractBrowserImageUrl(dataTransfer) {
+  const uriList = dataTransfer.getData('text/uri-list')
+  if (uriList) {
+    const first = uriList.split('\n').find(line => !line.startsWith('#'))?.trim()
+    if (first) return first
+  }
+  const html = dataTransfer.getData('text/html')
+  if (html) {
+    const match = html.match(/<img[^>]+src="([^"]+)"/)
+    if (match) return match[1]
+  }
+  return null
+}
+
+export function DragDropPastePlugin() {
+  const [editor] = useLexicalComposerContext()
+
+  useEffect(() => {
+    const root = editor.getRootElement()
+    if (!root) return
+
+    const onDragOver = (e) => {
+      const types = Array.from(e.dataTransfer?.types ?? [])
+      if (types.includes('Files') || types.includes('text/uri-list')) {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+      }
+    }
+
+    const onDrop = async (e) => {
+      const files = Array.from(e.dataTransfer?.files ?? [])
+
+      if (files.length) {
+        e.preventDefault()
+        e.stopPropagation()
+        const anchorKey = captureAnchorKey(editor)
+        try {
+          const uploads = await Promise.all(files.map(uploadMediaFile))
+          insertMediaNodes(editor, anchorKey, uploads)
+        } catch (err) {
+          console.error('[DragDropPastePlugin] upload failed', err)
+        }
+        return
+      }
+
+      // Browser image drag — URL carried in dataTransfer, no file blob
+      const imageUrl = extractBrowserImageUrl(e.dataTransfer)
+      if (!imageUrl) return
+      e.preventDefault()
+      e.stopPropagation()
+      const anchorKey = captureAnchorKey(editor)
+      try {
+        const res = await fetch(imageUrl, { mode: 'cors' })
+        if (!res.ok) return
+        const blob = await res.blob()
+        if (!blob.type.startsWith('image/')) return
+        const ext = imageUrl.split('.').pop()?.split('?')[0] || 'jpg'
+        const file = new File([blob], `dropped-image.${ext}`, { type: blob.type })
+        const upload = await uploadMediaFile(file)
+        insertMediaNodes(editor, anchorKey, [upload])
+      } catch {
+        // CORS-blocked or network error — silently skip
+      }
+    }
+
+    const onPaste = async (e) => {
+      const files = Array.from(e.clipboardData?.items ?? [])
+        .filter(item => item.kind === 'file')
+        .map(item => item.getAsFile())
+        .filter(Boolean)
+      if (!files.length) return
+      e.preventDefault()
+      const anchorKey = captureAnchorKey(editor)
+      try {
+        const uploads = await Promise.all(files.map(uploadMediaFile))
+        insertMediaNodes(editor, anchorKey, uploads)
+      } catch (err) {
+        console.error('[DragDropPastePlugin] paste upload failed', err)
+      }
+    }
+
+    root.addEventListener('dragover', onDragOver, true)
+    root.addEventListener('drop', onDrop, true)
+    root.addEventListener('paste', onPaste, true)
+    return () => {
+      root.removeEventListener('dragover', onDragOver, true)
+      root.removeEventListener('drop', onDrop, true)
+      root.removeEventListener('paste', onPaste, true)
+    }
+  }, [editor])
+
+  return null
+}

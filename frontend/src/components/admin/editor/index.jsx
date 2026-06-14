@@ -24,6 +24,7 @@ import {
   TableActionMenuPlugin,
   TableColumnResizePlugin,
   TableDragScrollPlugin,
+  DragDropPastePlugin,
 } from './plugins'
 
 const RichTextEditor = forwardRef(function RichTextEditor(
@@ -67,6 +68,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
       <HtmlOutputPlugin onChange={onChange} />
       <FloatingToolbarPlugin />
       <SlashCommandPlugin />
+      <DragDropPastePlugin />
       <ListIndentPlugin />
       <DecoratorArrowNavigationPlugin />
       <TableActionMenuPlugin />
