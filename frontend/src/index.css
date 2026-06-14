@@ -209,6 +209,21 @@ html {
   margin: 0;
 }
 
+/* Reserve space for images with unknown dimensions to prevent CLS */
+.blog-content figure:not(.gallery) img {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  height: auto;
+  background-color: #f3f4f6;
+}
+
+.blog-content figure.gallery img {
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  height: auto;
+  background-color: #f3f4f6;
+}
+
 .blog-content figure.gallery {
   margin: 1.5rem 0;
   width: min(1040px, calc(100vw - 2rem));

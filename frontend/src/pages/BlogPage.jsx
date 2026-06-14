@@ -3,6 +3,24 @@ import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 
+function BlogListSkeleton() {
+  return (
+    <div className="flex flex-col gap-10 animate-pulse">
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div key={i} className="flex gap-6">
+          <div className="shrink-0 w-28 h-20 bg-gray-100 rounded-lg" />
+          <div className="flex-1 min-w-0 flex flex-col gap-2 py-1">
+            <div className="h-5 bg-gray-100 rounded w-3/4" />
+            <div className="h-3 bg-gray-100 rounded w-full" />
+            <div className="h-3 bg-gray-100 rounded w-5/6" />
+            <div className="h-3 bg-gray-100 rounded w-24 mt-1" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function BlogPage() {
   const { config } = useSiteConfig()
   const [data, setData] = useState(null)
@@ -32,7 +50,7 @@ export default function BlogPage() {
     <main className="max-w-3xl mx-auto px-6 py-16">
       <h1 className="text-4xl font-bold text-gray-900 mb-10">Blog</h1>
 
-      {loading && <p className="text-gray-400">Loading…</p>}
+      {loading && <BlogListSkeleton />}
 
       {!loading && data?.posts?.length === 0 && (
         <p className="text-gray-500">No posts published yet.</p>

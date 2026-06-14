@@ -2,6 +2,19 @@ import { useState, useEffect } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 
+function ProjectCardSkeleton() {
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden animate-pulse">
+      <div className="w-full h-48 bg-gray-100" />
+      <div className="p-5 flex flex-col gap-2">
+        <div className="h-5 bg-gray-100 rounded w-2/3" />
+        <div className="h-3 bg-gray-100 rounded w-full" />
+        <div className="h-3 bg-gray-100 rounded w-4/5" />
+      </div>
+    </div>
+  )
+}
+
 export default function ProjectsPage() {
   const { config } = useSiteConfig()
   const [projects, setProjects] = useState([])
@@ -34,8 +47,8 @@ export default function ProjectsPage() {
       )}
 
       {loading ? (
-        <div className="flex justify-center py-16">
-          <div className="w-8 h-8 border-4 border-gray-300 border-t-gray-800 rounded-full animate-spin" />
+        <div className="grid gap-6 sm:grid-cols-2">
+          {Array.from({ length: 4 }).map((_, i) => <ProjectCardSkeleton key={i} />)}
         </div>
       ) : projects.length === 0 ? (
         <p className="text-gray-400">No projects yet.</p>

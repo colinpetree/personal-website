@@ -4,6 +4,29 @@ import { ArrowLeft, Heart, Reply, MoreHorizontal, ChevronDown, X } from 'lucide-
 import { useUserAuth } from '../context/UserAuthContext'
 import GalleryLightbox from '../components/GalleryLightbox'
 
+// ── Skeletons ─────────────────────────────────────────────────────────────
+
+function BlogPostSkeleton() {
+  return (
+    <main className="max-w-3xl mx-auto px-6 py-16 animate-pulse">
+      <div className="h-10 bg-gray-100 rounded w-5/6 mb-3" />
+      <div className="h-10 bg-gray-100 rounded w-2/3 mb-6" />
+      <div className="flex items-center gap-2 mb-8">
+        <div className="w-8 h-8 rounded-full bg-gray-100 shrink-0" />
+        <div className="flex flex-col gap-1.5">
+          <div className="h-3 bg-gray-100 rounded w-24" />
+          <div className="h-3 bg-gray-100 rounded w-20" />
+        </div>
+      </div>
+      <div className="flex flex-col gap-3">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className={`h-4 bg-gray-100 rounded ${i % 5 === 4 ? 'w-2/3' : 'w-full'}`} />
+        ))}
+      </div>
+    </main>
+  )
+}
+
 // ── Utilities ──────────────────────────────────────────────────────────────
 
 function countAllComments(comments) {
@@ -544,7 +567,7 @@ export default function BlogPostPage() {
     setLightboxIndex(clickedIndex)
   }, [])
 
-  if (loading) return <main className="max-w-3xl mx-auto px-6 py-16"><p className="text-gray-400">Loading…</p></main>
+  if (loading) return <BlogPostSkeleton />
 
   if (notFound) return (
     <main className="max-w-3xl mx-auto px-6 py-16">
