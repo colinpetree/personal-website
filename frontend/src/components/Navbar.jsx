@@ -1,21 +1,15 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useUserAuth } from '../context/UserAuthContext'
+import { useSiteConfig } from '../hooks/useSiteConfig'
 
 export default function Navbar() {
-  const [config, setConfig] = useState(null)
+  const { config } = useSiteConfig()
   const [menuOpen, setMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const userMenuRef = useRef(null)
   const location = useLocation()
   const { user, loginWithGoogle, logout } = useUserAuth()
-
-  useEffect(() => {
-    fetch('/api/site-config')
-      .then(res => res.ok ? res.json() : null)
-      .then(data => { if (data) setConfig(data) })
-      .catch(() => {})
-  }, [])
 
   // Close mobile menu on navigation
   useEffect(() => { setMenuOpen(false); setUserMenuOpen(false) }, [location.pathname])
@@ -52,12 +46,23 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Site title / logo */}
-        <Link to="/" className="text-lg font-semibold text-gray-900 hover:text-gray-700 transition-colors">
-          {siteTitle}
-        </Link>
+        {config ? (
+          <Link to="/" className="text-lg font-semibold text-gray-900 hover:text-gray-700 transition-colors">
+            {siteTitle}
+          </Link>
+        ) : (
+          <div className="w-32 h-4 bg-gray-100 rounded animate-pulse" />
+        )}
 
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-6">
+          {!config && (
+            <>
+              <div className="w-12 h-4 bg-gray-100 rounded animate-pulse" />
+              <div className="w-12 h-4 bg-gray-100 rounded animate-pulse" />
+              <div className="w-12 h-4 bg-gray-100 rounded animate-pulse" />
+            </>
+          )}
           {navLinks.map(link => (
             <Link
               key={link.key}

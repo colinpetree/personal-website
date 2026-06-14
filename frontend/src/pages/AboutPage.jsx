@@ -2,21 +2,13 @@ import { useEffect } from 'react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 
 export default function AboutPage() {
-  const { config, loading } = useSiteConfig()
+  const { config } = useSiteConfig()
 
   useEffect(() => {
     if (config?.site_title) {
       document.title = `${config.about_page_name ?? 'About'} - ${config.site_title}`
     }
   }, [config])
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-gray-300 border-t-gray-800 rounded-full animate-spin" />
-      </div>
-    )
-  }
 
   return (
     <main className="max-w-3xl mx-auto px-6 py-16">
