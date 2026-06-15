@@ -4552,6 +4552,7 @@ function RecordingNodeComponent({ nodeKey, editor }) {
   const [saveError, setSaveError] = useState(null)
   const [deviceSearch, setDeviceSearch] = useState('')
   const [deviceDropdownOpen, setDeviceDropdownOpen] = useState(false)
+  const [outputName, setOutputName] = useState('')
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [isHovered, setIsHovered] = useState(false)
 
@@ -4669,6 +4670,7 @@ function RecordingNodeComponent({ nodeKey, editor }) {
     setAudioUrl(null)
     setSaveError(null)
     setShowConfirm(false)
+    setOutputName('')
     setPhase('idle')
   }
 
@@ -4710,7 +4712,8 @@ function RecordingNodeComponent({ nodeKey, editor }) {
       editor.update(() => {
         const node = $getNodeByKey(nodeKey)
         if (!node) return
-        const audioNode = $createAudioNode(`/api/uploads/${data.filename}`, data.original_name)
+        const displayName = (outputName.trim() || 'recording') + '.mp3'
+        const audioNode = $createAudioNode(`/api/uploads/${data.filename}`, displayName)
         node.insertAfter(audioNode)
         node.remove()
       })
@@ -4734,44 +4737,59 @@ function RecordingNodeComponent({ nodeKey, editor }) {
       onMouseLeave={() => setIsHovered(false)}
     >
       <div className={`relative mx-6 p-4 bg-gray-50 border rounded-lg transition-all ${ringClass}`}>
-      {/* Header: mic icon + device combobox + recording status */}
+      {/* Header: mic icon + device combobox (idle/recording) or filename input (recorded/saving) */}
       <div className="flex items-center gap-2 mb-3">
-        <Mic size={15} className="text-gray-400 shrink-0" />
-        <div ref={deviceDropdownRef} className="relative flex-1">
-          <input
-            type="text"
-            placeholder={selectedDeviceId
-              ? (devices.find(d => d.deviceId === selectedDeviceId)?.label || 'Selected device')
-              : 'Select microphone…'
-            }
-            value={deviceSearch}
-            onFocus={() => { setDeviceSearch(''); setDeviceDropdownOpen(true) }}
-            onChange={e => { setDeviceSearch(e.target.value); setSelectedDeviceId(''); setDeviceDropdownOpen(true) }}
-            onBlur={() => setTimeout(() => setDeviceDropdownOpen(false), 150)}
-            disabled={phase === 'recording' || phase === 'saving'}
-            className={`w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 disabled:opacity-50 ${selectedDeviceId ? 'placeholder-blue-600 font-medium' : 'placeholder-gray-400'}`}
-            onKeyDown={e => e.stopPropagation()}
-          />
-          {deviceDropdownOpen && (
-            <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto text-sm list-none p-0 m-0">
-              {devices.length === 0
-                ? <li className="px-3 py-2 text-gray-400">Default microphone</li>
-                : devices
-                    .filter(d => !deviceSearch || (d.label || '').toLowerCase().includes(deviceSearch.toLowerCase()))
-                    .map(d => (
-                      <li
-                        key={d.deviceId}
-                        onMouseDown={e => e.preventDefault()}
-                        onClick={() => { setSelectedDeviceId(d.deviceId); setDeviceSearch(''); setDeviceDropdownOpen(false) }}
-                        className={`px-3 py-2 cursor-pointer hover:bg-gray-50 truncate ${selectedDeviceId === d.deviceId ? 'text-blue-600 font-medium' : 'text-gray-700'}`}
-                      >
-                        {d.label || `Microphone ${d.deviceId.slice(0, 6)}`}
-                      </li>
-                    ))
+        {(phase !== 'recorded' && phase !== 'saving') && <Mic size={15} className="text-gray-400 shrink-0" />}
+        {(phase === 'recorded' || phase === 'saving') ? (
+          <div className="flex-1 flex items-center border border-gray-200 rounded overflow-hidden focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-100">
+            <input
+              type="text"
+              placeholder="recording"
+              value={outputName}
+              onChange={e => setOutputName(e.target.value)}
+              disabled={phase === 'saving'}
+              className="flex-1 text-sm px-2 py-1 outline-none bg-white disabled:opacity-50"
+              onKeyDown={e => e.stopPropagation()}
+            />
+            <span className="px-2 py-1 text-sm text-gray-500 bg-gray-100 border-l border-gray-200 shrink-0 select-none">.mp3</span>
+          </div>
+        ) : (
+          <div ref={deviceDropdownRef} className="relative flex-1">
+            <input
+              type="text"
+              placeholder={selectedDeviceId
+                ? (devices.find(d => d.deviceId === selectedDeviceId)?.label || 'Selected device')
+                : 'Select microphone…'
               }
-            </ul>
-          )}
-        </div>
+              value={deviceSearch}
+              onFocus={() => { setDeviceSearch(''); setDeviceDropdownOpen(true) }}
+              onChange={e => { setDeviceSearch(e.target.value); setSelectedDeviceId(''); setDeviceDropdownOpen(true) }}
+              onBlur={() => setTimeout(() => setDeviceDropdownOpen(false), 150)}
+              disabled={phase === 'recording'}
+              className={`w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 disabled:opacity-50 ${selectedDeviceId ? 'placeholder-blue-600 font-medium' : 'placeholder-gray-400'}`}
+              onKeyDown={e => e.stopPropagation()}
+            />
+            {deviceDropdownOpen && (
+              <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto text-sm list-none p-0 m-0">
+                {devices.length === 0
+                  ? <li className="px-3 py-2 text-gray-400">Default microphone</li>
+                  : devices
+                      .filter(d => !deviceSearch || (d.label || '').toLowerCase().includes(deviceSearch.toLowerCase()))
+                      .map(d => (
+                        <li
+                          key={d.deviceId}
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => { setSelectedDeviceId(d.deviceId); setDeviceSearch(''); setDeviceDropdownOpen(false) }}
+                          className={`px-3 py-2 cursor-pointer hover:bg-gray-50 truncate ${selectedDeviceId === d.deviceId ? 'text-blue-600 font-medium' : 'text-gray-700'}`}
+                        >
+                          {d.label || `Microphone ${d.deviceId.slice(0, 6)}`}
+                        </li>
+                      ))
+                }
+              </ul>
+            )}
+          </div>
+        )}
         {phase === 'recording' && (
           <div className="flex items-center gap-1.5 shrink-0">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
