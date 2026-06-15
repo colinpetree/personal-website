@@ -26,11 +26,11 @@ import {
 import {
   $getSelection, $isRangeSelection, $isNodeSelection, $createParagraphNode, $createTextNode, $getRoot,
   FORMAT_TEXT_COMMAND, FORMAT_ELEMENT_COMMAND, UNDO_COMMAND, REDO_COMMAND,
-  KEY_DOWN_COMMAND, COMMAND_PRIORITY_HIGH, COMMAND_PRIORITY_CRITICAL,
+  KEY_DOWN_COMMAND, COMMAND_PRIORITY_HIGH, COMMAND_PRIORITY_CRITICAL, COMMAND_PRIORITY_LOW,
   $getNodeByKey, $isParagraphNode, $isDecoratorNode, $isElementNode,
-  $createNodeSelection, $setSelection,
+  $createNodeSelection, $setSelection, createCommand,
 } from 'lexical'
-import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createToggleNode, $createCodeBlockNode, $createHeaderNode, $createYouTubeNode, $createVimeoNode, $createSpotifyNode, $createRecordingNode } from './nodes'
+import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createToggleNode, $createCodeBlockNode, $createHeaderNode, $createYouTubeNode, $createVimeoNode, $createSpotifyNode } from './nodes'
 import { handleUpload, handleUploadFull } from './upload'
 import { Tooltip } from '../../ui/Tooltip'
 import { ColorSwatchMenu } from '../../ui/ColorPicker'
@@ -877,20 +877,15 @@ export function SlashCommandPlugin() {
     }
 
     if (item.action === 'recording') {
+      const prevKey = editor.getEditorState().read(() => {
+        const node = $getNodeByKey(nodeKey)
+        return node?.getPreviousSibling()?.__key || null
+      })
       editor.update(() => {
         const node = $getNodeByKey(nodeKey)
-        if (!node || !$isParagraphNode(node)) return
-        const newNode = $createRecordingNode()
-        node.replace(newNode)
-        const next = newNode.getNextSibling()
-        if ($isElementNode(next)) {
-          next.selectStart()
-        } else {
-          const para = $createParagraphNode()
-          newNode.insertAfter(para)
-          para.selectStart()
-        }
+        if (node) node.remove()
       })
+      editor.dispatchCommand(OPEN_RECORDING_MODAL_COMMAND, prevKey)
       return
     }
 
@@ -1903,4 +1898,430 @@ export function DragDropPastePlugin() {
         document.body
       )
     : null
+}
+
+// ─── RecordingModalPlugin ─────────────────────────────────────────────────────
+
+export const OPEN_RECORDING_MODAL_COMMAND = createCommand('OPEN_RECORDING_MODAL_COMMAND')
+
+function formatRecordingTime(secs) {
+  const m = Math.floor(secs / 60)
+  const s = Math.floor(secs % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+function RecordingModal({ onClose, onInsert }) {
+  const [phase, setPhase] = useState('idle') // 'idle' | 'recording' | 'recorded' | 'saving'
+  const [devices, setDevices] = useState([])
+  const [selectedDeviceId, setSelectedDeviceId] = useState('')
+  const [recordingTime, setRecordingTime] = useState(0)
+  const [audioBlob, setAudioBlob] = useState(null)
+  const [audioUrl, setAudioUrl] = useState(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [saveError, setSaveError] = useState(null)
+  const [deviceSearch, setDeviceSearch] = useState('')
+  const [deviceDropdownOpen, setDeviceDropdownOpen] = useState(false)
+  const [outputName, setOutputName] = useState('')
+
+  const deviceDropdownRef = useRef(null)
+  const mediaRecorderRef = useRef(null)
+  const chunksRef = useRef([])
+  const streamRef = useRef(null)
+  const audioRef = useRef(null)
+  const timerIntervalRef = useRef(null)
+
+  useEffect(() => {
+    navigator.mediaDevices?.enumerateDevices().then(all => {
+      setDevices(all.filter(d => d.kind === 'audioinput'))
+    }).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key === 'Escape' && phase !== 'recording' && phase !== 'saving') onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [phase, onClose])
+
+  useEffect(() => {
+    const url = audioUrl
+    return () => {
+      clearInterval(timerIntervalRef.current)
+      if (mediaRecorderRef.current?.state === 'recording') mediaRecorderRef.current.stop()
+      streamRef.current?.getTracks().forEach(t => t.stop())
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [audioUrl])
+
+  async function refreshDevices() {
+    try {
+      const all = await navigator.mediaDevices.enumerateDevices()
+      setDevices(all.filter(d => d.kind === 'audioinput'))
+    } catch {}
+  }
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true,
+      })
+      streamRef.current = stream
+      await refreshDevices()
+
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : ''
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      chunksRef.current = []
+      mr.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data) }
+      mr.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: mr.mimeType || 'audio/webm' })
+        const url = URL.createObjectURL(blob)
+        setAudioBlob(blob)
+        setAudioUrl(url)
+        setPhase('recorded')
+        setCurrentTime(0)
+        setDuration(0)
+        setIsPlaying(false)
+      }
+      mediaRecorderRef.current = mr
+      mr.start()
+      setPhase('recording')
+      setRecordingTime(0)
+      timerIntervalRef.current = setInterval(() => setRecordingTime(t => t + 1), 1000)
+    } catch (err) {
+      console.error('Recording failed:', err)
+      setPhase('idle')
+    }
+  }
+
+  function stopRecording() {
+    clearInterval(timerIntervalRef.current)
+    mediaRecorderRef.current?.stop()
+    streamRef.current?.getTracks().forEach(t => t.stop())
+  }
+
+  function discardRecording() {
+    if (audioUrl) URL.revokeObjectURL(audioUrl)
+    setAudioBlob(null)
+    setAudioUrl(null)
+    setSaveError(null)
+    setShowConfirm(false)
+    setOutputName('')
+    setPhase('idle')
+  }
+
+  function togglePlayPause() {
+    const audio = audioRef.current
+    if (!audio) return
+    if (isPlaying) {
+      audio.pause()
+      setIsPlaying(false)
+    } else {
+      audio.play()
+      setIsPlaying(true)
+    }
+  }
+
+  async function handleInsert() {
+    setPhase('saving')
+    setSaveError(null)
+    try {
+      const ext = audioBlob.type.includes('ogg') ? 'ogg' : audioBlob.type.includes('mp4') ? 'mp4' : 'webm'
+      const file = new File([audioBlob], `recording-${Date.now()}.${ext}`, { type: audioBlob.type })
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/admin/upload-recording', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        if (data.error === 'ffmpeg_not_found') {
+          setSaveError('Cannot convert audio to MP3 — FFmpeg not found on the server.')
+        } else {
+          setSaveError(`Failed to save recording.${data.detail ? ` ${data.detail}` : ''}`)
+        }
+        setPhase('recorded')
+        return
+      }
+      const displayName = (outputName.trim() || 'recording') + '.mp3'
+      onInsert(`/api/uploads/${data.filename}`, displayName)
+    } catch {
+      setSaveError('Failed to save recording.')
+      setPhase('recorded')
+    }
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onMouseDown={e => { if (e.target === e.currentTarget && phase !== 'recording' && phase !== 'saving') onClose() }}
+    >
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <Mic size={16} className="text-gray-500" />
+            <span className="text-sm font-semibold text-gray-800">Record Audio</span>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={phase === 'recording' || phase === 'saving'}
+            className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40"
+          >
+            <span className="text-lg leading-none">&times;</span>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-4">
+          {/* Device / filename row */}
+          <div>
+            {(phase === 'idle' || phase === 'recording') && (
+              <label className="block text-xs font-medium text-gray-500 mb-1">Input device</label>
+            )}
+          <div className="flex items-center gap-2">
+            {(phase === 'recorded' || phase === 'saving') ? (
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-500 mb-1">File name</label>
+                <div className="flex items-center border border-gray-200 rounded overflow-hidden focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-100">
+                  <input
+                    type="text"
+                    placeholder="recording"
+                    value={outputName}
+                    onChange={e => setOutputName(e.target.value)}
+                    disabled={phase === 'saving'}
+                    className="flex-1 text-sm px-2 py-1.5 outline-none bg-white disabled:opacity-50"
+                    onKeyDown={e => e.stopPropagation()}
+                  />
+                  <span className="px-2 py-1.5 text-sm text-gray-500 bg-gray-100 border-l border-gray-200 shrink-0 select-none">.mp3</span>
+                </div>
+              </div>
+            ) : (
+              <div ref={deviceDropdownRef} className="relative flex-1">
+                <input
+                  type="text"
+                  placeholder={selectedDeviceId
+                    ? (devices.find(d => d.deviceId === selectedDeviceId)?.label || 'Selected device')
+                    : 'Select microphone…'
+                  }
+                  value={deviceSearch}
+                  onFocus={() => { setDeviceSearch(''); setDeviceDropdownOpen(true) }}
+                  onChange={e => { setDeviceSearch(e.target.value); setSelectedDeviceId(''); setDeviceDropdownOpen(true) }}
+                  onBlur={() => setTimeout(() => setDeviceDropdownOpen(false), 150)}
+                  disabled={phase === 'recording'}
+                  className={`w-full text-sm border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 disabled:opacity-50 ${selectedDeviceId ? 'placeholder-blue-600 font-medium' : 'placeholder-gray-400'}`}
+                  onKeyDown={e => e.stopPropagation()}
+                />
+                {deviceDropdownOpen && (
+                  <ul className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-40 overflow-y-auto text-sm list-none p-0 m-0">
+                    {devices.length === 0
+                      ? <li className="px-3 py-2 text-gray-400">Default microphone</li>
+                      : devices
+                          .filter(d => !deviceSearch || (d.label || '').toLowerCase().includes(deviceSearch.toLowerCase()))
+                          .map(d => (
+                            <li
+                              key={d.deviceId}
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => { setSelectedDeviceId(d.deviceId); setDeviceSearch(''); setDeviceDropdownOpen(false) }}
+                              className={`px-3 py-2 cursor-pointer hover:bg-gray-50 truncate ${selectedDeviceId === d.deviceId ? 'text-blue-600 font-medium' : 'text-gray-700'}`}
+                            >
+                              {d.label || `Microphone ${d.deviceId.slice(0, 6)}`}
+                            </li>
+                          ))
+                    }
+                  </ul>
+                )}
+              </div>
+            )}
+            {phase === 'recording' && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                <span className="text-sm font-mono text-red-600 tabular-nums">{formatRecordingTime(recordingTime)}</span>
+              </div>
+            )}
+          </div>
+          </div>
+
+          {/* Playback row */}
+          {(phase === 'recorded' || phase === 'saving') && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={togglePlayPause}
+                disabled={phase === 'saving'}
+                className="p-2 rounded-md text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40"
+              >
+                {isPlaying
+                  ? <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                  : <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+                }
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={duration || 100}
+                step={0.01}
+                value={currentTime}
+                onChange={e => {
+                  const t = Number(e.target.value)
+                  setCurrentTime(t)
+                  if (audioRef.current) audioRef.current.currentTime = t
+                }}
+                onKeyDown={e => e.stopPropagation()}
+                className="flex-1 h-1.5 accent-blue-500 disabled:opacity-40"
+                disabled={phase === 'saving'}
+              />
+              <span className="text-xs font-mono text-gray-500 shrink-0 tabular-nums">
+                {formatRecordingTime(currentTime)} / {formatRecordingTime(duration)}
+              </span>
+              <Tooltip content="Discard recording">
+                <button
+                  onClick={() => setShowConfirm(true)}
+                  disabled={phase === 'saving'}
+                  className="p-2 rounded-md text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                </button>
+              </Tooltip>
+            </div>
+          )}
+
+          {/* Error */}
+          {saveError && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-red-50 border border-red-200 rounded-md text-sm text-red-700">
+              <span className="flex-1">{saveError}</span>
+              <button onClick={() => setSaveError(null)} className="text-red-400 hover:text-red-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          )}
+
+          {/* Discard confirm overlay */}
+          {showConfirm && (
+            <div className="flex items-center justify-between px-3 py-2.5 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-700">Discard this recording?</p>
+              <div className="flex gap-2">
+                <button onClick={discardRecording} className="px-3 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors">Discard</button>
+                <button onClick={() => setShowConfirm(false)} className="px-3 py-1 text-xs bg-white border border-gray-200 text-gray-600 rounded hover:bg-gray-50 transition-colors">Cancel</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center px-5 py-4 border-t border-gray-100 bg-gray-50">
+          <div className="flex items-center gap-2">
+            {phase === 'idle' && (
+              <button
+                onClick={startRecording}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:border-red-400 hover:text-red-600 hover:bg-red-50 transition-colors text-sm font-medium"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10"/></svg>
+                Start Recording
+              </button>
+            )}
+            {phase === 'recording' && (
+              <button
+                onClick={stopRecording}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg border border-red-400 text-red-600 bg-red-50 hover:bg-red-100 transition-colors text-sm font-medium"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+                Stop
+              </button>
+            )}
+            {(phase === 'recorded' || phase === 'saving') && (
+              <>
+                {phase === 'saving' && (
+                  <span className="text-sm text-gray-500 flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+                    Saving…
+                  </span>
+                )}
+                <button
+                  onClick={handleInsert}
+                  disabled={phase === 'saving'}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                  Save Recording
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <audio
+          ref={audioRef}
+          src={audioUrl || undefined}
+          className="hidden"
+          onTimeUpdate={e => setCurrentTime(e.target.currentTime)}
+          onLoadedMetadata={e => setDuration(e.target.duration)}
+          onEnded={() => setIsPlaying(false)}
+        />
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+export function RecordingModalPlugin() {
+  const [editor] = useLexicalComposerContext()
+  const [isOpen, setIsOpen] = useState(false)
+  const insertAfterKeyRef = useRef(null)
+
+  useEffect(() => {
+    return editor.registerCommand(
+      OPEN_RECORDING_MODAL_COMMAND,
+      (prevKey) => {
+        insertAfterKeyRef.current = prevKey
+        setIsOpen(true)
+        return true
+      },
+      COMMAND_PRIORITY_LOW
+    )
+  }, [editor])
+
+  function handleInsert(src, filename) {
+    editor.update(() => {
+      const audioNode = $createAudioNode(src, filename)
+      const prevKey = insertAfterKeyRef.current
+
+      if (prevKey) {
+        const prevNode = $getNodeByKey(prevKey)
+        if (prevNode) {
+          prevNode.insertAfter(audioNode)
+        } else {
+          $getRoot().append(audioNode)
+        }
+      } else {
+        const root = $getRoot()
+        const first = root.getFirstChild()
+        if (first) first.insertBefore(audioNode)
+        else root.append(audioNode)
+      }
+
+      const next = audioNode.getNextSibling()
+      if (!next || !$isElementNode(next)) {
+        const para = $createParagraphNode()
+        audioNode.insertAfter(para)
+        para.selectStart()
+      } else {
+        next.selectStart()
+      }
+    })
+    setIsOpen(false)
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <RecordingModal
+      onClose={() => setIsOpen(false)}
+      onInsert={handleInsert}
+    />
+  )
 }
