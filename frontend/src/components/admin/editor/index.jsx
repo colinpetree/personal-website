@@ -12,7 +12,7 @@ import { LinkNode } from '@lexical/link'
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin'
 import { TableNode, TableRowNode, TableCellNode } from '@lexical/table'
 import theme from './theme'
-import { ImageNode, VideoNode, AudioNode, FileNode, GalleryNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, CodeBlockNode, HeaderNode, YouTubeNode, VimeoNode, SpotifyNode, WideTableNode, StyledTableCellNode, RecordingNode } from './nodes'
+import { ImageNode, VideoNode, AudioNode, FileNode, GalleryNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, CodeBlockNode, HeaderNode, YouTubeNode, VimeoNode, SpotifyNode, WideTableNode, StyledTableCellNode } from './nodes'
 import {
   LoadHtmlPlugin,
   HtmlOutputPlugin,
@@ -25,6 +25,7 @@ import {
   TableColumnResizePlugin,
   TableDragScrollPlugin,
   DragDropPastePlugin,
+  RecordingModalPlugin,
 } from './plugins'
 
 const RichTextEditor = forwardRef(function RichTextEditor(
@@ -35,7 +36,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
     namespace: 'BlogEditor',
     theme,
     nodes: [
-      HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, CodeBlockNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, HeaderNode, ImageNode, VideoNode, AudioNode, FileNode, GalleryNode, YouTubeNode, VimeoNode, SpotifyNode, RecordingNode,
+      HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode, CodeBlockNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, HeaderNode, ImageNode, VideoNode, AudioNode, FileNode, GalleryNode, YouTubeNode, VimeoNode, SpotifyNode,
       TableNode, TableRowNode, TableCellNode, WideTableNode, StyledTableCellNode,
       { replace: TableNode, with: () => new WideTableNode(), withKlass: WideTableNode },
       { replace: TableCellNode, with: (n) => new StyledTableCellNode(n.__headerState, n.__colSpan, n.__width), withKlass: StyledTableCellNode },
@@ -74,6 +75,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
       <TableActionMenuPlugin />
       <TableColumnResizePlugin />
       <TableDragScrollPlugin />
+      <RecordingModalPlugin />
       <EditorHandlePlugin handleRef={ref} />
     </LexicalComposer>
   )
