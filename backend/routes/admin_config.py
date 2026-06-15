@@ -2,6 +2,8 @@ import os
 import uuid
 import base64
 import io
+import shutil
+import subprocess
 from flask import Blueprint, jsonify, request, current_app
 from flask_login import current_user
 from models import SiteConfig, SiteEventLog
@@ -246,6 +248,54 @@ def upload_file():
         'original_name': file.filename,
         'mime_type': file.mimetype or '',
         'size': os.path.getsize(saved_path),
+    })
+
+
+def _transcode_to_mp3(input_path, output_path):
+    if not shutil.which('ffmpeg'):
+        raise FileNotFoundError('ffmpeg not found')
+    result = subprocess.run(
+        ['ffmpeg', '-y', '-i', input_path,
+         '-codec:a', 'libmp3lame', '-qscale:a', '4',
+         output_path],
+        capture_output=True, timeout=60
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.decode())
+
+
+@admin_config_bp.route('/api/admin/upload-recording', methods=['POST'])
+@admin_required
+def upload_recording():
+    file = request.files.get('file')
+    if not file:
+        return jsonify({'error': 'No file provided'}), 400
+
+    base = uuid.uuid4().hex
+    uploads_dir = os.path.join(current_app.root_path, 'uploads')
+    os.makedirs(uploads_dir, exist_ok=True)
+
+    orig_ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in (file.filename or '') else 'webm'
+    tmp_path = os.path.join(uploads_dir, f'{base}_tmp.{orig_ext}')
+    mp3_filename = f'{base}.mp3'
+    mp3_path = os.path.join(uploads_dir, mp3_filename)
+
+    file.save(tmp_path)
+    try:
+        _transcode_to_mp3(tmp_path, mp3_path)
+    except FileNotFoundError:
+        return jsonify({'error': 'ffmpeg_not_found'}), 500
+    except Exception as e:
+        return jsonify({'error': 'transcode_failed', 'detail': str(e)}), 500
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+    return jsonify({
+        'filename': mp3_filename,
+        'original_name': 'recording.mp3',
+        'mime_type': 'audio/mpeg',
+        'size': os.path.getsize(mp3_path),
     })
 
 

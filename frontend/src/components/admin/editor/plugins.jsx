@@ -8,7 +8,7 @@ import {
   Table, AlignLeft, AlignCenter, Trash2, Undo2, Redo2,
   ArrowLeftToLine, ArrowRightToLine, ArrowUpToLine, ArrowDownToLine,
   Columns3Cog, RectangleHorizontal, RectangleVertical, Grid2x2, PaintBucket,
-  FileUp,
+  FileUp, Mic,
 } from 'lucide-react'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
@@ -30,7 +30,7 @@ import {
   $getNodeByKey, $isParagraphNode, $isDecoratorNode, $isElementNode,
   $createNodeSelection, $setSelection,
 } from 'lexical'
-import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createToggleNode, $createCodeBlockNode, $createHeaderNode, $createYouTubeNode, $createVimeoNode, $createSpotifyNode } from './nodes'
+import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createToggleNode, $createCodeBlockNode, $createHeaderNode, $createYouTubeNode, $createVimeoNode, $createSpotifyNode, $createRecordingNode } from './nodes'
 import { handleUpload, handleUploadFull } from './upload'
 import { Tooltip } from '../../ui/Tooltip'
 import { ColorSwatchMenu } from '../../ui/ColorPicker'
@@ -366,11 +366,12 @@ const SLASH_GROUPS = [
   {
     label: 'UPLOADS',
     items: [
-      { label: 'Image',   Icon: Image,     action: 'image'   },
-      { label: 'Gallery', Icon: Images,    action: 'gallery' },
-      { label: 'Video',   Icon: Play,      action: 'video'   },
-      { label: 'Audio',   Icon: Music,     action: 'audio'   },
-      { label: 'File',    Icon: Paperclip, action: 'file'    },
+      { label: 'Image',     Icon: Image,     action: 'image'     },
+      { label: 'Gallery',   Icon: Images,    action: 'gallery'   },
+      { label: 'Video',     Icon: Play,      action: 'video'     },
+      { label: 'Audio',     Icon: Music,     action: 'audio'     },
+      { label: 'File',      Icon: Paperclip, action: 'file'      },
+      { label: 'Recording', Icon: Mic,       action: 'recording' },
     ],
   },
   {
@@ -869,6 +870,24 @@ export function SlashCommandPlugin() {
         } else {
           const para = $createParagraphNode()
           headerNode.insertAfter(para)
+          para.selectStart()
+        }
+      })
+      return
+    }
+
+    if (item.action === 'recording') {
+      editor.update(() => {
+        const node = $getNodeByKey(nodeKey)
+        if (!node || !$isParagraphNode(node)) return
+        const newNode = $createRecordingNode()
+        node.replace(newNode)
+        const next = newNode.getNextSibling()
+        if ($isElementNode(next)) {
+          next.selectStart()
+        } else {
+          const para = $createParagraphNode()
+          newNode.insertAfter(para)
           para.selectStart()
         }
       })
