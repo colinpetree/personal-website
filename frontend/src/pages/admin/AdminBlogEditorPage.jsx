@@ -669,7 +669,8 @@ export default function AdminBlogEditorPage() {
           },
         },
       })
-    } catch {
+    } catch (err) {
+      addToast({ message: err.message || 'Failed to publish post' })
       setPublishSaving(false)
     }
   }
@@ -723,6 +724,8 @@ export default function AdminBlogEditorPage() {
           subtextHref: `/${data.slug}`,
         })
       }
+    } catch (err) {
+      addToast({ message: err.message || 'Failed to update post' })
     } finally {
       clearTimeout(savingIndicatorTimer)
       setUpdateSaving(false)
