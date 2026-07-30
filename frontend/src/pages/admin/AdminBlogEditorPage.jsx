@@ -748,7 +748,7 @@ export default function AdminBlogEditorPage() {
     if (status === 'published') {
       return (
         <a
-          href={`/blog/${post?.slug}`}
+          href={`/${post?.slug}`}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 hover:font-semibold transition-all"
