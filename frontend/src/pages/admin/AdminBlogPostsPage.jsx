@@ -78,7 +78,7 @@ function PublishConfirmModal({ postTitle, slug, isScheduled, publishDate, onClos
 
         <div className="flex items-center gap-3">
           <a
-            href={`/blog/${slug}`}
+            href={`/${slug}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 text-sm text-blue-600 hover:underline"

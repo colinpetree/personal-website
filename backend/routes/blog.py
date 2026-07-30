@@ -218,7 +218,7 @@ def report_comment(slug, comment_id):
         author_name = author.name if author else (comment.guest_name or 'Anonymous')
         author_email = author.email if author else (comment.guest_email or 'N/A')
         domain = (config.domain or 'localhost:5173').rstrip('/')
-        post_url = f"https://{domain}/blog/{post.slug}#comment-{comment.id}"
+        post_url = f"https://{domain}/{post.slug}#comment-{comment.id}"
         body = (
             f"A comment has been reported on your website.\n\n"
             f"Comment by: {author_name} ({author_email})\n"

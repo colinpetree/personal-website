@@ -280,7 +280,7 @@ export default function AdminBlogCommentsPage() {
                 <div className="flex items-center gap-2 mb-3 pb-2 border-b border-gray-100">
                   <h3 className="text-sm font-semibold text-gray-700">
                     {post.post_slug ? (
-                      <Link to={`/blog/${post.post_slug}`} className="hover:text-blue-600 hover:underline">
+                      <Link to={`/${post.post_slug}`} className="hover:text-blue-600 hover:underline">
                         {post.post_title || post.post_slug}
                       </Link>
                     ) : (
