@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Heart, Reply, MoreHorizontal, ChevronDown, X } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import GalleryLightbox from '../components/GalleryLightbox'
+import { setupSegmentLoopVideo } from '../utils/segmentLoopVideo'
 
 // ── Skeletons ─────────────────────────────────────────────────────────────
 
@@ -598,6 +599,13 @@ export default function BlogPostPage() {
         img.addEventListener('load', onLoad, { once: true })
       }
     })
+  }, [post?.content_html])
+
+  useEffect(() => {
+    if (!articleRef.current || !post?.content_html) return
+    const figures = articleRef.current.querySelectorAll('figure[data-segment-loop="true"]')
+    const cleanups = Array.from(figures).map(setupSegmentLoopVideo).filter(Boolean)
+    return () => cleanups.forEach(fn => fn())
   }, [post?.content_html])
 
   if (loading) return <BlogPostSkeleton />

@@ -12,7 +12,7 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { TableNode, TableCellNode } from '@lexical/table'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Columns2, StretchHorizontal, Link2, Link2Off, X, Music, FileText, Plus, Download, Repeat, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle } from 'lucide-react'
+import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Columns2, StretchHorizontal, Link2, Link2Off, X, Music, FileText, Plus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle } from 'lucide-react'
 import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
 
 function resolveTextColor(mode, bgHex) {
@@ -439,7 +439,7 @@ function formatDuration(seconds) {
 
 // ─── VideoNodeComponent ───────────────────────────────────────────────────────
 
-function VideoNodeComponent({ src, caption, width, loop, nodeKey, editor }) {
+function VideoNodeComponent({ src, caption, width, loop, segmentLoop, nodeKey, editor }) {
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
@@ -488,7 +488,7 @@ function VideoNodeComponent({ src, caption, width, loop, nodeKey, editor }) {
     function calc() {
       const rect = figRef.current?.getBoundingClientRect()
       if (!rect) return
-      const W = 170
+      const W = 204
       const H = 40
       let left = rect.left + window.scrollX + rect.width / 2 - W / 2
       left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - W - 8))
@@ -520,7 +520,20 @@ function VideoNodeComponent({ src, caption, width, loop, nodeKey, editor }) {
   function toggleLoop() {
     editor.update(() => {
       const node = $getNodeByKey(nodeKey)
-      if (node instanceof VideoNode) node.getWritable().__loop = !node.__loop
+      if (!(node instanceof VideoNode)) return
+      const writable = node.getWritable()
+      writable.__loop = !node.__loop
+      if (writable.__loop) writable.__segmentLoop = false
+    })
+  }
+
+  function toggleSegmentLoop() {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (!(node instanceof VideoNode)) return
+      const writable = node.getWritable()
+      writable.__segmentLoop = !node.__segmentLoop
+      if (writable.__segmentLoop) writable.__loop = false
     })
   }
 
@@ -583,6 +596,16 @@ function VideoNodeComponent({ src, caption, width, loop, nodeKey, editor }) {
               <Repeat size={14} strokeWidth={2} />
             </button>
           </Tooltip>
+          <Tooltip content="Segment Loop">
+            <button
+              onMouseDown={e => { e.preventDefault(); toggleSegmentLoop() }}
+              className={`p-1.5 rounded-md transition-colors ${
+                segmentLoop ? 'bg-gray-100 text-gray-800' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <Scissors size={14} strokeWidth={2} />
+            </button>
+          </Tooltip>
         </div>,
         document.body
       )}
@@ -595,14 +618,14 @@ function VideoNodeComponent({ src, caption, width, loop, nodeKey, editor }) {
 export class VideoNode extends DecoratorNode {
   static getType() { return 'video' }
   static clone(node) {
-    return new VideoNode(node.__src, node.__caption, node.__width, node.__loop, node.__thumbnailSrc, node.__key)
+    return new VideoNode(node.__src, node.__caption, node.__width, node.__loop, node.__thumbnailSrc, node.__segmentLoop, node.__key)
   }
 
   static importJSON(data) {
-    return new VideoNode(data.src, data.caption || '', data.width || 'regular', data.loop || false, data.thumbnailSrc || '')
+    return new VideoNode(data.src, data.caption || '', data.width || 'regular', data.loop || false, data.thumbnailSrc || '', data.segmentLoop || false)
   }
   exportJSON() {
-    return { type: 'video', version: 1, src: this.__src, caption: this.__caption, width: this.__width, loop: this.__loop, thumbnailSrc: this.__thumbnailSrc }
+    return { type: 'video', version: 1, src: this.__src, caption: this.__caption, width: this.__width, loop: this.__loop, thumbnailSrc: this.__thumbnailSrc, segmentLoop: this.__segmentLoop }
   }
 
   static importDOM() {
@@ -617,7 +640,8 @@ export class VideoNode extends DecoratorNode {
             const widthClass = domNode.className?.match(/kg-width-(\w+)/)?.[1] || 'regular'
             const loop = video.hasAttribute('loop')
             const thumbnailSrc = video.getAttribute('poster') || ''
-            return { node: new VideoNode(video.getAttribute('src') || '', caption, widthClass, loop, thumbnailSrc) }
+            const segmentLoop = domNode.getAttribute('data-segment-loop') === 'true'
+            return { node: new VideoNode(video.getAttribute('src') || '', caption, widthClass, loop, thumbnailSrc, segmentLoop) }
           },
           priority: 1,
         }
@@ -633,13 +657,14 @@ export class VideoNode extends DecoratorNode {
     }
   }
 
-  constructor(src, caption = '', width = 'regular', loop = false, thumbnailSrc = '', key) {
+  constructor(src, caption = '', width = 'regular', loop = false, thumbnailSrc = '', segmentLoop = false, key) {
     super(key)
     this.__src = src
     this.__caption = caption
     this.__width = width
     this.__loop = loop
     this.__thumbnailSrc = thumbnailSrc
+    this.__segmentLoop = segmentLoop
   }
 
   createDOM() {
@@ -661,7 +686,8 @@ export class VideoNode extends DecoratorNode {
       video.setAttribute('playsinline', '')
     } else {
       video.setAttribute('controls', '')
-      if (this.__thumbnailSrc) video.setAttribute('poster', this.__thumbnailSrc)
+      if (this.__segmentLoop) video.setAttribute('playsinline', '')
+      if (this.__thumbnailSrc && !this.__segmentLoop) video.setAttribute('poster', this.__thumbnailSrc)
     }
     video.style.cssText = 'width:100%;display:block'
 
@@ -673,7 +699,9 @@ export class VideoNode extends DecoratorNode {
       figure.style.cssText = 'width:100vw;position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0;border-radius:0;overflow:hidden;background:#000'
     } else {
       figure.style.cssText = 'max-width:740px;margin:1.5rem auto;border-radius:0.5rem;overflow:hidden;background:#000'
+      if (this.__segmentLoop) figure.style.position = 'relative'
     }
+    if (this.__segmentLoop) figure.setAttribute('data-segment-loop', 'true')
     figure.appendChild(video)
     if (this.__caption) {
       const figcaption = document.createElement('figcaption')
@@ -691,6 +719,7 @@ export class VideoNode extends DecoratorNode {
         caption={this.__caption}
         width={this.__width}
         loop={this.__loop}
+        segmentLoop={this.__segmentLoop}
         nodeKey={this.getKey()}
         editor={editor}
       />
