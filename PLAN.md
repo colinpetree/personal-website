@@ -14,7 +14,7 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 ## 2. Navbar
 - [x] Config-driven nav (`config.nav` array from `backend/routes/site_config.py:15-58`), filtered by `enabled` — `frontend/src/components/Navbar.jsx`.
 - [x] All 7 pages wired: Home, Blog, Projects, About, Contact, AI Implementations, Donate.
-- [x] Contact only shows when SMTP is configured; Donate only shows when a Stripe publishable key is set (extra safety gating beyond the admin toggle).
+- [x] Contact only shows when SMTP is configured; Donate only shows when a Stripe publishable key is set **and** public users (Google login) are enabled — since donating now requires signing in (see §5).
 
 ## 3. Website Admin
 
@@ -52,7 +52,7 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 ### 3g. Users (admin-side)
 - [x] Enable/disable users toggle.
 - [~] "Disables comments when off" — in practice it doesn't block commenting, it falls back to a guest-comment form instead. Behavior differs from spec's "disables" wording; worth a decision on whether that's acceptable or needs tightening.
-- [ ] "Disables payments when off" — `users_enabled` has no relationship to donate-page visibility anywhere in the code. Not wired.
+- [x] "Disables payments when off" — resolved as a side effect of requiring Google login to donate (see §5): the donate nav item now also checks `users_enabled`, and the donate page itself is gated behind sign-in.
 - [x] Google OAuth client ID/secret configurable in admin.
 - [ ] Admin editing a user's profile (name/title/email) — backend `PUT /api/admin/users/<id>` only accepts `can_comment`; no name/title/email editing exists anywhere.
 - [x] Prevent a user from commenting (`can_comment` toggle).
@@ -67,15 +67,29 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 - [x] Google OAuth login (`backend/routes/auth.py`).
 - [x] Users edit their own name/title shown in comments.
 - [x] Threaded commenting (replies to posts and to other comments).
-- [x] Users accessing a payment form on the donate page — now built (Stripe Checkout, no login required to donate, matching the original spec). See §5.
+- [x] Users accessing a payment form on the donate page — now built (Stripe Checkout). Donating **requires** Google sign-in (a deliberate deviation from the original spec's "access to payment form" wording, decided so subscription self-management could reuse the existing user-identity system — see §5).
 
 ## 5. Donate/Contribute page
-- [x] Stripe API key fields in admin config (publishable + encrypted secret key), plus a new encrypted **Stripe Webhook Signing Secret** field (`stripe_webhook_secret`) needed to verify webhook events — `backend/models.py`, `backend/routes/admin_config.py`, `frontend/src/pages/admin/AdminDonatePage.jsx`.
-- [x] Public payment form — `frontend/src/pages/DonatePage.jsx`: preset ($5/$10/$25/$50) + custom amount, one-time/monthly toggle, redirects to Stripe-hosted Checkout (no card data touches our backend). Handles `?status=success` / `?status=cancelled` return states.
-- [x] One-time vs. subscription payment options — implemented via Stripe Checkout `mode: payment | subscription` with an inline `price_data.recurring` (monthly), no pre-created Stripe Price objects needed.
-- [x] Stripe checkout/webhook backend routes — `backend/routes/donate.py`: `POST /api/donate/create-checkout-session` (validates amount $1–$100,000, builds the Checkout Session, derives success/cancel URLs from the request `Origin`) and `POST /api/donate/webhook` (verifies Stripe signature, logs completed payments to `SiteEventLog` under a new `Donation` area for admin visibility — not filterable in the History modal's UI yet, but visible in the unfiltered feed). `stripe` added to `requirements.txt` and registered in `backend/app.py`.
 
-**Manual step required** (this project has no migration tooling, per `CLAUDE.md`): run `ALTER TABLE site_config ADD COLUMN stripe_webhook_secret TEXT;` in pgAdmin, then restart Flask. Also run `pip install -r requirements.txt` in the backend venv to install the new `stripe` dependency, and configure a webhook endpoint in the Stripe dashboard pointing to `https://<domain>/api/donate/webhook` (event: `checkout.session.completed`), pasting its signing secret into the new admin field.
+### Shipped (2026-07-31)
+- [x] Stripe API key fields in admin config (publishable + secret + webhook signing secret, all encrypted) — `backend/models.py`, `backend/routes/admin_config.py`, `frontend/src/pages/admin/AdminDonatePage.jsx`.
+- [x] Public payment form — `frontend/src/pages/DonatePage.jsx`: preset ($5/$10/$25/$50) + custom amount, one-time/monthly toggle, redirects to Stripe-hosted Checkout (no card data touches our backend). Handles `?status=success` / `?status=cancelled` return states.
+- [x] One-time vs. subscription options via Stripe Checkout `mode: payment | subscription` with inline `price_data` (no pre-created Stripe Price objects needed).
+- [x] **Donations require Google sign-in** — the donate form is gated behind the same "Sign in with Google" pattern used for blog comments (`UserCommentForm` in `BlogPostPage.jsx`, reused in `DonatePage.jsx`). Decided so subscription self-management could identify the donor without a separate email-verification system.
+- [x] `Donation` ledger table (`backend/models.py`) — `user_id` FK, `stripe_customer_id`/`stripe_subscription_id`, `stripe_object_id` (unique, idempotency against webhook retries), `amount`, `mode`, `created_at`. A brand-new table, so `db.create_all()` picked it up automatically on restart — no manual `ALTER TABLE` needed (unlike the `stripe_webhook_secret` column on the existing `site_config` table).
+- [x] Stripe checkout/webhook backend routes — `backend/routes/donate.py`:
+  - `POST /api/donate/create-checkout-session` (`@user_required`) — passes `customer_email`/`client_reference_id` so the webhook can tie payments back to the logged-in `User`.
+  - `POST /api/donate/webhook` — verifies the Stripe signature; `checkout.session.completed` records the first charge (one-time or a subscription's first invoice), `invoice.paid` records subscription **renewals** only (skips `billing_reason=subscription_create` to avoid double-counting the same invoice); both are idempotent via `stripe_object_id`.
+  - `POST /api/donate/manage-subscription` (`@user_required`) — finds the caller's latest subscription `Donation`, opens a Stripe Billing Portal session, returns the redirect URL. Surfaced as a "Manage your subscription" link on `DonatePage.jsx`.
+  - `GET /api/admin/donate/summary` (`role_at_least('administrator')`) — total received, this-month total, and a recent-transactions list (joined to `User` for donor name), rendered as a "Donations" dashboard card on `AdminDonatePage.jsx` (admin-only, same gate as the Stripe keys card).
+- [x] Nav visibility (`backend/routes/site_config.py`) — donate nav item now also requires `users_enabled`, since donating requires being logged in; closes the previously-tracked "disables payments when off" gap as a side effect.
+- `stripe` added to `requirements.txt`, blueprint registered in `backend/app.py`.
+
+**Manual steps required** (this project has no migration tooling, per `CLAUDE.md`):
+1. Run `ALTER TABLE site_config ADD COLUMN stripe_webhook_secret TEXT;` in pgAdmin (existing-table column addition needs this; the new `donation` table does not).
+2. Run `pip install -r requirements.txt` in the backend venv for the new `stripe` dependency.
+3. In the Stripe Dashboard, create a webhook destination at `https://<domain>/api/donate/webhook` listening for `checkout.session.completed` and `invoice.paid`, and paste its signing secret into the admin donate page.
+4. In the Stripe Dashboard, save a default Customer Portal configuration (Settings → Billing → Customer portal) — required before `manage-subscription` will work.
 
 ## 6. AI Implementations page
 
@@ -145,7 +159,7 @@ Source: `C:\Users\Colin\src\claude-learning-repo\02-claude-api` — a personal C
 
 1. **Admin password reset — next up.** Forgot-password link on `AdminLoginPage.jsx`, backend reset-token endpoint(s) in `backend/routes/admin_auth.py`, and a reset email sent via the existing SMTP settings (`AdminContactPage.jsx` already references this as the reason to configure SMTP — the plumbing for sending mail already exists via the contact-form/test-email code path, just needs a reset-specific flow).
 2. Render `meta_description` as a real `<meta name="description">` tag on `BlogPostPage.jsx` (and ideally on the other content pages too, since Home/About/Projects also have a `*_meta_description` field now).
-3. Wire `users_enabled=false` to actually disable commenting (not just fall back to guest mode) and to hide/disable the donate page, per original spec wording.
+3. Wire `users_enabled=false` to actually disable commenting (not just fall back to guest mode) — the donate-page half of this is now done, see §5.
 4. Admin ability to edit a user's own profile fields (name/title/email) from the Users page.
 5. AI Implementations page — build the actual demo grid + backend for the 8 v1 cards (conversation basics, tool use, RAG, MCP, prompt evaluation, prompt engineering, web search, vision), per §6 above.
 6. ~~Donate/Contribute — Stripe Checkout integration~~ — **done**, see §5 above.

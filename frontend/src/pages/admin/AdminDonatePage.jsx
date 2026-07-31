@@ -1,9 +1,75 @@
+import { useEffect, useState } from 'react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
-import { PageShell, EditableCard, Field, Input, InputWithPrefix, Toggle } from '../../components/admin/AdminPage'
+import { PageShell, Card, EditableCard, Field, Input, InputWithPrefix, Toggle } from '../../components/admin/AdminPage'
 import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
 
 function DisplayValue({ value, fallback = '—' }) {
   return <p className="text-sm text-gray-900">{value || <span className="text-gray-400">{fallback}</span>}</p>
+}
+
+function formatCurrency(value) {
+  return `$${(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function DonationsSummaryCard() {
+  const [summary, setSummary] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    fetch('/api/admin/donate/summary', { credentials: 'include' })
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(setSummary)
+      .catch(() => setError('Could not load donation summary.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  return (
+    <Card>
+      <div>
+        <h3 className="text-base font-semibold text-gray-900">Donations</h3>
+        <p className="text-sm text-gray-500">Payments received through the donate page</p>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-gray-400">Loading…</p>
+      ) : error ? (
+        <p className="text-sm text-red-600">{error}</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-medium text-gray-500">Total received</p>
+              <p className="text-2xl font-semibold text-gray-900">{formatCurrency(summary.total)}</p>
+            </div>
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-medium text-gray-500">This month</p>
+              <p className="text-2xl font-semibold text-gray-900">{formatCurrency(summary.this_month)}</p>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-2">Recent transactions</p>
+            {summary.recent.length === 0 ? (
+              <p className="text-sm text-gray-400">No donations yet.</p>
+            ) : (
+              <div className="flex flex-col divide-y divide-gray-100">
+                {summary.recent.map(d => (
+                  <div key={d.id} className="flex items-center justify-between py-2 text-sm">
+                    <div>
+                      <p className="text-gray-900">{d.donor_name}</p>
+                      <p className="text-xs text-gray-400">{new Date(d.created_at).toLocaleDateString()} · {d.mode === 'subscription' ? 'Monthly' : 'One-time'}</p>
+                    </div>
+                    <p className="font-medium text-gray-900">{formatCurrency(d.amount)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </Card>
+  )
 }
 
 export default function AdminDonatePage() {
@@ -121,6 +187,8 @@ export default function AdminDonatePage() {
             </>
           )}
         </EditableCard>}
+
+        {isAdmin && <DonationsSummaryCard />}
 
       </div>
     </PageShell>

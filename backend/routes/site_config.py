@@ -56,8 +56,9 @@ def get_site_config():
                 'key': 'donate',
                 'name': config.donate_page_name,
                 'path': f'/{config.donate_slug}',
-                # Donate requires Stripe publishable key to be configured
-                'enabled': config.donate_enabled and bool(config.stripe_publishable_key),
+                # Donate requires Stripe to be configured and public users (Google login) enabled,
+                # since donating now requires signing in.
+                'enabled': config.donate_enabled and bool(config.stripe_publishable_key) and config.users_enabled,
             },
         ],
         'slugs': {
