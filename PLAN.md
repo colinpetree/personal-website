@@ -1,0 +1,181 @@
+# Personal Website — Overview Plan (Status: 2026-07-31)
+
+## Context
+
+This replaces the original "make an overview plan" request. The original spec (reproduced in full at the bottom) was written before implementation began. Significant progress has happened since — the Lexical blog editor was built out far beyond spec, several features were deliberately redesigned along the way (feature image instead of auto-thumbnail, top-level post URLs instead of `/blog/slug`, a full 4-tier role system instead of flat admin privilege), and some spec items were never started (AI chat, payments, deploy infra). This document is the new source of truth: as future tasks come in, check here first to see how they fit into what already exists and what's still owed.
+
+Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
+
+---
+
+## 1. Router
+- [x] React Router (`createBrowserRouter`) with dynamic route generation from `SiteConfig` slugs — `frontend/src/router.jsx`.
+
+## 2. Navbar
+- [x] Config-driven nav (`config.nav` array from `backend/routes/site_config.py:15-58`), filtered by `enabled` — `frontend/src/components/Navbar.jsx`.
+- [x] All 7 pages wired: Home, Blog, Projects, About, Contact, AI Implementations, Donate.
+- [x] Contact only shows when SMTP is configured; Donate only shows when a Stripe publishable key is set (extra safety gating beyond the admin toggle).
+
+## 3. Website Admin
+
+### 3a–3g. Per-page admin config
+| Page | Enable/disable | Name/slug | Content/extra fields | Status |
+|---|---|---|---|---|
+| Home | ✅ | ✅ (fixed `/`) | ✅ site title, page text (Lexical), meta description | **DONE** |
+| Blog | ✅ | ✅ | — | **DONE** |
+| Projects | ✅ | ✅ | ✅ page text (Lexical), meta description, + full project CRUD (image, reorder, visibility — beyond spec) | **DONE** |
+| About | ✅ | ✅ | ✅ page text (Lexical), meta description, headshot upload | **DONE** |
+| Contact | ✅ | ✅ | ✅ full SMTP fields, Test Email dialog | **DONE** (see gap below) |
+| AI Implementations | ✅ | ✅ | — (API keys are env-var only, no admin UI field) | **DONE** as a config shell; page itself is unbuilt (see §6) |
+| Donate/Contribute | ✅ | ✅ | ✅ Stripe publishable/secret key fields (encrypted) | **DONE** as config; public page unbuilt (see §5) |
+
+- [x] Domain field → writes `backend/certbot_domain.txt` on save (`backend/routes/admin_config.py:182-186`).
+- [x] Favicon upload (PNG/JPG/JPEG/GIF, plus WebP) → applied via JS-injected `<link rel="icon">` in `Navbar.jsx:29-39`.
+- [x] Admin login (email/password) — `AdminLoginPage.jsx` + `backend/routes/admin_auth.py`.
+- [ ] **Password reset flow gated on SMTP config — not implemented.** `AdminContactPage.jsx:91` references "password resets" as a reason to configure SMTP, but there's no forgot-password link, no reset endpoint, no reset email logic anywhere. This is a real gap against the original spec.
+
+### 3d. Blog Posts (Lexical editor)
+- [x] WYSIWYG Lexical editor → `content_html`.
+- [x] Image upload with caption below image.
+- [x] Video upload **and** YouTube/Vimeo embed nodes (plus a bonus Spotify embed node, not in spec).
+- [x] Draft/scheduled/published status; unpublished and future-scheduled posts excluded from public API; auto-promotion of scheduled → published once the publish date passes.
+- [x] Publish date is freely editable (schedule ahead or backdate).
+- [x] SEO meta description field on posts — **but not yet rendered as an actual `<meta name="description">` tag on the public post page** (`BlogPostPage.jsx` sets `document.title` but no meta tag). Small gap, easy fix.
+- [x] Thumbnail — **redesigned from spec**: instead of auto-extracting the first in-body image, there's now a dedicated manual "Feature Image" field with its own caption, shown above the title on the post page and next to the excerpt on the list page. Intentional product decision, not a gap.
+- [x] Blog title → `<title>` tag.
+- [x] Editable slug, auto-derived from title (spaces → hyphens), both client- and server-side.
+- [x] Article URLs — **redesigned from spec**: top-level (`/my-post`) instead of `/blog/my-post`, per a later decision. Reserved-slug and duplicate-slug conflict prevention implemented server-side against admin/static page paths and other posts.
+- [x] Admin comment management (list + soft-delete) — `AdminBlogCommentsPage.jsx` + `backend/routes/admin_blog.py`.
+
+### 3e/3f already covered above (Domain, Favicon).
+
+### 3g. Users (admin-side)
+- [x] Enable/disable users toggle.
+- [~] "Disables comments when off" — in practice it doesn't block commenting, it falls back to a guest-comment form instead. Behavior differs from spec's "disables" wording; worth a decision on whether that's acceptable or needs tightening.
+- [ ] "Disables payments when off" — `users_enabled` has no relationship to donate-page visibility anywhere in the code. Not wired.
+- [x] Google OAuth client ID/secret configurable in admin.
+- [ ] Admin editing a user's profile (name/title/email) — backend `PUT /api/admin/users/<id>` only accepts `can_comment`; no name/title/email editing exists anywhere.
+- [x] Prevent a user from commenting (`can_comment` toggle).
+- [x] Export users to CSV.
+
+### 3h. Admin Accounts
+- [x] Add-account dialog with Name/Title/Email/Password (+ role).
+- [x] First admin seeded with default email `admin` / default password `admin`, role `owner` (`backend/seed.py`).
+- [x] Role hierarchy (`contributor < editor < administrator < owner`) replaces the original spec's flat equal-privilege accounts — deliberate upgrade, confirmed working well. Owner-role deletion protection (rather than "first account ever created") is the accepted design; no change needed here.
+
+## 4. Users (public-side, Google OAuth)
+- [x] Google OAuth login (`backend/routes/auth.py`).
+- [x] Users edit their own name/title shown in comments.
+- [x] Threaded commenting (replies to posts and to other comments).
+- [ ] **Users accessing a payment form on the donate page — not built.** See §5.
+
+## 5. Donate/Contribute page
+- [x] Stripe API key fields in admin config (publishable + encrypted secret key).
+- [ ] **Public payment form — not built.** `DonatePage.jsx` is a "Coming soon" stub.
+- [ ] One-time vs. subscription payment options — not built.
+- [ ] Stripe checkout/webhook backend routes — not built; `stripe` isn't even in `requirements.txt`.
+
+## 6. AI Implementations page
+
+- [ ] **Entirely unbuilt beyond the config shell.** Public page is a "Coming soon" stub; admin page only has enable/name/slug (no API key fields — env vars only). No chat UI, no conversation/prompt-eval/RAG/tool-use/MCP backend anywhere. `ANTHROPIC_API_KEY`/`VOYAGE_API_KEY` are referenced in `.env.example` and in the admin page's help text only.
+
+### Reference material
+Source: `C:\Users\Colin\src\claude-learning-repo\02-claude-api` — a personal Claude API certification course repo. Read in full to extract the intended demo scope. Each module below is a working, runnable reference implementation (notebooks unless noted) for one capability:
+
+| Module | What it demonstrates | Reusable pattern |
+|---|---|---|
+| `01-accessing-the-api` | Basic `messages.create`, system prompts, temperature, streaming (text and tool-call deltas), structured/controlled output parsing | Core `Claude` client wrapper (see `07-model-context-protocol/.../core/claude.py`) — thin wrapper exposing `chat()`, `add_user_message`, `add_assistant_message`, `text_from_message` |
+| `02-prompt-evaluation` | A `PromptEvaluator` harness: runs a prompt against a dataset of test cases concurrently, validates output structure, scores results | Eval-harness pattern — good fit for a "watch a prompt get graded against test cases live" demo |
+| `03-prompt-engineering` | Same eval harness applied to a "Report Builder" exercise — before/after prompt refinement | Could be folded into the same card as prompt evaluation, or shown as a distinct "prompt engineering" comparison view |
+| `04-tool-use` | Progression: single tool call → multi-turn tool use → streaming tool use → **text editor tool** (Claude edits a virtual file) → **web search** (Anthropic's built-in server-side tool) | Tool-use loop pattern (`ToolManager.execute_tool_requests` in `core/tools.py`) |
+| `05-rag-and-agentic-search` | Full RAG built from scratch: chunking (char/sentence/section) → Voyage embeddings → `VectorIndex` → `BM25Index` (keyword) → hybrid `Retriever` combining both | Richest module — a genuine "how RAG works" demo, not a vector-DB wrapper |
+| `06-claude-features` | Extended thinking (incl. redacted-thinking handling), vision/image input (fire-risk-from-photo example), citations, prompt caching (cache breakpoints w/ token-cost takeaways), server-side code execution | Each is close to a standalone single-request demo |
+| `07-model-context-protocol` | Full working MCP client/server CLI chat app: `Claude` wrapper, `Chat`/`CliChat` agentic loop (tool_use → execute → continue), `ToolManager` (multi-client tool discovery), a document MCP server exposing tools/resources/prompts, `@mention` resource injection, `/slash-command` prompt invocation | Clearest template for an MCP demo — adapt the CLI loop to a web chat UI |
+| `08-anthropic-apps/app_starter` | FastMCP tool-package starter (math tools, PDF/DOCX-to-markdown via MarkItDown) with strict docstring/Field conventions for tool descriptions | Reference for how a tool's description should read to an AI client — useful if a demo shows the tool definition alongside its use |
+
+### Product design
+- Public `/demo` page shows a **grid of cards**, one per AI capability, each with a title + short description.
+- Clicking a card navigates to a **dedicated full-page demo** for that capability.
+- Demos are **independent** — no requirement to chain/combine capabilities (e.g. the tool-use demo doesn't need to also show RAG). Each page's job is just to showcase that one capability clearly.
+
+### Decisions (confirmed with user, 2026-07-31)
+
+**v1 card list** (8 cards, each its own full-page demo, independent of the others — no requirement to chain capabilities together). **Only cards where a back-and-forth conversation is actually the point of the capability use a chat UI; the rest use whatever interface best shows that specific capability** — a demo isn't a general-purpose AI chat app, it's a focused showcase of one feature:
+
+1. **Conversation basics** — **chat UI.** Streaming chat, system prompt, temperature control — this is the one card where "chatting" itself is the capability being shown. Source: `01-accessing-the-api`.
+2. **Tool use** — **chat UI** (conversation is how a tool call naturally gets triggered and its result gets used). Claude calls a defined tool mid-conversation and uses the result. Source: `04-tool-use/009-011`.
+3. **RAG / hybrid search** — **single query → results UI**, not an open chat. Visitor enters a search query, sees retrieved chunks (vector/BM25/hybrid) and the final answer grounded in them. Source: `05-rag-and-agentic-search`.
+4. **MCP** — **chat UI** (conversation is how tool discovery/invocation across an MCP server plays out). Source: `07-model-context-protocol/cli_project_COMPLETE`.
+5. **Prompt evaluation** — **run-and-results UI**, not a chat. Trigger a run against the test-case dataset, watch per-row scoring populate, see an aggregate score. Framed as a general "systematically evaluate a pipeline's outputs" capability, not just a prompt-tuning tool. Source: `02-prompt-evaluation`.
+6. **Prompt engineering** — **single-input, side-by-side output UI**, not a chat. One input field, two outputs (naive vs. refined prompt) shown at once. Source: `03-prompt-engineering`.
+7. **Web search tool** — **single query → answer UI** (optionally chat-like since search can be iterative, but doesn't need full conversation history — a fresh query each time is fine). Source: `04-tool-use/013_Web_Search`.
+8. **Vision / image input** — **upload → analysis UI**, not a chat. Visitor uploads/picks an image, sees Claude's analysis of it. Source: `06-claude-features/002_images`.
+
+**Conversation state (for the chat-UI cards only)**: session-only, in-memory for the duration of the page view — no persisted chat history, no DB storage, no resuming a conversation after refresh/navigation. These are demos of a capability, not a chat product; each visit starts fresh.
+
+**Not in v1** (noted for future work, not currently planned): extended thinking, text editor tool, citations, prompt caching, code execution. These map to existing reference-repo modules (`06-claude-features/001_thinking`, `04-tool-use/012_Text_Editor_Tool`, `06-claude-features/003_citations`, `06-claude-features/004_caching`, `06-claude-features/005_code_execution`) if picked up later.
+
+**RAG data source**: a fixed sample dataset (small canned document set, similar in spirit to the reference repo's deposition/report/financials example) — not the site's live blog content, and not visitor-uploaded documents. Keeps the demo self-contained and independent of how much blog content exists at any given time.
+
+**Access control**: demos require Google login (reuse the existing `UserAuthContext`/Google OAuth system already built for blog comments) rather than being open to anonymous visitors or rate-limited by IP. This ties every live Anthropic/Voyage API call to an identifiable account for abuse tracing and keeps the existing users system as the single gate for anything that costs money to run.
+
+### Still open for the implementation-planning pass (not yet decided)
+- Exact backend architecture: one Flask blueprint per demo vs. a shared `AIDemoService`-style module.
+- Whether `ANTHROPIC_API_KEY`/`VOYAGE_API_KEY` stay env-var-only or get admin-configurable fields (current `AdminAIDemoPage.jsx` only documents them as env vars).
+- Frontend: new `frontend/src/pages/AIDemoPage.jsx` becomes the card grid; each demo likely gets its own route (e.g. `/demo/tool-use`) and page component under a new `frontend/src/pages/ai-demos/` directory.
+
+## 7. Build script
+- [x] Frontend build (`vite build` via `frontend/package.json`).
+- [ ] **No combined frontend+backend build/deploy script.** No Dockerfile, docker-compose, Makefile, or CI/CD config anywhere in the repo.
+- [ ] **Flask does not serve the built frontend.** No static/catch-all route in `backend/app.py`. Frontend and backend are architected as two separately-deployed services (implying a reverse proxy is expected in front of them), but that reverse-proxy layer doesn't exist in-repo either.
+
+## 8. Dependency lists
+- [x] `backend/requirements.txt` — pinned, reasonably complete for what's built (no `stripe`, no `anthropic`/`voyageai` — consistent with §5/§6 being unbuilt).
+- [x] `frontend/package.json` — complete for what's built.
+
+## 9. Deploy dependencies: Let's Encrypt / Certbot, Varnish
+- [~] **Certbot — domain-capture half only.** Saving `domain` in admin config writes `backend/certbot_domain.txt` (gitignored). No actual certbot invocation, renewal automation, or reverse-proxy config exists anywhere in the repo — something external is expected to consume that file, but that external piece isn't part of this codebase yet.
+- [ ] **Varnish — zero references anywhere.** Not started at all.
+
+---
+
+## What's actually left to reach the current target (priority-ordered, roughly cheapest → biggest)
+
+1. **Admin password reset — next up.** Forgot-password link on `AdminLoginPage.jsx`, backend reset-token endpoint(s) in `backend/routes/admin_auth.py`, and a reset email sent via the existing SMTP settings (`AdminContactPage.jsx` already references this as the reason to configure SMTP — the plumbing for sending mail already exists via the contact-form/test-email code path, just needs a reset-specific flow).
+2. Render `meta_description` as a real `<meta name="description">` tag on `BlogPostPage.jsx` (and ideally on the other content pages too, since Home/About/Projects also have a `*_meta_description` field now).
+3. Wire `users_enabled=false` to actually disable commenting (not just fall back to guest mode) and to hide/disable the donate page, per original spec wording.
+4. Admin ability to edit a user's own profile fields (name/title/email) from the Users page.
+5. AI Implementations page — build the actual demo grid + backend for the 8 v1 cards (conversation basics, tool use, RAG, MCP, prompt evaluation, prompt engineering, web search, vision), per §6 above.
+6. Donate/Contribute — Stripe Checkout/Elements integration, one-time + subscription flows, webhook handling, actual public payment form.
+7. Deployment infrastructure: combined build pipeline, Flask/nginx static-serving or reverse-proxy setup, actual certbot automation consuming `certbot_domain.txt`, Varnish cache layer, and general "how does this get deployed to a Linux box" documentation/scripting — none of this exists yet.
+
+## Deliberate deviations from the original spec (not gaps — just documenting the decision trail)
+- Blog thumbnails: manual "Feature Image" field, not auto-derived from the post's first image.
+- Blog post URLs: top-level (`/my-post`), not nested under `/blog/`.
+- Admin accounts: full 4-tier role hierarchy (`contributor < editor < administrator < owner`) instead of flat equal-privilege accounts, with owner-role deletion protection instead of first-account protection — confirmed working better than the original design, keep as-is.
+
+---
+
+## Original spec (for reference)
+
+<details>
+<summary>Original plan message, verbatim</summary>
+
+Make a plan file for this project to include everything it will ultimately have when complete. As we take on tasks, we will read this plan file to determine the correct course of action to see how this task will interact with the other parts of the project to fit in as a whole. The areas that this project needs to include in the final delivery is as follows:
+
+1. A router for loading different pages with different resources
+2. A navbar that routes to the following pages (but more can be added later):
+   - "Home" - Landing Page
+   - "Blog" - List of Blog Posts that link to blog article pages
+   - "Projects" - List of github or other code projects or other personal accomplishments worth mentioning
+   - "About" - The personal about page that will focus on the author and have a headshot image
+   - "Contact" - a form to fill out that will send an email to an address with the form information
+   - "AI Implementations" - a chat interface that demos various AI functionalities (conversations, prompt evaluation, prompt engineering, RAG, tool use, MCP)
+   - "Donate/Contribute" - a page where you can enter payment information to pay the author of the website one-time or subscription payments.
+3. Website Admin — login page, login accounts (single privilege level originally), interface to admin all navbar pages (enable/disable, name, text, slug, extra settings per page as spelled out per-page above), blog post editor (Lexical-style WYSIWYG, image/video/embed upload, publish workflow, SEO, thumbnails, slugs, comment moderation), domain field driving Certbot/Let's Encrypt, favicon upload, Users admin (enable/disable, Google OAuth config, profile editing, CSV export), Admin Accounts management (add dialog, seeded first admin, first-admin deletion protection).
+4. Users — Google OAuth signup, editable name/title for comments, threaded commenting, access to payment form.
+5. Build script — builds frontend and backend for production.
+6. Dependency list — for easy installation on a different machine; live site deployed on a Linux server.
+7. Dependencies to add — Let's Encrypt Certbot, Varnish Cache.
+
+</details>
