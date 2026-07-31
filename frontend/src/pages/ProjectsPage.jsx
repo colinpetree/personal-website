@@ -35,13 +35,9 @@ export default function ProjectsPage() {
 
   return (
     <main className="max-w-4xl mx-auto px-6 py-16">
-      <h1 className="text-4xl font-bold text-gray-900 mb-4">
-        {config?.projects_page_name ?? 'Projects'}
-      </h1>
-
       {config?.projects_text && (
         <div
-          className="prose prose-gray mb-12"
+          className="prose prose-gray max-w-none blog-content mb-12"
           dangerouslySetInnerHTML={{ __html: config.projects_text }}
         />
       )}

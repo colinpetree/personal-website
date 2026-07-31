@@ -23,6 +23,7 @@ import AdminDonatePage from './pages/admin/AdminDonatePage'
 import AdminAccountsPage from './pages/admin/AdminAccountsPage'
 import AdminBlogPostsPage from './pages/admin/AdminBlogPostsPage'
 import AdminBlogEditorPage from './pages/admin/AdminBlogEditorPage'
+import AdminPageContentEditor from './pages/admin/AdminPageContentEditor'
 import AdminBlogCommentsPage from './pages/admin/AdminBlogCommentsPage'
 import AdminUsersPage from './pages/admin/AdminUsersPage'
 import UserProfilePage from './pages/UserProfilePage'
@@ -96,6 +97,14 @@ export function createRouter(slugs = {}) {
           ),
         },
         {
+          path: 'home/edit',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminPageContentEditor pageTitle="Home" backTo="/admin/home" contentField="home_text" metaField="home_meta_description" />
+            </RoleGuard>
+          ),
+        },
+        {
           path: 'blog',
           element: (
             <RoleGuard minRole="editor" fallback="/admin/blog/posts">
@@ -120,10 +129,26 @@ export function createRouter(slugs = {}) {
           ),
         },
         {
+          path: 'projects/edit',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminPageContentEditor pageTitle="Projects" backTo="/admin/projects" contentField="projects_text" metaField="projects_meta_description" />
+            </RoleGuard>
+          ),
+        },
+        {
           path: 'about',
           element: (
             <RoleGuard minRole="editor" fallback="/admin/blog/posts">
               <AdminAboutPage />
+            </RoleGuard>
+          ),
+        },
+        {
+          path: 'about/edit',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminPageContentEditor pageTitle="About" backTo="/admin/about" contentField="about_text" metaField="about_meta_description" />
             </RoleGuard>
           ),
         },

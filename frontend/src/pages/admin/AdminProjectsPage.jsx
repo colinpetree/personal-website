@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { ArrowUp, ArrowDown } from 'lucide-react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, EditableCard, Field, Input, InputWithPrefix, Textarea, Toggle } from '../../components/admin/AdminPage'
@@ -111,7 +112,6 @@ export default function AdminProjectsPage() {
           savedValues={{
             projects_enabled: config?.projects_enabled ?? false,
             projects_page_name: config?.projects_page_name || 'Projects',
-            projects_text: config?.projects_text || '',
             projects_slug: config?.projects_slug || 'projects',
           }}
           onSave={values => save(values)}
@@ -124,9 +124,6 @@ export default function AdminProjectsPage() {
               </Field>
               <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
                 <InputWithPrefix prefix={`https://${config?.domain || 'example.com'}/`} value={local.projects_slug} onChange={e => set('projects_slug', e.target.value.replace(/^\/+/, ''))} placeholder="projects" />
-              </Field>
-              <Field label="Page intro text" hint="HTML is supported.">
-                <Textarea rows={4} value={local.projects_text} onChange={e => set('projects_text', e.target.value)} />
               </Field>
             </>
           ) : (
@@ -148,13 +145,24 @@ export default function AdminProjectsPage() {
                 <p className="text-xs font-medium text-gray-500">URL</p>
                 <DisplayValue value={local.projects_slug ? `/${local.projects_slug}` : ''} fallback="/projects" />
               </div>
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Page intro text</p>
-                <DisplayValue value={local.projects_text} fallback="No intro text set" />
-              </div>
             </>
           )}
         </EditableCard>
+
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Page intro text</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {config?.projects_text ? 'Content set' : 'No intro text set'}
+            </p>
+          </div>
+          <Link
+            to="/admin/projects/edit"
+            className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 transition-colors shrink-0"
+          >
+            Edit content
+          </Link>
+        </div>
 
         <hr className="border-gray-200" />
         <div className="flex items-center justify-between">

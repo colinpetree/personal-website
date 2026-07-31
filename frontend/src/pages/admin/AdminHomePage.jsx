@@ -1,5 +1,6 @@
+import { Link } from 'react-router-dom'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
-import { PageShell, EditableCard, Field, Input, Textarea, Toggle } from '../../components/admin/AdminPage'
+import { PageShell, EditableCard, Field, Input, Toggle } from '../../components/admin/AdminPage'
 
 function DisplayValue({ value, fallback = '—' }) {
   return <p className="text-sm text-gray-900">{value || <span className="text-gray-400">{fallback}</span>}</p>
@@ -19,7 +20,6 @@ export default function AdminHomePage() {
           savedValues={{
             home_enabled: config?.home_enabled ?? true,
             home_page_name: config?.home_page_name || 'Home',
-            home_text: config?.home_text || '',
           }}
           onSave={values => save(values)}
         >
@@ -28,9 +28,6 @@ export default function AdminHomePage() {
               <Toggle label="Show in navigation" checked={local.home_enabled} onChange={v => set('home_enabled', v)} />
               <Field label="Link label">
                 <Input value={local.home_page_name} onChange={e => set('home_page_name', e.target.value)} />
-              </Field>
-              <Field label="Page content" hint="HTML is supported.">
-                <Textarea rows={12} value={local.home_text} onChange={e => set('home_text', e.target.value)} />
               </Field>
             </>
           ) : (
@@ -48,13 +45,24 @@ export default function AdminHomePage() {
                 <p className="text-xs font-medium text-gray-500">Link label</p>
                 <DisplayValue value={local.home_page_name} />
               </div>
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Page content</p>
-                <DisplayValue value={local.home_text} fallback="No content set" />
-              </div>
             </>
           )}
         </EditableCard>
+
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Page content</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {config?.home_text ? 'Content set' : 'No content set'}
+            </p>
+          </div>
+          <Link
+            to="/admin/home/edit"
+            className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 transition-colors shrink-0"
+          >
+            Edit content
+          </Link>
+        </div>
       </div>
     </PageShell>
   )

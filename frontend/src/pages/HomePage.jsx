@@ -19,9 +19,9 @@ export default function HomePage() {
   }
 
   return (
-    <main className="min-h-screen bg-white px-6 py-16">
+    <main className="min-h-screen bg-white max-w-3xl mx-auto px-6 py-16">
       <div
-        className="max-w-3xl mx-auto prose prose-gray"
+        className="prose prose-gray max-w-none blog-content"
         dangerouslySetInnerHTML={{ __html: config.home_text }}
       />
     </main>

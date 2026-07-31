@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
-import { PageShell, Card, EditableCard, Field, Input, InputWithPrefix, Textarea, Toggle } from '../../components/admin/AdminPage'
+import { PageShell, Card, EditableCard, Field, Input, InputWithPrefix, Toggle } from '../../components/admin/AdminPage'
 import FileDropzone from '../../components/admin/FileDropzone'
 
 function DisplayValue({ value, fallback = '—' }) {
@@ -47,10 +48,9 @@ export default function AdminAboutPage() {
           savedValues={{
             about_enabled: config?.about_enabled ?? false,
             about_page_name: config?.about_page_name || 'About',
-            about_text: config?.about_text || '',
             about_slug: config?.about_slug || 'about',
           }}
-          onSave={values => save({ about_enabled: values.about_enabled, about_page_name: values.about_page_name, about_text: values.about_text, about_slug: values.about_slug })}
+          onSave={values => save({ about_enabled: values.about_enabled, about_page_name: values.about_page_name, about_slug: values.about_slug })}
         >
           {({ editing, local, set }) => editing ? (
             <>
@@ -60,9 +60,6 @@ export default function AdminAboutPage() {
               </Field>
               <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
                 <InputWithPrefix prefix={`https://${config?.domain || 'example.com'}/`} value={local.about_slug} onChange={e => set('about_slug', e.target.value.replace(/^\/+/, ''))} placeholder="about" />
-              </Field>
-              <Field label="About text" hint="HTML is supported.">
-                <Textarea rows={10} value={local.about_text} onChange={e => set('about_text', e.target.value)} />
               </Field>
             </>
           ) : (
@@ -84,13 +81,24 @@ export default function AdminAboutPage() {
                 <p className="text-xs font-medium text-gray-500">URL</p>
                 <DisplayValue value={local.about_slug ? `/${local.about_slug}` : ''} fallback="/about" />
               </div>
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">About text</p>
-                <DisplayValue value={local.about_text} fallback="No content set" />
-              </div>
             </>
           )}
         </EditableCard>
+
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Page content</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {config?.about_text ? 'Content set' : 'No content set'}
+            </p>
+          </div>
+          <Link
+            to="/admin/about/edit"
+            className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 transition-colors shrink-0"
+          >
+            Edit content
+          </Link>
+        </div>
 
         <Card>
           <div className="flex items-start justify-between gap-4">

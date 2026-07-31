@@ -201,17 +201,23 @@ html {
   height: 0;
 }
 
-.blog-content figure {
+/* Typography plugin's default figure margin fights the explicit vertical margin
+   our image node sets itself (both in the editor and in exported HTML) — reset
+   just the vertical margin wherever Lexical content renders (not just the
+   public .blog-content output), leaving horizontal centering (mx-auto) alone. */
+.prose figure {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.prose figure img {
   margin: 0;
 }
 
-.blog-content figure img {
-  margin: 0;
-}
-
-/* Reserve space for images with unknown dimensions to prevent CLS */
+/* Placeholder background while images load — no forced aspect-ratio since we
+   don't track each image's real dimensions, and forcing one distorts images
+   that aren't that shape (e.g. portrait photos get squashed into 16:9). */
 .blog-content figure:not(.gallery) img {
-  aspect-ratio: 16 / 9;
   width: 100%;
   height: auto;
   background-color: #f3f4f6;
@@ -221,6 +227,7 @@ html {
   aspect-ratio: 4 / 3;
   width: 100%;
   height: auto;
+  object-fit: cover;
   background-color: #f3f4f6;
 }
 
