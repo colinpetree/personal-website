@@ -27,7 +27,7 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 | About | ✅ | ✅ | ✅ page text (Lexical), meta description, headshot upload | **DONE** |
 | Contact | ✅ | ✅ | ✅ full SMTP fields, Test Email dialog | **DONE** (see gap below) |
 | AI Implementations | ✅ | ✅ | — (API keys are env-var only, no admin UI field) | **DONE** as a config shell; page itself is unbuilt (see §6) |
-| Donate/Contribute | ✅ | ✅ | ✅ Stripe publishable/secret key fields (encrypted) | **DONE** as config; public page unbuilt (see §5) |
+| Donate/Contribute | ✅ | ✅ | ✅ Stripe publishable/secret/webhook key fields (encrypted) | **DONE** — full Stripe Checkout integration (see §5) |
 
 - [x] Domain field → writes `backend/certbot_domain.txt` on save (`backend/routes/admin_config.py:182-186`).
 - [x] Favicon upload (PNG/JPG/JPEG/GIF, plus WebP) → applied via JS-injected `<link rel="icon">` in `Navbar.jsx:29-39`.
@@ -67,13 +67,15 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 - [x] Google OAuth login (`backend/routes/auth.py`).
 - [x] Users edit their own name/title shown in comments.
 - [x] Threaded commenting (replies to posts and to other comments).
-- [ ] **Users accessing a payment form on the donate page — not built.** See §5.
+- [x] Users accessing a payment form on the donate page — now built (Stripe Checkout, no login required to donate, matching the original spec). See §5.
 
 ## 5. Donate/Contribute page
-- [x] Stripe API key fields in admin config (publishable + encrypted secret key).
-- [ ] **Public payment form — not built.** `DonatePage.jsx` is a "Coming soon" stub.
-- [ ] One-time vs. subscription payment options — not built.
-- [ ] Stripe checkout/webhook backend routes — not built; `stripe` isn't even in `requirements.txt`.
+- [x] Stripe API key fields in admin config (publishable + encrypted secret key), plus a new encrypted **Stripe Webhook Signing Secret** field (`stripe_webhook_secret`) needed to verify webhook events — `backend/models.py`, `backend/routes/admin_config.py`, `frontend/src/pages/admin/AdminDonatePage.jsx`.
+- [x] Public payment form — `frontend/src/pages/DonatePage.jsx`: preset ($5/$10/$25/$50) + custom amount, one-time/monthly toggle, redirects to Stripe-hosted Checkout (no card data touches our backend). Handles `?status=success` / `?status=cancelled` return states.
+- [x] One-time vs. subscription payment options — implemented via Stripe Checkout `mode: payment | subscription` with an inline `price_data.recurring` (monthly), no pre-created Stripe Price objects needed.
+- [x] Stripe checkout/webhook backend routes — `backend/routes/donate.py`: `POST /api/donate/create-checkout-session` (validates amount $1–$100,000, builds the Checkout Session, derives success/cancel URLs from the request `Origin`) and `POST /api/donate/webhook` (verifies Stripe signature, logs completed payments to `SiteEventLog` under a new `Donation` area for admin visibility — not filterable in the History modal's UI yet, but visible in the unfiltered feed). `stripe` added to `requirements.txt` and registered in `backend/app.py`.
+
+**Manual step required** (this project has no migration tooling, per `CLAUDE.md`): run `ALTER TABLE site_config ADD COLUMN stripe_webhook_secret TEXT;` in pgAdmin, then restart Flask. Also run `pip install -r requirements.txt` in the backend venv to install the new `stripe` dependency, and configure a webhook endpoint in the Stripe dashboard pointing to `https://<domain>/api/donate/webhook` (event: `checkout.session.completed`), pasting its signing secret into the new admin field.
 
 ## 6. AI Implementations page
 
@@ -146,7 +148,7 @@ Source: `C:\Users\Colin\src\claude-learning-repo\02-claude-api` — a personal C
 3. Wire `users_enabled=false` to actually disable commenting (not just fall back to guest mode) and to hide/disable the donate page, per original spec wording.
 4. Admin ability to edit a user's own profile fields (name/title/email) from the Users page.
 5. AI Implementations page — build the actual demo grid + backend for the 8 v1 cards (conversation basics, tool use, RAG, MCP, prompt evaluation, prompt engineering, web search, vision), per §6 above.
-6. Donate/Contribute — Stripe Checkout/Elements integration, one-time + subscription flows, webhook handling, actual public payment form.
+6. ~~Donate/Contribute — Stripe Checkout integration~~ — **done**, see §5 above.
 7. Deployment infrastructure: combined build pipeline, Flask/nginx static-serving or reverse-proxy setup, actual certbot automation consuming `certbot_domain.txt`, Varnish cache layer, and general "how does this get deployed to a Linux box" documentation/scripting — none of this exists yet.
 
 ## Deliberate deviations from the original spec (not gaps — just documenting the decision trail)

@@ -66,10 +66,12 @@ export default function AdminDonatePage() {
           savedValues={{
             stripe_publishable_key: config?.stripe_publishable_key || '',
             stripe_secret_key: '',
+            stripe_webhook_secret: '',
           }}
           onSave={values => {
             const payload = { ...values }
             if (!payload.stripe_secret_key) delete payload.stripe_secret_key
+            if (!payload.stripe_webhook_secret) delete payload.stripe_webhook_secret
             return save(payload)
           }}
         >
@@ -80,6 +82,16 @@ export default function AdminDonatePage() {
               </Field>
               <Field label="Stripe Secret Key" hint={config?.stripe_secret_key_set ? 'Currently set — enter a new value to replace it.' : 'Starts with sk_test_ or sk_live_'}>
                 <Input type="password" value={local.stripe_secret_key} onChange={e => set('stripe_secret_key', e.target.value)} placeholder={config?.stripe_secret_key_set ? '••••••••' : 'sk_live_…'} />
+              </Field>
+              <Field
+                label="Stripe Webhook Signing Secret"
+                hint={
+                  config?.stripe_webhook_secret_set
+                    ? 'Currently set — enter a new value to replace it.'
+                    : `Create a webhook in your Stripe dashboard pointing to https://${config?.domain || 'your-domain.com'}/api/donate/webhook, listening for checkout.session.completed, then paste its signing secret here.`
+                }
+              >
+                <Input type="password" value={local.stripe_webhook_secret} onChange={e => set('stripe_webhook_secret', e.target.value)} placeholder={config?.stripe_webhook_secret_set ? '••••••••' : 'whsec_…'} />
               </Field>
             </>
           ) : (
@@ -92,6 +104,15 @@ export default function AdminDonatePage() {
                 <p className="text-xs font-medium text-gray-500">Secret Key</p>
                 <p className="text-sm">
                   {config?.stripe_secret_key_set
+                    ? <span className="text-gray-900">••••••••</span>
+                    : <span className="text-gray-400">Not set</span>
+                  }
+                </p>
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">Webhook Signing Secret</p>
+                <p className="text-sm">
+                  {config?.stripe_webhook_secret_set
                     ? <span className="text-gray-900">••••••••</span>
                     : <span className="text-gray-400">Not set</span>
                   }

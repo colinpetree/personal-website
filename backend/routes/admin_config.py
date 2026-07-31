@@ -69,7 +69,7 @@ def _optimize_image(input_path, uploads_dir, base_name):
     return webp_filename, srcset, lqip
 
 # Fields that are stored encrypted; GET returns _set booleans, PUT encrypts if provided
-ENCRYPTED_FIELDS = ('smtp_password', 'stripe_secret_key', 'google_oauth_client_secret')
+ENCRYPTED_FIELDS = ('smtp_password', 'stripe_secret_key', 'stripe_webhook_secret', 'google_oauth_client_secret')
 
 
 def _config_to_dict(config):
@@ -124,6 +124,7 @@ def _config_to_dict(config):
         'donate_slug': config.donate_slug,
         'stripe_publishable_key': config.stripe_publishable_key,
         'stripe_secret_key_set': bool(config.stripe_secret_key),
+        'stripe_webhook_secret_set': bool(config.stripe_webhook_secret),
     }
 
 
@@ -139,7 +140,7 @@ def get_admin_config():
 ADMIN_ONLY_FIELDS = {
     'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password',
     'smtp_from_email', 'smtp_sender_name', 'forward_email',
-    'stripe_publishable_key', 'stripe_secret_key',
+    'stripe_publishable_key', 'stripe_secret_key', 'stripe_webhook_secret',
 }
 
 @admin_config_bp.route('/api/admin/site-config', methods=['PUT'])
@@ -176,6 +177,8 @@ def update_admin_config():
         config.smtp_password = encrypt(data['smtp_password'])
     if data.get('stripe_secret_key'):
         config.stripe_secret_key = encrypt(data['stripe_secret_key'])
+    if data.get('stripe_webhook_secret'):
+        config.stripe_webhook_secret = encrypt(data['stripe_webhook_secret'])
     if data.get('google_oauth_client_secret'):
         config.google_oauth_client_secret = encrypt(data['google_oauth_client_secret'])
 
@@ -186,7 +189,7 @@ def update_admin_config():
             f.write(data['domain'])
 
     # Log the settings change
-    changed_keys = [k for k in data if k in plain_fields or k in ('smtp_password', 'stripe_secret_key', 'google_oauth_client_secret')]
+    changed_keys = [k for k in data if k in plain_fields or k in ('smtp_password', 'stripe_secret_key', 'stripe_webhook_secret', 'google_oauth_client_secret')]
     if changed_keys:
         subject = 'Site (' + ', '.join(changed_keys) + ')'
         entry = SiteEventLog(
