@@ -171,6 +171,21 @@ class Project(db.Model):
     visible = db.Column(db.Boolean, nullable=False, default=True)
 
 
+class Donation(db.Model):
+    __tablename__ = 'donation'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    stripe_customer_id = db.Column(db.String(255), nullable=True)
+    stripe_subscription_id = db.Column(db.String(255), nullable=True)
+    stripe_object_id = db.Column(db.String(255), nullable=False, unique=True)  # checkout session or invoice id
+    amount = db.Column(db.Float, nullable=False)
+    mode = db.Column(db.String(20), nullable=False)  # payment | subscription
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    user = db.relationship('User', backref='donations')
+
+
 class SiteEventLog(db.Model):
     __tablename__ = 'site_event_log'
 
