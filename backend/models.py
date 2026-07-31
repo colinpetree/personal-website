@@ -69,6 +69,7 @@ class SiteConfig(db.Model):
     donate_slug = db.Column(db.String(100), nullable=False, default='donate')
     stripe_publishable_key = db.Column(db.Text, nullable=True)
     stripe_secret_key = db.Column(db.Text, nullable=True)  # stored encrypted
+    stripe_webhook_secret = db.Column(db.Text, nullable=True)  # stored encrypted
 
     # Site-wide
     domain = db.Column(db.String(255), nullable=True)
