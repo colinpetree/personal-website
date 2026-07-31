@@ -24,6 +24,7 @@ class SiteConfig(db.Model):
     home_enabled = db.Column(db.Boolean, nullable=False, default=True)
     home_page_name = db.Column(db.String(100), nullable=False, default='Home')
     home_text = db.Column(db.Text, nullable=True)
+    home_meta_description = db.Column(db.Text, nullable=True)
 
     # Blog
     blog_enabled = db.Column(db.Boolean, nullable=False, default=False)
@@ -34,12 +35,14 @@ class SiteConfig(db.Model):
     projects_enabled = db.Column(db.Boolean, nullable=False, default=False)
     projects_page_name = db.Column(db.String(100), nullable=False, default='Projects')
     projects_text = db.Column(db.Text, nullable=True)
+    projects_meta_description = db.Column(db.Text, nullable=True)
     projects_slug = db.Column(db.String(100), nullable=False, default='projects')
 
     # About
     about_enabled = db.Column(db.Boolean, nullable=False, default=False)
     about_page_name = db.Column(db.String(100), nullable=False, default='About')
     about_text = db.Column(db.Text, nullable=True)
+    about_meta_description = db.Column(db.Text, nullable=True)
     headshot_filename = db.Column(db.String(255), nullable=True)
     about_slug = db.Column(db.String(100), nullable=False, default='about')
 

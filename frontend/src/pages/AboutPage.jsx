@@ -21,7 +21,7 @@ export default function AboutPage() {
       )}
       {config?.about_text ? (
         <div
-          className="prose prose-gray"
+          className="prose prose-gray max-w-none blog-content"
           dangerouslySetInnerHTML={{ __html: config.about_text }}
         />
       ) : (

@@ -37,6 +37,32 @@ import { ColorSwatchMenu } from '../../ui/ColorPicker'
 
 // ─── LoadHtmlPlugin ───────────────────────────────────────────────────────────
 
+// Root nodes must be elements or decorators; loose text/inline nodes (which can
+// show up when loading hand-written HTML that wasn't produced by this editor,
+// e.g. old textarea-authored content) get wrapped in a paragraph instead.
+function normalizeRootNodes(nodes) {
+  const result = []
+  let buffer = []
+  function flush() {
+    if (buffer.length) {
+      const p = $createParagraphNode()
+      p.append(...buffer)
+      result.push(p)
+      buffer = []
+    }
+  }
+  for (const node of nodes) {
+    if ($isElementNode(node) || $isDecoratorNode(node)) {
+      flush()
+      result.push(node)
+    } else {
+      buffer.push(node)
+    }
+  }
+  flush()
+  return result
+}
+
 export function LoadHtmlPlugin({ html }) {
   const [editor] = useLexicalComposerContext()
   const loaded = useRef(false)
@@ -50,7 +76,7 @@ export function LoadHtmlPlugin({ html }) {
       const nodes = $generateNodesFromDOM(editor, dom)
       const root = $getRoot()
       root.clear()
-      root.append(...nodes)
+      root.append(...normalizeRootNodes(nodes))
     })
   }, [editor, html])
 
