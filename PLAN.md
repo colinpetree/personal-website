@@ -91,6 +91,10 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 3. In the Stripe Dashboard, create a webhook destination at `https://<domain>/api/donate/webhook` listening for `checkout.session.completed` and `invoice.paid`, and paste its signing secret into the admin donate page.
 4. In the Stripe Dashboard, save a default Customer Portal configuration (Settings → Billing → Customer portal) — required before `manage-subscription` will work.
 
+**Verified locally** (2026-07-31) via `stripe listen` in test mode: checkout → payment → `checkout.session.completed` webhook → `Donation` row recorded end to end. One bug fixed during testing — the installed `stripe` SDK returns `StripeObject`s that don't support dict-style `.get()`; switched to `getattr(obj, 'field', default)` throughout the webhook handler. Renewal (`invoice.paid`), the admin dashboard numbers, and the manage-subscription portal redirect are implemented but not yet individually re-verified after that fix.
+
+**Open question — revisit later**: is requiring Google login for *all* donations (including small one-time gifts) the right call? Flagged by the user as likely to change — it adds real friction before payment for casual donors and doesn't add actual payment security (Stripe already owns fraud/chargeback risk independent of site login). It was chosen because it made subscription self-management trivial to build safely with no separate identity-verification system. If revisited, the likely direction is: allow anonymous one-time checkout, and only require identity (login or a magic-link-style email flow) for the manage-subscription path specifically — which would need `create_checkout_session` to support an anonymous path and `Donation.user_id` to become nullable. Not scheduled.
+
 ## 6. AI Implementations page
 
 - [ ] **Entirely unbuilt beyond the config shell.** Public page is a "Coming soon" stub; admin page only has enable/name/slug (no API key fields — env vars only). No chat UI, no conversation/prompt-eval/RAG/tool-use/MCP backend anywhere. `ANTHROPIC_API_KEY`/`VOYAGE_API_KEY` are referenced in `.env.example` and in the admin page's help text only.
