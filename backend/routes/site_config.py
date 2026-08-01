@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, current_app
 from models import SiteConfig
 
 site_config_bp = Blueprint('site_config', __name__)
@@ -50,7 +50,9 @@ def get_site_config():
                 'key': 'ai_demo',
                 'name': config.ai_demo_page_name,
                 'path': f'/{config.ai_demo_slug}',
-                'enabled': config.ai_demo_enabled,
+                # Also requires the deployment-time ENABLE_AI_DEMOS flag, so forks
+                # without the AI demo feature never advertise it via the nav.
+                'enabled': config.ai_demo_enabled and current_app.config['ENABLE_AI_DEMOS'],
             },
             {
                 'key': 'donate',

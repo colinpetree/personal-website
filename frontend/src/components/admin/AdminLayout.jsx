@@ -5,6 +5,10 @@ import { ToastProvider } from './Toast'
 import StaffProfileModal, { AvatarCircle, ROLE_BADGE, ROLE_LABELS } from './StaffProfileModal'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 
+// Deployment-time flag — matches the one router.jsx uses to exclude the AI demo
+// routes; keeps this sidebar link from pointing at a route that doesn't exist.
+const AI_DEMOS_ENABLED = import.meta.env.VITE_ENABLE_AI_DEMOS !== 'false'
+
 const NAV_GROUPS = [
   {
     label: 'Site Pages',
@@ -22,7 +26,7 @@ const NAV_GROUPS = [
       { to: '/admin/projects', label: 'Projects' },
       { to: '/admin/about', label: 'About' },
       { to: '/admin/contact', label: 'Contact' },
-      { to: '/admin/demo', label: 'AI Demo' },
+      ...(AI_DEMOS_ENABLED ? [{ to: '/admin/demo', label: 'AI Demo' }] : []),
       { to: '/admin/donate', label: 'Donate' },
     ],
   },

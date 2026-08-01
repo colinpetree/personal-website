@@ -13,6 +13,10 @@ def create_app():
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-change-in-production')
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    # Deployment-time flag — lets forks of this project fully exclude the AI demo
+    # feature (its own API keys/spend) without touching code. Not admin-toggleable;
+    # ai_demo_enabled in SiteConfig is a separate runtime toggle for sites that have it.
+    app.config['ENABLE_AI_DEMOS'] = os.getenv('ENABLE_AI_DEMOS', 'true').lower() == 'true'
 
     CORS(app, supports_credentials=True)
     db.init_app(app)
@@ -34,6 +38,7 @@ def create_app():
     from routes.admin_users import admin_users_bp
     from routes.admin_history import admin_history_bp
     from routes.donate import donate_bp
+    # Future ai_demo_bp registration goes here, gated on app.config['ENABLE_AI_DEMOS']
     app.register_blueprint(profile_bp)
     app.register_blueprint(site_config_bp)
     app.register_blueprint(projects_bp)
