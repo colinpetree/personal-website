@@ -144,6 +144,15 @@ Source: `C:\Users\Colin\src\claude-learning-repo\02-claude-api` — a personal C
 - Whether `ANTHROPIC_API_KEY`/`VOYAGE_API_KEY` stay env-var-only or get admin-configurable fields (current `AdminAIDemoPage.jsx` only documents them as env vars).
 - Frontend: new `frontend/src/pages/AIDemoPage.jsx` becomes the card grid; each demo likely gets its own route (e.g. `/demo/tool-use`) and page component under a new `frontend/src/pages/ai-demos/` directory.
 
+### Build flag: making the whole AI demo feature optional for other users of this project (shipped 2026-07-31)
+
+Since this repo is meant to be reusable by other people standing up their own site from it, the AI demo section (tied to the site owner's own Anthropic/Voyage API keys and spend) needed to be excludable — not just hidden via the existing `ai_demo_enabled` DB toggle, which only hides the nav link while routes/admin settings stay reachable regardless.
+
+Added a **deployment-time** env flag on both sides (separate from the runtime `ai_demo_enabled` toggle):
+- Backend: `ENABLE_AI_DEMOS` (default `true`), read in `backend/app.py` into `app.config['ENABLE_AI_DEMOS']`. The `/api/site-config` nav entry's `enabled` now also requires this flag (`backend/routes/site_config.py`), and `backend/routes/admin_config.py` omits `ai_demo_enabled`/`ai_demo_page_name`/`ai_demo_slug` from the admin GET response and rejects them on PUT when the flag is off. A comment in `app.py` marks where the future `ai_demo_bp` registration should be gated on this flag once the feature is built.
+- Frontend: `VITE_ENABLE_AI_DEMOS` (default `true`), read via `import.meta.env.VITE_ENABLE_AI_DEMOS !== 'false'` in `frontend/src/router.jsx` (wraps both the public `/demo` route and the admin `/admin/demo` route) and `frontend/src/components/admin/AdminLayout.jsx` (wraps the "AI Demo" sidebar link). Vite inlines `import.meta.env.*` as literals at build time, so these branches dead-code-eliminate when the flag is `false`.
+- Documented in `backend/.env.example` and the new `frontend/.env.example`. Not a full code-deletion split — the AI demo files still exist in the repo either way; a forker wanting zero trace can additionally delete `backend/routes/ai_demo.py` (once built) and `frontend/src/pages/ai-demos/`, called out in the `.env.example` comments.
+
 ## 7. Build script
 - [x] Frontend build (`vite build` via `frontend/package.json`).
 - [ ] **No combined frontend+backend build/deploy script.** No Dockerfile, docker-compose, Makefile, or CI/CD config anywhere in the repo.

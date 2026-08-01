@@ -74,7 +74,7 @@ ENCRYPTED_FIELDS = ('smtp_password', 'stripe_secret_key', 'stripe_webhook_secret
 
 def _config_to_dict(config):
     """Serialize SiteConfig for the admin — includes all fields, secrets as _set flags."""
-    return {
+    result = {
         'site_title': config.site_title,
         'site_description': config.site_description,
         'domain': config.domain,
@@ -116,9 +116,6 @@ def _config_to_dict(config):
         'smtp_from_email': config.smtp_from_email,
         'smtp_sender_name': config.smtp_sender_name,
         'forward_email': config.forward_email,
-        'ai_demo_enabled': config.ai_demo_enabled,
-        'ai_demo_page_name': config.ai_demo_page_name,
-        'ai_demo_slug': config.ai_demo_slug,
         'donate_enabled': config.donate_enabled,
         'donate_page_name': config.donate_page_name,
         'donate_slug': config.donate_slug,
@@ -126,6 +123,13 @@ def _config_to_dict(config):
         'stripe_secret_key_set': bool(config.stripe_secret_key),
         'stripe_webhook_secret_set': bool(config.stripe_webhook_secret),
     }
+    # AI demo settings are only exposed to the admin UI when this deployment
+    # has the feature built in — see app.config['ENABLE_AI_DEMOS'].
+    if current_app.config['ENABLE_AI_DEMOS']:
+        result['ai_demo_enabled'] = config.ai_demo_enabled
+        result['ai_demo_page_name'] = config.ai_demo_page_name
+        result['ai_demo_slug'] = config.ai_demo_slug
+    return result
 
 
 @admin_config_bp.route('/api/admin/site-config', methods=['GET'])
@@ -165,9 +169,10 @@ def update_admin_config():
         'about_enabled', 'about_page_name', 'about_text', 'about_meta_description', 'headshot_filename', 'about_slug',
         'contact_enabled', 'contact_page_name', 'contact_slug',
         'smtp_host', 'smtp_port', 'smtp_user', 'smtp_from_email', 'smtp_sender_name', 'forward_email',
-        'ai_demo_enabled', 'ai_demo_page_name', 'ai_demo_slug',
         'donate_enabled', 'donate_page_name', 'stripe_publishable_key', 'donate_slug',
     ]
+    if current_app.config['ENABLE_AI_DEMOS']:
+        plain_fields += ['ai_demo_enabled', 'ai_demo_page_name', 'ai_demo_slug']
     for field in plain_fields:
         if field in data:
             setattr(config, field, data[field])

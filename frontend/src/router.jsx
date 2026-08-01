@@ -32,6 +32,12 @@ import UserProfilePage from './pages/UserProfilePage'
 const adminOnlyFallback = (admin) =>
   admin?.role === 'editor' ? '/admin/blog' : '/admin/blog/posts'
 
+// Deployment-time flag — lets forks of this project exclude the AI demo feature
+// (its own API keys/spend) entirely from the build. import.meta.env.VITE_ENABLE_AI_DEMOS
+// is inlined as a literal at build time, so the branches below are dead-code-eliminated
+// when it's set to 'false'.
+const AI_DEMOS_ENABLED = import.meta.env.VITE_ENABLE_AI_DEMOS !== 'false'
+
 export function createRouter(slugs = {}) {
   const {
     blog = 'blog',
@@ -53,7 +59,7 @@ export function createRouter(slugs = {}) {
         { path: projects, element: <ProjectsPage /> },
         { path: about, element: <AboutPage /> },
         { path: contact, element: <ContactPage /> },
-        { path: ai_demo, element: <AIDemoPage /> },
+        ...(AI_DEMOS_ENABLED ? [{ path: ai_demo, element: <AIDemoPage /> }] : []),
         { path: donate, element: <DonatePage /> },
         { path: 'profile', element: <UserProfilePage /> },
         { path: ':slug', element: <BlogPostPage /> },
@@ -160,14 +166,14 @@ export function createRouter(slugs = {}) {
             </RoleGuard>
           ),
         },
-        {
+        ...(AI_DEMOS_ENABLED ? [{
           path: 'demo',
           element: (
             <RoleGuard minRole="editor" fallback="/admin/blog/posts">
               <AdminAIDemoPage />
             </RoleGuard>
           ),
-        },
+        }] : []),
         {
           path: 'donate',
           element: (
