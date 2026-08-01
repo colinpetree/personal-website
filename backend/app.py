@@ -38,7 +38,6 @@ def create_app():
     from routes.admin_users import admin_users_bp
     from routes.admin_history import admin_history_bp
     from routes.donate import donate_bp
-    # Future ai_demo_bp registration goes here, gated on app.config['ENABLE_AI_DEMOS']
     app.register_blueprint(profile_bp)
     app.register_blueprint(site_config_bp)
     app.register_blueprint(projects_bp)
@@ -55,6 +54,10 @@ def create_app():
     app.register_blueprint(admin_users_bp)
     app.register_blueprint(admin_history_bp)
     app.register_blueprint(donate_bp)
+
+    if app.config['ENABLE_AI_DEMOS']:
+        from routes.ai_demo import ai_demo_bp
+        app.register_blueprint(ai_demo_bp)
 
     return app
 

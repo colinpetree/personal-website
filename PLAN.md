@@ -97,7 +97,8 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 
 ## 6. AI Implementations page
 
-- [ ] **Entirely unbuilt beyond the config shell.** Public page is a "Coming soon" stub; admin page only has enable/name/slug (no API key fields — env vars only). No chat UI, no conversation/prompt-eval/RAG/tool-use/MCP backend anywhere. `ANTHROPIC_API_KEY`/`VOYAGE_API_KEY` are referenced in `.env.example` and in the admin page's help text only.
+- [~] **Slice 1 shipped (2026-07-31): card grid + "Conversation basics" demo working end-to-end.** `AIDemoPage.jsx` is now a Google-login-gated grid of all 8 cards; only Conversation basics is clickable (streaming chat, system prompt, temperature slider), the other 7 render as disabled "Coming soon" tiles. Backend: `backend/routes/ai_demo.py` (`ai_demo_bp`, registered in `app.py` gated on `ENABLE_AI_DEMOS`) exposes `POST /api/ai-demo/conversation-basics/chat`, `@user_required`, streaming raw text via `Response(stream_with_context(...))` from the `anthropic` SDK (`anthropic>=0.40.0` added to `requirements.txt`). `ANTHROPIC_API_KEY` stays env-var only (confirmed decision — no encrypted admin fields). Remaining 7 cards (tool use, RAG, MCP, prompt evaluation, prompt engineering, web search, vision) are not yet built — see reference material below. `VOYAGE_API_KEY`/`voyageai` still unused (needed only for the RAG card).
+- Not yet manually verified in-browser (needs a real Google OAuth login to reach the gated page) — should be smoke-tested before considering this slice fully done.
 
 ### Product design
 - Public `/demo` page shows a **grid of cards**, one per AI capability, each with a title + short description.
@@ -160,7 +161,7 @@ Added a **deployment-time** env flag on both sides (separate from the runtime `a
 2. Render `meta_description` as a real `<meta name="description">` tag on `BlogPostPage.jsx` (and ideally on the other content pages too, since Home/About/Projects also have a `*_meta_description` field now).
 3. Wire `users_enabled=false` to actually disable commenting (not just fall back to guest mode) — the donate-page half of this is now done, see §5.
 4. Admin ability to edit a user's own profile fields (name/title/email) from the Users page.
-5. AI Implementations page — build the actual demo grid + backend for the 8 v1 cards (conversation basics, tool use, RAG, MCP, prompt evaluation, prompt engineering, web search, vision), per §6 above.
+5. AI Implementations page — **in progress**: card grid + Conversation basics done (2026-07-31), remaining 7 v1 cards (tool use, RAG, MCP, prompt evaluation, prompt engineering, web search, vision) still to build, per §6 above.
 6. ~~Donate/Contribute — Stripe Checkout integration~~ — **done**, see §5 above.
 7. Deployment infrastructure: combined build pipeline, Flask/nginx static-serving or reverse-proxy setup, actual certbot automation consuming `certbot_domain.txt`, Varnish cache layer, and general "how does this get deployed to a Linux box" documentation/scripting — none of this exists yet.
 
