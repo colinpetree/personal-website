@@ -7,6 +7,7 @@ import ProjectsPage from './pages/ProjectsPage'
 import AboutPage from './pages/AboutPage'
 import ContactPage from './pages/ContactPage'
 import AIDemoPage from './pages/AIDemoPage'
+import ConversationBasicsPage from './pages/ai-demos/ConversationBasicsPage'
 import DonatePage from './pages/DonatePage'
 import NotFoundPage from './pages/NotFoundPage'
 import AdminLayout from './components/admin/AdminLayout'
@@ -59,7 +60,10 @@ export function createRouter(slugs = {}) {
         { path: projects, element: <ProjectsPage /> },
         { path: about, element: <AboutPage /> },
         { path: contact, element: <ContactPage /> },
-        ...(AI_DEMOS_ENABLED ? [{ path: ai_demo, element: <AIDemoPage /> }] : []),
+        ...(AI_DEMOS_ENABLED ? [
+          { path: ai_demo, element: <AIDemoPage /> },
+          { path: `${ai_demo}/conversation-basics`, element: <ConversationBasicsPage /> },
+        ] : []),
         { path: donate, element: <DonatePage /> },
         { path: 'profile', element: <UserProfilePage /> },
         { path: ':slug', element: <BlogPostPage /> },
