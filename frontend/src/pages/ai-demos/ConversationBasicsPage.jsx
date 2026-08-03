@@ -6,6 +6,21 @@ import { useUserAuth } from '../../context/UserAuthContext'
 import { Tooltip } from '../../components/ui/Tooltip'
 import SignInRequiredModal from '../../components/SignInRequiredModal'
 
+const SYSTEM_PROMPT_PRESETS = [
+  {
+    label: 'Default',
+    prompt: '',
+  },
+  {
+    label: 'Scientist',
+    prompt: 'You are a scientist. Answer questions very concisely and directly, using scientific language and assuming the user can understand it. Every claim you make must include a reference to a scholarly article.',
+  },
+  {
+    label: 'Customer service',
+    prompt: 'You are a warm and polite customer service agent for a product. Use simple, concise language, present options clearly, and if you need more information to help, ask the user for it. At the end, ask an intuitive question that gets the user to engage again.',
+  },
+]
+
 // Minimal markdown -> React renderer (headings, bold/italic/inline code, lists,
 // paragraphs) — enough to render Claude's typical formatting without a new dependency.
 function renderInline(text) {
@@ -412,10 +427,22 @@ export default function ConversationBasicsPage() {
               id="system-prompt"
               value={systemPrompt}
               onChange={e => setSystemPrompt(e.target.value)}
-              placeholder="e.g. You are a pirate. Answer every question in pirate speak."
+              placeholder="e.g. You are a helpful assistant. Keep answers concise and cite sources where relevant."
               rows={5}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400"
             />
+            <div className="flex flex-wrap gap-1.5">
+              {SYSTEM_PROMPT_PRESETS.map(preset => (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => setSystemPrompt(preset.prompt)}
+                  className="rounded-full border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-600 hover:border-gray-400 hover:text-gray-900 transition-colors"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-col gap-1.5">
