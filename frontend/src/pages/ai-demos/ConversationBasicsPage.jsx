@@ -4,6 +4,7 @@ import { ArrowUp, ArrowDown, ChevronLeft } from 'lucide-react'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import { useUserAuth } from '../../context/UserAuthContext'
 import { Tooltip } from '../../components/ui/Tooltip'
+import SignInRequiredModal from '../../components/SignInRequiredModal'
 
 // Minimal markdown -> React renderer (headings, bold/italic/inline code, lists,
 // paragraphs) — enough to render Claude's typical formatting without a new dependency.
@@ -53,8 +54,14 @@ function parseMarkdownBlocks(text) {
     const headingMatch = line.match(/^(#{1,3})\s+(.*)/)
     const ulMatch = line.match(/^[-*]\s+(.*)/)
     const olMatch = line.match(/^\d+\.\s+(.*)/)
+    // While streaming, a block-prefix character (#, -, 1.) can arrive on its own,
+    // one tick before the space that completes it. Rendering it as literal text in
+    // that instant just to replace it a moment later reads as a flash — skip it and
+    // wait for it to resolve into a real heading/list item (or plain text, if the
+    // marker is never followed by a space at all).
+    const isPendingBlockPrefix = /^(#{1,3}|[-*]|\d+\.)$/.test(line.trim())
 
-    if (line.trim() === '') {
+    if (line.trim() === '' || isPendingBlockPrefix) {
       flushPara()
       flushList()
     } else if (headingMatch) {
@@ -110,7 +117,7 @@ function MarkdownText({ text }) {
 
 export default function ConversationBasicsPage() {
   const { config } = useSiteConfig()
-  const { user, loginWithGoogle } = useUserAuth()
+  const { user } = useUserAuth()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [systemPrompt, setSystemPrompt] = useState('')
@@ -118,8 +125,21 @@ export default function ConversationBasicsPage() {
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [showScrollButton, setShowScrollButton] = useState(false)
+  const [showSignInModal, setShowSignInModal] = useState(false)
+  const [scrollbarWidth, setScrollbarWidth] = useState(0)
   const bottomRef = useRef(null)
   const scrollContainerRef = useRef(null)
+  // Whether the reveal timer should keep following the bottom as text streams in.
+  // A real user scroll (wheel/touch, caught below) turns this off immediately. The
+  // generic 'scroll' event fires for our own programmatic scrolls too, so it's only
+  // allowed to turn autoFollow back *on* (when the user scrolls back near the bottom
+  // themselves) — never used to detect "scrolled away," which is why the wheel/touch
+  // listeners exist separately.
+  const autoFollowRef = useRef(true)
+  const programmaticScrollRef = useRef(false)
+  const scrollEndTimerRef = useRef(null)
+  const revealTimerRef = useRef(null)
+  const abortControllerRef = useRef(null)
 
   useEffect(() => {
     if (config?.site_title) {
@@ -127,23 +147,79 @@ export default function ConversationBasicsPage() {
     }
   }, [config])
 
+  // The bottom fade/input bar is an absolutely-positioned overlay that sits on top of
+  // the scrollable messages column, including its native scrollbar. Measure the
+  // scrollbar's actual width so the fade background can stop short of it instead of
+  // painting over (and visually fading) the scrollbar itself.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    const el = scrollContainerRef.current
+    if (!el) return
+    const measure = () => setScrollbarWidth(el.offsetWidth - el.clientWidth)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    const el = scrollContainerRef.current
+    if (!el) return
+    const disableFollow = () => { autoFollowRef.current = false }
+    el.addEventListener('wheel', disableFollow, { passive: true })
+    el.addEventListener('touchmove', disableFollow, { passive: true })
+    return () => {
+      el.removeEventListener('wheel', disableFollow)
+      el.removeEventListener('touchmove', disableFollow)
+    }
+  }, [])
+
+  // If the user navigates away mid-reply, stop the reveal timer/settle timer and
+  // abort the in-flight request rather than letting them run against an unmounted page.
+  useEffect(() => {
+    return () => {
+      clearInterval(revealTimerRef.current)
+      clearTimeout(scrollEndTimerRef.current)
+      abortControllerRef.current?.abort()
+    }
+  }, [])
 
   function handleScroll() {
     const el = scrollContainerRef.current
     if (!el) return
     const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+
+    if (programmaticScrollRef.current) {
+      programmaticScrollRef.current = false
+    } else {
+      // A real user scroll is in progress. During a slow/gradual scroll, every
+      // intermediate tick can briefly read as "close to the bottom" — so don't decide
+      // off any single event. Wait for the gesture to settle, then judge only the
+      // final resting position.
+      clearTimeout(scrollEndTimerRef.current)
+      scrollEndTimerRef.current = setTimeout(() => {
+        const settledEl = scrollContainerRef.current
+        if (!settledEl) return
+        const settledDistance = settledEl.scrollHeight - settledEl.scrollTop - settledEl.clientHeight
+        if (settledDistance < 4) autoFollowRef.current = true
+      }, 150)
+    }
+
     setShowScrollButton(distanceFromBottom > 150)
   }
 
-  function scrollToBottom() {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  function scrollToBottom(behavior = 'smooth') {
+    autoFollowRef.current = true
+    programmaticScrollRef.current = true
+    bottomRef.current?.scrollIntoView({ behavior })
   }
 
   async function handleSend(e) {
     e.preventDefault()
+    if (!user) {
+      setShowSignInModal(true)
+      return
+    }
+
     const text = input.trim()
     if (!text || sending) return
 
@@ -152,6 +228,44 @@ export default function ConversationBasicsPage() {
     setMessages([...history, { role: 'assistant', content: '' }])
     setInput('')
     setSending(true)
+    requestAnimationFrame(() => scrollToBottom())
+
+    // The network delivers text in whatever chunk sizes the server/browser happen to
+    // buffer — sometimes the whole reply arrives in one piece. To make the streaming
+    // visible regardless of chunking, the full text is accumulated in `fullText` and
+    // revealed to the UI a few characters at a time on a fixed timer, independent of
+    // when the underlying chunks actually arrive.
+    let fullText = ''
+    let revealedLength = 0
+    let doneReading = false
+
+    function stopRevealing() {
+      clearInterval(revealTimerRef.current)
+      revealTimerRef.current = null
+      setSending(false)
+    }
+
+    function startRevealing() {
+      revealTimerRef.current = setInterval(() => {
+        if (revealedLength >= fullText.length) {
+          if (doneReading) stopRevealing()
+          return
+        }
+        const backlog = fullText.length - revealedLength
+        const step = backlog > 60 ? Math.ceil(backlog / 30) : 1
+        revealedLength = Math.min(fullText.length, revealedLength + step)
+        setMessages([...history, { role: 'assistant', content: fullText.slice(0, revealedLength) }])
+        if (autoFollowRef.current) {
+          requestAnimationFrame(() => {
+            programmaticScrollRef.current = true
+            bottomRef.current?.scrollIntoView({ behavior: 'auto' })
+          })
+        }
+      }, 15)
+    }
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
 
     try {
       const res = await fetch('/api/ai-demo/conversation-basics/chat', {
@@ -159,6 +273,7 @@ export default function ConversationBasicsPage() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ messages: history, system: systemPrompt, temperature }),
+        signal: controller.signal,
       })
 
       if (!res.ok || !res.body) {
@@ -171,104 +286,108 @@ export default function ConversationBasicsPage() {
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
-      let assistantText = ''
+      startRevealing()
 
       while (true) {
         const { done, value } = await reader.read()
-        if (done) break
-        assistantText += decoder.decode(value, { stream: true })
-        setMessages([...history, { role: 'assistant', content: assistantText }])
+        if (done) {
+          doneReading = true
+          break
+        }
+        fullText += decoder.decode(value, { stream: true })
       }
-    } catch {
+    } catch (err) {
+      stopRevealing()
+      if (err.name === 'AbortError') return
       setError('Network error. Please try again.')
       setMessages(history)
-    } finally {
-      setSending(false)
     }
   }
 
+  // 4rem matches Navbar's h-16 content height, +1px for its border-b (the header
+  // itself has no explicit height, so that border sits outside the 4rem).
   return (
-    <div className="h-[calc(100vh-4rem)] flex flex-col lg:flex-row overflow-hidden">
-      {/* Chat column */}
-      <div className="order-2 flex-1 min-w-0 flex flex-col relative">
-        {!user ? (
-          <div className="flex-1 flex items-center justify-center px-6">
-            <div className="rounded-lg border border-gray-200 bg-gray-50 px-5 py-6 text-center">
-              <p className="text-sm text-gray-600 mb-3">Sign in to try this demo</p>
-              <button
-                onClick={() => loginWithGoogle(window.location.pathname)}
-                className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
-              >
-                Sign in with Google
-              </button>
-            </div>
-          </div>
-        ) : (
-          <>
-            <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-6 pt-8 pb-36">
-              <div className="max-w-2xl mx-auto flex flex-col gap-6">
-                {messages.length === 0 && (
-                  <p className="text-sm text-gray-400">Say something to start the conversation.</p>
-                )}
-                {messages.map((m, i) => (
-                  m.role === 'user' ? (
-                    <div key={i} className="self-end max-w-[85%] rounded-3xl bg-gray-100 text-gray-900 px-4 py-2.5 text-[15px] whitespace-pre-wrap">
-                      {m.content}
-                    </div>
-                  ) : (
-                    <div key={i} className="text-[15px] leading-7 text-gray-800">
-                      {m.content ? (
-                        <MarkdownText text={m.content} />
-                      ) : sending && i === messages.length - 1 ? (
-                        <span className="text-gray-400">…</span>
-                      ) : null}
-                    </div>
-                  )
-                ))}
-                <div ref={bottomRef} />
-              </div>
-            </div>
+    <div className="h-[calc(100vh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden">
+      {showSignInModal && <SignInRequiredModal onClose={() => setShowSignInModal(false)} />}
 
-            <div className="absolute inset-x-0 bottom-0 px-6 pb-6 pt-10 bg-gradient-to-t from-white via-white/85 to-transparent pointer-events-none">
-              {showScrollButton && (
-                <button
-                  onClick={scrollToBottom}
-                  aria-label="Scroll to bottom"
-                  className="pointer-events-auto absolute left-1/2 -translate-x-1/2 top-0 w-8 h-8 rounded-full border border-gray-200 bg-white shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors"
-                >
-                  <ArrowDown size={15} className="text-gray-500" />
-                </button>
-              )}
-              <div className="max-w-2xl mx-auto pointer-events-auto">
-                {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
-                <form
-                  onSubmit={handleSend}
-                  className="flex items-center gap-2 rounded-3xl border border-gray-200 bg-white shadow-md px-4 py-2.5"
-                >
-                  <input
-                    type="text"
-                    value={input}
-                    onChange={e => setInput(e.target.value)}
-                    placeholder="Ask anything"
-                    className="flex-1 bg-transparent text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none"
-                  />
-                  <button
-                    type="submit"
-                    disabled={sending || !input.trim()}
-                    aria-label="Send message"
-                    className="w-8 h-8 flex-shrink-0 rounded-full bg-gray-900 text-white flex items-center justify-center hover:bg-gray-700 disabled:opacity-30 transition-colors"
-                  >
-                    <ArrowUp size={16} />
-                  </button>
-                </form>
-              </div>
-            </div>
-          </>
-        )}
+      {/* Chat column */}
+      <div className="order-2 flex-1 min-w-0 min-h-0 flex flex-col relative">
+        <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-6 pt-8 pb-36">
+          <div className="max-w-2xl mx-auto flex flex-col gap-6">
+            {messages.length === 0 && (
+              <p className="text-sm text-gray-400">Say something to start the conversation.</p>
+            )}
+            {messages.map((m, i) => (
+              m.role === 'user' ? (
+                <div key={i} className="self-end max-w-[85%] rounded-3xl bg-gray-100 text-gray-900 px-4 py-2.5 text-[15px] whitespace-pre-wrap">
+                  {m.content}
+                </div>
+              ) : (
+                <div key={i} className="text-[15px] leading-7 text-gray-800">
+                  {m.content ? (
+                    <MarkdownText text={m.content} />
+                  ) : sending && i === messages.length - 1 ? (
+                    <span className="inline-block w-2.5 h-2.5 rounded-full bg-gray-900 animate-dot-pulse" />
+                  ) : null}
+                </div>
+              )
+            ))}
+            <div ref={bottomRef} />
+          </div>
+        </div>
+
+        <div className="absolute inset-x-0 bottom-0 px-6 pb-6 pt-10 pointer-events-none">
+          {/* Stops short of the scrollbar (measured above) so the fade doesn't paint
+              over — and visually wash out — the messages column's own scrollbar. */}
+          <div
+            className="absolute inset-y-0 left-0 bg-gradient-to-t from-white via-white/85 to-transparent"
+            style={{ right: scrollbarWidth }}
+          />
+          {showScrollButton && (
+            <button
+              onClick={() => scrollToBottom()}
+              aria-label="Scroll to bottom"
+              className="pointer-events-auto absolute left-1/2 -translate-x-1/2 top-0 w-8 h-8 rounded-full border border-gray-200 bg-white shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors"
+            >
+              <ArrowDown size={15} className="text-gray-500" />
+            </button>
+          )}
+          <div className="max-w-2xl mx-auto pointer-events-auto relative">
+            {!user && (
+              <button
+                type="button"
+                aria-label="Sign in required"
+                onClick={() => setShowSignInModal(true)}
+                className="absolute inset-0 z-10 cursor-pointer"
+              />
+            )}
+            {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+            <form
+              onSubmit={handleSend}
+              className="flex items-center gap-2 rounded-3xl border border-gray-200 bg-white shadow-md px-4 py-2.5"
+            >
+              <input
+                type="text"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                placeholder="Ask anything"
+                className="flex-1 bg-transparent text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none"
+              />
+              <button
+                type="submit"
+                disabled={user && (sending || !input.trim())}
+                aria-label="Send message"
+                className="w-8 h-8 flex-shrink-0 rounded-full bg-gray-900 text-white flex items-center justify-center hover:bg-gray-700 disabled:opacity-30 transition-colors"
+              >
+                <ArrowUp size={16} />
+              </button>
+            </form>
+          </div>
+        </div>
       </div>
 
       {/* Settings panel */}
-      <div className="order-1 w-full lg:w-80 flex-shrink-0 border-b lg:border-b-0 lg:border-r border-gray-200 overflow-y-auto px-6 py-6">
+      <div className="order-1 w-full lg:w-80 flex-shrink-0 min-h-0 border-b lg:border-b-0 lg:border-r border-gray-200 overflow-y-auto px-6 py-6">
         <Link to={`/${config?.ai_demo_slug ?? 'demo'}`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ChevronLeft size={16} />
           Back to AI Implementations
@@ -278,43 +397,49 @@ export default function ConversationBasicsPage() {
           Streaming chat with a custom system prompt and temperature control.
         </p>
 
-        {user && (
-          <div className="flex flex-col gap-5">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700" htmlFor="system-prompt">System prompt</label>
-              <textarea
-                id="system-prompt"
-                value={systemPrompt}
-                onChange={e => setSystemPrompt(e.target.value)}
-                placeholder="e.g. You are a pirate. Answer every question in pirate speak."
-                rows={5}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400"
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <Tooltip content="Higher values make responses more random and creative; lower values make them more focused and deterministic.">
-                <label className="text-sm font-medium text-gray-700" htmlFor="temperature">Temperature</label>
-              </Tooltip>
-              <div className="flex items-center gap-3">
-                <input
-                  id="temperature"
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.1"
-                  value={temperature}
-                  onChange={e => setTemperature(parseFloat(e.target.value))}
-                  className="flex-1"
-                />
-                <span className="text-sm text-gray-500 w-8">{temperature.toFixed(1)}</span>
-              </div>
-              <p className="text-xs text-gray-400">
-                Higher values make responses more random and creative. Lower values make them more focused and deterministic.
-              </p>
-            </div>
+        <div className="flex flex-col gap-5 relative">
+          {!user && (
+            <button
+              type="button"
+              aria-label="Sign in required"
+              onClick={() => setShowSignInModal(true)}
+              className="absolute inset-0 z-10 cursor-pointer"
+            />
+          )}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700" htmlFor="system-prompt">System prompt</label>
+            <textarea
+              id="system-prompt"
+              value={systemPrompt}
+              onChange={e => setSystemPrompt(e.target.value)}
+              placeholder="e.g. You are a pirate. Answer every question in pirate speak."
+              rows={5}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400"
+            />
           </div>
-        )}
+
+          <div className="flex flex-col gap-1.5">
+            <Tooltip content="Higher values make responses more random and creative; lower values make them more focused and deterministic.">
+              <label className="text-sm font-medium text-gray-700" htmlFor="temperature">Temperature</label>
+            </Tooltip>
+            <div className="flex items-center gap-3">
+              <input
+                id="temperature"
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={temperature}
+                onChange={e => setTemperature(parseFloat(e.target.value))}
+                className="flex-1"
+              />
+              <span className="text-sm text-gray-500 w-8">{temperature.toFixed(1)}</span>
+            </div>
+            <p className="text-xs text-gray-400">
+              Higher values make responses more random and creative. Lower values make them more focused and deterministic.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   )
