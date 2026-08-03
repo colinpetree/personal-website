@@ -13,7 +13,7 @@ const DEMOS = [
     key: 'tool-use',
     title: 'Tool use',
     description: 'Watch Claude call a defined tool mid-conversation and use its result.',
-    available: false,
+    available: true,
   },
   {
     key: 'rag',
