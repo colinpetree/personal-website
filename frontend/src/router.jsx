@@ -9,6 +9,7 @@ import ContactPage from './pages/ContactPage'
 import AIDemoPage from './pages/AIDemoPage'
 import ConversationBasicsPage from './pages/ai-demos/ConversationBasicsPage'
 import ToolUsePage from './pages/ai-demos/ToolUsePage'
+import McpPage from './pages/ai-demos/McpPage'
 import DonatePage from './pages/DonatePage'
 import NotFoundPage from './pages/NotFoundPage'
 import AdminLayout from './components/admin/AdminLayout'
@@ -65,6 +66,7 @@ export function createRouter(slugs = {}) {
           { path: ai_demo, element: <AIDemoPage /> },
           { path: `${ai_demo}/conversation-basics`, element: <ConversationBasicsPage /> },
           { path: `${ai_demo}/tool-use`, element: <ToolUsePage /> },
+          { path: `${ai_demo}/mcp`, element: <McpPage /> },
         ] : []),
         { path: donate, element: <DonatePage /> },
         { path: 'profile', element: <UserProfilePage /> },

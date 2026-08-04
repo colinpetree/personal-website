@@ -8,6 +8,7 @@ from anthropic import Anthropic
 from flask import Blueprint, Response, jsonify, request, stream_with_context
 
 from routes.auth import user_required
+import mcp_runtime
 
 ai_demo_bp = Blueprint('ai_demo', __name__)
 
@@ -220,6 +221,128 @@ def tool_use_chat():
                             'type': 'tool_result',
                             'tool_use_id': block.id,
                             'content': json.dumps(output),
+                            'is_error': False,
+                        })
+                        yield ndjson({'type': 'tool_result', 'id': block.id, 'name': block.name, 'output': output, 'is_error': False})
+                    except Exception as e:
+                        tool_result_blocks.append({
+                            'type': 'tool_result',
+                            'tool_use_id': block.id,
+                            'content': f'Error: {e}',
+                            'is_error': True,
+                        })
+                        yield ndjson({'type': 'tool_result', 'id': block.id, 'name': block.name, 'output': str(e), 'is_error': True})
+
+                loop_messages.append({'role': 'user', 'content': tool_result_blocks})
+
+            yield ndjson({'type': 'error', 'message': 'The tool loop did not finish in time.'})
+        except Exception as e:
+            yield ndjson({'type': 'error', 'message': str(e)})
+
+    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+
+
+MCP_UNAVAILABLE_MESSAGE = 'The GitHub MCP demo is not configured on this server.'
+
+
+def _run_mcp_tool(name, tool_input):
+    result = mcp_runtime.call_tool(name, tool_input)
+    if result.isError:
+        text = next((c.text for c in result.content if c.type == 'text'), 'Tool error.')
+        raise RuntimeError(text)
+    return '\n'.join(c.text for c in result.content if c.type == 'text')
+
+
+@ai_demo_bp.route('/api/ai-demo/mcp/tools', methods=['GET'])
+@user_required
+def mcp_tools():
+    if not mcp_runtime.is_configured():
+        return jsonify({'error': MCP_UNAVAILABLE_MESSAGE}), 503
+    try:
+        tools = mcp_runtime.get_anthropic_tools()
+    except mcp_runtime.McpUnavailableError as e:
+        return jsonify({'error': str(e)}), 503
+    return jsonify({
+        'tools': [{'name': t['name'], 'description': t['description']} for t in tools],
+        'repo': mcp_runtime.get_repo(),
+    })
+
+
+@ai_demo_bp.route('/api/ai-demo/mcp/chat', methods=['POST'])
+@user_required
+def mcp_chat():
+    data = request.get_json(silent=True) or {}
+    messages = data.get('messages')
+
+    if not isinstance(messages, list) or not messages or len(messages) > MAX_MESSAGES:
+        return jsonify({'error': 'Invalid conversation.'}), 400
+    for m in messages:
+        if not isinstance(m, dict) or m.get('role') not in ('user', 'assistant') \
+                or not isinstance(m.get('content'), str) or len(m['content']) > MAX_MESSAGE_CHARS:
+            return jsonify({'error': 'Invalid message.'}), 400
+
+    client = _client()
+    if not client:
+        return jsonify({'error': 'AI demos are not configured on this server.'}), 503
+    if not mcp_runtime.is_configured():
+        return jsonify({'error': MCP_UNAVAILABLE_MESSAGE}), 503
+
+    def ndjson(obj):
+        return json.dumps(obj) + '\n'
+
+    def generate():
+        try:
+            tools = mcp_runtime.get_anthropic_tools()
+            repo = mcp_runtime.get_repo()
+        except mcp_runtime.McpUnavailableError as e:
+            yield ndjson({'type': 'error', 'message': str(e)})
+            return
+
+        try:
+            loop_messages = list(messages)
+            system = [{
+                'type': 'text',
+                'text': (
+                    f'You are a helpful assistant with read-only access to the GitHub repository "{repo}" '
+                    'through GitHub\'s official remote MCP server. Use the available tools to answer '
+                    'questions about this project\'s commits, branches, and pull requests - don\'t guess '
+                    'at repo history from memory. You cannot make any changes to the repository; only '
+                    'read from it. Tool results come back as raw GitHub API JSON with many fields you '
+                    'don\'t need to repeat - when presenting commits, pull requests, branches, etc. to '
+                    'the user, extract only the relevant details (e.g. short SHA, one-line summary of the '
+                    'commit message, author, date) into a concise Markdown list or table, not a dump of '
+                    'the raw JSON.'
+                ),
+            }]
+            for _ in range(MAX_TOOL_ITERATIONS):
+                with client.messages.stream(
+                    model=MODEL,
+                    max_tokens=MAX_TOKENS,
+                    system=system,
+                    messages=loop_messages,
+                    tools=tools,
+                ) as stream:
+                    for text in stream.text_stream:
+                        yield ndjson({'type': 'text_delta', 'text': text})
+                    final_message = stream.get_final_message()
+
+                loop_messages.append({'role': 'assistant', 'content': final_message.model_dump()['content']})
+
+                if final_message.stop_reason != 'tool_use':
+                    yield ndjson({'type': 'done'})
+                    return
+
+                tool_result_blocks = []
+                for block in final_message.content:
+                    if block.type != 'tool_use':
+                        continue
+                    yield ndjson({'type': 'tool_call', 'id': block.id, 'name': block.name, 'input': block.input})
+                    try:
+                        output = _run_mcp_tool(block.name, block.input)
+                        tool_result_blocks.append({
+                            'type': 'tool_result',
+                            'tool_use_id': block.id,
+                            'content': output,
                             'is_error': False,
                         })
                         yield ndjson({'type': 'tool_result', 'id': block.id, 'name': block.name, 'output': output, 'is_error': False})
