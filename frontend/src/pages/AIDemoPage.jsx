@@ -24,8 +24,8 @@ const DEMOS = [
   {
     key: 'mcp',
     title: 'MCP',
-    description: 'Tool discovery and invocation via the Model Context Protocol.',
-    available: false,
+    description: "Ask about this site's real GitHub history via a live external MCP server.",
+    available: true,
   },
   {
     key: 'prompt-evaluation',
