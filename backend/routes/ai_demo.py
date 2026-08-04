@@ -257,6 +257,76 @@ def tool_use_chat():
     return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
 
 
+WEB_SEARCH_SYSTEM_PROMPT = (
+    'You are a helpful assistant with access to a live web search tool. Search the web '
+    'whenever a question depends on current or fact-checkable information you are not '
+    'confident about from memory, and cite what you found in your answer.'
+)
+
+WEB_SEARCH_TOOL = {
+    'type': 'web_search_20250305',
+    'name': 'web_search',
+    'max_uses': 5,
+}
+WEB_SEARCH_MAX_TOKENS = 4096
+
+
+@ai_demo_bp.route('/api/ai-demo/web-search/chat', methods=['POST'])
+@user_required
+def web_search_chat():
+    client = _client()
+    if not client:
+        return jsonify({'error': 'AI demos are not configured on this server.'}), 503
+
+    data = request.get_json(silent=True) or {}
+    messages = data.get('messages')
+
+    if not isinstance(messages, list) or not messages or len(messages) > MAX_MESSAGES:
+        return jsonify({'error': 'Invalid conversation.'}), 400
+    for m in messages:
+        if not isinstance(m, dict) or m.get('role') not in ('user', 'assistant') \
+                or not isinstance(m.get('content'), str) or len(m['content']) > MAX_MESSAGE_CHARS:
+            return jsonify({'error': 'Invalid message.'}), 400
+
+    def ndjson(obj):
+        return json.dumps(obj) + '\n'
+
+    def generate():
+        try:
+            system = [{'type': 'text', 'text': WEB_SEARCH_SYSTEM_PROMPT}]
+            with client.messages.stream(
+                model=MODEL,
+                max_tokens=WEB_SEARCH_MAX_TOKENS,
+                system=system,
+                messages=messages,
+                tools=[WEB_SEARCH_TOOL],
+            ) as stream:
+                tool_names = {}  # tool_use id -> name, so the matching tool_result can reuse it
+                for event in stream:
+                    if event.type == 'content_block_delta' and event.delta.type == 'text_delta':
+                        yield ndjson({'type': 'text_delta', 'text': event.delta.text})
+                    elif event.type == 'content_block_stop':
+                        block = stream.current_message_snapshot.content[event.index]
+                        if block.type == 'server_tool_use':
+                            tool_names[block.id] = block.name
+                            yield ndjson({'type': 'tool_call', 'id': block.id, 'name': block.name, 'input': block.input})
+                        elif block.type == 'web_search_tool_result':
+                            name = tool_names.get(block.tool_use_id, WEB_SEARCH_TOOL['name'])
+                            if isinstance(block.content, list):
+                                results = [
+                                    {'title': r.title, 'url': r.url, 'page_age': r.page_age}
+                                    for r in block.content
+                                ]
+                                yield ndjson({'type': 'tool_result', 'id': block.tool_use_id, 'name': name, 'output': results, 'is_error': False})
+                            else:
+                                yield ndjson({'type': 'tool_result', 'id': block.tool_use_id, 'name': name, 'output': str(block.content), 'is_error': True})
+            yield ndjson({'type': 'done'})
+        except Exception as e:
+            yield ndjson({'type': 'error', 'message': str(e)})
+
+    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+
+
 MCP_UNAVAILABLE_MESSAGE = 'The GitHub MCP demo is not configured on this server.'
 
 
