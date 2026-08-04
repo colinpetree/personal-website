@@ -42,8 +42,8 @@ const DEMOS = [
   {
     key: 'web-search',
     title: 'Web search',
-    description: 'Ask a question and see Claude search the web for an answer.',
-    available: false,
+    description: "Ask a question and watch Claude use Anthropic's own live web search tool to answer it.",
+    available: true,
   },
   {
     key: 'vision',
