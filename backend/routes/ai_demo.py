@@ -13,6 +13,7 @@ import mcp_runtime
 ai_demo_bp = Blueprint('ai_demo', __name__)
 
 MODEL = 'claude-sonnet-5'
+MCP_MODEL = 'claude-haiku-4-5-20251001'
 MAX_TOKENS = 1024
 MAX_MESSAGES = 40
 MAX_MESSAGE_CHARS = 4000
@@ -121,6 +122,20 @@ def _client():
     return Anthropic(api_key=api_key)
 
 
+def _assistant_content_for_replay(message):
+    # message.model_dump() includes response-only fields (e.g. a null "parsed_output")
+    # that the API's input schema rejects with "Extra inputs are not permitted" when
+    # this same content is replayed back as the next request's message history - so
+    # only the fields tool-use conversations actually need are carried forward here.
+    blocks = []
+    for block in message.content:
+        if block.type == 'text':
+            blocks.append({'type': 'text', 'text': block.text})
+        elif block.type == 'tool_use':
+            blocks.append({'type': 'tool_use', 'id': block.id, 'name': block.name, 'input': block.input})
+    return blocks
+
+
 @ai_demo_bp.route('/api/ai-demo/conversation-basics/chat', methods=['POST'])
 @user_required
 def conversation_basics_chat():
@@ -204,7 +219,7 @@ def tool_use_chat():
                         yield ndjson({'type': 'text_delta', 'text': text})
                     final_message = stream.get_final_message()
 
-                loop_messages.append({'role': 'assistant', 'content': final_message.model_dump()['content']})
+                loop_messages.append({'role': 'assistant', 'content': _assistant_content_for_replay(final_message)})
 
                 if final_message.stop_reason != 'tool_use':
                     yield ndjson({'type': 'done'})
@@ -316,7 +331,7 @@ def mcp_chat():
             }]
             for _ in range(MAX_TOOL_ITERATIONS):
                 with client.messages.stream(
-                    model=MODEL,
+                    model=MCP_MODEL,
                     max_tokens=MAX_TOKENS,
                     system=system,
                     messages=loop_messages,
@@ -326,7 +341,7 @@ def mcp_chat():
                         yield ndjson({'type': 'text_delta', 'text': text})
                     final_message = stream.get_final_message()
 
-                loop_messages.append({'role': 'assistant', 'content': final_message.model_dump()['content']})
+                loop_messages.append({'role': 'assistant', 'content': _assistant_content_for_replay(final_message)})
 
                 if final_message.stop_reason != 'tool_use':
                     yield ndjson({'type': 'done'})

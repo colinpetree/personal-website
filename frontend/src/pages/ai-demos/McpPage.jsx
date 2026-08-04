@@ -50,18 +50,28 @@ function parseMarkdownBlocks(text) {
 
   for (const rawLine of lines) {
     const line = rawLine.trimEnd()
+    const trimmed = line.trim()
+    const indented = /^\s/.test(rawLine) && trimmed !== ''
     const headingMatch = line.match(/^(#{1,3})\s+(.*)/)
-    const ulMatch = line.match(/^[-*]\s+(.*)/)
-    const olMatch = line.match(/^\d+\.\s+(.*)/)
-    const isPendingBlockPrefix = /^(#{1,3}|[-*]|\d+\.)$/.test(line.trim())
+    const ulMatch = trimmed.match(/^[-*]\s+(.*)/)
+    const olMatch = trimmed.match(/^\d+\.\s+(.*)/)
+    const isPendingBlockPrefix = /^(#{1,3}|[-*]|\d+\.)$/.test(trimmed)
 
-    if (line.trim() === '' || isPendingBlockPrefix) {
+    if (trimmed === '' || isPendingBlockPrefix) {
       flushPara()
       flushList()
     } else if (headingMatch) {
       flushPara()
       flushList()
       blocks.push({ type: 'h', level: headingMatch[1].length, text: headingMatch[2] })
+    } else if (indented && list) {
+      // A nested sub-line under the current list item (e.g. a "- detail" bullet
+      // indented under a numbered entry). This renderer has no nested-list support,
+      // so fold it into the parent item's text instead of flushing the list -
+      // otherwise each top-level item becomes its own single-item list and the
+      // browser's <ol> auto-numbering restarts at "1." for every entry.
+      const content = (ulMatch || olMatch)?.[1] ?? trimmed
+      list.items[list.items.length - 1] += `\n${content}`
     } else if (ulMatch) {
       flushPara()
       if (!list || list.type !== 'ul') { flushList(); list = { type: 'ul', items: [] } }
@@ -72,7 +82,7 @@ function parseMarkdownBlocks(text) {
       list.items.push(olMatch[1])
     } else {
       flushList()
-      para.push(line.trim())
+      para.push(trimmed)
     }
   }
   flushPara()
@@ -92,14 +102,14 @@ function MarkdownText({ text }) {
         if (block.type === 'ul') {
           return (
             <ul key={i} className="list-disc pl-5 flex flex-col gap-1.5">
-              {block.items.map((item, j) => <li key={j}>{renderInline(item)}</li>)}
+              {block.items.map((item, j) => <li key={j} className="whitespace-pre-line">{renderInline(item)}</li>)}
             </ul>
           )
         }
         if (block.type === 'ol') {
           return (
             <ol key={i} className="list-decimal pl-5 flex flex-col gap-1.5">
-              {block.items.map((item, j) => <li key={j}>{renderInline(item)}</li>)}
+              {block.items.map((item, j) => <li key={j} className="whitespace-pre-line">{renderInline(item)}</li>)}
             </ol>
           )
         }
