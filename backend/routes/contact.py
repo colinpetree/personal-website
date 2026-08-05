@@ -1,7 +1,4 @@
-import smtplib
-import ssl
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import requests
 from flask import Blueprint, jsonify, request
 from models import SiteConfig
 from crypto import decrypt
@@ -9,36 +6,28 @@ from crypto import decrypt
 contact_bp = Blueprint('contact', __name__)
 
 
-def _send_email(config, to_address, subject, body_text):
-    """Send an email using the SiteConfig SMTP settings. Raises on failure."""
-    msg = MIMEMultipart('alternative')
-    msg['Subject'] = subject
-    msg['From'] = f'{config.smtp_sender_name} <{config.smtp_from_email}>'
-    msg['To'] = to_address
-    msg.attach(MIMEText(body_text, 'plain'))
-
-    port = config.smtp_port or 587
-
-    if port == 465:
-        context = ssl.create_default_context()
-        with smtplib.SMTP_SSL(config.smtp_host, port, context=context) as server:
-            server.login(config.smtp_user, config.smtp_password)
-            server.sendmail(config.smtp_from_email, to_address, msg.as_string())
-    else:
-        with smtplib.SMTP(config.smtp_host, port) as server:
-            server.ehlo()
-            server.starttls()
-            server.login(config.smtp_user, config.smtp_password)
-            server.sendmail(config.smtp_from_email, to_address, msg.as_string())
+def _send_email(config, to_address, subject, body_text, sender_label):
+    """Send an email using the SiteConfig Mailgun settings. Raises on failure."""
+    from_name = f'{config.site_title} {sender_label}'
+    resp = requests.post(
+        f'https://api.mailgun.net/v3/{config.mailgun_domain}/messages',
+        auth=('api', config.mailgun_api_key),
+        data={
+            'from': f'{from_name} <{config.smtp_from_email}>',
+            'to': [to_address],
+            'subject': subject,
+            'text': body_text,
+        },
+    )
+    resp.raise_for_status()
 
 
-def _smtp_configured(config):
+def _mail_configured(config):
     return bool(
         config
         and config.contact_enabled
-        and config.smtp_host
-        and config.smtp_user
-        and config.smtp_password
+        and config.mailgun_api_key
+        and config.mailgun_domain
         and config.smtp_from_email
         and config.forward_email
     )
@@ -47,7 +36,7 @@ def _smtp_configured(config):
 @contact_bp.route('/api/contact', methods=['POST'])
 def submit_contact():
     config = SiteConfig.query.first()
-    if not _smtp_configured(config):
+    if not _mail_configured(config):
         return jsonify({'error': 'Contact form is not available.'}), 503
 
     data = request.get_json(silent=True) or {}
@@ -66,8 +55,8 @@ def submit_contact():
     full_subject = f"[Contact] {subject}"
 
     try:
-        config.smtp_password = decrypt(config.smtp_password)
-        _send_email(config, config.forward_email, full_subject, body)
+        config.mailgun_api_key = decrypt(config.mailgun_api_key)
+        _send_email(config, config.forward_email, full_subject, body, 'Contact Form')
     except Exception as e:
         return jsonify({'error': 'Failed to send message. Please try again later.'}), 500
 

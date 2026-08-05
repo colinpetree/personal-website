@@ -70,12 +70,11 @@ def _comment_dict(c):
     }
 
 
-def _smtp_ready(config):
+def _mail_ready(config):
     return bool(
         config
-        and config.smtp_host
-        and config.smtp_user
-        and config.smtp_password
+        and config.mailgun_api_key
+        and config.mailgun_domain
         and config.smtp_from_email
         and config.forward_email
     )
@@ -213,7 +212,7 @@ def report_comment(slug, comment_id):
     comment = Comment.query.filter_by(id=comment_id, post_id=post.id, is_deleted=False).first_or_404()
     config = SiteConfig.query.first()
 
-    if _smtp_ready(config):
+    if _mail_ready(config):
         author = User.query.get(comment.user_id) if comment.user_id else None
         author_name = author.name if author else (comment.guest_name or 'Anonymous')
         author_email = author.email if author else (comment.guest_email or 'N/A')
@@ -227,8 +226,8 @@ def report_comment(slug, comment_id):
             f"View comment: {post_url}"
         )
         try:
-            config.smtp_password = decrypt(config.smtp_password)
-            _send_email(config, config.forward_email, 'Website Comment Reported', body)
+            config.mailgun_api_key = decrypt(config.mailgun_api_key)
+            _send_email(config, config.forward_email, 'Website Comment Reported', body, 'Comment Reply')
         except Exception:
             pass
 

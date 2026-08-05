@@ -87,95 +87,59 @@ export default function AdminContactPage() {
         </EditableCard>
 
         {isAdmin && <EditableCard
-          title="SMTP Settings"
-          description="Allow this site to send emails for Contact form submissions and password resets."
+          title="Mailgun Settings"
+          description="Allow this site to send emails for Contact form submissions."
           savedValues={{
-            smtp_host: config?.smtp_host || '',
-            smtp_port: config?.smtp_port || 587,
-            smtp_user: config?.smtp_user || '',
-            smtp_password: '',
+            mailgun_api_key: '',
+            mailgun_domain: config?.mailgun_domain || '',
             smtp_from_email: config?.smtp_from_email || '',
-            smtp_sender_name: config?.smtp_sender_name || '',
             forward_email: config?.forward_email || '',
           }}
           onSave={values => {
             const payload = { ...values }
-            if (!payload.smtp_password) delete payload.smtp_password
+            if (!payload.mailgun_api_key) delete payload.mailgun_api_key
             return save(payload)
           }}
         >
           {({ editing, local, set }) => editing ? (
             <>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="SMTP Host">
-                  <Input value={local.smtp_host} onChange={e => set('smtp_host', e.target.value)} placeholder="smtp.example.com" />
-                </Field>
-                <Field label="Port">
-                  <select
-                    value={local.smtp_port}
-                    onChange={e => set('smtp_port', Number(e.target.value))}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400"
-                  >
-                    <option value={587}>587 (STARTTLS)</option>
-                    <option value={465}>465 (SSL)</option>
-                    <option value={25}>25</option>
-                  </select>
-                </Field>
-              </div>
-              <Field label="SMTP Username">
-                <Input value={local.smtp_user} onChange={e => set('smtp_user', e.target.value)} />
+              <Field label="Mailgun API Key" hint={config?.mailgun_api_key_set ? 'Currently set, enter a new value to replace it.' : ''}>
+                <Input type="password" value={local.mailgun_api_key} onChange={e => set('mailgun_api_key', e.target.value)} placeholder={config?.mailgun_api_key_set ? '••••••••' : ''} />
               </Field>
-              <Field label="SMTP Password" hint={config?.smtp_password_set ? 'Currently set — enter a new value to replace it.' : ''}>
-                <Input type="password" value={local.smtp_password} onChange={e => set('smtp_password', e.target.value)} placeholder={config?.smtp_password_set ? '••••••••' : ''} />
+              <Field label="Mailgun Domain" hint="The sending domain configured in your Mailgun account.">
+                <Input value={local.mailgun_domain} onChange={e => set('mailgun_domain', e.target.value)} placeholder="mg.example.com" />
               </Field>
               <Field label="From Email Address">
                 <Input type="email" value={local.smtp_from_email} onChange={e => set('smtp_from_email', e.target.value)} />
               </Field>
-              <Field label="Sender Name">
-                <Input value={local.smtp_sender_name} onChange={e => set('smtp_sender_name', e.target.value)} />
-              </Field>
-              <Field label="Forward Submissions To" hint="Contact form messages will be sent to this address.">
+              <Field label="Forward Contact Form Emails To" hint="Contact form messages will be sent to this address.">
                 <Input type="email" value={local.forward_email} onChange={e => set('forward_email', e.target.value)} placeholder="you@example.com" />
               </Field>
             </>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1">
-                  <p className="text-xs font-medium text-gray-500">SMTP Host</p>
-                  <DisplayValue value={local.smtp_host} />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <p className="text-xs font-medium text-gray-500">Port</p>
-                  <DisplayValue value={local.smtp_port ? String(local.smtp_port) : ''} />
-                </div>
-              </div>
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">SMTP Username</p>
-                <DisplayValue value={local.smtp_user} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Password</p>
+                <p className="text-xs font-medium text-gray-500">API Key</p>
                 <p className="text-sm">
-                  {config?.smtp_password_set
+                  {config?.mailgun_api_key_set
                     ? <span className="text-gray-900">••••••••</span>
                     : <span className="text-gray-400">—</span>
                   }
                 </p>
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">From Email</p>
-                <DisplayValue value={local.smtp_from_email} />
+                <p className="text-xs font-medium text-gray-500">Mailgun Domain</p>
+                <DisplayValue value={local.mailgun_domain} />
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Sender Name</p>
-                <DisplayValue value={local.smtp_sender_name} />
+                <p className="text-xs font-medium text-gray-500">From Email</p>
+                <DisplayValue value={local.smtp_from_email} />
               </div>
               <div className="flex flex-col gap-1">
                 <p className="text-xs font-medium text-gray-500">Forward To</p>
                 <DisplayValue value={local.forward_email} />
               </div>
-              {config?.smtp_password_set && (
+              {config?.mailgun_api_key_set && (
                 <div className="pt-1">
                   <button
                     onClick={() => { setShowTestDialog(true); setTestStatus(null); setTestMsg('') }}

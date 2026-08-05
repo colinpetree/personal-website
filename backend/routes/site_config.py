@@ -10,7 +10,7 @@ def get_site_config():
     if not config:
         return jsonify({'error': 'Site not configured'}), 404
 
-    # Only return public-safe fields — no secrets (SMTP password, Stripe keys, OAuth secrets)
+    # Only return public-safe fields — no secrets (Mailgun API key, Stripe keys, OAuth secrets)
     return jsonify({
         'site_title': config.site_title,
         'favicon_filename': config.favicon_filename,
@@ -43,8 +43,8 @@ def get_site_config():
                 'key': 'contact',
                 'name': config.contact_page_name,
                 'path': f'/{config.contact_slug}',
-                # Contact requires SMTP to be configured before showing
-                'enabled': config.contact_enabled and bool(config.smtp_host),
+                # Contact requires Mailgun to be configured before showing
+                'enabled': config.contact_enabled and bool(config.mailgun_api_key and config.mailgun_domain),
             },
             {
                 'key': 'ai_demo',
