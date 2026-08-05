@@ -50,12 +50,9 @@ class SiteConfig(db.Model):
     contact_enabled = db.Column(db.Boolean, nullable=False, default=False)
     contact_page_name = db.Column(db.String(100), nullable=False, default='Contact')
     contact_slug = db.Column(db.String(100), nullable=False, default='contact')
-    smtp_host = db.Column(db.String(255), nullable=True)
-    smtp_port = db.Column(db.Integer, nullable=True)
-    smtp_user = db.Column(db.String(255), nullable=True)
-    smtp_password = db.Column(db.Text, nullable=True)  # stored encrypted
+    mailgun_api_key = db.Column(db.Text, nullable=True)  # stored encrypted
+    mailgun_domain = db.Column(db.String(255), nullable=True)
     smtp_from_email = db.Column(db.String(255), nullable=True)
-    smtp_sender_name = db.Column(db.String(255), nullable=True)
     forward_email = db.Column(db.String(255), nullable=True)
 
     # AI Demo

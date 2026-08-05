@@ -9,7 +9,7 @@ from flask_login import current_user
 from models import SiteConfig, SiteEventLog
 from crypto import encrypt, decrypt
 from routes.admin_auth import admin_required, role_at_least
-from routes.contact import _send_email, _smtp_configured
+from routes.contact import _send_email, _mail_configured
 
 admin_config_bp = Blueprint('admin_config', __name__)
 
@@ -69,7 +69,7 @@ def _optimize_image(input_path, uploads_dir, base_name):
     return webp_filename, srcset, lqip
 
 # Fields that are stored encrypted; GET returns _set booleans, PUT encrypts if provided
-ENCRYPTED_FIELDS = ('smtp_password', 'stripe_secret_key', 'stripe_webhook_secret', 'google_oauth_client_secret')
+ENCRYPTED_FIELDS = ('mailgun_api_key', 'stripe_secret_key', 'stripe_webhook_secret', 'google_oauth_client_secret')
 
 
 def _config_to_dict(config):
@@ -109,12 +109,9 @@ def _config_to_dict(config):
         'contact_enabled': config.contact_enabled,
         'contact_page_name': config.contact_page_name,
         'contact_slug': config.contact_slug,
-        'smtp_host': config.smtp_host,
-        'smtp_port': config.smtp_port,
-        'smtp_user': config.smtp_user,
-        'smtp_password_set': bool(config.smtp_password),
+        'mailgun_api_key_set': bool(config.mailgun_api_key),
+        'mailgun_domain': config.mailgun_domain,
         'smtp_from_email': config.smtp_from_email,
-        'smtp_sender_name': config.smtp_sender_name,
         'forward_email': config.forward_email,
         'donate_enabled': config.donate_enabled,
         'donate_page_name': config.donate_page_name,
@@ -142,8 +139,8 @@ def get_admin_config():
 
 
 ADMIN_ONLY_FIELDS = {
-    'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password',
-    'smtp_from_email', 'smtp_sender_name', 'forward_email',
+    'mailgun_api_key', 'mailgun_domain',
+    'smtp_from_email', 'forward_email',
     'stripe_publishable_key', 'stripe_secret_key', 'stripe_webhook_secret',
 }
 
@@ -168,7 +165,7 @@ def update_admin_config():
         'projects_enabled', 'projects_page_name', 'projects_text', 'projects_meta_description', 'projects_slug',
         'about_enabled', 'about_page_name', 'about_text', 'about_meta_description', 'headshot_filename', 'about_slug',
         'contact_enabled', 'contact_page_name', 'contact_slug',
-        'smtp_host', 'smtp_port', 'smtp_user', 'smtp_from_email', 'smtp_sender_name', 'forward_email',
+        'mailgun_domain', 'smtp_from_email', 'forward_email',
         'donate_enabled', 'donate_page_name', 'stripe_publishable_key', 'donate_slug',
     ]
     if current_app.config['ENABLE_AI_DEMOS']:
@@ -178,8 +175,8 @@ def update_admin_config():
             setattr(config, field, data[field])
 
     # Encrypted fields — only update if a non-empty value is provided
-    if data.get('smtp_password'):
-        config.smtp_password = encrypt(data['smtp_password'])
+    if data.get('mailgun_api_key'):
+        config.mailgun_api_key = encrypt(data['mailgun_api_key'])
     if data.get('stripe_secret_key'):
         config.stripe_secret_key = encrypt(data['stripe_secret_key'])
     if data.get('stripe_webhook_secret'):
@@ -194,7 +191,7 @@ def update_admin_config():
             f.write(data['domain'])
 
     # Log the settings change
-    changed_keys = [k for k in data if k in plain_fields or k in ('smtp_password', 'stripe_secret_key', 'stripe_webhook_secret', 'google_oauth_client_secret')]
+    changed_keys = [k for k in data if k in plain_fields or k in ('mailgun_api_key', 'stripe_secret_key', 'stripe_webhook_secret', 'google_oauth_client_secret')]
     if changed_keys:
         subject = 'Site (' + ', '.join(changed_keys) + ')'
         entry = SiteEventLog(
@@ -314,26 +311,25 @@ def upload_recording():
 @role_at_least('administrator')
 def test_email():
     config = SiteConfig.query.first()
-    smtp_ready = bool(
+    mail_ready = bool(
         config
-        and config.smtp_host
-        and config.smtp_user
-        and config.smtp_password
+        and config.mailgun_api_key
+        and config.mailgun_domain
         and config.smtp_from_email
     )
-    if not smtp_ready:
-        return jsonify({'error': 'SMTP is not configured'}), 503
+    if not mail_ready:
+        return jsonify({'error': 'Mailgun is not configured'}), 503
 
     data = request.get_json(silent=True) or {}
     to_address = (data.get('to') or '').strip()
     if not to_address or '@' not in to_address:
         return jsonify({'error': 'A valid recipient email is required'}), 400
 
-    # Decrypt password for sending
-    config.smtp_password = decrypt(config.smtp_password)
+    # Decrypt API key for sending
+    config.mailgun_api_key = decrypt(config.mailgun_api_key)
     try:
-        _send_email(config, to_address, 'Test email from your website', 'This is a test email confirming your SMTP settings are working.')
+        _send_email(config, to_address, 'Test email from your website', 'This is a test email confirming your Mailgun settings are working.', 'Test Email')
     except Exception:
-        return jsonify({'error': 'Failed to send test email. Check your SMTP settings.'}), 500
+        return jsonify({'error': 'Failed to send test email. Check your Mailgun settings.'}), 500
 
     return jsonify({'message': f'Test email sent to {to_address}'})
