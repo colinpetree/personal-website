@@ -48,8 +48,8 @@ const DEMOS = [
   {
     key: 'vision',
     title: 'Vision',
-    description: 'Upload an image and see Claude analyze it.',
-    available: false,
+    description: 'Upload an image and see Claude analyze it in detail.',
+    available: true,
   },
 ]
 
