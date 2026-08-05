@@ -6,7 +6,7 @@ const DEMOS = [
   {
     key: 'conversation-basics',
     title: 'Conversation basics',
-    description: 'Chat with Claude — streaming responses, a custom system prompt, and temperature control.',
+    description: 'Chat with Claude. Featuring a custom system prompt, temperature control, and streaming responses',
     available: true,
   },
   {
@@ -16,9 +16,9 @@ const DEMOS = [
     available: true,
   },
   {
-    key: 'rag',
-    title: 'RAG / hybrid search',
-    description: 'Search a sample document set with vector, keyword, and hybrid retrieval.',
+    key: 'web-search',
+    title: 'Web search',
+    description: "Ask a question and watch Claude use Anthropic's own live web search tool to answer it.",
     available: true,
   },
   {
@@ -40,9 +40,9 @@ const DEMOS = [
     available: true,
   },
   {
-    key: 'web-search',
-    title: 'Web search',
-    description: "Ask a question and watch Claude use Anthropic's own live web search tool to answer it.",
+    key: 'rag',
+    title: 'RAG / hybrid search',
+    description: 'Search a sample document set with vector, keyword, and hybrid retrieval.',
     available: true,
   },
   {
@@ -50,7 +50,7 @@ const DEMOS = [
     title: 'Vision',
     description: 'Upload an image and see Claude analyze it in detail.',
     available: true,
-  },
+  }
 ]
 
 export default function AIDemoPage() {

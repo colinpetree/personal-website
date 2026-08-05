@@ -515,8 +515,8 @@ export default function WebSearchPage() {
 
         <div className="flex flex-col gap-3 text-sm text-gray-600">
           <p>
-            Claude has access to Anthropic's own server-side <code className="bg-gray-100 rounded px-1 py-0.5 text-xs">web_search</code> tool
-            — the search itself runs on Anthropic's infrastructure, not this app's backend. Claude decides on its own
+            Claude has access to Anthropic's own server-side <code className="bg-gray-100 rounded px-1 py-0.5 text-xs">web_search</code> tool.
+             The search itself runs on Anthropic's infrastructure, not this app's backend. Claude decides on its own
             whether a question needs a search, and can search up to 5 times per turn.
           </p>
         </div>
