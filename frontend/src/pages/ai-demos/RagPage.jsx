@@ -58,8 +58,12 @@ function parseMarkdownBlocks(text) {
     const isPendingBlockPrefix = /^(#{1,3}|[-*]|\d+\.)$/.test(trimmed)
 
     if (trimmed === '' || isPendingBlockPrefix) {
+      // Don't flush an in-progress list here - a blank line between list items
+      // (common when Claude writes multi-sentence items) would otherwise end the
+      // list and restart numbering at 1 for every item. The list only closes once
+      // something that isn't a continuation of it actually appears (a paragraph,
+      // heading, or a differently-typed list item), or at end of input.
       flushPara()
-      flushList()
     } else if (headingMatch) {
       flushPara()
       flushList()
@@ -164,6 +168,7 @@ export default function RagPage() {
   const { config } = useSiteConfig()
   const { user } = useUserAuth()
   const [query, setQuery] = useState('')
+  const [submittedQuery, setSubmittedQuery] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [results, setResults] = useState(null) // { vector, bm25, hybrid }
@@ -200,6 +205,7 @@ export default function RagPage() {
     setResults(null)
     setEmbedding(null)
     setAnswer('')
+    setSubmittedQuery(text)
     setQuery('')
     setSending(true)
 
@@ -293,9 +299,15 @@ export default function RagPage() {
       <div className="order-2 flex-1 min-w-0 min-h-0 flex flex-col relative">
         <div className="flex-1 overflow-y-auto px-6 pt-8 pb-36">
           <div className="max-w-3xl mx-auto flex flex-col gap-6">
+            {submittedQuery && (
+              <div className="self-end max-w-[85%] rounded-3xl bg-gray-100 text-gray-900 px-4 py-2.5 text-[15px] whitespace-pre-wrap">
+                {submittedQuery}
+              </div>
+            )}
+
             {error && <p className="text-sm text-red-600">{error}</p>}
 
-            {!results && !sending && !error && (
+            {!results && !sending && !error && !submittedQuery && (
               <p className="text-sm text-gray-400">
                 Ask a question about the sample research report to see how vector, keyword, and hybrid retrieval each rank its sections.
               </p>
