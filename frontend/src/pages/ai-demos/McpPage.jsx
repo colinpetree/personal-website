@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowUp, ArrowDown, ChevronLeft, Wrench, GitBranch } from 'lucide-react'
+import { ArrowUp, ArrowDown, ChevronLeft, Wrench, GitBranch, RotateCcw } from 'lucide-react'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import { useUserAuth } from '../../context/UserAuthContext'
+import { Tooltip } from '../../components/ui/Tooltip'
 import SignInRequiredModal from '../../components/SignInRequiredModal'
 
 // Minimal markdown -> React renderer (headings, bold/italic/inline code, lists,
@@ -280,6 +281,18 @@ export default function McpPage() {
     bottomRef.current?.scrollIntoView({ behavior })
   }
 
+  function handleNewConversation() {
+    abortControllerRef.current?.abort()
+    clearInterval(revealTimerRef.current)
+    clearTimeout(scrollEndTimerRef.current)
+    autoFollowRef.current = true
+    setMessages([])
+    setInput('')
+    setError('')
+    setSending(false)
+    setShowScrollButton(false)
+  }
+
   async function handleSend(e) {
     e.preventDefault()
     if (!user) {
@@ -408,6 +421,18 @@ export default function McpPage() {
 
       {/* Chat column */}
       <div className="order-2 flex-1 min-w-0 min-h-0 flex flex-col relative">
+        {messages.length > 0 && (
+          <Tooltip content="New conversation">
+            <button
+              type="button"
+              onClick={handleNewConversation}
+              aria-label="New conversation"
+              className="absolute top-4 left-4 z-10 w-8 h-8 rounded-full border border-gray-200 bg-white shadow-sm flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
+            >
+              <RotateCcw size={15} />
+            </button>
+          </Tooltip>
+        )}
         <div ref={scrollContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-6 pt-8 pb-36">
           <div className="max-w-2xl mx-auto flex flex-col gap-6">
             {messages.length === 0 && (
