@@ -1,5 +1,8 @@
+import ast
 import json
 import os
+import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -558,6 +561,268 @@ def rag_search():
                 for text in stream.text_stream:
                     yield ndjson({'type': 'text_delta', 'text': text})
 
+            yield ndjson({'type': 'done'})
+        except Exception as e:
+            yield ndjson({'type': 'error', 'message': str(e)})
+
+    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+
+
+PROMPT_EVAL_MODEL = 'claude-haiku-4-5-20251001'  # fast + reliable JSON formatting for the judge
+PROMPT_EVAL_MAX_TOKENS = 512
+PROMPT_EVAL_GRADER_MAX_TOKENS = 512
+
+PROMPT_EVAL_DATASET = [
+    {
+        'id': 'json-summary',
+        'format': 'json',
+        'task': (
+            'Given the exam scores [72, 85, 90, 61, 76, 88, 95, 45, 90], write a JSON object with keys '
+            '"mean", "median", "min", "max", and "mode". If more than one value is tied for the highest '
+            'frequency, "mode" should be a JSON array listing all of them; otherwise it should be a single number.'
+        ),
+        'solution_criteria': (
+            'Valid JSON with numeric mean, median, min, max keys, all computed correctly from the given list. '
+            'The mode key should be the number 90 (the only value that repeats), not an array, since there is '
+            'exactly one mode.'
+        ),
+    },
+    {
+        'id': 'python-palindrome',
+        'format': 'python',
+        'task': (
+            'Write a Python function `is_palindrome(s)` that returns True if `s` is a palindrome, ignoring case, '
+            'spaces, and punctuation (e.g. "A man, a plan, a canal: Panama" should return True).'
+        ),
+        'solution_criteria': (
+            'Valid Python defining is_palindrome(s) that strips punctuation as well as case and spaces before '
+            'checking - a solution that only lowercases and strips spaces (missing punctuation removal) should '
+            'be marked down since it would incorrectly return False for the example in the task.'
+        ),
+    },
+    {
+        'id': 'regex-ipv4',
+        'format': 'regex',
+        'task': (
+            'Write a regular expression that matches a valid IPv4 address (four dot-separated octets, each '
+            '0-255, with no leading zeros - e.g. "010" is invalid, but "0" alone is valid).'
+        ),
+        'solution_criteria': (
+            'A regex that matches valid dotted-quad IPv4 addresses, rejects octets over 255 or malformed input, '
+            'and specifically rejects octets with leading zeros like "010" or "005" (while still allowing a '
+            'lone "0"). A regex using a simple [0-9]{1,3} pattern per octet without excluding leading zeros '
+            'should be marked down for missing this requirement.'
+        ),
+    },
+]
+
+PROMPT_EVAL_FENCE = {'json': 'json', 'python': 'python', 'regex': 'text'}
+
+# Hand-crafted outputs of known quality per test case, used by the non-'live' variants below so
+# the grading pipeline (syntax check + LLM judge) can be demonstrated against outputs that are
+# deliberately not perfect - the live model is good enough at these tasks that a live run alone
+# rarely shows the grader actually docking a score.
+PROMPT_EVAL_SAMPLE_OUTPUTS = {
+    'json-summary': {
+        # Correct on every count, including "mode" as a bare number since there's only one mode.
+        'good': '{"mean": 78.0, "median": 85, "min": 45, "max": 95, "mode": 90}',
+        # Valid JSON (syntax_score 10), but "mode" is wrongly wrapped in an array despite there
+        # being exactly one mode - a spec violation the judge should dock.
+        'medium': '{"mean": 78.0, "median": 85, "min": 45, "max": 95, "mode": [90]}',
+        # Unquoted keys - invalid JSON, so json.loads fails outright (syntax_score 0).
+        'bad': '{mean: 78, median: 85, min: 45, max: 95, mode: 90}',
+    },
+    'python-palindrome': {
+        'good': (
+            "def is_palindrome(s):\n"
+            "    cleaned = ''.join(c.lower() for c in s if c.isalnum())\n"
+            "    return cleaned == cleaned[::-1]"
+        ),
+        # Valid Python (syntax_score 10) but only strips case/spaces, not punctuation - fails the
+        # task's own example ("A man, a plan, a canal: Panama"), so the judge should dock it.
+        'medium': (
+            "def is_palindrome(s):\n"
+            "    cleaned = s.lower().replace(' ', '')\n"
+            "    return cleaned == cleaned[::-1]"
+        ),
+        # Missing colon after the def line - ast.parse raises SyntaxError (syntax_score 0).
+        'bad': (
+            "def is_palindrome(s)\n"
+            "    cleaned = s.lower().replace(' ', '')\n"
+            "    return cleaned == cleaned[::-1]"
+        ),
+    },
+    'regex-ipv4': {
+        'good': r'^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}$',
+        # Compiles fine (syntax_score 10) but [0-9]{1,2} admits leading zeros like "01" - the
+        # task explicitly requires rejecting those, so the judge should dock it.
+        'medium': r'^(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[0-9]{1,2})(\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[0-9]{1,2})){3}$',
+        # The working "good" pattern plus one stray trailing ')' - guaranteed unbalanced
+        # parenthesis, so re.compile always raises re.error (syntax_score 0).
+        'bad': r'^(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}$)',
+    },
+}
+
+PROMPT_EVAL_VARIANTS = ('live', 'good', 'medium', 'bad')
+
+GRADING_PROMPT_TEMPLATE = (
+    'You are grading a submitted answer to a task.\n\nTask: {task}\n\nSubmitted answer:\n{output}\n\n'
+    'Grading criteria: {solution_criteria}\n\n'
+    'Respond with only a JSON object with keys "strengths" (string array), "weaknesses" (string array), '
+    '"reasoning" (string), and "score" (integer 1-10). List strengths, weaknesses, and reasoning before '
+    'deciding the score.'
+)
+
+
+def _run_prompt_eval_task(client, test_case):
+    fence = PROMPT_EVAL_FENCE[test_case['format']]
+    message = client.messages.create(
+        model=PROMPT_EVAL_MODEL,
+        max_tokens=PROMPT_EVAL_MAX_TOKENS,
+        messages=[
+            {
+                'role': 'user',
+                'content': f"{test_case['task']}\n\nRespond with only the {test_case['format']} - no explanation, no markdown fences.",
+            },
+            {'role': 'assistant', 'content': f'```{fence}'},
+        ],
+        stop_sequences=['```'],
+    )
+    # Guards the same empty-completion edge case _grade_by_model already defends against below -
+    # if the model's first token happens to be the stop sequence, content can come back empty.
+    if not message.content:
+        return ''
+    return message.content[0].text.strip()
+
+
+def _grade_syntax(output, output_format):
+    try:
+        if output_format == 'json':
+            json.loads(output)
+        elif output_format == 'python':
+            ast.parse(output)
+        elif output_format == 'regex':
+            re.compile(output)
+        else:
+            return 0
+        return 10
+    except (ValueError, SyntaxError, re.error):
+        return 0
+
+
+def _coerce_grading(grading):
+    # The judge's JSON shape is only as reliable as the model's instruction-following - coerce
+    # every field to the type the route/frontend actually assumes before it's used in arithmetic
+    # (a non-numeric score would crash the combined-score calculation below) or rendered as a
+    # list (a non-list strengths/weaknesses would crash the frontend's .map()).
+    if not isinstance(grading, dict):
+        grading = {}
+    try:
+        # round() raises OverflowError (not ValueError) for +-inf - Python's json.loads accepts
+        # the non-standard "Infinity"/"-Infinity"/"NaN" literals by default, so a judge response
+        # containing one of those must not be allowed to reach round() uncaught.
+        score = round(float(grading.get('score', 0)))
+    except (TypeError, ValueError, OverflowError):
+        score = 0
+    score = max(0, min(10, score))
+    strengths = grading.get('strengths')
+    strengths = [str(s) for s in strengths] if isinstance(strengths, list) else []
+    weaknesses = grading.get('weaknesses')
+    weaknesses = [str(s) for s in weaknesses] if isinstance(weaknesses, list) else []
+    reasoning = grading.get('reasoning')
+    reasoning = reasoning if isinstance(reasoning, str) else ''
+    return {'strengths': strengths, 'weaknesses': weaknesses, 'reasoning': reasoning, 'score': score}
+
+
+def _grade_by_model(client, test_case, output):
+    prompt = GRADING_PROMPT_TEMPLATE.format(
+        task=test_case['task'], output=output, solution_criteria=test_case['solution_criteria'],
+    )
+    message = client.messages.create(
+        model=PROMPT_EVAL_MODEL,
+        max_tokens=PROMPT_EVAL_GRADER_MAX_TOKENS,
+        messages=[
+            {'role': 'user', 'content': prompt},
+            {'role': 'assistant', 'content': '```json'},
+        ],
+        stop_sequences=['```'],
+    )
+    if not message.content:
+        return _coerce_grading(None)
+    try:
+        parsed = json.loads(message.content[0].text.strip())
+    except ValueError:
+        parsed = {'reasoning': 'Could not parse grading response.'}
+    return _coerce_grading(parsed)
+
+
+@ai_demo_bp.route('/api/ai-demo/prompt-evaluation/run', methods=['POST'])
+@user_required
+def prompt_evaluation_run():
+    client = _client()
+    if not client:
+        return jsonify({'error': 'AI demos are not configured on this server.'}), 503
+
+    data = request.get_json(silent=True) or {}
+    variant = data.get('variant', 'live')
+    if variant not in PROMPT_EVAL_VARIANTS:
+        return jsonify({'error': 'Invalid variant.'}), 400
+
+    def ndjson(obj):
+        return json.dumps(obj) + '\n'
+
+    def generate():
+        try:
+            yield ndjson({
+                'type': 'dataset',
+                'test_cases': [
+                    {'id': tc['id'], 'index': i, 'task': tc['task'], 'format': tc['format']}
+                    for i, tc in enumerate(PROMPT_EVAL_DATASET)
+                ],
+            })
+
+            with ThreadPoolExecutor(max_workers=len(PROMPT_EVAL_DATASET)) as pool:
+                # Stage 1: 'live' generates all outputs concurrently via Claude, yielding each
+                # as it lands so the frontend's columns populate together rather than one at a
+                # time. Any other variant skips generation entirely and grades a fixed sample
+                # output of known quality instead - there's nothing to wait on, so those are
+                # yielded immediately without the thread pool.
+                outputs = {}
+                if variant == 'live':
+                    futures = {pool.submit(_run_prompt_eval_task, client, tc): i for i, tc in enumerate(PROMPT_EVAL_DATASET)}
+                    for future in as_completed(futures):
+                        i = futures[future]
+                        outputs[i] = future.result()
+                        yield ndjson({'type': 'output', 'index': i, 'text': outputs[i]})
+                else:
+                    for i, tc in enumerate(PROMPT_EVAL_DATASET):
+                        outputs[i] = PROMPT_EVAL_SAMPLE_OUTPUTS[tc['id']][variant]
+                        yield ndjson({'type': 'output', 'index': i, 'text': outputs[i]})
+
+                # Stage 2: grade all outputs concurrently (syntax check is instant/local;
+                # the model-judge call is what actually runs in the thread pool).
+                scores = {}
+
+                def grade(i):
+                    test_case = PROMPT_EVAL_DATASET[i]
+                    syntax_score = _grade_syntax(outputs[i], test_case['format'])
+                    grading = _grade_by_model(client, test_case, outputs[i])
+                    model_score = grading.get('score', 0)
+                    return i, syntax_score, model_score, grading
+
+                futures = {pool.submit(grade, i): i for i in range(len(PROMPT_EVAL_DATASET))}
+                for future in as_completed(futures):
+                    i, syntax_score, model_score, grading = future.result()
+                    combined = round((syntax_score + model_score) / 2, 1)
+                    scores[i] = combined
+                    yield ndjson({
+                        'type': 'graded', 'index': i,
+                        'syntax_score': syntax_score, 'model_score': model_score, 'score': combined,
+                        'strengths': grading.get('strengths', []), 'weaknesses': grading.get('weaknesses', []),
+                        'reasoning': grading.get('reasoning', ''),
+                    })
+
+            yield ndjson({'type': 'summary', 'average_score': round(sum(scores.values()) / len(scores), 1)})
             yield ndjson({'type': 'done'})
         except Exception as e:
             yield ndjson({'type': 'error', 'message': str(e)})

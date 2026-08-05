@@ -31,7 +31,7 @@ const DEMOS = [
     key: 'prompt-evaluation',
     title: 'Prompt evaluation',
     description: 'Run a prompt against a test-case dataset and watch it get scored.',
-    available: false,
+    available: true,
   },
   {
     key: 'prompt-engineering',
