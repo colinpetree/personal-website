@@ -19,7 +19,7 @@ const DEMOS = [
     key: 'rag',
     title: 'RAG / hybrid search',
     description: 'Search a sample document set with vector, keyword, and hybrid retrieval.',
-    available: false,
+    available: true,
   },
   {
     key: 'mcp',

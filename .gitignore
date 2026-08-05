@@ -23,6 +23,7 @@ editor-example-images/
 
 # Runtime artifacts
 backend/certbot_domain.txt
+backend/data/rag_embedding_cache.json
 
 # Claude Code
 .claude/settings.local.json
