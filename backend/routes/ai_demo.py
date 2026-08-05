@@ -828,3 +828,184 @@ def prompt_evaluation_run():
             yield ndjson({'type': 'error', 'message': str(e)})
 
     return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+
+
+PROMPT_ENGINEERING_MODEL = 'claude-haiku-4-5-20251001'  # matches the reference notebook
+PROMPT_ENGINEERING_MAX_TOKENS = 512
+PROMPT_ENGINEERING_GRADER_MAX_TOKENS = 512
+PROMPT_ENGINEERING_MAX_CHARS = 4000
+
+PROMPT_ENGINEERING_TASK = 'Extract topics mentioned from a passage of text into a JSON array of strings.'
+
+PROMPT_ENGINEERING_DEFAULT_PASSAGE = (
+    'Mitochondrial dysfunction has emerged as a central pathological mechanism in neurodegenerative '
+    'diseases. When mitochondria fail to maintain adequate ATP production, neurons experience energy '
+    'depletion that triggers apoptotic cascades and accumulation of reactive oxygen species. This '
+    'impaired oxidative phosphorylation compromises the electron transport chain, leading to reduced '
+    'NADH oxidation and diminished proton gradient maintenance. Consequently, calcium homeostasis '
+    'becomes dysregulated, exacerbating excitotoxicity and promoting neuroinflammatory responses '
+    'through activation of microglia and astrocytes.'
+)
+
+# Kept generic (no hardcoded topic names) since the passage is visitor-editable - these are the
+# structural/behavioral rules the reference dataset.json entries all share, not content specific
+# to the default passage above.
+PROMPT_ENGINEERING_SOLUTION_CRITERIA = (
+    'Extracts all explicitly stated topics from the passage, without inferring broader implicit '
+    'concepts that are not directly named. Each topic appears only once (no duplicates). If a '
+    'parent topic and a more specific child topic are both mentioned, only the more specific topic '
+    'should be included, not both. The response is a valid JSON array of strings and nothing else - '
+    'no surrounding commentary, no markdown fences.'
+)
+
+# Reference: 03-prompt-engineering/008_Prompting_Exercise.ipynb cell-6 - has an example but leaves
+# inference/granularity/dedup judgment implicit, so it tends to over-infer and sometimes duplicate.
+PROMPT_ENGINEERING_NAIVE_TEMPLATE = (
+    'Generate a JSON array of strings of the topics names from the paragraph without any additional '
+    'comments or commentary\n\n'
+    'Guidelines:\n'
+    '1. Include the all topics in the JSON array\n'
+    '2. Include all domain-specific technical terms\n'
+    '3. If parent/child topics are both mentioned, only include the more specific topic. Do not include both topics\n'
+    '4. Do NOT duplicate any topics\n\n'
+    'Here is an example with a sample input and an ideal output:\n'
+    '<sample_input>\n'
+    'content: Mitochondrial dysfunction has emerged as a central pathological mechanism in '
+    'neurodegenerative diseases. When mitochondria fail to maintain adequate ATP production, neurons '
+    'experience energy depletion that triggers apoptotic cascades and accumulation of reactive oxygen '
+    'species.\n'
+    '</sample_input>\n\n'
+    '<ideal_output>\n'
+    '```json\n'
+    '[\n'
+    '"mitochondrial dysfunction",\n'
+    '"neurodegenerative diseases",\n'
+    '"ATP production",\n'
+    '"energy depletion",\n'
+    '"apoptotic cascades",\n'
+    '"reactive oxygen species"\n'
+    ']\n'
+    '```\n'
+    '</ideal_output>\n\n'
+    '<paragraph>\n{passage}\n</paragraph>'
+)
+
+# Reference: same notebook, cell-7 ("instructor solution") - explicit numbered steps instead of
+# leaving judgment implicit.
+PROMPT_ENGINEERING_REFINED_TEMPLATE = (
+    'Extract key topics mentioned from a passage of text from a scholarly journal into a JSON array '
+    'of strings.\n\n'
+    '<text>\n{passage}\n</text>\n\n'
+    'Follow these steps:\n'
+    '1. Closely examine the provided text\n'
+    '2. Identify each topic mentioned\n'
+    '3. Add each topic to a JSON array\n'
+    '4. Respond with the JSON array. Do not provide any other text or commentary'
+)
+
+PROMPT_ENGINEERING_VARIANTS = ('naive', 'refined')
+
+PROMPT_ENGINEERING_TEMPLATES = {
+    'naive': PROMPT_ENGINEERING_NAIVE_TEMPLATE,
+    'refined': PROMPT_ENGINEERING_REFINED_TEMPLATE,
+}
+
+
+def _run_prompt_engineering_task(client, variant, passage):
+    prompt = PROMPT_ENGINEERING_TEMPLATES[variant].format(passage=passage)
+    message = client.messages.create(
+        model=PROMPT_ENGINEERING_MODEL,
+        max_tokens=PROMPT_ENGINEERING_MAX_TOKENS,
+        messages=[
+            {'role': 'user', 'content': prompt},
+            {'role': 'assistant', 'content': '```json'},
+        ],
+        stop_sequences=['```'],
+    )
+    if not message.content:
+        return ''
+    return message.content[0].text.strip()
+
+
+def _grade_prompt_engineering_output(client, output):
+    prompt = GRADING_PROMPT_TEMPLATE.format(
+        task=PROMPT_ENGINEERING_TASK, output=output, solution_criteria=PROMPT_ENGINEERING_SOLUTION_CRITERIA,
+    )
+    message = client.messages.create(
+        model=PROMPT_ENGINEERING_MODEL,
+        max_tokens=PROMPT_ENGINEERING_GRADER_MAX_TOKENS,
+        messages=[
+            {'role': 'user', 'content': prompt},
+            {'role': 'assistant', 'content': '```json'},
+        ],
+        stop_sequences=['```'],
+    )
+    if not message.content:
+        return _coerce_grading(None)
+    try:
+        parsed = json.loads(message.content[0].text.strip())
+    except ValueError:
+        parsed = {'reasoning': 'Could not parse grading response.'}
+    return _coerce_grading(parsed)
+
+
+@ai_demo_bp.route('/api/ai-demo/prompt-engineering/run', methods=['POST'])
+@user_required
+def prompt_engineering_run():
+    client = _client()
+    if not client:
+        return jsonify({'error': 'AI demos are not configured on this server.'}), 503
+
+    data = request.get_json(silent=True) or {}
+    passage = (data.get('passage') or '').strip() or PROMPT_ENGINEERING_DEFAULT_PASSAGE
+    if len(passage) > PROMPT_ENGINEERING_MAX_CHARS:
+        return jsonify({'error': f'Passage must be {PROMPT_ENGINEERING_MAX_CHARS} characters or fewer.'}), 400
+
+    def ndjson(obj):
+        return json.dumps(obj) + '\n'
+
+    def generate():
+        try:
+            yield ndjson({
+                'type': 'prompts',
+                'naive_prompt': PROMPT_ENGINEERING_NAIVE_TEMPLATE.format(passage=passage),
+                'refined_prompt': PROMPT_ENGINEERING_REFINED_TEMPLATE.format(passage=passage),
+            })
+
+            with ThreadPoolExecutor(max_workers=len(PROMPT_ENGINEERING_VARIANTS)) as pool:
+                # Stage 1: run both prompts concurrently against the same passage.
+                outputs = {}
+                futures = {
+                    pool.submit(_run_prompt_engineering_task, client, variant, passage): variant
+                    for variant in PROMPT_ENGINEERING_VARIANTS
+                }
+                for future in as_completed(futures):
+                    variant = futures[future]
+                    outputs[variant] = future.result()
+                    yield ndjson({'type': 'output', 'variant': variant, 'text': outputs[variant]})
+
+                # Stage 2: grade both outputs concurrently against the same criteria.
+                scores = {}
+
+                def grade(variant):
+                    grading = _grade_prompt_engineering_output(client, outputs[variant])
+                    return variant, grading
+
+                futures = {pool.submit(grade, variant): variant for variant in PROMPT_ENGINEERING_VARIANTS}
+                for future in as_completed(futures):
+                    variant, grading = future.result()
+                    scores[variant] = grading.get('score', 0)
+                    yield ndjson({
+                        'type': 'graded', 'variant': variant, 'score': grading.get('score', 0),
+                        'strengths': grading.get('strengths', []), 'weaknesses': grading.get('weaknesses', []),
+                        'reasoning': grading.get('reasoning', ''),
+                    })
+
+            yield ndjson({
+                'type': 'summary', 'naive_score': scores.get('naive', 0), 'refined_score': scores.get('refined', 0),
+            })
+            yield ndjson({'type': 'done'})
+        except Exception as e:
+            yield ndjson({'type': 'error', 'message': str(e)})
+
+    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')

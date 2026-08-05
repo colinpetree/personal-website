@@ -36,8 +36,8 @@ const DEMOS = [
   {
     key: 'prompt-engineering',
     title: 'Prompt engineering',
-    description: 'Compare a naive prompt against a refined one, side by side.',
-    available: false,
+    description: 'Compare a naive prompt against a refined one, side by side, scored by the same judge.',
+    available: true,
   },
   {
     key: 'web-search',
