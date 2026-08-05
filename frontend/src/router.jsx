@@ -10,6 +10,7 @@ import AIDemoPage from './pages/AIDemoPage'
 import ConversationBasicsPage from './pages/ai-demos/ConversationBasicsPage'
 import ToolUsePage from './pages/ai-demos/ToolUsePage'
 import McpPage from './pages/ai-demos/McpPage'
+import PromptEvaluationPage from './pages/ai-demos/PromptEvaluationPage'
 import WebSearchPage from './pages/ai-demos/WebSearchPage'
 import RagPage from './pages/ai-demos/RagPage'
 import DonatePage from './pages/DonatePage'
@@ -69,6 +70,7 @@ export function createRouter(slugs = {}) {
           { path: `${ai_demo}/conversation-basics`, element: <ConversationBasicsPage /> },
           { path: `${ai_demo}/tool-use`, element: <ToolUsePage /> },
           { path: `${ai_demo}/mcp`, element: <McpPage /> },
+          { path: `${ai_demo}/prompt-evaluation`, element: <PromptEvaluationPage /> },
           { path: `${ai_demo}/web-search`, element: <WebSearchPage /> },
           { path: `${ai_demo}/rag`, element: <RagPage /> },
         ] : []),
