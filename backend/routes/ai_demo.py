@@ -5,10 +5,12 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dateutil.relativedelta import relativedelta
 from anthropic import Anthropic
-from flask import Blueprint, Response, jsonify, request, stream_with_context
+import voyageai
+from flask import Blueprint, Response, current_app, jsonify, request, send_from_directory, stream_with_context
 
 from routes.auth import user_required
 import mcp_runtime
+import rag_index
 
 ai_demo_bp = Blueprint('ai_demo', __name__)
 
@@ -19,6 +21,10 @@ MAX_MESSAGES = 40
 MAX_MESSAGE_CHARS = 4000
 MAX_SYSTEM_CHARS = 2000
 MAX_TOOL_ITERATIONS = 6
+MAX_RAG_QUERY_CHARS = 500
+RAG_RESULT_K = 3
+RAG_EMBED_MODEL = 'voyage-3-large'
+RAG_EMBEDDING_PREVIEW_DIMS = 8
 
 TOOL_USE_SYSTEM_PROMPT = (
     'You are a helpful assistant with access to date/time and reminder tools. '
@@ -443,6 +449,116 @@ def mcp_chat():
                 loop_messages.append({'role': 'user', 'content': tool_result_blocks})
 
             yield ndjson({'type': 'error', 'message': 'The tool loop did not finish in time.'})
+        except Exception as e:
+            yield ndjson({'type': 'error', 'message': str(e)})
+
+    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+
+
+RAG_SYSTEM_PROMPT = (
+    'You are a helpful assistant answering questions using only the retrieved context '
+    'chunks provided below - a fixed sample research report, not general knowledge. '
+    'Ground your answer strictly in these chunks and mention which section(s) it came '
+    'from. If the chunks do not contain the answer, say so plainly instead of guessing.'
+)
+
+
+def _voyage_client():
+    api_key = os.getenv('VOYAGE_API_KEY')
+    if not api_key:
+        return None
+    return voyageai.Client(api_key=api_key)
+
+
+RAG_SOURCE_PDF_FILENAME = 'deseq2-love-huber-anders-2014.pdf'
+
+
+@ai_demo_bp.route('/api/ai-demo/rag/source.pdf')
+@user_required
+def rag_source_pdf():
+    data_dir = os.path.join(current_app.root_path, 'data')
+    return send_from_directory(
+        data_dir,
+        RAG_SOURCE_PDF_FILENAME,
+        as_attachment=True,
+        download_name='love-huber-anders-2014-deseq2.pdf',
+    )
+
+
+@ai_demo_bp.route('/api/ai-demo/rag/search', methods=['POST'])
+@user_required
+def rag_search():
+    client = _client()
+    voyage_client = _voyage_client()
+    if not client or not voyage_client:
+        return jsonify({'error': 'The RAG demo is not configured on this server.'}), 503
+
+    data = request.get_json(silent=True) or {}
+    query = (data.get('query') or '').strip()
+    if not query or len(query) > MAX_RAG_QUERY_CHARS:
+        return jsonify({'error': 'Invalid query.'}), 400
+
+    def embed_fn(texts, input_type):
+        result = voyage_client.embed(texts, model=RAG_EMBED_MODEL, input_type=input_type)
+        return result.embeddings
+
+    def ndjson(obj):
+        return json.dumps(obj) + '\n'
+
+    def generate():
+        try:
+            vector_index, bm25_index, retriever = rag_index.get_retriever(embed_fn, cache_key=RAG_EMBED_MODEL)
+
+            query_vector = embed_fn([query], 'query')[0]
+
+            # The document chunks were embedded once when the index was first built (see
+            # rag_index.get_retriever) and are cached from then on - this reads back one
+            # of those real, already-computed vectors rather than re-embedding anything,
+            # so the "document -> Voyage -> vector" sample shown to the user is genuine.
+            # The query vector above, by contrast, was just freshly computed by Voyage.
+            sample_chunk_index = 0
+            yield ndjson({
+                'type': 'embedding',
+                'model': RAG_EMBED_MODEL,
+                'dimensions': vector_index.dim,
+                'chunk_count': len(vector_index),
+                'document_sample': {
+                    'chunk_index': sample_chunk_index,
+                    'preview': vector_index.documents[sample_chunk_index]['content'][:160],
+                    'vector_preview': vector_index.vectors[sample_chunk_index][:RAG_EMBEDDING_PREVIEW_DIMS],
+                },
+                'query_sample': {
+                    'text': query,
+                    'vector_preview': query_vector[:RAG_EMBEDDING_PREVIEW_DIMS],
+                },
+            })
+
+            vector_results = vector_index.search(query_vector, k=RAG_RESULT_K)
+            bm25_results = bm25_index.search(query, k=RAG_RESULT_K)
+            hybrid_results = retriever.search(query, k=RAG_RESULT_K, query_vector=query_vector)
+
+            def to_payload(results):
+                return [{'content': doc['content'], 'rank': i + 1} for i, (doc, _score) in enumerate(results)]
+
+            yield ndjson({
+                'type': 'retrieval',
+                'vector': to_payload(vector_results),
+                'bm25': to_payload(bm25_results),
+                'hybrid': to_payload(hybrid_results),
+            })
+
+            context = '\n\n---\n\n'.join(doc['content'] for doc, _ in hybrid_results)
+            system = [{'type': 'text', 'text': f'{RAG_SYSTEM_PROMPT}\n\nRetrieved context:\n\n{context}'}]
+            with client.messages.stream(
+                model=MODEL,
+                max_tokens=MAX_TOKENS,
+                system=system,
+                messages=[{'role': 'user', 'content': query}],
+            ) as stream:
+                for text in stream.text_stream:
+                    yield ndjson({'type': 'text_delta', 'text': text})
+
+            yield ndjson({'type': 'done'})
         except Exception as e:
             yield ndjson({'type': 'error', 'message': str(e)})
 
