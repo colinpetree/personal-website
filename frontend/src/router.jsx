@@ -14,6 +14,7 @@ import PromptEvaluationPage from './pages/ai-demos/PromptEvaluationPage'
 import PromptEngineeringPage from './pages/ai-demos/PromptEngineeringPage'
 import WebSearchPage from './pages/ai-demos/WebSearchPage'
 import RagPage from './pages/ai-demos/RagPage'
+import VisionPage from './pages/ai-demos/VisionPage'
 import DonatePage from './pages/DonatePage'
 import NotFoundPage from './pages/NotFoundPage'
 import AdminLayout from './components/admin/AdminLayout'
@@ -75,6 +76,7 @@ export function createRouter(slugs = {}) {
           { path: `${ai_demo}/prompt-engineering`, element: <PromptEngineeringPage /> },
           { path: `${ai_demo}/web-search`, element: <WebSearchPage /> },
           { path: `${ai_demo}/rag`, element: <RagPage /> },
+          { path: `${ai_demo}/vision`, element: <VisionPage /> },
         ] : []),
         { path: donate, element: <DonatePage /> },
         { path: 'profile', element: <UserProfilePage /> },

@@ -1,4 +1,6 @@
 import ast
+import base64
+import binascii
 import json
 import os
 import re
@@ -1058,3 +1060,62 @@ def prompt_engineering_run():
             yield ndjson({'type': 'error', 'message': str(e)})
 
     return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+
+
+VISION_MAX_TOKENS = 1536
+VISION_MAX_IMAGE_BYTES = 5 * 1024 * 1024  # Anthropic's per-image limit
+VISION_ALLOWED_MEDIA_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+
+VISION_SYSTEM_PROMPT = (
+    'You are an expert visual analyst. Examine the attached image closely and describe it '
+    'thoroughly: the main subject, notable objects, any visible text (transcribe it), colors '
+    'and composition, and any details a careful human observer would point out. Write in clear '
+    'prose, organized with short paragraphs or a few headings if that fits the image.'
+)
+
+
+@ai_demo_bp.route('/api/ai-demo/vision/analyze', methods=['POST'])
+@user_required
+def vision_analyze():
+    client = _client()
+    if not client:
+        return jsonify({'error': 'AI demos are not configured on this server.'}), 503
+
+    data = request.get_json(silent=True) or {}
+    media_type = data.get('media_type')
+    image_b64 = data.get('image')
+
+    if media_type not in VISION_ALLOWED_MEDIA_TYPES:
+        return jsonify({'error': 'Unsupported image type.'}), 400
+    if not isinstance(image_b64, str) or not image_b64:
+        return jsonify({'error': 'No image provided.'}), 400
+    # Cheap pre-check on the base64 string length before paying for a decode.
+    if len(image_b64) > VISION_MAX_IMAGE_BYTES * 4 / 3:
+        return jsonify({'error': 'Image is too large.'}), 400
+    try:
+        decoded = base64.b64decode(image_b64, validate=True)
+    except (binascii.Error, ValueError):
+        return jsonify({'error': 'Invalid image data.'}), 400
+    if len(decoded) > VISION_MAX_IMAGE_BYTES:
+        return jsonify({'error': 'Image is too large.'}), 400
+
+    def generate():
+        try:
+            with client.messages.stream(
+                model=MODEL,
+                max_tokens=VISION_MAX_TOKENS,
+                system=[{'type': 'text', 'text': VISION_SYSTEM_PROMPT}],
+                messages=[{
+                    'role': 'user',
+                    'content': [
+                        {'type': 'image', 'source': {'type': 'base64', 'media_type': media_type, 'data': image_b64}},
+                        {'type': 'text', 'text': 'Analyze this image.'},
+                    ],
+                }],
+            ) as stream:
+                for text in stream.text_stream:
+                    yield text
+        except Exception as e:
+            yield f'\n\n[Error: {e}]'
+
+    return Response(stream_with_context(generate()), mimetype='text/plain')
