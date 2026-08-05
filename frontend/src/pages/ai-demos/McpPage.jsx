@@ -58,8 +58,12 @@ function parseMarkdownBlocks(text) {
     const isPendingBlockPrefix = /^(#{1,3}|[-*]|\d+\.)$/.test(trimmed)
 
     if (trimmed === '' || isPendingBlockPrefix) {
+      // Don't flush an in-progress list here - a blank line between list items
+      // (common when Claude writes multi-sentence items) would otherwise end the
+      // list and restart numbering at 1 for every item. The list only closes once
+      // something that isn't a continuation of it actually appears (a paragraph,
+      // heading, or a differently-typed list item), or at end of input.
       flushPara()
-      flushList()
     } else if (headingMatch) {
       flushPara()
       flushList()
