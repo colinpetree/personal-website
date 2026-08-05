@@ -1,18 +1,117 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronLeft, Play } from 'lucide-react'
+import { Check, ChevronDown, ChevronLeft, Play } from 'lucide-react'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import { useUserAuth } from '../../context/UserAuthContext'
 import SignInRequiredModal from '../../components/SignInRequiredModal'
 
-const DEFAULT_PASSAGE = (
-  'Mitochondrial dysfunction has emerged as a central pathological mechanism in neurodegenerative ' +
-  'diseases. When mitochondria fail to maintain adequate ATP production, neurons experience energy ' +
-  'depletion that triggers apoptotic cascades and accumulation of reactive oxygen species. This ' +
-  'impaired oxidative phosphorylation compromises the electron transport chain, leading to reduced ' +
-  'NADH oxidation and diminished proton gradient maintenance. Consequently, calcium homeostasis ' +
-  'becomes dysregulated, exacerbating excitotoxicity and promoting neuroinflammatory responses ' +
-  'through activation of microglia and astrocytes.'
+// Fixed, read-only passages - the point of this demo is comparing prompts, not passages, so these
+// aren't editable. Keep in sync with PROMPT_ENGINEERING_PASSAGES in backend/routes/ai_demo.py.
+const PASSAGES = [
+  {
+    id: 'coral-reefs',
+    label: 'Coral reef bleaching',
+    text: (
+      'Rising sea surface temperatures have accelerated the bleaching of coral reefs across the ' +
+      'Pacific, as thermal stress causes corals to expel the symbiotic algae responsible for both ' +
+      'their color and much of their energy supply. Without these zooxanthellae, coral tissue turns ' +
+      "pale and the reef's ability to produce calcium carbonate skeleton slows sharply, leaving " +
+      'structures more vulnerable to erosion from storms and grazing fish. Compounding this stress, ' +
+      'absorption of atmospheric carbon dioxide by seawater has lowered ocean pH, a process known as ' +
+      'ocean acidification, which further reduces the availability of carbonate ions corals need to ' +
+      'build their skeletons. Reef ecosystems that collapse under these combined pressures also lose ' +
+      'their role as nursery habitat for reef fish, undermining coastal fisheries that millions of ' +
+      'people depend on for protein and income.'
+    ),
+  },
+  {
+    id: 'congestion-pricing',
+    label: 'Urban congestion pricing',
+    text: (
+      'Several major cities have introduced congestion pricing zones that charge drivers a fee to ' +
+      'enter downtown cores during peak hours, aiming to reduce gridlock and redirect commuters ' +
+      'toward public transit. Early results from these programs show meaningful drops in average ' +
+      'vehicle miles traveled within the priced zone, alongside improved bus travel times because ' +
+      'buses no longer sit in the same traffic as private cars. Revenue collected from the tolls is ' +
+      'often earmarked for transit agency budgets, funding subway signal upgrades and new electric ' +
+      'bus fleets. Critics argue the fees disproportionately burden lower-income commuters who cannot ' +
+      'easily shift to transit or afford to live closer to job centers, and some worry that traffic ' +
+      'simply migrates to untolled streets just outside the pricing boundary, a phenomenon known as ' +
+      'traffic diversion.'
+    ),
+  },
+  {
+    id: 'sleep-memory',
+    label: 'Sleep and memory consolidation',
+    text: (
+      'During slow-wave sleep, the brain replays patterns of neural activity that were first recorded ' +
+      'while an animal navigated a maze earlier in the day, a process researchers call hippocampal ' +
+      'replay. This replay appears to strengthen connections between the hippocampus and neocortex, ' +
+      'gradually transferring detailed episodic memories into more stable, generalized long-term ' +
+      'storage - a theory known as systems consolidation. Sleep spindles, brief bursts of oscillatory ' +
+      'activity generated in the thalamus, tend to cluster around these replay events and are ' +
+      'associated with better performance on memory tests the following day. Sleep deprivation ' +
+      'studies show that blocking slow-wave sleep specifically, rather than just reducing total sleep ' +
+      'time, impairs this consolidation process even when subjects are allowed to make up lost sleep ' +
+      'later, suggesting the timing and structure of sleep stages matters as much as total sleep ' +
+      'duration.'
+    ),
+  },
+]
+
+function PassageMenu({ value, onChange, disabled }) {
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef(null)
+  const selected = PASSAGES.find(p => p.id === value) ?? PASSAGES[0]
+
+  useEffect(() => {
+    function handleClick(e) {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        disabled={disabled}
+        className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-900 bg-white hover:bg-gray-50 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-gray-400"
+      >
+        {selected.label}
+        <ChevronDown size={14} className="text-gray-400" />
+      </button>
+      {open && (
+        <div className="absolute left-0 mt-1.5 w-64 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-20">
+          {PASSAGES.map(option => (
+            <button
+              key={option.id}
+              type="button"
+              onClick={() => { onChange(option.id); setOpen(false) }}
+              className="w-full flex items-center justify-between gap-2 text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              {option.label}
+              {option.id === value && <Check size={14} className="text-gray-900 flex-shrink-0" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const DEFAULT_NAIVE_PROMPT = 'Generate a JSON array of strings of the topics names from the paragraph'
+
+const DEFAULT_REFINED_PROMPT = (
+  'Extract key topics mentioned from a passage of text from a scholarly journal into a JSON array of strings.\n\n' +
+  '<text>\n{passage}\n</text>\n\n' +
+  'Follow these steps:\n' +
+  '1. Closely examine the provided text\n' +
+  '2. Identify each topic mentioned\n' +
+  '3. Add each topic to a JSON array\n' +
+  '4. Respond with the JSON array. Do not provide any other text or commentary'
 )
 
 const VARIANT_LABELS = { naive: 'Naive prompt', refined: 'Refined prompt' }
@@ -92,10 +191,12 @@ function OutputColumn({ variant, output, grade }) {
 export default function PromptEngineeringPage() {
   const { config } = useSiteConfig()
   const { user } = useUserAuth()
-  const [passage, setPassage] = useState(DEFAULT_PASSAGE)
+  const [passageId, setPassageId] = useState(PASSAGES[0].id)
+  const [naivePrompt, setNaivePrompt] = useState(DEFAULT_NAIVE_PROMPT)
+  const [refinedPrompt, setRefinedPrompt] = useState(DEFAULT_REFINED_PROMPT)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState('')
-  const [prompts, setPrompts] = useState(null)
+  const [hasRun, setHasRun] = useState(false)
   const [outputs, setOutputs] = useState({})
   const [grades, setGrades] = useState({})
   const [summary, setSummary] = useState(null)
@@ -122,7 +223,6 @@ export default function PromptEngineeringPage() {
     if (running) return
 
     setError('')
-    setPrompts(null)
     setOutputs({})
     setGrades({})
     setSummary(null)
@@ -136,7 +236,7 @@ export default function PromptEngineeringPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ passage }),
+        body: JSON.stringify({ passage_id: passageId, naive_prompt: naivePrompt, refined_prompt: refinedPrompt }),
         signal: controller.signal,
       })
 
@@ -146,6 +246,8 @@ export default function PromptEngineeringPage() {
         setRunning(false)
         return
       }
+
+      setHasRun(true)
 
       const reader = res.body.getReader()
       const decoder = new TextDecoder()
@@ -160,9 +262,7 @@ export default function PromptEngineeringPage() {
         for (const line of lines) {
           if (!line.trim()) continue
           const event = JSON.parse(line)
-          if (event.type === 'prompts') {
-            setPrompts({ naive: event.naive_prompt, refined: event.refined_prompt })
-          } else if (event.type === 'output') {
+          if (event.type === 'output') {
             setOutputs(prev => ({ ...prev, [event.variant]: event.text }))
           } else if (event.type === 'graded') {
             setGrades(prev => ({
@@ -207,17 +307,41 @@ export default function PromptEngineeringPage() {
                 className="absolute inset-0 z-10 cursor-pointer"
               />
             )}
-            <label className="text-xs font-semibold uppercase tracking-wide text-gray-400" htmlFor="passage-input">
-              Passage to extract topics from
+            <label className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+              Passage
             </label>
-            <textarea
-              id="passage-input"
-              value={passage}
-              onChange={e => setPassage(e.target.value)}
-              disabled={running}
-              rows={6}
-              className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-60"
-            />
+            <PassageMenu value={passageId} onChange={setPassageId} disabled={running} />
+            <div className="rounded-lg border border-gray-200 bg-gray-50 px-3.5 py-2.5 text-sm text-gray-600 leading-relaxed">
+              {PASSAGES.find(p => p.id === passageId)?.text}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wide text-gray-400" htmlFor="naive-prompt-input">
+                  Naive prompt
+                </label>
+                <textarea
+                  id="naive-prompt-input"
+                  value={naivePrompt}
+                  onChange={e => setNaivePrompt(e.target.value)}
+                  disabled={running}
+                  rows={5}
+                  className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm font-mono text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-60"
+                />
+              </div>
+              <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                <label className="text-xs font-semibold uppercase tracking-wide text-gray-400" htmlFor="refined-prompt-input">
+                  Refined prompt
+                </label>
+                <textarea
+                  id="refined-prompt-input"
+                  value={refinedPrompt}
+                  onChange={e => setRefinedPrompt(e.target.value)}
+                  disabled={running}
+                  rows={5}
+                  className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm font-mono text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-60"
+                />
+              </div>
+            </div>
             <div>
               <button
                 type="button"
@@ -233,7 +357,7 @@ export default function PromptEngineeringPage() {
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
-          {!prompts && !running && !error && (
+          {!hasRun && !running && !error && (
             <p className="text-sm text-gray-400">
               Trigger a run to see the same passage go through a naive prompt and a refined prompt, each graded by an LLM judge.
             </p>
@@ -250,7 +374,7 @@ export default function PromptEngineeringPage() {
             </div>
           )}
 
-          {prompts && (
+          {hasRun && (
             <div className="flex flex-col sm:flex-row gap-4">
               {['naive', 'refined'].map(variant => (
                 <OutputColumn key={variant} variant={variant} output={outputs[variant]} grade={grades[variant]} />
@@ -274,9 +398,16 @@ export default function PromptEngineeringPage() {
         <div className="flex flex-col gap-3 text-sm text-gray-600">
           <p>
             Both prompts ask Claude to extract topics from the passage into a JSON array of strings. The
-            <strong className="text-gray-800"> naive prompt</strong> gives a short instruction and one example, but
-            leaves judgment calls (how specific to be, whether to infer unstated concepts, avoiding duplicates)
-            implicit. The <strong className="text-gray-800">refined prompt</strong> spells out explicit steps instead.
+            <strong className="text-gray-800"> naive prompt</strong> is deliberately bare &mdash; it leaves judgment
+            calls (how specific to be, whether to infer unstated concepts, avoiding duplicates) entirely implicit.
+            The <strong className="text-gray-800">refined prompt</strong> spells out explicit steps instead. Edit
+            either one to see how the output and its score change.
+          </p>
+          <p>
+            The passage is fixed and read-only &mdash; pick one of three from the dropdown &mdash; since the
+            point of this demo is comparing prompts, not passages. Write <code className="text-xs bg-gray-100 rounded px-1 py-0.5">{'{passage}'}</code> anywhere
+            in a prompt box to control exactly where the selected passage gets inserted (the refined prompt
+            does this by default); if you leave it out, the passage is simply appended to the end.
           </p>
           <p>
             This mirrors the <Link to={`/${config?.ai_demo_slug ?? 'demo'}/prompt-evaluation`} className="underline hover:text-gray-800">Prompt evaluation</Link> demo's
@@ -284,18 +415,6 @@ export default function PromptEngineeringPage() {
             and weaknesses. Here the test case is held fixed and the prompt is what changes, instead of the other
             way around.
           </p>
-          {prompts && (
-            <div className="flex flex-col gap-3 pt-2 border-t border-gray-100">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">Naive prompt</p>
-                <pre className="text-[11px] font-mono text-gray-600 whitespace-pre-wrap break-words bg-gray-50 border border-gray-100 rounded-lg p-2.5 max-h-48 overflow-y-auto">{prompts.naive}</pre>
-              </div>
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-1">Refined prompt</p>
-                <pre className="text-[11px] font-mono text-gray-600 whitespace-pre-wrap break-words bg-gray-50 border border-gray-100 rounded-lg p-2.5 max-h-48 overflow-y-auto">{prompts.refined}</pre>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

@@ -833,19 +833,63 @@ def prompt_evaluation_run():
 PROMPT_ENGINEERING_MODEL = 'claude-haiku-4-5-20251001'  # fast, reliable model for this task
 PROMPT_ENGINEERING_MAX_TOKENS = 512
 PROMPT_ENGINEERING_GRADER_MAX_TOKENS = 512
-PROMPT_ENGINEERING_MAX_CHARS = 4000
 
 PROMPT_ENGINEERING_TASK = 'Extract topics mentioned from a passage of text into a JSON array of strings.'
 
-PROMPT_ENGINEERING_DEFAULT_PASSAGE = (
-    'Mitochondrial dysfunction has emerged as a central pathological mechanism in neurodegenerative '
-    'diseases. When mitochondria fail to maintain adequate ATP production, neurons experience energy '
-    'depletion that triggers apoptotic cascades and accumulation of reactive oxygen species. This '
-    'impaired oxidative phosphorylation compromises the electron transport chain, leading to reduced '
-    'NADH oxidation and diminished proton gradient maintenance. Consequently, calcium homeostasis '
-    'becomes dysregulated, exacerbating excitotoxicity and promoting neuroinflammatory responses '
-    'through activation of microglia and astrocytes.'
-)
+# Original passages written for this demo (not sourced from the reference course material) - fixed
+# and read-only in the UI, since the point of this demo is comparing prompts, not passages. Each is
+# written with room for a naive extractor to over-infer, duplicate, or vary granularity, so the
+# refined prompt's improvement is visible.
+PROMPT_ENGINEERING_PASSAGES = {
+    'coral-reefs': {
+        'label': 'Coral reef bleaching',
+        'text': (
+            'Rising sea surface temperatures have accelerated the bleaching of coral reefs across the '
+            'Pacific, as thermal stress causes corals to expel the symbiotic algae responsible for both '
+            'their color and much of their energy supply. Without these zooxanthellae, coral tissue turns '
+            "pale and the reef's ability to produce calcium carbonate skeleton slows sharply, leaving "
+            'structures more vulnerable to erosion from storms and grazing fish. Compounding this stress, '
+            'absorption of atmospheric carbon dioxide by seawater has lowered ocean pH, a process known as '
+            'ocean acidification, which further reduces the availability of carbonate ions corals need to '
+            'build their skeletons. Reef ecosystems that collapse under these combined pressures also lose '
+            'their role as nursery habitat for reef fish, undermining coastal fisheries that millions of '
+            'people depend on for protein and income.'
+        ),
+    },
+    'congestion-pricing': {
+        'label': 'Urban congestion pricing',
+        'text': (
+            'Several major cities have introduced congestion pricing zones that charge drivers a fee to '
+            'enter downtown cores during peak hours, aiming to reduce gridlock and redirect commuters '
+            'toward public transit. Early results from these programs show meaningful drops in average '
+            'vehicle miles traveled within the priced zone, alongside improved bus travel times because '
+            'buses no longer sit in the same traffic as private cars. Revenue collected from the tolls is '
+            'often earmarked for transit agency budgets, funding subway signal upgrades and new electric '
+            'bus fleets. Critics argue the fees disproportionately burden lower-income commuters who cannot '
+            'easily shift to transit or afford to live closer to job centers, and some worry that traffic '
+            'simply migrates to untolled streets just outside the pricing boundary, a phenomenon known as '
+            'traffic diversion.'
+        ),
+    },
+    'sleep-memory': {
+        'label': 'Sleep and memory consolidation',
+        'text': (
+            'During slow-wave sleep, the brain replays patterns of neural activity that were first recorded '
+            'while an animal navigated a maze earlier in the day, a process researchers call hippocampal '
+            'replay. This replay appears to strengthen connections between the hippocampus and neocortex, '
+            'gradually transferring detailed episodic memories into more stable, generalized long-term '
+            'storage - a theory known as systems consolidation. Sleep spindles, brief bursts of oscillatory '
+            'activity generated in the thalamus, tend to cluster around these replay events and are '
+            'associated with better performance on memory tests the following day. Sleep deprivation '
+            'studies show that blocking slow-wave sleep specifically, rather than just reducing total sleep '
+            'time, impairs this consolidation process even when subjects are allowed to make up lost sleep '
+            'later, suggesting the timing and structure of sleep stages matters as much as total sleep '
+            'duration.'
+        ),
+    },
+}
+
+PROMPT_ENGINEERING_DEFAULT_PASSAGE_ID = 'coral-reefs'
 
 # Kept generic (no hardcoded topic names) since the passage is visitor-editable - these are the
 # structural/behavioral rules the reference dataset.json entries all share, not content specific
@@ -858,41 +902,18 @@ PROMPT_ENGINEERING_SOLUTION_CRITERIA = (
     'no surrounding commentary, no markdown fences.'
 )
 
-# Reference: 03-prompt-engineering/008_Prompting_Exercise.ipynb cell-6 - has an example but leaves
-# inference/granularity/dedup judgment implicit, so it tends to over-infer and sometimes duplicate.
-PROMPT_ENGINEERING_NAIVE_TEMPLATE = (
-    'Generate a JSON array of strings of the topics names from the paragraph without any additional '
-    'comments or commentary\n\n'
-    'Guidelines:\n'
-    '1. Include the all topics in the JSON array\n'
-    '2. Include all domain-specific technical terms\n'
-    '3. If parent/child topics are both mentioned, only include the more specific topic. Do not include both topics\n'
-    '4. Do NOT duplicate any topics\n\n'
-    'Here is an example with a sample input and an ideal output:\n'
-    '<sample_input>\n'
-    'content: Mitochondrial dysfunction has emerged as a central pathological mechanism in '
-    'neurodegenerative diseases. When mitochondria fail to maintain adequate ATP production, neurons '
-    'experience energy depletion that triggers apoptotic cascades and accumulation of reactive oxygen '
-    'species.\n'
-    '</sample_input>\n\n'
-    '<ideal_output>\n'
-    '```json\n'
-    '[\n'
-    '"mitochondrial dysfunction",\n'
-    '"neurodegenerative diseases",\n'
-    '"ATP production",\n'
-    '"energy depletion",\n'
-    '"apoptotic cascades",\n'
-    '"reactive oxygen species"\n'
-    ']\n'
-    '```\n'
-    '</ideal_output>\n\n'
-    '<paragraph>\n{passage}\n</paragraph>'
-)
+PROMPT_ENGINEERING_MAX_PROMPT_CHARS = 1000
+
+# Reference: 03-prompt-engineering/008_Prompting_Exercise.ipynb cell-6, stripped down further -
+# deliberately bare-bones (no guidelines, no worked example) so the naive/refined gap is visible.
+# Editable by the visitor in the UI; this is only the seed default.
+PROMPT_ENGINEERING_DEFAULT_NAIVE_PROMPT = 'Generate a JSON array of strings of the topics names from the paragraph'
 
 # Reference: same notebook, cell-7 ("instructor solution") - explicit numbered steps instead of
-# leaving judgment implicit.
-PROMPT_ENGINEERING_REFINED_TEMPLATE = (
+# leaving inference/granularity/dedup judgment implicit. Editable by the visitor in the UI. Contains
+# a literal "{passage}" placeholder that _build_prompt_engineering_message substitutes the selected
+# passage into, so the visitor can see and control exactly where it lands in the prompt.
+PROMPT_ENGINEERING_DEFAULT_REFINED_PROMPT = (
     'Extract key topics mentioned from a passage of text from a scholarly journal into a JSON array '
     'of strings.\n\n'
     '<text>\n{passage}\n</text>\n\n'
@@ -905,14 +926,17 @@ PROMPT_ENGINEERING_REFINED_TEMPLATE = (
 
 PROMPT_ENGINEERING_VARIANTS = ('naive', 'refined')
 
-PROMPT_ENGINEERING_TEMPLATES = {
-    'naive': PROMPT_ENGINEERING_NAIVE_TEMPLATE,
-    'refined': PROMPT_ENGINEERING_REFINED_TEMPLATE,
-}
+
+def _build_prompt_engineering_message(prompt_text, passage):
+    # A plain str.replace (not .format()) so a visitor-edited prompt containing unrelated curly
+    # braces (e.g. a JSON example) can't raise a KeyError/IndexError on the .format() call.
+    if '{passage}' in prompt_text:
+        return prompt_text.replace('{passage}', passage)
+    return f'{prompt_text}\n\n<paragraph>\n{passage}\n</paragraph>'
 
 
-def _run_prompt_engineering_task(client, variant, passage):
-    prompt = PROMPT_ENGINEERING_TEMPLATES[variant].format(passage=passage)
+def _run_prompt_engineering_task(client, prompt_text, passage):
+    prompt = _build_prompt_engineering_message(prompt_text, passage)
     message = client.messages.create(
         model=PROMPT_ENGINEERING_MODEL,
         max_tokens=PROMPT_ENGINEERING_MAX_TOKENS,
@@ -927,9 +951,23 @@ def _run_prompt_engineering_task(client, variant, passage):
     return message.content[0].text.strip()
 
 
-def _grade_prompt_engineering_output(client, output):
-    prompt = GRADING_PROMPT_TEMPLATE.format(
-        task=PROMPT_ENGINEERING_TASK, output=output, solution_criteria=PROMPT_ENGINEERING_SOLUTION_CRITERIA,
+# GRADING_PROMPT_TEMPLATE has no slot for source material, which prompt evaluation's tasks don't
+# need (the task text is self-contained, e.g. "Given the exam scores [...]"). Topic extraction is
+# graded against how faithfully the output reflects a passage, so the judge needs the passage itself
+# to check for missed/invented/over-inferred topics - without it, it can only judge output shape.
+PROMPT_ENGINEERING_GRADING_TEMPLATE = (
+    'You are grading a submitted answer to a task.\n\nTask: {task}\n\nOriginal passage:\n{passage}\n\n'
+    'Submitted answer:\n{output}\n\nGrading criteria: {solution_criteria}\n\n'
+    'Respond with only a JSON object with keys "strengths" (string array), "weaknesses" (string array), '
+    '"reasoning" (string), and "score" (integer 1-10). List strengths, weaknesses, and reasoning before '
+    'deciding the score.'
+)
+
+
+def _grade_prompt_engineering_output(client, passage, output):
+    prompt = PROMPT_ENGINEERING_GRADING_TEMPLATE.format(
+        task=PROMPT_ENGINEERING_TASK, passage=passage, output=output,
+        solution_criteria=PROMPT_ENGINEERING_SOLUTION_CRITERIA,
     )
     message = client.messages.create(
         model=PROMPT_ENGINEERING_MODEL,
@@ -957,26 +995,37 @@ def prompt_engineering_run():
         return jsonify({'error': 'AI demos are not configured on this server.'}), 503
 
     data = request.get_json(silent=True) or {}
-    passage = (data.get('passage') or '').strip() or PROMPT_ENGINEERING_DEFAULT_PASSAGE
-    if len(passage) > PROMPT_ENGINEERING_MAX_CHARS:
-        return jsonify({'error': f'Passage must be {PROMPT_ENGINEERING_MAX_CHARS} characters or fewer.'}), 400
+
+    passage_id = data.get('passage_id')
+    if passage_id is not None and not isinstance(passage_id, str):
+        return jsonify({'error': 'Invalid passage.'}), 400
+    passage_id = passage_id or PROMPT_ENGINEERING_DEFAULT_PASSAGE_ID
+    if passage_id not in PROMPT_ENGINEERING_PASSAGES:
+        return jsonify({'error': 'Invalid passage.'}), 400
+    passage = PROMPT_ENGINEERING_PASSAGES[passage_id]['text']
+
+    naive_prompt_raw = data.get('naive_prompt')
+    refined_prompt_raw = data.get('refined_prompt')
+    if (naive_prompt_raw is not None and not isinstance(naive_prompt_raw, str)) \
+            or (refined_prompt_raw is not None and not isinstance(refined_prompt_raw, str)):
+        return jsonify({'error': 'Prompts must be text.'}), 400
+    naive_prompt = (naive_prompt_raw or '').strip() or PROMPT_ENGINEERING_DEFAULT_NAIVE_PROMPT
+    refined_prompt = (refined_prompt_raw or '').strip() or PROMPT_ENGINEERING_DEFAULT_REFINED_PROMPT
+    if len(naive_prompt) > PROMPT_ENGINEERING_MAX_PROMPT_CHARS or len(refined_prompt) > PROMPT_ENGINEERING_MAX_PROMPT_CHARS:
+        return jsonify({'error': f'Prompts must be {PROMPT_ENGINEERING_MAX_PROMPT_CHARS} characters or fewer.'}), 400
+
+    prompt_texts = {'naive': naive_prompt, 'refined': refined_prompt}
 
     def ndjson(obj):
         return json.dumps(obj) + '\n'
 
     def generate():
         try:
-            yield ndjson({
-                'type': 'prompts',
-                'naive_prompt': PROMPT_ENGINEERING_NAIVE_TEMPLATE.format(passage=passage),
-                'refined_prompt': PROMPT_ENGINEERING_REFINED_TEMPLATE.format(passage=passage),
-            })
-
             with ThreadPoolExecutor(max_workers=len(PROMPT_ENGINEERING_VARIANTS)) as pool:
                 # Stage 1: run both prompts concurrently against the same passage.
                 outputs = {}
                 futures = {
-                    pool.submit(_run_prompt_engineering_task, client, variant, passage): variant
+                    pool.submit(_run_prompt_engineering_task, client, prompt_texts[variant], passage): variant
                     for variant in PROMPT_ENGINEERING_VARIANTS
                 }
                 for future in as_completed(futures):
@@ -988,7 +1037,7 @@ def prompt_engineering_run():
                 scores = {}
 
                 def grade(variant):
-                    grading = _grade_prompt_engineering_output(client, outputs[variant])
+                    grading = _grade_prompt_engineering_output(client, passage, outputs[variant])
                     return variant, grading
 
                 futures = {pool.submit(grade, variant): variant for variant in PROMPT_ENGINEERING_VARIANTS}
