@@ -58,9 +58,9 @@ def get_site_config():
                 'key': 'payment',
                 'name': config.payment_page_name,
                 'path': f'/{config.payment_slug}',
-                # Payment requires Stripe to be configured and public users (Google login) enabled,
-                # since paying now requires signing in.
-                'enabled': config.payment_enabled and bool(config.stripe_publishable_key) and config.users_enabled,
+                # Payment only requires Stripe to be configured — signing in is
+                # optional now, guests can pay and manage subscriptions by email.
+                'enabled': config.payment_enabled and bool(config.stripe_publishable_key),
             },
         ],
         'slugs': {
@@ -82,4 +82,5 @@ def get_site_config():
         'about_meta_description': config.about_meta_description,
         'headshot_filename': config.headshot_filename,
         'stripe_publishable_key': config.stripe_publishable_key,
+        'payment_comments_enabled': config.payment_comments_enabled,
     })
