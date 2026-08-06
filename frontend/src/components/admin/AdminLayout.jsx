@@ -214,9 +214,15 @@ export default function AdminLayout() {
               </span>
             </div>
           </button>
+          <a
+            href="/api/admin/enter-public-site"
+            className="block w-full px-3 py-2 mt-1 rounded-md text-xs text-gray-500 hover:text-white hover:bg-gray-800 transition-colors"
+          >
+            Sign in to public site
+          </a>
           <button
             onClick={handleLogout}
-            className="w-full text-left px-3 py-2 mt-1 rounded-md text-xs text-gray-500 hover:text-white hover:bg-gray-800 transition-colors"
+            className="w-full text-left px-3 py-2 rounded-md text-xs text-gray-500 hover:text-white hover:bg-gray-800 transition-colors"
           >
             Sign out
           </button>

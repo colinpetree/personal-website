@@ -9,7 +9,7 @@ from flask_login import current_user
 from models import SiteConfig, SiteEventLog
 from crypto import encrypt, decrypt
 from routes.admin_auth import admin_required, role_at_least
-from routes.contact import _send_email, _mail_configured
+from email_utils import send_email, mail_configured
 
 admin_config_bp = Blueprint('admin_config', __name__)
 
@@ -311,13 +311,7 @@ def upload_recording():
 @role_at_least('administrator')
 def test_email():
     config = SiteConfig.query.first()
-    mail_ready = bool(
-        config
-        and config.mailgun_api_key
-        and config.mailgun_domain
-        and config.smtp_from_email
-    )
-    if not mail_ready:
+    if not mail_configured(config):
         return jsonify({'error': 'Mailgun is not configured'}), 503
 
     data = request.get_json(silent=True) or {}
@@ -328,7 +322,7 @@ def test_email():
     # Decrypt API key for sending
     config.mailgun_api_key = decrypt(config.mailgun_api_key)
     try:
-        _send_email(config, to_address, 'Test email from your website', 'This is a test email confirming your Mailgun settings are working.', 'Test Email')
+        send_email(config, to_address, 'Test email from your website', 'This is a test email confirming your Mailgun settings are working.', 'Test Email')
     except Exception:
         return jsonify({'error': 'Failed to send test email. Check your Mailgun settings.'}), 500
 

@@ -32,7 +32,7 @@ export function getInitials(name) {
 export function AvatarCircle({ name, avatarFilename, size = 'md' }) {
   const sz = size === 'lg' ? 'w-16 h-16 text-xl' : size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'
   if (avatarFilename) {
-    return <img src={`/uploads/${avatarFilename}`} className={`${sz} rounded-full object-cover`} alt={name} />
+    return <img src={`/api/uploads/${avatarFilename}`} className={`${sz} rounded-full object-cover`} alt={name} />
   }
   return (
     <div className={`${sz} rounded-full bg-gray-200 flex items-center justify-center font-semibold text-gray-600`}>

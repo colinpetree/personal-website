@@ -10,7 +10,7 @@ function getInitials(name) {
 
 function AvatarCircle({ name, avatarFilename }) {
   if (avatarFilename) {
-    return <img src={`/uploads/${avatarFilename}`} className="w-10 h-10 rounded-full object-cover flex-shrink-0" alt={name} />
+    return <img src={`/api/uploads/${avatarFilename}`} className="w-10 h-10 rounded-full object-cover flex-shrink-0" alt={name} />
   }
   return (
     <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold text-gray-600 flex-shrink-0">

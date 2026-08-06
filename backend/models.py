@@ -89,6 +89,8 @@ class AdminAccount(UserMixin, db.Model):
     role = db.Column(db.String(20), nullable=False, default='administrator')
     avatar_filename = db.Column(db.String(255), nullable=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    reset_token = db.Column(db.String(255), nullable=True)
+    reset_token_expires = db.Column(db.DateTime, nullable=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)

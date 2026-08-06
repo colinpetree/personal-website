@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { useAdminAuth } from '../../context/AdminAuthContext'
 
 export default function AdminLoginPage() {
@@ -71,6 +71,9 @@ export default function AdminLoginPage() {
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+        <Link to="/admin/forgot-password" className="block text-sm text-gray-500 hover:text-gray-700 mt-4">
+          Forgot password?
+        </Link>
       </div>
     </div>
   )
