@@ -55,12 +55,12 @@ def get_site_config():
                 'enabled': config.ai_demo_enabled and current_app.config['ENABLE_AI_DEMOS'],
             },
             {
-                'key': 'donate',
-                'name': config.donate_page_name,
-                'path': f'/{config.donate_slug}',
-                # Donate requires Stripe to be configured and public users (Google login) enabled,
-                # since donating now requires signing in.
-                'enabled': config.donate_enabled and bool(config.stripe_publishable_key) and config.users_enabled,
+                'key': 'payment',
+                'name': config.payment_page_name,
+                'path': f'/{config.payment_slug}',
+                # Payment requires Stripe to be configured and public users (Google login) enabled,
+                # since paying now requires signing in.
+                'enabled': config.payment_enabled and bool(config.stripe_publishable_key) and config.users_enabled,
             },
         ],
         'slugs': {
@@ -69,7 +69,7 @@ def get_site_config():
             'about': config.about_slug,
             'contact': config.contact_slug,
             'ai_demo': config.ai_demo_slug,
-            'donate': config.donate_slug,
+            'payment': config.payment_slug,
         },
         'users_enabled': config.users_enabled,
         'google_oauth_client_id': config.google_oauth_client_id,

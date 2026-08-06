@@ -113,9 +113,10 @@ def _config_to_dict(config):
         'mailgun_domain': config.mailgun_domain,
         'smtp_from_email': config.smtp_from_email,
         'forward_email': config.forward_email,
-        'donate_enabled': config.donate_enabled,
-        'donate_page_name': config.donate_page_name,
-        'donate_slug': config.donate_slug,
+        'payment_enabled': config.payment_enabled,
+        'payment_page_name': config.payment_page_name,
+        'payment_slug': config.payment_slug,
+        'payment_comments_enabled': config.payment_comments_enabled,
         'stripe_publishable_key': config.stripe_publishable_key,
         'stripe_secret_key_set': bool(config.stripe_secret_key),
         'stripe_webhook_secret_set': bool(config.stripe_webhook_secret),
@@ -166,7 +167,7 @@ def update_admin_config():
         'about_enabled', 'about_page_name', 'about_text', 'about_meta_description', 'headshot_filename', 'about_slug',
         'contact_enabled', 'contact_page_name', 'contact_slug',
         'mailgun_domain', 'smtp_from_email', 'forward_email',
-        'donate_enabled', 'donate_page_name', 'stripe_publishable_key', 'donate_slug',
+        'payment_enabled', 'payment_page_name', 'stripe_publishable_key', 'payment_slug', 'payment_comments_enabled',
     ]
     if current_app.config['ENABLE_AI_DEMOS']:
         plain_fields += ['ai_demo_enabled', 'ai_demo_page_name', 'ai_demo_slug']

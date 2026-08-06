@@ -27,7 +27,7 @@ const NAV_GROUPS = [
       { to: '/admin/about', label: 'About' },
       { to: '/admin/contact', label: 'Contact' },
       ...(AI_DEMOS_ENABLED ? [{ to: '/admin/demo', label: 'AI Demo' }] : []),
-      { to: '/admin/donate', label: 'Donate' },
+      { to: '/admin/payment', label: 'Payment' },
     ],
   },
   {

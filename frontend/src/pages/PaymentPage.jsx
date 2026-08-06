@@ -5,7 +5,7 @@ import { useUserAuth } from '../context/UserAuthContext'
 
 const PRESET_AMOUNTS = [5, 10, 25, 50]
 
-export default function DonatePage() {
+export default function PaymentPage() {
   const { config } = useSiteConfig()
   const { user, loginWithGoogle } = useUserAuth()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -21,7 +21,7 @@ export default function DonatePage() {
 
   useEffect(() => {
     if (config?.site_title) {
-      document.title = `${config.donate_page_name ?? 'Donate'} - ${config.site_title}`
+      document.title = `${config.payment_page_name ?? 'Payment'} - ${config.site_title}`
     }
   }, [config])
 
@@ -46,7 +46,7 @@ export default function DonatePage() {
     setManageError('')
     setManageLoading(true)
     try {
-      const res = await fetch('/api/donate/manage-subscription', {
+      const res = await fetch('/api/payment/manage-subscription', {
         method: 'POST',
         credentials: 'include',
       })
@@ -74,7 +74,7 @@ export default function DonatePage() {
 
     setSubmitting(true)
     try {
-      const res = await fetch('/api/donate/create-checkout-session', {
+      const res = await fetch('/api/payment/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -100,7 +100,7 @@ export default function DonatePage() {
   return (
     <main className="max-w-2xl mx-auto px-6 py-16">
       <h1 className="text-4xl font-bold text-gray-900 mb-4">
-        {config?.donate_page_name ?? 'Donate'}
+        {config?.payment_page_name ?? 'Payment'}
       </h1>
       <p className="text-gray-500 mb-8">
         Support the site with a one-time or monthly contribution.
@@ -121,7 +121,7 @@ export default function DonatePage() {
 
       {!user ? (
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-5 py-6 text-center">
-          <p className="text-sm text-gray-600 mb-3">Sign in to donate</p>
+          <p className="text-sm text-gray-600 mb-3">Sign in to make a payment</p>
           <button
             onClick={() => loginWithGoogle(window.location.pathname)}
             className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
@@ -197,7 +197,7 @@ export default function DonatePage() {
               disabled={submitting}
               className="self-start rounded-md bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
             >
-              {submitting ? 'Redirecting…' : frequency === 'monthly' ? `Donate $${amount || 0}/month` : `Donate $${amount || 0}`}
+              {submitting ? 'Redirecting…' : frequency === 'monthly' ? `Pay $${amount || 0}/month` : `Pay $${amount || 0}`}
             </button>
             <p className="text-xs text-gray-400">
               You'll be redirected to Stripe to securely enter your payment details.
@@ -205,7 +205,7 @@ export default function DonatePage() {
           </form>
 
           <div className="mt-10 pt-6 border-t border-gray-200">
-            <p className="text-sm text-gray-500 mb-2">Already have a monthly donation set up?</p>
+            <p className="text-sm text-gray-500 mb-2">Already have a monthly payment set up?</p>
             <button
               onClick={handleManageSubscription}
               disabled={manageLoading}
