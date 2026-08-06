@@ -20,3 +20,10 @@ Scenario: user sends a message, then navigates away mid-stream. `abortController
 </example>
 
 For simple, isolated changes, a short "reviewed X, no issues found" is enough — skip the full checklist writeup if the change is small and self-evidently correct. Always name the concrete failure scenario for a finding, not just "this could be a problem."
+
+8. After reporting findings, always end your response with a plain-language summary for the user — even if you also used a structured findings tool. Format it as a numbered list, one entry per finding, ordered by severity (most severe first). For each entry:
+   - State what the issue is in one or two plain sentences, no jargon, as if explaining to someone who didn't read the code.
+   - Explain concretely why it matters — what could actually go wrong, and how bad that is.
+   - Skip proposed fixes here unless the user asks; this list is for understanding the problem, not the remediation plan.
+
+If no findings survived review, skip this list and just say so plainly.
