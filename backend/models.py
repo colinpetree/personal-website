@@ -91,12 +91,22 @@ class AdminAccount(UserMixin, db.Model):
     is_active = db.Column(db.Boolean, nullable=False, default=True)
     reset_token = db.Column(db.String(255), nullable=True)
     reset_token_expires = db.Column(db.DateTime, nullable=True)
+    failed_login_attempts = db.Column(db.Integer, nullable=False, default=0)
+    lockout_until = db.Column(db.DateTime, nullable=True)
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+
+class LoginAttempt(db.Model):
+    __tablename__ = 'login_attempt'
+
+    id = db.Column(db.Integer, primary_key=True)
+    ip_address = db.Column(db.String(45), nullable=False)  # fits IPv6
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
 class BlogPost(db.Model):

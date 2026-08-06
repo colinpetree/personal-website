@@ -6,13 +6,18 @@ import secrets
 from flask import Blueprint, jsonify, request, session, redirect, current_app
 from flask_login import login_user, logout_user, current_user
 from extensions import db, login_manager
-from models import AdminAccount, SiteConfig
+from models import AdminAccount, SiteConfig, LoginAttempt
 from crypto import decrypt
 from email_utils import send_email, mail_configured
 
 admin_auth_bp = Blueprint('admin_auth', __name__)
 
 ROLE_ORDER = ['contributor', 'editor', 'administrator', 'owner']
+
+MAX_FAILED_ATTEMPTS = 5
+LOCKOUT_DURATION = timedelta(minutes=15)
+MAX_ATTEMPTS_PER_IP = 50
+IP_WINDOW = timedelta(minutes=15)
 
 
 def _account_dict(account):
@@ -84,12 +89,53 @@ def login():
     if not email or not password:
         return jsonify({'error': 'Email and password are required'}), 400
 
+    ip = request.remote_addr or 'unknown'
+    ip_window_start = datetime.utcnow() - IP_WINDOW
+    LoginAttempt.query.filter(LoginAttempt.created_at < ip_window_start).delete()
+    recent_attempts = LoginAttempt.query.filter(
+        LoginAttempt.ip_address == ip,
+        LoginAttempt.created_at >= ip_window_start,
+    ).count()
+    if recent_attempts >= MAX_ATTEMPTS_PER_IP:
+        db.session.commit()
+        return jsonify({'error': 'Too many login attempts. Please try again later.'}), 429
+
     account = AdminAccount.query.filter_by(email=email).first()
+
+    now = datetime.utcnow()
+    if account and account.lockout_until:
+        if account.lockout_until > now:
+            db.session.add(LoginAttempt(ip_address=ip))
+            db.session.commit()
+            return jsonify({'error': 'Invalid credentials'}), 401
+        account.lockout_until = None
+        account.failed_login_attempts = 0
+
     if not account or not account.check_password(password):
+        if account:
+            # Atomic SQL-level increment (not a Python read-modify-write) so
+            # concurrent failed attempts for the same account can't lose
+            # updates to each other.
+            AdminAccount.query.filter_by(id=account.id).update(
+                {AdminAccount.failed_login_attempts: AdminAccount.failed_login_attempts + 1},
+                synchronize_session=False,
+            )
+            db.session.flush()
+            db.session.refresh(account)
+            if account.failed_login_attempts >= MAX_FAILED_ATTEMPTS:
+                account.lockout_until = now + LOCKOUT_DURATION
+        db.session.add(LoginAttempt(ip_address=ip))
+        db.session.commit()
         return jsonify({'error': 'Invalid credentials'}), 401
+
+    account.failed_login_attempts = 0
+    account.lockout_until = None
+
     if not account.is_active:
+        db.session.commit()
         return jsonify({'error': 'Account has been deactivated'}), 401
 
+    db.session.commit()
     login_user(account, remember=True)
     return jsonify(_account_dict(account))
 
@@ -213,5 +259,9 @@ def reset_password():
     account.set_password(new_password)
     account.reset_token = None
     account.reset_token_expires = None
+    # A completed email-based reset proves ownership through a separate channel
+    # from the password itself, so it's safe to clear any brute-force lockout.
+    account.failed_login_attempts = 0
+    account.lockout_until = None
     db.session.commit()
     return jsonify({'message': 'Password updated'})
