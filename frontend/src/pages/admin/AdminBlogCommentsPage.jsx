@@ -14,6 +14,12 @@ function CommentCard({ c, isReply, onDelete }) {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-1">
             <span className="text-sm font-medium text-gray-800">{c.author_name}</span>
+            {c.is_owner_author && (
+              <span className="px-1.5 py-0.5 text-xs rounded bg-blue-100 text-blue-700 font-medium">Author</span>
+            )}
+            {c.is_staff && (
+              <span className="px-1.5 py-0.5 text-xs rounded bg-gray-200 text-gray-700 font-medium">Staff</span>
+            )}
             {c.author_email && <span className="text-xs text-gray-400">{c.author_email}</span>}
             {c.is_deleted && <span className="text-xs text-red-400 font-medium">Deleted</span>}
             {isReply && <span className="text-xs text-gray-400 italic">Reply</span>}

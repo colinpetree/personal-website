@@ -109,6 +109,11 @@ def google_callback():
         db.session.add(user)
     db.session.commit()
 
+    # A fresh Google sign-in always wins over a stale admin session in the same
+    # browser — otherwise /api/auth/me's admin-first check would keep masking
+    # this user indefinitely.
+    if current_user.is_authenticated:
+        logout_user()
     session['user_id'] = user.id
     return redirect(next_url)
 
