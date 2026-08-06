@@ -107,10 +107,6 @@ def google_callback():
     if not user:
         user = User(google_id=google_id, email=email, name=name, avatar_url=avatar_url)
         db.session.add(user)
-    else:
-        user.email = email
-        user.name = name
-        user.avatar_url = avatar_url
     db.session.commit()
 
     session['user_id'] = user.id

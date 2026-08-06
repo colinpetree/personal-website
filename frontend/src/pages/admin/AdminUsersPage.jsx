@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { EditableCard, Field, Input, Toggle } from '../../components/admin/AdminPage'
+import UserProfileModal from '../../components/admin/UserProfileModal'
 
 function RedirectUriBox({ uri }) {
   const [copied, setCopied] = useState(false)
@@ -37,7 +38,7 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1)
   const [pages, setPages] = useState(1)
   const [loading, setLoading] = useState(true)
-  const [togglingId, setTogglingId] = useState(null)
+  const [editingUser, setEditingUser] = useState(null)
 
   useEffect(() => { fetchUsers(page) }, [page])
 
@@ -51,24 +52,6 @@ export default function AdminUsersPage() {
       setPages(data.pages)
     }
     setLoading(false)
-  }
-
-  async function toggleCanComment(user) {
-    setTogglingId(user.id)
-    try {
-      const res = await fetch(`/api/admin/users/${user.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ can_comment: !user.can_comment }),
-      })
-      if (res.ok) {
-        const updated = await res.json()
-        setUsers(u => u.map(x => x.id === updated.id ? { ...x, can_comment: updated.can_comment } : x))
-      }
-    } finally {
-      setTogglingId(null)
-    }
   }
 
   function handleExport() {
@@ -152,7 +135,8 @@ export default function AdminUsersPage() {
             {users.map((user, i) => (
               <div
                 key={user.id}
-                className={`flex items-center justify-between px-5 py-4 ${i > 0 ? 'border-t border-gray-200' : ''}`}
+                onClick={() => setEditingUser(user)}
+                className={`flex items-center justify-between px-5 py-4 cursor-pointer hover:bg-gray-50 transition-colors ${i > 0 ? 'border-t border-gray-200' : ''}`}
               >
                 <div className="flex items-center gap-3 min-w-0">
                   {user.avatar_url ? (
@@ -183,17 +167,11 @@ export default function AdminUsersPage() {
                   <span className="text-xs text-gray-400 hidden sm:block">
                     Joined {new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
-                  <button
-                    onClick={() => toggleCanComment(user)}
-                    disabled={togglingId === user.id}
-                    className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
-                      user.can_comment
-                        ? 'bg-green-50 text-green-700 hover:bg-green-100'
-                        : 'bg-red-50 text-red-600 hover:bg-red-100'
-                    } disabled:opacity-50`}
-                  >
-                    {user.can_comment ? 'Can comment' : 'Blocked'}
-                  </button>
+                  {!user.can_comment && (
+                    <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-red-50 text-red-600">
+                      Blocked
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
@@ -219,6 +197,17 @@ export default function AdminUsersPage() {
             </div>
           )}
         </>
+      )}
+
+      {editingUser && (
+        <UserProfileModal
+          user={editingUser}
+          onClose={() => setEditingUser(null)}
+          onUpdated={updated => {
+            setUsers(u => u.map(x => x.id === updated.id ? { ...x, ...updated } : x))
+            setEditingUser(null)
+          }}
+        />
       )}
     </div>
   )

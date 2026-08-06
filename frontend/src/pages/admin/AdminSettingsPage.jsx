@@ -3,6 +3,7 @@ import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, Card, EditableCard, Field, Input, Textarea } from '../../components/admin/AdminPage'
 import FileDropzone from '../../components/admin/FileDropzone'
 import HistoryModal from '../../components/admin/HistoryModal'
+import Select from '../../components/ui/Select'
 
 const TIMEZONES = [
   { name: 'Pacific/Pago_Pago', label: '(GMT -11:00) Midway Island, Samoa' },
@@ -181,15 +182,11 @@ export default function AdminSettingsPage() {
           {({ editing, local, set }) => editing ? (
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-gray-700">Site timezone</label>
-              <select
+              <Select
                 value={local.timezone}
-                onChange={e => set('timezone', e.target.value)}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full"
-              >
-                {TIMEZONES.map(tz => (
-                  <option key={tz.name} value={tz.name}>{tz.label}</option>
-                ))}
-              </select>
+                onChange={v => set('timezone', v)}
+                options={TIMEZONES.map(tz => ({ value: tz.name, label: tz.label }))}
+              />
               <LiveClock timezone={local.timezone} />
             </div>
           ) : (

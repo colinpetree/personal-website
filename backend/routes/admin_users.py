@@ -1,11 +1,26 @@
 import csv
 import io
 from flask import Blueprint, jsonify, request, Response
+from flask_login import current_user
 from extensions import db
-from models import User, Comment
+from models import User, Comment, SiteEventLog
 from routes.admin_auth import admin_required, role_at_least
 
 admin_users_bp = Blueprint('admin_users', __name__)
+
+
+def _log(admin, area, action_type, subject, subject_is_bold=False, subject_suffix=None):
+    entry = SiteEventLog(
+        admin_id=admin.id,
+        admin_name=admin.full_name,
+        admin_avatar=admin.avatar_filename,
+        area=area,
+        action_type=action_type,
+        subject=subject,
+        subject_suffix=subject_suffix,
+        subject_is_bold=subject_is_bold,
+    )
+    db.session.add(entry)
 
 
 def _user_dict(u, comment_count):
@@ -50,8 +65,42 @@ def update_user(user_id):
     user = User.query.get_or_404(user_id)
     data = request.get_json(silent=True) or {}
 
+    edited = False
+    comment_status_suffix = None
+
     if 'can_comment' in data:
-        user.can_comment = bool(data['can_comment'])
+        new_can_comment = bool(data['can_comment'])
+        if new_can_comment != user.can_comment:
+            user.can_comment = new_can_comment
+            edited = True
+            comment_status_suffix = '(blocked from commenting)' if not new_can_comment else '(unblocked from commenting)'
+
+    if 'name' in data:
+        new_name = (data['name'] or '').strip()
+        if not new_name:
+            return jsonify({'error': 'Name is required'}), 400
+        if new_name != user.name:
+            user.name = new_name
+            edited = True
+
+    if 'email' in data:
+        new_email = (data['email'] or '').strip()
+        if not new_email:
+            return jsonify({'error': 'Email is required'}), 400
+        if new_email != user.email:
+            if User.query.filter(User.id != user_id, User.email == new_email).first():
+                return jsonify({'error': 'A user with that email already exists'}), 409
+            user.email = new_email
+            edited = True
+
+    if 'title' in data:
+        new_title = (data['title'] or '').strip() or None
+        if new_title != user.title:
+            user.title = new_title
+            edited = True
+
+    if edited:
+        _log(current_user, 'User', 'edited', user.name, subject_is_bold=True, subject_suffix=comment_status_suffix)
 
     db.session.commit()
     count = Comment.query.filter_by(user_id=user.id, is_deleted=False).count()
