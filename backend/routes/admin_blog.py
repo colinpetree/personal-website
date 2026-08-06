@@ -3,7 +3,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 from extensions import db
-from models import BlogPost, Comment, User, SiteEventLog, SiteConfig
+from models import BlogPost, Comment, User, AdminAccount, SiteEventLog, SiteConfig
 from routes.admin_auth import admin_required, role_at_least
 
 
@@ -179,15 +179,18 @@ def list_comments():
     comments = Comment.query.order_by(Comment.created_at.asc()).all()
     result = []
     for c in comments:
+        admin = AdminAccount.query.get(c.admin_id) if c.admin_id else None
         user = User.query.get(c.user_id) if c.user_id else None
         result.append({
             'id': c.id,
             'post_id': c.post_id,
             'post_title': c.post.title if c.post else None,
             'post_slug': c.post.slug if c.post else None,
-            'author_name': user.name if user else (c.guest_name or 'Anonymous'),
+            'author_name': admin.full_name if admin else (user.name if user else (c.guest_name or 'Anonymous')),
             'author_email': user.email if user else c.guest_email,
             'is_user': user is not None,
+            'is_owner_author': admin is not None and admin.role == 'owner',
+            'is_staff': admin is not None and admin.role != 'owner',
             'content': c.content,
             'created_at': c.created_at.isoformat() + 'Z',
             'is_deleted': c.is_deleted,
