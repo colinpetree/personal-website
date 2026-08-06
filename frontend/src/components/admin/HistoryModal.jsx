@@ -32,7 +32,7 @@ function EntryTitle({ entry }) {
   const countSuffix = entry.count > 1 ? ` ${entry.count} times` : ''
   return (
     <span className="text-sm text-gray-900">
-      {entry.area} {entry.action_type}: {subject}{entry.subject_suffix ? ` ${entry.subject_suffix}` : ''}{countSuffix} — by {entry.admin_name}
+      {entry.area} {entry.action_type}: {subject}{entry.subject_suffix ? ` ${entry.subject_suffix}` : ''}{countSuffix} - by {entry.admin_name}
     </span>
   )
 }
