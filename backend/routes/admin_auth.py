@@ -1,8 +1,14 @@
 from functools import wraps
-from flask import Blueprint, jsonify, request
+from datetime import datetime, timedelta
+from threading import Thread
+import hashlib
+import secrets
+from flask import Blueprint, jsonify, request, session, redirect, current_app
 from flask_login import login_user, logout_user, current_user
-from extensions import login_manager
-from models import AdminAccount
+from extensions import db, login_manager
+from models import AdminAccount, SiteConfig
+from crypto import decrypt
+from email_utils import send_email, mail_configured
 
 admin_auth_bp = Blueprint('admin_auth', __name__)
 
@@ -112,3 +118,100 @@ def public_admin_me():
         'avatar_filename': current_user.avatar_filename,
         'role': current_user.role,
     })
+
+
+def _safe_next_path(next_url):
+    """Only allow same-site relative paths — rejects absolute URLs and the
+    protocol-relative `//host` form (including its `/\\host` backslash variant,
+    which browsers normalize to `//host` for http(s) URLs), both of which
+    would redirect off-site."""
+    if not next_url or not next_url.startswith('/'):
+        return '/'
+    if next_url.replace('\\', '/').startswith('//'):
+        return '/'
+    return next_url
+
+
+@admin_auth_bp.route('/api/admin/enter-public-site')
+def enter_public_site():
+    """Admin-triggered navigation to the public site as themselves — evicts any
+    regular user signed in on this browser so the public UI shows the admin."""
+    if not current_user.is_authenticated:
+        return redirect('/admin/login')
+    session.pop('user_id', None)
+    return redirect(_safe_next_path(request.args.get('next')))
+
+
+def _send_reset_email_if_valid(app, email):
+    """Runs in a background thread, after the response has already been sent —
+    keeps forgot_password()'s response time identical whether or not the email
+    matches an account, so timing can't be used to enumerate admin emails."""
+    with app.app_context():
+        try:
+            account = AdminAccount.query.filter_by(email=email).first() if email else None
+            config = SiteConfig.query.first()
+            if not (account and account.is_active and mail_configured(config)):
+                return
+
+            token = secrets.token_urlsafe(32)
+            account.reset_token = hashlib.sha256(token.encode()).hexdigest()
+            account.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
+            db.session.commit()
+
+            if config.domain:
+                reset_url = f'https://{config.domain.rstrip("/")}/admin/reset-password?token={token}'
+            else:
+                # Dev fallback — the Flask backend isn't where the frontend route
+                # lives; that's the Vite dev server.
+                reset_url = f'http://localhost:5173/admin/reset-password?token={token}'
+
+            config.mailgun_api_key = decrypt(config.mailgun_api_key)
+            send_email(
+                config,
+                account.email,
+                'Reset your admin password',
+                f'A password reset was requested for your admin account.\n\n'
+                f'Reset your password: {reset_url}\n\n'
+                f'This link expires in 1 hour. If you did not request this, you can ignore this email.',
+                'Admin',
+            )
+        except Exception:
+            # Silent by design — this runs after the response is already sent,
+            # so there's nothing left to report the failure to.
+            pass
+
+
+@admin_auth_bp.route('/api/admin/forgot-password', methods=['POST'])
+def forgot_password():
+    data = request.get_json(silent=True) or {}
+    email = (data.get('email') or '').strip()
+
+    app = current_app._get_current_object()
+    Thread(target=_send_reset_email_if_valid, args=(app, email), daemon=True).start()
+
+    # Always return a generic response immediately so neither the response body
+    # nor its timing can be used to enumerate admin emails.
+    return jsonify({'message': 'If that email is registered, a reset link has been sent.'})
+
+
+@admin_auth_bp.route('/api/admin/reset-password', methods=['POST'])
+def reset_password():
+    data = request.get_json(silent=True) or {}
+    token = data.get('token') or ''
+    new_password = data.get('new_password') or ''
+
+    if not token or not new_password:
+        return jsonify({'error': 'Token and new password are required'}), 400
+    if len(new_password) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters'}), 400
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    account = AdminAccount.query.filter_by(reset_token=token_hash).first()
+    if not account or not account.reset_token_expires or account.reset_token_expires < datetime.utcnow():
+        return jsonify({'error': 'Invalid or expired reset link'}), 400
+
+    account.set_password(new_password)
+    account.reset_token = None
+    account.reset_token_expires = None
+    db.session.commit()
+    return jsonify({'message': 'Password updated'})

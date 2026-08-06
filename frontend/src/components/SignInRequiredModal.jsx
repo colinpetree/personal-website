@@ -1,6 +1,6 @@
 import { useUserAuth } from '../context/UserAuthContext'
 
-export default function SignInRequiredModal({ onClose, message = 'Please sign in to access this demo.' }) {
+export default function SignInRequiredModal({ onClose, title = 'Sign in required', message = 'Please sign in to access this demo.' }) {
   const { loginWithGoogle } = useUserAuth()
 
   return (
@@ -9,7 +9,7 @@ export default function SignInRequiredModal({ onClose, message = 'Please sign in
         className="bg-white rounded-xl shadow-lg w-full max-w-sm px-6 py-6 text-center"
         onClick={e => e.stopPropagation()}
       >
-        <h2 className="text-lg font-semibold text-gray-900 mb-2">Sign in required</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-2">{title}</h2>
         <p className="text-sm text-gray-500 mb-5">{message}</p>
         <button
           onClick={() => loginWithGoogle(window.location.pathname)}

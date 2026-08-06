@@ -20,6 +20,8 @@ import NotFoundPage from './pages/NotFoundPage'
 import AdminLayout from './components/admin/AdminLayout'
 import RoleGuard from './components/admin/RoleGuard'
 import AdminLoginPage from './pages/admin/AdminLoginPage'
+import ForgotPasswordPage from './pages/admin/ForgotPasswordPage'
+import ResetPasswordPage from './pages/admin/ResetPasswordPage'
 import AdminSettingsPage from './pages/admin/AdminSettingsPage'
 import AdminHomePage from './pages/admin/AdminHomePage'
 import AdminBlogPage from './pages/admin/AdminBlogPage'
@@ -88,6 +90,14 @@ export function createRouter(slugs = {}) {
     {
       path: '/admin/login',
       element: <AdminLoginPage />,
+    },
+    {
+      path: '/admin/forgot-password',
+      element: <ForgotPasswordPage />,
+    },
+    {
+      path: '/admin/reset-password',
+      element: <ResetPasswordPage />,
     },
     // Admin panel — sidebar layout with auth guard built into AdminLayout
     {

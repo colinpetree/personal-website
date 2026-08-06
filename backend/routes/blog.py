@@ -37,7 +37,7 @@ def _comment_dict(c):
     if admin:
         author_name = admin.full_name
         author_title = admin.title
-        author_avatar = admin.avatar_filename
+        author_avatar = f'/api/uploads/{admin.avatar_filename}' if admin.avatar_filename else None
         is_owner_author = admin.role == 'owner'
     elif user:
         author_name = user.name
@@ -60,6 +60,7 @@ def _comment_dict(c):
         'admin_id': c.admin_id,
         'is_user': user is not None or admin is not None,
         'is_owner_author': is_owner_author,
+        'is_staff': admin is not None and not is_owner_author,
         'guest_name': c.guest_name,
         'like_count': c.like_count or 0,
         'created_at': c.created_at.isoformat() + 'Z',
@@ -207,7 +208,7 @@ def toggle_like(slug, comment_id):
 
 @blog_bp.route('/api/blog/<slug>/comments/<int:comment_id>/report', methods=['POST'])
 def report_comment(slug, comment_id):
-    from routes.contact import _send_email
+    from email_utils import send_email
     post = BlogPost.query.filter_by(slug=slug).first_or_404()
     comment = Comment.query.filter_by(id=comment_id, post_id=post.id, is_deleted=False).first_or_404()
     config = SiteConfig.query.first()
@@ -227,7 +228,7 @@ def report_comment(slug, comment_id):
         )
         try:
             config.mailgun_api_key = decrypt(config.mailgun_api_key)
-            _send_email(config, config.forward_email, 'Website Comment Reported', body, 'Comment Reply')
+            send_email(config, config.forward_email, 'Website Comment Reported', body, 'Comment Reply')
         except Exception:
             pass
 

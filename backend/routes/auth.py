@@ -3,6 +3,7 @@ import json
 import base64
 import secrets
 from flask import Blueprint, jsonify, request, session, redirect, current_app
+from flask_login import current_user, logout_user
 from extensions import db
 from models import User, SiteConfig
 from crypto import decrypt
@@ -15,6 +16,8 @@ GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo'
 
 
 def get_current_user():
+    """Returns the signed-in User, or None. Does not cover the admin-as-visitor
+    case — that has no User row, see `me()` for how it's surfaced to the frontend."""
     user_id = session.get('user_id')
     if user_id:
         return User.query.get(user_id)
@@ -24,7 +27,7 @@ def get_current_user():
 def user_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if not session.get('user_id'):
+        if not session.get('user_id') and not current_user.is_authenticated:
             return jsonify({'error': 'Authentication required'}), 401
         return f(*args, **kwargs)
     return decorated
@@ -116,20 +119,38 @@ def google_callback():
 
 @auth_bp.route('/api/auth/logout', methods=['POST'])
 def logout():
-    session.pop('user_id', None)
+    if session.get('user_id'):
+        session.pop('user_id', None)
+    elif current_user.is_authenticated:
+        logout_user()
     return jsonify({'message': 'Logged out'})
 
 
 @auth_bp.route('/api/auth/me')
 def me():
+    # Admin session takes priority, matching post_comment()'s precedence — staff
+    # are always shown (and always comment) as themselves, even if a stale
+    # regular-user session also happens to be present in the same browser.
+    if current_user.is_authenticated:
+        return jsonify({
+            'id': current_user.id,
+            'name': current_user.full_name,
+            'title': current_user.title,
+            'email': current_user.email,
+            'avatar_url': f'/api/uploads/{current_user.avatar_filename}' if current_user.avatar_filename else None,
+            'can_comment': True,
+            'is_staff': True,
+        })
+
     user = get_current_user()
-    if not user:
-        return jsonify({'error': 'Not authenticated'}), 401
-    return jsonify({
-        'id': user.id,
-        'name': user.name,
-        'title': user.title,
-        'email': user.email,
-        'avatar_url': user.avatar_url,
-        'can_comment': user.can_comment,
-    })
+    if user:
+        return jsonify({
+            'id': user.id,
+            'name': user.name,
+            'title': user.title,
+            'email': user.email,
+            'avatar_url': user.avatar_url,
+            'can_comment': user.can_comment,
+        })
+
+    return jsonify({'error': 'Not authenticated'}), 401

@@ -1,36 +1,13 @@
-import requests
 from flask import Blueprint, jsonify, request
 from models import SiteConfig
 from crypto import decrypt
+from email_utils import send_email, mail_configured
 
 contact_bp = Blueprint('contact', __name__)
 
 
-def _send_email(config, to_address, subject, body_text, sender_label):
-    """Send an email using the SiteConfig Mailgun settings. Raises on failure."""
-    from_name = f'{config.site_title} {sender_label}'
-    resp = requests.post(
-        f'https://api.mailgun.net/v3/{config.mailgun_domain}/messages',
-        auth=('api', config.mailgun_api_key),
-        data={
-            'from': f'{from_name} <{config.smtp_from_email}>',
-            'to': [to_address],
-            'subject': subject,
-            'text': body_text,
-        },
-    )
-    resp.raise_for_status()
-
-
 def _mail_configured(config):
-    return bool(
-        config
-        and config.contact_enabled
-        and config.mailgun_api_key
-        and config.mailgun_domain
-        and config.smtp_from_email
-        and config.forward_email
-    )
+    return bool(config and config.contact_enabled and config.forward_email and mail_configured(config))
 
 
 @contact_bp.route('/api/contact', methods=['POST'])
@@ -56,7 +33,7 @@ def submit_contact():
 
     try:
         config.mailgun_api_key = decrypt(config.mailgun_api_key)
-        _send_email(config, config.forward_email, full_subject, body, 'Contact Form')
+        send_email(config, config.forward_email, full_subject, body, 'Contact Form')
     except Exception as e:
         return jsonify({'error': 'Failed to send message. Please try again later.'}), 500
 

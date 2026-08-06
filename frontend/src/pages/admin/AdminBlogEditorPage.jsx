@@ -971,7 +971,7 @@ export default function AdminBlogEditorPage() {
             {owner ? (
               <div className="flex items-center gap-2">
                 {owner.avatar_filename ? (
-                  <img src={`/uploads/${owner.avatar_filename}`} className="w-6 h-6 rounded-full object-cover" alt={owner.full_name} />
+                  <img src={`/api/uploads/${owner.avatar_filename}`} className="w-6 h-6 rounded-full object-cover" alt={owner.full_name} />
                 ) : (
                   <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-[10px] font-semibold text-gray-600">
                     {(owner.full_name || '?').charAt(0).toUpperCase()}

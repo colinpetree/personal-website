@@ -2,14 +2,16 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import SignInRequiredModal from './SignInRequiredModal'
 
 export default function Navbar() {
   const { config } = useSiteConfig()
   const [menuOpen, setMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [showSignInModal, setShowSignInModal] = useState(false)
   const userMenuRef = useRef(null)
   const location = useLocation()
-  const { user, loginWithGoogle, logout } = useUserAuth()
+  const { user, logout } = useUserAuth()
 
   // Close mobile menu on navigation
   useEffect(() => { setMenuOpen(false); setUserMenuOpen(false) }, [location.pathname])
@@ -105,7 +107,7 @@ export default function Navbar() {
               </div>
             ) : (
               <button
-                onClick={() => loginWithGoogle()}
+                onClick={() => setShowSignInModal(true)}
                 className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
               >
                 Sign in
@@ -163,10 +165,18 @@ export default function Navbar() {
                 <button onClick={logout} className="text-left text-sm text-gray-500">Sign out</button>
               </>
             ) : (
-              <button onClick={() => loginWithGoogle()} className="text-left text-sm text-gray-500">Sign in with Google</button>
+              <button onClick={() => setShowSignInModal(true)} className="text-left text-sm text-gray-500">Sign in</button>
             )
           )}
         </nav>
+      )}
+
+      {showSignInModal && (
+        <SignInRequiredModal
+          onClose={() => setShowSignInModal(false)}
+          title="Sign in"
+          message="Sign in with your Google account to continue."
+        />
       )}
     </header>
   )
