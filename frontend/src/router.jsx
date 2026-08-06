@@ -15,7 +15,7 @@ import PromptEngineeringPage from './pages/ai-demos/PromptEngineeringPage'
 import WebSearchPage from './pages/ai-demos/WebSearchPage'
 import RagPage from './pages/ai-demos/RagPage'
 import VisionPage from './pages/ai-demos/VisionPage'
-import DonatePage from './pages/DonatePage'
+import PaymentPage from './pages/PaymentPage'
 import NotFoundPage from './pages/NotFoundPage'
 import AdminLayout from './components/admin/AdminLayout'
 import RoleGuard from './components/admin/RoleGuard'
@@ -29,7 +29,7 @@ import AdminProjectsPage from './pages/admin/AdminProjectsPage'
 import AdminAboutPage from './pages/admin/AdminAboutPage'
 import AdminContactPage from './pages/admin/AdminContactPage'
 import AdminAIDemoPage from './pages/admin/AdminAIDemoPage'
-import AdminDonatePage from './pages/admin/AdminDonatePage'
+import AdminPaymentPage from './pages/admin/AdminPaymentPage'
 import AdminAccountsPage from './pages/admin/AdminAccountsPage'
 import AdminBlogPostsPage from './pages/admin/AdminBlogPostsPage'
 import AdminBlogEditorPage from './pages/admin/AdminBlogEditorPage'
@@ -55,7 +55,7 @@ export function createRouter(slugs = {}) {
     about = 'about',
     contact = 'contact',
     ai_demo = 'demo',
-    donate = 'donate',
+    payment = 'payment',
   } = slugs
 
   return createBrowserRouter([
@@ -80,7 +80,7 @@ export function createRouter(slugs = {}) {
           { path: `${ai_demo}/rag`, element: <RagPage /> },
           { path: `${ai_demo}/vision`, element: <VisionPage /> },
         ] : []),
-        { path: donate, element: <DonatePage /> },
+        { path: payment, element: <PaymentPage /> },
         { path: 'profile', element: <UserProfilePage /> },
         { path: ':slug', element: <BlogPostPage /> },
         { path: '*', element: <NotFoundPage /> },
@@ -203,10 +203,10 @@ export function createRouter(slugs = {}) {
           ),
         }] : []),
         {
-          path: 'donate',
+          path: 'payment',
           element: (
             <RoleGuard minRole="editor" fallback="/admin/blog/posts">
-              <AdminDonatePage />
+              <AdminPaymentPage />
             </RoleGuard>
           ),
         },

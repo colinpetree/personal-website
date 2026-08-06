@@ -60,14 +60,14 @@ class SiteConfig(db.Model):
     ai_demo_page_name = db.Column(db.String(100), nullable=False, default='AI Implementations')
     ai_demo_slug = db.Column(db.String(100), nullable=False, default='demo')
 
-    # Donate
-    donate_enabled = db.Column(db.Boolean, nullable=False, default=False)
-    donate_page_name = db.Column(db.String(100), nullable=False, default='Donate')
-    donate_slug = db.Column(db.String(100), nullable=False, default='donate')
+    # Payment
+    payment_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    payment_page_name = db.Column(db.String(100), nullable=False, default='Payment')
+    payment_slug = db.Column(db.String(100), nullable=False, default='payment')
     stripe_publishable_key = db.Column(db.Text, nullable=True)
     stripe_secret_key = db.Column(db.Text, nullable=True)  # stored encrypted
     stripe_webhook_secret = db.Column(db.Text, nullable=True)  # stored encrypted
-    donation_comments_enabled = db.Column(db.Boolean, nullable=False, default=True)
+    payment_comments_enabled = db.Column(db.Boolean, nullable=False, default=True)
 
     # Site-wide
     domain = db.Column(db.String(255), nullable=True)
@@ -189,8 +189,8 @@ class Project(db.Model):
     visible = db.Column(db.Boolean, nullable=False, default=True)
 
 
-class Donation(db.Model):
-    __tablename__ = 'donation'
+class Payment(db.Model):
+    __tablename__ = 'payment'
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
@@ -205,7 +205,7 @@ class Donation(db.Model):
     mode = db.Column(db.String(20), nullable=False)  # payment | subscription
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-    user = db.relationship('User', backref='donations')
+    user = db.relationship('User', backref='payments')
 
 
 class SiteEventLog(db.Model):

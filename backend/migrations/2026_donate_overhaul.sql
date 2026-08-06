@@ -5,11 +5,20 @@
 --
 -- The new `portal_link_request` table does NOT need a manual step here --
 -- db.create_all() creates it automatically since it doesn't exist yet.
+--
+-- Wrapped in a transaction so a failure partway through rolls back cleanly
+-- instead of leaving the schema half-migrated. IF NOT EXISTS makes the
+-- ADD COLUMN statements safe to re-run against a database this already
+-- applied to.
+
+BEGIN;
 
 ALTER TABLE donation ALTER COLUMN user_id DROP NOT NULL;
-ALTER TABLE donation ADD COLUMN email VARCHAR(255);
-ALTER TABLE donation ADD COLUMN display_name VARCHAR(200);
-ALTER TABLE donation ADD COLUMN message TEXT;
-ALTER TABLE donation ADD COLUMN comment_visible BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE donation ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+ALTER TABLE donation ADD COLUMN IF NOT EXISTS display_name VARCHAR(200);
+ALTER TABLE donation ADD COLUMN IF NOT EXISTS message TEXT;
+ALTER TABLE donation ADD COLUMN IF NOT EXISTS comment_visible BOOLEAN NOT NULL DEFAULT TRUE;
 
-ALTER TABLE site_config ADD COLUMN donation_comments_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE site_config ADD COLUMN IF NOT EXISTS donation_comments_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+
+COMMIT;

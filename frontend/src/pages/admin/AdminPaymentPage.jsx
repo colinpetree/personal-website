@@ -11,24 +11,24 @@ function formatCurrency(value) {
   return `$${(value ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 }
 
-function DonationsSummaryCard() {
+function PaymentsSummaryCard() {
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetch('/api/admin/donate/summary', { credentials: 'include' })
+    fetch('/api/admin/payment/summary', { credentials: 'include' })
       .then(res => res.ok ? res.json() : Promise.reject())
       .then(setSummary)
-      .catch(() => setError('Could not load donation summary.'))
+      .catch(() => setError('Could not load payment summary.'))
       .finally(() => setLoading(false))
   }, [])
 
   return (
     <Card>
       <div>
-        <h3 className="text-base font-semibold text-gray-900">Donations</h3>
-        <p className="text-sm text-gray-500">Payments received through the donate page</p>
+        <h3 className="text-base font-semibold text-gray-900">Payments</h3>
+        <p className="text-sm text-gray-500">Payments received through the payment page</p>
       </div>
 
       {loading ? (
@@ -51,7 +51,7 @@ function DonationsSummaryCard() {
           <div>
             <p className="text-xs font-medium text-gray-500 mb-2">Recent transactions</p>
             {summary.recent.length === 0 ? (
-              <p className="text-sm text-gray-400">No donations yet.</p>
+              <p className="text-sm text-gray-400">No payments yet.</p>
             ) : (
               <div className="flex flex-col divide-y divide-gray-100">
                 {summary.recent.map(d => (
@@ -72,7 +72,7 @@ function DonationsSummaryCard() {
   )
 }
 
-export default function AdminDonatePage() {
+export default function AdminPaymentPage() {
   const { admin } = useAdminAuth()
   const { config, loading, save } = useAdminConfig()
   const isAdmin = isAtLeast(admin, 'administrator')
@@ -80,27 +80,27 @@ export default function AdminDonatePage() {
   if (loading) return <div className="p-8 text-gray-400">Loading…</div>
 
   return (
-    <PageShell title="Donate Page">
+    <PageShell title="Payment Page">
       <div className="flex flex-col gap-6">
 
         <EditableCard
           title="Page settings"
-          description="Configure donate page visibility and navigation"
+          description="Configure payment page visibility and navigation"
           savedValues={{
-            donate_enabled: config?.donate_enabled ?? false,
-            donate_page_name: config?.donate_page_name || 'Donate',
-            donate_slug: config?.donate_slug || 'donate',
+            payment_enabled: config?.payment_enabled ?? false,
+            payment_page_name: config?.payment_page_name || 'Payment',
+            payment_slug: config?.payment_slug || 'payment',
           }}
           onSave={values => save(values)}
         >
           {({ editing, local, set }) => editing ? (
             <>
-              <Toggle label="Enable donate page" checked={local.donate_enabled} onChange={v => set('donate_enabled', v)} />
+              <Toggle label="Enable payment page" checked={local.payment_enabled} onChange={v => set('payment_enabled', v)} />
               <Field label="Link label">
-                <Input value={local.donate_page_name} onChange={e => set('donate_page_name', e.target.value)} />
+                <Input value={local.payment_page_name} onChange={e => set('payment_page_name', e.target.value)} />
               </Field>
               <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
-                <InputWithPrefix prefix={`https://${config?.domain || 'example.com'}/`} value={local.donate_slug} onChange={e => set('donate_slug', e.target.value.replace(/^\/+/, ''))} placeholder="donate" />
+                <InputWithPrefix prefix={`https://${config?.domain || 'example.com'}/`} value={local.payment_slug} onChange={e => set('payment_slug', e.target.value.replace(/^\/+/, ''))} placeholder="payment" />
               </Field>
             </>
           ) : (
@@ -108,7 +108,7 @@ export default function AdminDonatePage() {
               <div className="flex flex-col gap-1">
                 <p className="text-xs font-medium text-gray-500">Status</p>
                 <p className="text-sm">
-                  {local.donate_enabled
+                  {local.payment_enabled
                     ? <span className="text-[#30cf43] font-medium">Enabled</span>
                     : <span className="text-gray-400">Disabled</span>
                   }
@@ -116,11 +116,11 @@ export default function AdminDonatePage() {
               </div>
               <div className="flex flex-col gap-1">
                 <p className="text-xs font-medium text-gray-500">Link label</p>
-                <DisplayValue value={local.donate_page_name} />
+                <DisplayValue value={local.payment_page_name} />
               </div>
               <div className="flex flex-col gap-1">
                 <p className="text-xs font-medium text-gray-500">URL</p>
-                <DisplayValue value={local.donate_slug ? `/${local.donate_slug}` : ''} fallback="/donate" />
+                <DisplayValue value={local.payment_slug ? `/${local.payment_slug}` : ''} fallback="/payment" />
               </div>
             </>
           )}
@@ -128,7 +128,7 @@ export default function AdminDonatePage() {
 
         {isAdmin && <EditableCard
           title="Stripe keys"
-          description="Donate page is only shown in the navbar once a Stripe publishable key is set."
+          description="Payment page is only shown in the navbar once a Stripe publishable key is set."
           savedValues={{
             stripe_publishable_key: config?.stripe_publishable_key || '',
             stripe_secret_key: '',
@@ -154,7 +154,7 @@ export default function AdminDonatePage() {
                 hint={
                   config?.stripe_webhook_secret_set
                     ? 'Currently set — enter a new value to replace it.'
-                    : `Create a webhook in your Stripe dashboard pointing to https://${config?.domain || 'your-domain.com'}/api/donate/webhook, listening for checkout.session.completed, then paste its signing secret here.`
+                    : `Create a webhook in your Stripe dashboard pointing to https://${config?.domain || 'your-domain.com'}/api/payment/webhook, listening for checkout.session.completed, then paste its signing secret here.`
                 }
               >
                 <Input type="password" value={local.stripe_webhook_secret} onChange={e => set('stripe_webhook_secret', e.target.value)} placeholder={config?.stripe_webhook_secret_set ? '••••••••' : 'whsec_…'} />
@@ -188,7 +188,7 @@ export default function AdminDonatePage() {
           )}
         </EditableCard>}
 
-        {isAdmin && <DonationsSummaryCard />}
+        {isAdmin && <PaymentsSummaryCard />}
 
       </div>
     </PageShell>

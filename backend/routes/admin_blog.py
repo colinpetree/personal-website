@@ -29,9 +29,9 @@ def _get_reserved_slugs():
     if config:
         return _STATIC_RESERVED | {
             config.blog_slug, config.projects_slug, config.about_slug,
-            config.contact_slug, config.ai_demo_slug, config.donate_slug,
+            config.contact_slug, config.ai_demo_slug, config.payment_slug,
         }
-    return _STATIC_RESERVED | {'blog', 'projects', 'about', 'contact', 'demo', 'donate'}
+    return _STATIC_RESERVED | {'blog', 'projects', 'about', 'contact', 'demo', 'payment'}
 
 
 def _slugify(text):

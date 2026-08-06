@@ -7,7 +7,7 @@ from crypto import decrypt
 
 blog_bp = Blueprint('blog', __name__)
 
-RESERVED_SLUGS = {'', 'blog', 'projects', 'about', 'contact', 'demo', 'donate', 'admin', 'api'}
+RESERVED_SLUGS = {'', 'blog', 'projects', 'about', 'contact', 'demo', 'payment', 'admin', 'api'}
 
 
 def _post_to_dict(post, include_content=False):
