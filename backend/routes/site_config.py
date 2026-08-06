@@ -77,6 +77,9 @@ def get_site_config():
         'home_text': config.home_text,
         'projects_text': config.projects_text,
         'about_text': config.about_text,
+        'home_meta_description': config.home_meta_description,
+        'projects_meta_description': config.projects_meta_description,
+        'about_meta_description': config.about_meta_description,
         'headshot_filename': config.headshot_filename,
         'stripe_publishable_key': config.stripe_publishable_key,
     })

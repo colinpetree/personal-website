@@ -32,7 +32,7 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 - [x] Domain field → writes `backend/certbot_domain.txt` on save (`backend/routes/admin_config.py:182-186`).
 - [x] Favicon upload (PNG/JPG/JPEG/GIF, plus WebP) → applied via JS-injected `<link rel="icon">` in `Navbar.jsx:29-39`.
 - [x] Admin login (email/password) — `AdminLoginPage.jsx` + `backend/routes/admin_auth.py`.
-- [ ] **Password reset flow gated on SMTP config — not implemented.** `AdminContactPage.jsx:91` references "password resets" as a reason to configure SMTP, but there's no forgot-password link, no reset endpoint, no reset email logic anywhere. This is a real gap against the original spec.
+- [x] Admin password reset flow — forgot-password link, reset-token endpoints in `backend/routes/admin_auth.py`, reset email via existing SMTP settings. Shipped alongside "sign in as admin" flow and a shared email helper.
 
 ### 3d. Blog Posts (Lexical editor)
 - [x] WYSIWYG Lexical editor → `content_html`.
@@ -40,7 +40,7 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 - [x] Video upload **and** YouTube/Vimeo embed nodes (plus a bonus Spotify embed node, not in spec).
 - [x] Draft/scheduled/published status; unpublished and future-scheduled posts excluded from public API; auto-promotion of scheduled → published once the publish date passes.
 - [x] Publish date is freely editable (schedule ahead or backdate).
-- [x] SEO meta description field on posts — **but not yet rendered as an actual `<meta name="description">` tag on the public post page** (`BlogPostPage.jsx` sets `document.title` but no meta tag). Small gap, easy fix.
+- [x] SEO meta description field on posts, rendered as a real `<meta name="description">` tag on the public post page (falls back to the post excerpt if no meta description is set) — `frontend/src/utils/meta.js`, used in `BlogPostPage.jsx`.
 - [x] Thumbnail — **redesigned from spec**: instead of auto-extracting the first in-body image, there's now a dedicated manual "Feature Image" field with its own caption, shown above the title on the post page and next to the excerpt on the list page. Intentional product decision, not a gap.
 - [x] Blog title → `<title>` tag.
 - [x] Editable slug, auto-derived from title (spaces → hyphens), both client- and server-side.
@@ -54,7 +54,7 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 - [~] "Disables comments when off" — in practice it doesn't block commenting, it falls back to a guest-comment form instead. Behavior differs from spec's "disables" wording; worth a decision on whether that's acceptable or needs tightening.
 - [x] "Disables payments when off" — resolved as a side effect of requiring Google login to donate (see §5): the donate nav item now also checks `users_enabled`, and the donate page itself is gated behind sign-in.
 - [x] Google OAuth client ID/secret configurable in admin.
-- [ ] Admin editing a user's profile (name/title/email) — backend `PUT /api/admin/users/<id>` only accepts `can_comment`; no name/title/email editing exists anywhere.
+- [x] Admin editing a user's profile (name/title/email) — `PUT /api/admin/users/<id>` now accepts `name`/`email`/`title` (`backend/routes/admin_users.py`), surfaced via a profile editing modal + shared `Select` component on the frontend.
 - [x] Prevent a user from commenting (`can_comment` toggle).
 - [x] Export users to CSV.
 
@@ -171,10 +171,10 @@ Added a **deployment-time** env flag on both sides (separate from the runtime `a
 
 ## What's actually left to reach the current target (priority-ordered, roughly cheapest → biggest)
 
-1. **Admin password reset — next up.** Forgot-password link on `AdminLoginPage.jsx`, backend reset-token endpoint(s) in `backend/routes/admin_auth.py`, and a reset email sent via the existing SMTP settings (`AdminContactPage.jsx` already references this as the reason to configure SMTP — the plumbing for sending mail already exists via the contact-form/test-email code path, just needs a reset-specific flow).
-2. Render `meta_description` as a real `<meta name="description">` tag on `BlogPostPage.jsx` (and ideally on the other content pages too, since Home/About/Projects also have a `*_meta_description` field now).
-3. Wire `users_enabled=false` to actually disable commenting (not just fall back to guest mode) — the donate-page half of this is now done, see §5.
-4. Admin ability to edit a user's own profile fields (name/title/email) from the Users page.
+1. ~~Admin password reset~~ — **done**, see §3a above.
+2. ~~Render `meta_description` as a real `<meta name="description">` tag~~ — **done**. `frontend/src/utils/meta.js` adds a shared `setMetaDescription()` helper that upserts `<meta name="description">`; wired into `BlogPostPage.jsx` (post's `meta_description`, falls back to `excerpt`), `HomePage.jsx`, `AboutPage.jsx`, `ProjectsPage.jsx` (their `*_meta_description` config fields). `backend/routes/site_config.py` now also exposes `home_meta_description`/`projects_meta_description`/`about_meta_description` on the public `/api/site-config` endpoint (previously admin-only).
+3. **Next up.** Wire `users_enabled=false` to actually disable commenting (not just fall back to guest mode) — the donate-page half of this is now done, see §5.
+4. ~~Admin ability to edit a user's own profile fields (name/title/email)~~ — **done**, see §3g above.
 5. ~~AI Implementations page~~ — **done**: all 8 v1 cards shipped (conversation basics, tool use, RAG, MCP, prompt evaluation, prompt engineering, web search, vision), see §6 above. Not yet manually smoke-tested in-browser.
 6. ~~Donate/Contribute — Stripe Checkout integration~~ — **done**, see §5 above.
 7. Deployment infrastructure: combined build pipeline, Flask/nginx static-serving or reverse-proxy setup, actual certbot automation consuming `certbot_domain.txt`, Varnish cache layer, and general "how does this get deployed to a Linux box" documentation/scripting — none of this exists yet.

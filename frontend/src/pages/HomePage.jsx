@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import { setMetaDescription } from '../utils/meta'
 
 export default function HomePage() {
   const { config } = useSiteConfig()
@@ -8,6 +9,7 @@ export default function HomePage() {
     if (config?.site_title) {
       document.title = config.site_title
     }
+    setMetaDescription(config?.home_meta_description)
   }, [config])
 
   if (!config?.home_text) {
