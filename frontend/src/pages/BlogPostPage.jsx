@@ -5,6 +5,7 @@ import { useUserAuth } from '../context/UserAuthContext'
 import GalleryLightbox from '../components/GalleryLightbox'
 import SignInRequiredModal from '../components/SignInRequiredModal'
 import { setupSegmentLoopVideo } from '../utils/segmentLoopVideo'
+import { setMetaDescription } from '../utils/meta'
 
 // ── Skeletons ─────────────────────────────────────────────────────────────
 
@@ -541,7 +542,8 @@ export default function BlogPostPage() {
     if (post?.title) {
       document.title = post.title
     }
-  }, [post?.title])
+    setMetaDescription(post?.meta_description || post?.excerpt)
+  }, [post])
 
   function handleLike(commentId, currentlyLiked) {
     const delta = currentlyLiked ? -1 : 1

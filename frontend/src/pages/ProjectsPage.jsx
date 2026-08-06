@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { ExternalLink } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import { setMetaDescription } from '../utils/meta'
 
 function ProjectCardSkeleton() {
   return (
@@ -24,6 +25,7 @@ export default function ProjectsPage() {
     if (config?.site_title) {
       document.title = `${config.projects_page_name ?? 'Projects'} - ${config.site_title}`
     }
+    setMetaDescription(config?.projects_meta_description)
   }, [config])
 
   useEffect(() => {
