@@ -67,6 +67,7 @@ class SiteConfig(db.Model):
     stripe_publishable_key = db.Column(db.Text, nullable=True)
     stripe_secret_key = db.Column(db.Text, nullable=True)  # stored encrypted
     stripe_webhook_secret = db.Column(db.Text, nullable=True)  # stored encrypted
+    donation_comments_enabled = db.Column(db.Boolean, nullable=False, default=True)
 
     # Site-wide
     domain = db.Column(db.String(255), nullable=True)
@@ -103,6 +104,14 @@ class AdminAccount(UserMixin, db.Model):
 
 class LoginAttempt(db.Model):
     __tablename__ = 'login_attempt'
+
+    id = db.Column(db.Integer, primary_key=True)
+    ip_address = db.Column(db.String(45), nullable=False)  # fits IPv6
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class PortalLinkRequest(db.Model):
+    __tablename__ = 'portal_link_request'
 
     id = db.Column(db.Integer, primary_key=True)
     ip_address = db.Column(db.String(45), nullable=False)  # fits IPv6
@@ -184,7 +193,11 @@ class Donation(db.Model):
     __tablename__ = 'donation'
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    email = db.Column(db.String(255), nullable=True)
+    display_name = db.Column(db.String(200), nullable=True)
+    message = db.Column(db.Text, nullable=True)
+    comment_visible = db.Column(db.Boolean, nullable=False, default=True)
     stripe_customer_id = db.Column(db.String(255), nullable=True)
     stripe_subscription_id = db.Column(db.String(255), nullable=True)
     stripe_object_id = db.Column(db.String(255), nullable=False, unique=True)  # checkout session or invoice id
