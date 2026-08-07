@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Check, ChevronDown, ChevronLeft, Play } from 'lucide-react'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
-import { useUserAuth } from '../../context/UserAuthContext'
+import { useRequireSignIn } from '../../hooks/useRequireSignIn'
 import SignInRequiredModal from '../../components/SignInRequiredModal'
 
 // Fixed, read-only passages - the point of this demo is comparing prompts, not passages, so these
@@ -190,7 +190,7 @@ function OutputColumn({ variant, output, grade }) {
 
 export default function PromptEngineeringPage() {
   const { config } = useSiteConfig()
-  const { user } = useUserAuth()
+  const { user, signInAvailable, showSignInModal, setShowSignInModal, requireSignIn } = useRequireSignIn()
   const [passageId, setPassageId] = useState(PASSAGES[0].id)
   const [naivePrompt, setNaivePrompt] = useState(DEFAULT_NAIVE_PROMPT)
   const [refinedPrompt, setRefinedPrompt] = useState(DEFAULT_REFINED_PROMPT)
@@ -200,7 +200,6 @@ export default function PromptEngineeringPage() {
   const [outputs, setOutputs] = useState({})
   const [grades, setGrades] = useState({})
   const [summary, setSummary] = useState(null)
-  const [showSignInModal, setShowSignInModal] = useState(false)
   const abortControllerRef = useRef(null)
 
   useEffect(() => {
@@ -216,10 +215,7 @@ export default function PromptEngineeringPage() {
   }, [])
 
   async function handleRun() {
-    if (!user) {
-      setShowSignInModal(true)
-      return
-    }
+    if (!requireSignIn()) return
     if (running) return
 
     setError('')
@@ -299,7 +295,7 @@ export default function PromptEngineeringPage() {
       <div className="order-2 flex-1 min-w-0 min-h-0 flex flex-col overflow-y-auto px-6 py-8">
         <div className="max-w-4xl mx-auto w-full flex flex-col gap-6">
           <div className="relative flex flex-col gap-3">
-            {!user && (
+            {!user && signInAvailable && (
               <button
                 type="button"
                 aria-label="Sign in required"

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useUserAuth } from '../context/UserAuthContext'
+import { useSiteConfig } from '../hooks/useSiteConfig'
 
 export default function UserProfilePage() {
   const { user, loading, updateProfile } = useUserAuth()
+  const { config } = useSiteConfig()
   const [name, setName] = useState('')
   const [title, setTitle] = useState('')
   const [editing, setEditing] = useState(false)
@@ -14,6 +16,14 @@ export default function UserProfilePage() {
     return (
       <main className="max-w-xl mx-auto px-6 py-16">
         <p className="text-gray-400">Loading…</p>
+      </main>
+    )
+  }
+
+  if (!config?.users_enabled) {
+    return (
+      <main className="max-w-xl mx-auto px-6 py-16">
+        <p className="text-gray-600">User accounts are not enabled on this site.</p>
       </main>
     )
   }

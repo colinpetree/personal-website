@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUp, ArrowDown, ChevronLeft, Wrench, RotateCcw } from 'lucide-react'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
-import { useUserAuth } from '../../context/UserAuthContext'
+import { useRequireSignIn } from '../../hooks/useRequireSignIn'
 import { Tooltip } from '../../components/ui/Tooltip'
 import SignInRequiredModal from '../../components/SignInRequiredModal'
 
@@ -176,13 +176,12 @@ function ToolCard({ block }) {
 
 export default function ToolUsePage() {
   const { config } = useSiteConfig()
-  const { user } = useUserAuth()
+  const { user, signInAvailable, showSignInModal, setShowSignInModal, requireSignIn } = useRequireSignIn()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [showScrollButton, setShowScrollButton] = useState(false)
-  const [showSignInModal, setShowSignInModal] = useState(false)
   const [scrollbarWidth, setScrollbarWidth] = useState(0)
   const bottomRef = useRef(null)
   const scrollContainerRef = useRef(null)
@@ -268,10 +267,7 @@ export default function ToolUsePage() {
 
   async function handleSend(e) {
     e.preventDefault()
-    if (!user) {
-      setShowSignInModal(true)
-      return
-    }
+    if (!requireSignIn()) return
 
     const text = input.trim()
     if (!text || sending) return
@@ -455,7 +451,7 @@ export default function ToolUsePage() {
             </button>
           )}
           <div className="max-w-2xl mx-auto pointer-events-auto relative">
-            {!user && (
+            {!user && signInAvailable && (
               <button
                 type="button"
                 aria-label="Sign in required"

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, ImagePlus, RotateCcw, Sparkles } from 'lucide-react'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
-import { useUserAuth } from '../../context/UserAuthContext'
+import { useRequireSignIn } from '../../hooks/useRequireSignIn'
 import SignInRequiredModal from '../../components/SignInRequiredModal'
 
 const ALLOWED_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
@@ -122,14 +122,13 @@ function formatBytes(bytes) {
 
 export default function VisionPage() {
   const { config } = useSiteConfig()
-  const { user } = useUserAuth()
+  const { user, signInAvailable, showSignInModal, setShowSignInModal, requireSignIn } = useRequireSignIn()
   const [file, setFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [answer, setAnswer] = useState('')
   const [dragging, setDragging] = useState(false)
-  const [showSignInModal, setShowSignInModal] = useState(false)
   const revealTimerRef = useRef(null)
   const abortControllerRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -185,10 +184,7 @@ export default function VisionPage() {
   }
 
   async function handleAnalyze() {
-    if (!user) {
-      setShowSignInModal(true)
-      return
-    }
+    if (!requireSignIn()) return
     if (!file || sending) return
 
     setError('')
@@ -271,7 +267,7 @@ export default function VisionPage() {
       {/* Upload + result column */}
       <div className="order-2 flex-1 min-w-0 min-h-0 overflow-y-auto px-6 py-8 relative">
         <div className="max-w-2xl mx-auto flex flex-col gap-6">
-          {!user && (
+          {!user && signInAvailable && (
             <button
               type="button"
               aria-label="Sign in required"
