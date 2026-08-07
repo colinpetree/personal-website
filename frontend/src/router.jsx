@@ -147,6 +147,14 @@ export function createRouter(slugs = {}) {
           ),
         },
         {
+          path: 'blog/edit',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminPageContentEditor pageTitle="Blog" backTo="/admin/blog" contentField="blog_text" metaField="blog_meta_description" />
+            </RoleGuard>
+          ),
+        },
+        {
           path: 'blog/comments',
           element: (
             <RoleGuard minRole="editor" fallback="/admin/blog/posts">
@@ -194,11 +202,26 @@ export function createRouter(slugs = {}) {
             </RoleGuard>
           ),
         },
+        {
+          path: 'contact/edit',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminPageContentEditor pageTitle="Contact" backTo="/admin/contact" contentField="contact_text" metaField="contact_meta_description" />
+            </RoleGuard>
+          ),
+        },
         ...(AI_DEMOS_ENABLED ? [{
           path: 'demo',
           element: (
             <RoleGuard minRole="editor" fallback="/admin/blog/posts">
               <AdminAIDemoPage />
+            </RoleGuard>
+          ),
+        }, {
+          path: 'demo/edit',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminPageContentEditor pageTitle="AI Implementations" backTo="/admin/demo" contentField="ai_demo_text" metaField="ai_demo_meta_description" />
             </RoleGuard>
           ),
         }] : []),
@@ -207,6 +230,14 @@ export function createRouter(slugs = {}) {
           element: (
             <RoleGuard minRole="editor" fallback="/admin/blog/posts">
               <AdminPaymentPage />
+            </RoleGuard>
+          ),
+        },
+        {
+          path: 'payment/edit',
+          element: (
+            <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+              <AdminPageContentEditor pageTitle="Payment" backTo="/admin/payment" contentField="payment_text" metaField="payment_meta_description" />
             </RoleGuard>
           ),
         },

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import { setMetaDescription } from '../utils/meta'
 
 function BlogListSkeleton() {
   return (
@@ -31,6 +32,7 @@ export default function BlogPage() {
     if (config?.site_title) {
       document.title = `${config.blog_page_name ?? 'Blog'} - ${config.site_title}`
     }
+    setMetaDescription(config?.blog_meta_description)
   }, [config])
 
   useEffect(() => {
@@ -48,7 +50,12 @@ export default function BlogPage() {
 
   return (
     <main className="max-w-3xl mx-auto px-6 py-16">
-      <h1 className="text-4xl font-bold text-gray-900 mb-10">Blog</h1>
+      {config?.blog_text && (
+        <div
+          className="prose prose-gray max-w-none blog-content page-header-content mb-10"
+          dangerouslySetInnerHTML={{ __html: config.blog_text }}
+        />
+      )}
 
       {loading && <BlogListSkeleton />}
 

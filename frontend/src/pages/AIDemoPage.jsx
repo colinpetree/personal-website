@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import { setMetaDescription } from '../utils/meta'
 
 const DEMOS = [
   {
@@ -60,16 +61,17 @@ export default function AIDemoPage() {
     if (config?.site_title) {
       document.title = `${config.ai_demo_page_name ?? 'AI'} - ${config.site_title}`
     }
+    setMetaDescription(config?.ai_demo_meta_description)
   }, [config])
 
   return (
     <main className="max-w-4xl mx-auto px-6 py-16">
-      <h1 className="text-4xl font-bold text-gray-900 mb-4">
-        {config?.ai_demo_page_name ?? 'AI Implementations'}
-      </h1>
-      <p className="text-gray-500 mb-8">
-        A grid of small, focused demos showing off different Claude API capabilities.
-      </p>
+      {config?.ai_demo_text && (
+        <div
+          className="prose prose-gray max-w-none blog-content page-header-content mb-8"
+          dangerouslySetInnerHTML={{ __html: config.ai_demo_text }}
+        />
+      )}
 
       <div className="grid gap-6 sm:grid-cols-2">
         {DEMOS.map(demo => (

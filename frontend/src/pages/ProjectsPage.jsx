@@ -39,7 +39,7 @@ export default function ProjectsPage() {
     <main className="max-w-4xl mx-auto px-6 py-16">
       {config?.projects_text && (
         <div
-          className="prose prose-gray max-w-none blog-content mb-12"
+          className="prose prose-gray max-w-none blog-content page-header-content mb-12"
           dangerouslySetInnerHTML={{ __html: config.projects_text }}
         />
       )}

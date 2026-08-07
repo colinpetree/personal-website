@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import { setMetaDescription } from '../utils/meta'
 
 const INITIAL = { name: '', email: '', subject: '', message: '' }
 
@@ -13,6 +14,7 @@ export default function ContactPage() {
     if (config?.site_title) {
       document.title = `${config.contact_page_name ?? 'Contact'} - ${config.site_title}`
     }
+    setMetaDescription(config?.contact_meta_description)
   }, [config])
 
   function handleChange(e) {
@@ -46,9 +48,12 @@ export default function ContactPage() {
 
   return (
     <main className="max-w-2xl mx-auto px-6 py-16">
-      <h1 className="text-4xl font-bold text-gray-900 mb-8">
-        {config?.contact_page_name ?? 'Contact'}
-      </h1>
+      {config?.contact_text && (
+        <div
+          className="prose prose-gray max-w-none blog-content page-header-content mb-8"
+          dangerouslySetInnerHTML={{ __html: config.contact_text }}
+        />
+      )}
 
       {status === 'success' ? (
         <div className="rounded-lg bg-green-50 border border-green-200 px-6 py-5">
