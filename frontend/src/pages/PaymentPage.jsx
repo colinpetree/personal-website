@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { loadStripe } from '@stripe/stripe-js'
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe-js'
@@ -173,6 +173,28 @@ export default function PaymentPage() {
   const pageName = config?.payment_page_name ?? 'Payment'
   const commentsEnabled = !!config?.payment_comments_enabled
 
+  const mainRef = useRef(null)
+  const commentsRef = useRef(null)
+
+  useEffect(() => {
+    if (!commentsEnabled) return
+    const mainEl = mainRef.current
+    if (!mainEl) return
+
+    function onWheel(e) {
+      if (step === 'checkout') return
+      if (e.ctrlKey) return // pinch-zoom / ctrl+wheel zoom — let the browser handle it
+      if (window.innerWidth < 1024) return
+      const commentsEl = commentsRef.current
+      if (!commentsEl || commentsEl.contains(e.target)) return
+      e.preventDefault()
+      commentsEl.scrollTop += e.deltaY
+    }
+
+    mainEl.addEventListener('wheel', onWheel, { passive: false })
+    return () => mainEl.removeEventListener('wheel', onWheel)
+  }, [commentsEnabled, step])
+
   const paymentContent = (
     <>
       {step === 'checkout' && clientSecret ? (
@@ -266,13 +288,15 @@ export default function PaymentPage() {
               <div className="flex flex-col gap-1.5">
                 <div className="flex items-baseline gap-3">
                   <label className="text-base font-medium text-gray-700" htmlFor="guest-name">Name (optional)</label>
-                  <button
-                    type="button"
-                    onClick={() => loginWithGoogle(window.location.pathname)}
-                    className="text-sm text-gray-400 underline hover:text-gray-600"
-                  >
-                    Sign in with Google
-                  </button>
+                  {config?.users_enabled && (
+                    <button
+                      type="button"
+                      onClick={() => loginWithGoogle(window.location.pathname)}
+                      className="text-sm text-gray-400 underline hover:text-gray-600"
+                    >
+                      Sign in with Google
+                    </button>
+                  )}
                 </div>
                 <input
                   id="guest-name"
@@ -329,9 +353,6 @@ export default function PaymentPage() {
             >
               {submitting ? 'Preparing checkout…' : frequency === 'monthly' ? `Pay $${amount || 0}/month` : `Pay $${amount || 0}`}
             </button>
-            <p className="text-sm text-gray-400">
-              You'll enter your payment details securely below, powered by Stripe.
-            </p>
           </form>
 
           <div className="mt-10 pt-6 border-t border-gray-200">
@@ -362,7 +383,7 @@ export default function PaymentPage() {
                   disabled={guestPortalLoading}
                   className="rounded-md border border-gray-300 px-4 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
                 >
-                  {guestPortalLoading ? 'Sending…' : 'Send me a link'}
+                  {guestPortalLoading ? 'Sending…' : 'Send link'}
                 </button>
               </form>
             )}
@@ -374,41 +395,43 @@ export default function PaymentPage() {
   )
 
   return (
-    <main className={`mx-auto px-6 py-16 ${commentsEnabled ? 'max-w-5xl' : 'max-w-md'}`}>
-      <h1 className="text-4xl font-bold text-gray-900 mb-2">
-        ☕ {pageName}
-      </h1>
-      <p className="text-gray-500 text-lg mb-8">
-        Enjoying the site? Chip in a one-time or monthly amount to help keep it running.
-      </p>
+    <main ref={mainRef} className={`mx-auto px-6 py-16 ${commentsEnabled ? 'max-w-5xl' : 'max-w-md'} ${commentsEnabled ? 'lg:h-[calc(100vh-4rem-1px)] lg:overflow-hidden lg:flex lg:flex-col' : ''}`}>
+      <div className={commentsEnabled ? 'lg:flex-shrink-0' : ''}>
+        <h1 className="text-4xl font-bold text-gray-900 mb-2">
+          ☕ {pageName}
+        </h1>
+        <p className="text-gray-500 text-lg mb-8">
+          Enjoying the site? Chip in a one-time or monthly amount to help keep it running.
+        </p>
 
-      {returnLoading && (
-        <div className="mb-6 rounded-lg bg-gray-50 border border-gray-200 px-6 py-5">
-          <p className="text-gray-600 text-base">Checking your payment status…</p>
-        </div>
-      )}
-      {returnStatus === 'success' && (
-        <div className="mb-6 rounded-lg bg-amber-50 border border-amber-200 px-6 py-5 flex items-start justify-between gap-4">
-          <p className="text-amber-800 font-medium">🎉 Thank you for your support!</p>
-          <button onClick={dismissReturnStatus} className="text-amber-700 hover:text-amber-900 text-base">Dismiss</button>
-        </div>
-      )}
-      {returnStatus === 'incomplete' && (
-        <div className="mb-6 rounded-lg bg-gray-50 border border-gray-200 px-6 py-5 flex items-start justify-between gap-4">
-          <p className="text-gray-700">Checkout wasn't completed — no charge was made.</p>
-          <button onClick={dismissReturnStatus} className="text-gray-500 hover:text-gray-700 text-base">Dismiss</button>
-        </div>
-      )}
+        {returnLoading && (
+          <div className="mb-6 rounded-lg bg-gray-50 border border-gray-200 px-6 py-5">
+            <p className="text-gray-600 text-base">Checking your payment status…</p>
+          </div>
+        )}
+        {returnStatus === 'success' && (
+          <div className="mb-6 rounded-lg bg-amber-50 border border-amber-200 px-6 py-5 flex items-start justify-between gap-4">
+            <p className="text-amber-800 font-medium">🎉 Thank you for your support!</p>
+            <button onClick={dismissReturnStatus} className="text-amber-700 hover:text-amber-900 text-base">Dismiss</button>
+          </div>
+        )}
+        {returnStatus === 'incomplete' && (
+          <div className="mb-6 rounded-lg bg-gray-50 border border-gray-200 px-6 py-5 flex items-start justify-between gap-4">
+            <p className="text-gray-700">Checkout wasn't completed — no charge was made.</p>
+            <button onClick={dismissReturnStatus} className="text-gray-500 hover:text-gray-700 text-base">Dismiss</button>
+          </div>
+        )}
+      </div>
 
       {commentsEnabled ? (
-        <div className="flex flex-col lg:flex-row lg:items-start gap-x-12">
+        <div className="flex flex-col lg:flex-row lg:items-start gap-x-12 lg:flex-1 lg:min-h-0">
           {/* Payment column: DOM-first so it's on top on mobile; lg:order-2 moves it to the right column on desktop */}
           <div className="lg:order-2 lg:flex-1 lg:min-w-0">
             {paymentContent}
           </div>
           {/* Comments column: DOM-second so it's below payment on mobile; lg:order-1 moves it to the left column on desktop */}
-          <div className="lg:order-1 lg:flex-1 lg:min-w-0">
-            <PaymentComments enabled={commentsEnabled} />
+          <div className="lg:order-1 lg:flex-1 lg:min-w-0 lg:h-full">
+            <PaymentComments ref={commentsRef} enabled={commentsEnabled} />
           </div>
         </div>
       ) : (
