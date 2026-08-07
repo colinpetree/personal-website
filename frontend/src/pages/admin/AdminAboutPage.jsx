@@ -1,8 +1,6 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
-import { PageShell, Card, EditableCard, Field, Input, InputWithPrefix, Toggle } from '../../components/admin/AdminPage'
-import FileDropzone from '../../components/admin/FileDropzone'
+import { PageShell, EditableCard, Field, Input, InputWithPrefix, Toggle } from '../../components/admin/AdminPage'
 
 function DisplayValue({ value, fallback = '—' }) {
   return <p className="text-sm text-gray-900">{value || <span className="text-gray-400">{fallback}</span>}</p>
@@ -10,31 +8,6 @@ function DisplayValue({ value, fallback = '—' }) {
 
 export default function AdminAboutPage() {
   const { config, loading, save } = useAdminConfig()
-  const [headshotFile, setHeadshotFile] = useState(null)
-  const [uploading, setUploading] = useState(false)
-  const [headshotSaved, setHeadshotSaved] = useState(false)
-  const [headshotError, setHeadshotError] = useState('')
-
-  async function handleHeadshotSave() {
-    if (!headshotFile) return
-    setUploading(true)
-    setHeadshotError('')
-    try {
-      const fd = new FormData()
-      fd.append('file', headshotFile)
-      const res = await fetch('/api/admin/upload', { method: 'POST', credentials: 'include', body: fd })
-      if (!res.ok) throw new Error('Upload failed')
-      const { filename } = await res.json()
-      await save({ headshot_filename: filename })
-      setHeadshotFile(null)
-      setHeadshotSaved(true)
-      setTimeout(() => setHeadshotSaved(false), 2500)
-    } catch (err) {
-      setHeadshotError(err.message || 'Upload failed')
-    } finally {
-      setUploading(false)
-    }
-  }
 
   if (loading) return <div className="p-8 text-gray-400">Loading…</div>
 
@@ -99,40 +72,6 @@ export default function AdminAboutPage() {
             Edit content
           </Link>
         </div>
-
-        <Card>
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900">Headshot</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Your profile photo shown on the about page</p>
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {headshotSaved && <span className="text-xs text-gray-400">Saved</span>}
-              {!headshotSaved && (
-                <button
-                  onClick={handleHeadshotSave}
-                  disabled={!headshotFile || uploading}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                    uploading
-                      ? 'bg-white text-gray-500 cursor-default'
-                      : headshotFile
-                        ? 'bg-[#30cf43] text-white hover:brightness-95'
-                        : 'bg-gray-100 text-gray-400 cursor-default'
-                  }`}
-                >
-                  {uploading ? 'Uploading...' : 'Upload'}
-                </button>
-              )}
-            </div>
-          </div>
-          <FileDropzone
-            accept={{ 'image/png': [], 'image/jpeg': [], 'image/gif': [], 'image/webp': [] }}
-            onFile={f => { setHeadshotFile(f); setHeadshotSaved(false) }}
-            file={headshotFile}
-            currentUrl={config?.headshot_filename ? `/api/uploads/${config.headshot_filename}` : null}
-          />
-          {headshotError && <p className="text-xs text-red-500">{headshotError}</p>}
-        </Card>
 
       </div>
     </PageShell>

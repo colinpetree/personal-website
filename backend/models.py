@@ -45,7 +45,6 @@ class SiteConfig(db.Model):
     about_page_name = db.Column(db.String(100), nullable=False, default='About')
     about_text = db.Column(db.Text, nullable=True)
     about_meta_description = db.Column(db.Text, nullable=True)
-    headshot_filename = db.Column(db.String(255), nullable=True)
     about_slug = db.Column(db.String(100), nullable=False, default='about')
 
     # Contact

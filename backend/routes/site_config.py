@@ -88,7 +88,6 @@ def get_site_config():
         'contact_meta_description': config.contact_meta_description,
         'ai_demo_meta_description': config.ai_demo_meta_description,
         'payment_meta_description': config.payment_meta_description,
-        'headshot_filename': config.headshot_filename,
         'stripe_publishable_key': config.stripe_publishable_key,
         'payment_comments_enabled': config.payment_comments_enabled,
     })
