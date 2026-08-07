@@ -380,7 +380,7 @@ export default function RagPage() {
         <div className="flex flex-col gap-3 text-sm text-gray-600">
           <p>
             <strong className="text-gray-800">Vector</strong> search embeds the query and each document section, then ranks by
-            semantic similarity — it can match meaning even without shared words.
+            semantic similarity. It matches meaning even without shared words.
           </p>
           <p>
             <strong className="text-gray-800">Keyword (BM25)</strong> search ranks by exact term overlap, weighted by how

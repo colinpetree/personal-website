@@ -178,6 +178,33 @@ html {
   display: none;
 }
 
+/* Payment comments scroll area scrollbar — hidden until scrolled, fades out when idle */
+.payment-comments-scroll {
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.3s ease;
+}
+.payment-comments-scroll.is-scrolling {
+  scrollbar-color: #d1d5db transparent;
+}
+.payment-comments-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+.payment-comments-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.payment-comments-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+.payment-comments-scroll.is-scrolling::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+}
+.payment-comments-scroll::-webkit-scrollbar-button {
+  display: none;
+}
+
 /* Blog post prose overrides */
 /* Quote: gradient bar only inside the editor (the theme class leaks into content_html via exportDOM,
    so scope it to [contenteditable] to prevent the gradient appearing on the public blog) */

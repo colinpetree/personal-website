@@ -1,22 +1,32 @@
-import { useEffect, useState } from 'react'
+import { forwardRef, useEffect, useRef, useState } from 'react'
 
 const LIMIT = 10
+const SCROLLBAR_IDLE_MS = 800
 
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
-function formatAmount(amount, mode) {
-  const value = `$${Number(amount).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
-  return mode === 'subscription' ? `${value}/mo` : value
+function formatAmount(amount) {
+  return `$${Number(amount).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
 }
 
-export default function PaymentComments({ enabled }) {
+const PaymentComments = forwardRef(function PaymentComments({ enabled }, ref) {
   const [comments, setComments] = useState([])
   const [offset, setOffset] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [isScrolling, setIsScrolling] = useState(false)
+  const idleTimerRef = useRef(null)
+
+  function handleScroll() {
+    setIsScrolling(true)
+    clearTimeout(idleTimerRef.current)
+    idleTimerRef.current = setTimeout(() => setIsScrolling(false), SCROLLBAR_IDLE_MS)
+  }
+
+  useEffect(() => () => clearTimeout(idleTimerRef.current), [])
 
   function loadPage(nextOffset, append) {
     const setBusy = append ? setLoadingMore : setLoading
@@ -46,7 +56,12 @@ export default function PaymentComments({ enabled }) {
   if (!enabled) return null
 
   return (
-    <section className="mt-10 pt-6 border-t border-gray-200 lg:mt-0 lg:pt-0 lg:border-t-0 lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto lg:pr-2">
+    <section
+      ref={ref}
+      tabIndex={0}
+      onScroll={handleScroll}
+      className={`payment-comments-scroll mt-10 pt-6 border-t border-gray-200 lg:mt-0 lg:pt-0 lg:border-t-0 lg:h-full lg:overflow-y-auto lg:pr-2 ${isScrolling ? 'is-scrolling' : ''}`}
+    >
       <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent supporters</h2>
 
       {loading ? (
@@ -64,7 +79,7 @@ export default function PaymentComments({ enabled }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-base">
                     <span className="font-medium text-gray-900">{c.display_name}</span>
-                    <span className="text-gray-400"> paid {formatAmount(c.amount, c.mode)} · {formatDate(c.created_at)}</span>
+                    <span className="text-gray-400"> {formatAmount(c.amount)} · {formatDate(c.created_at)}</span>
                   </p>
                   <p className="text-gray-700 text-base leading-relaxed whitespace-pre-wrap mt-1">{c.message}</p>
                 </div>
@@ -85,4 +100,6 @@ export default function PaymentComments({ enabled }) {
       )}
     </section>
   )
-}
+})
+
+export default PaymentComments

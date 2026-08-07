@@ -4,7 +4,7 @@ import { PageShell, Card, EditableCard, Field, Input, InputWithPrefix, Toggle } 
 import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
 
 function DisplayValue({ value, fallback = '—' }) {
-  return <p className="text-sm text-gray-900">{value || <span className="text-gray-400">{fallback}</span>}</p>
+  return <p className="text-sm text-gray-900 truncate">{value || <span className="text-gray-400">{fallback}</span>}</p>
 }
 
 function formatCurrency(value) {
