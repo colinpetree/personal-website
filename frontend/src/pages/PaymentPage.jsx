@@ -1,29 +1,79 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { loadStripe } from '@stripe/stripe-js'
+import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe-js'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { useUserAuth } from '../context/UserAuthContext'
+import PaymentComments from '../components/PaymentComments'
 
-const PRESET_AMOUNTS = [5, 10, 25, 50]
+const PRESET_AMOUNTS = [3, 9, 15, 25]
+const MESSAGE_MAX_LEN = 500
+const NAME_MAX_LEN = 100
+const GUEST_PORTAL_GENERIC_MESSAGE = "If that email has an active subscription, we've sent a management link."
 
 export default function PaymentPage() {
   const { config } = useSiteConfig()
   const { user, loginWithGoogle } = useUserAuth()
   const [searchParams, setSearchParams] = useSearchParams()
+
+  const [step, setStep] = useState('form') // 'form' | 'checkout'
   const [frequency, setFrequency] = useState('once') // 'once' | 'monthly'
   const [amount, setAmount] = useState(10)
   const [customAmount, setCustomAmount] = useState('')
+  const [message, setMessage] = useState('')
+  const [guestName, setGuestName] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [clientSecret, setClientSecret] = useState(null)
+
+  const [returnStatus, setReturnStatus] = useState(null) // 'success' | 'incomplete' | null
+  const [returnLoading, setReturnLoading] = useState(false)
+
   const [manageLoading, setManageLoading] = useState(false)
   const [manageError, setManageError] = useState('')
 
-  const status = searchParams.get('status')
+  const [guestEmail, setGuestEmail] = useState('')
+  const [guestPortalMessage, setGuestPortalMessage] = useState('')
+  const [guestPortalLoading, setGuestPortalLoading] = useState(false)
+
+  const stripePromise = useMemo(() => {
+    if (!config?.stripe_publishable_key) return null
+    return loadStripe(config.stripe_publishable_key)
+  }, [config?.stripe_publishable_key])
 
   useEffect(() => {
     if (config?.site_title) {
       document.title = `${config.payment_page_name ?? 'Payment'} - ${config.site_title}`
     }
   }, [config])
+
+  useEffect(() => {
+    if (step !== 'checkout') return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = previousOverflow }
+  }, [step])
+
+  useEffect(() => {
+    const status = searchParams.get('status')
+    const sessionId = searchParams.get('session_id')
+    if (status !== 'return' || !sessionId) return
+
+    setReturnLoading(true)
+    fetch(`/api/payment/checkout-session-status?session_id=${encodeURIComponent(sessionId)}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => setReturnStatus(data?.status === 'complete' ? 'success' : 'incomplete'))
+      .catch(() => setReturnStatus('incomplete'))
+      .finally(() => setReturnLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function dismissReturnStatus() {
+    searchParams.delete('status')
+    searchParams.delete('session_id')
+    setSearchParams(searchParams, { replace: true })
+    setReturnStatus(null)
+  }
 
   function selectPreset(value) {
     setAmount(value)
@@ -37,9 +87,47 @@ export default function PaymentPage() {
     if (!Number.isNaN(parsed)) setAmount(parsed)
   }
 
-  function dismissStatus() {
-    searchParams.delete('status')
-    setSearchParams(searchParams, { replace: true })
+  function resetToForm() {
+    setStep('form')
+    setClientSecret(null)
+    setSubmitting(false)
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError('')
+
+    if (!amount || amount < 1) {
+      setError('Please enter an amount of at least $1.')
+      return
+    }
+
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/payment/create-checkout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          amount,
+          mode: frequency === 'monthly' ? 'subscription' : 'payment',
+          interval: 'month',
+          message: message.trim() || undefined,
+          display_name: !user ? (guestName.trim() || undefined) : undefined,
+        }),
+      })
+      const data = await res.json()
+      if (res.ok && data.client_secret) {
+        setClientSecret(data.client_secret)
+        setStep('checkout')
+      } else {
+        setError(data.error || 'Something went wrong. Please try again.')
+        setSubmitting(false)
+      }
+    } catch {
+      setError('Network error. Please try again.')
+      setSubmitting(false)
+    }
   }
 
   async function handleManageSubscription() {
@@ -63,77 +151,64 @@ export default function PaymentPage() {
     }
   }
 
-  async function handleSubmit(e) {
+  async function handleGuestPortalSubmit(e) {
     e.preventDefault()
-    setError('')
-
-    if (!amount || amount < 1) {
-      setError('Please enter an amount of at least $1.')
-      return
-    }
-
-    setSubmitting(true)
+    setGuestPortalLoading(true)
+    setGuestPortalMessage('')
     try {
-      const res = await fetch('/api/payment/create-checkout-session', {
+      const res = await fetch('/api/payment/guest-portal-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          amount,
-          mode: frequency === 'monthly' ? 'subscription' : 'payment',
-          interval: 'month',
-        }),
+        body: JSON.stringify({ email: guestEmail }),
       })
       const data = await res.json()
-      if (res.ok && data.url) {
-        window.location.href = data.url
-      } else {
-        setError(data.error || 'Something went wrong. Please try again.')
-        setSubmitting(false)
-      }
+      setGuestPortalMessage(data.message || GUEST_PORTAL_GENERIC_MESSAGE)
     } catch {
-      setError('Network error. Please try again.')
-      setSubmitting(false)
+      setGuestPortalMessage(GUEST_PORTAL_GENERIC_MESSAGE)
+    } finally {
+      setGuestPortalLoading(false)
     }
   }
 
-  return (
-    <main className="max-w-2xl mx-auto px-6 py-16">
-      <h1 className="text-4xl font-bold text-gray-900 mb-4">
-        {config?.payment_page_name ?? 'Payment'}
-      </h1>
-      <p className="text-gray-500 mb-8">
-        Support the site with a one-time or monthly contribution.
-      </p>
+  const pageName = config?.payment_page_name ?? 'Payment'
+  const commentsEnabled = !!config?.payment_comments_enabled
 
-      {status === 'success' && (
-        <div className="mb-6 rounded-lg bg-green-50 border border-green-200 px-6 py-5 flex items-start justify-between gap-4">
-          <p className="text-green-800 font-medium">Thank you for your support!</p>
-          <button onClick={dismissStatus} className="text-green-700 hover:text-green-900 text-sm">Dismiss</button>
-        </div>
-      )}
-      {status === 'cancelled' && (
-        <div className="mb-6 rounded-lg bg-gray-50 border border-gray-200 px-6 py-5 flex items-start justify-between gap-4">
-          <p className="text-gray-700">Checkout was cancelled — no charge was made.</p>
-          <button onClick={dismissStatus} className="text-gray-500 hover:text-gray-700 text-sm">Dismiss</button>
-        </div>
-      )}
-
-      {!user ? (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 px-5 py-6 text-center">
-          <p className="text-sm text-gray-600 mb-3">Sign in to make a payment</p>
-          <button
-            onClick={() => loginWithGoogle(window.location.pathname)}
-            className="inline-flex items-center gap-2 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
+  const paymentContent = (
+    <>
+      {step === 'checkout' && clientSecret ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={resetToForm}
+        >
+          <div
+            className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-lg bg-white shadow-xl"
+            onClick={e => e.stopPropagation()}
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-            </svg>
-            Sign in with Google
-          </button>
+            <div className="flex items-center justify-between px-4 pt-4">
+              <button
+                onClick={resetToForm}
+                className="text-base text-gray-500 hover:text-gray-700"
+              >
+                ← Change amount
+              </button>
+              <button
+                onClick={resetToForm}
+                aria-label="Close"
+                className="text-gray-400 hover:text-gray-600 text-2xl leading-none px-1"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-4">
+              {stripePromise ? (
+                <EmbeddedCheckoutProvider stripe={stripePromise} options={{ clientSecret }}>
+                  <EmbeddedCheckout />
+                </EmbeddedCheckoutProvider>
+              ) : (
+                <p className="text-base text-gray-400">Loading checkout…</p>
+              )}
+            </div>
+          </div>
         </div>
       ) : (
         <>
@@ -147,7 +222,7 @@ export default function PaymentPage() {
                   key={opt.key}
                   type="button"
                   onClick={() => setFrequency(opt.key)}
-                  className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                  className={`px-4 py-1.5 rounded-md text-base font-medium transition-colors ${
                     frequency === opt.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
@@ -156,27 +231,24 @@ export default function PaymentPage() {
               ))}
             </div>
 
-            <div className="grid grid-cols-4 gap-3">
+            <div className="flex items-end gap-3">
               {PRESET_AMOUNTS.map(value => (
                 <button
                   key={value}
                   type="button"
                   onClick={() => selectPreset(value)}
-                  className={`rounded-md border px-4 py-3 text-sm font-medium transition-colors ${
+                  className={`w-12 h-12 rounded-full border text-base font-semibold transition-colors flex items-center justify-center flex-shrink-0 ${
                     !customAmount && amount === value
-                      ? 'border-gray-900 bg-gray-900 text-white'
-                      : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                      ? 'border-amber-500 bg-amber-500 text-white'
+                      : 'border-gray-300 text-gray-700 hover:border-amber-400'
                   }`}
                 >
                   ${value}
                 </button>
               ))}
-            </div>
 
-            <div className="flex flex-col gap-1">
-              <label className="text-sm font-medium text-gray-700" htmlFor="custom-amount">Custom amount (USD)</label>
-              <div className="relative w-40">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+              <div className="relative w-20">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-base">$</span>
                 <input
                   id="custom-amount"
                   type="number"
@@ -185,37 +257,162 @@ export default function PaymentPage() {
                   value={customAmount}
                   onChange={handleCustomChange}
                   placeholder="0.00"
-                  className="w-full rounded-md border border-gray-300 pl-6 pr-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                  className="w-full rounded-md border border-gray-300 pl-6 pr-2 py-2.5 text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
               </div>
             </div>
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {!user && (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-baseline gap-3">
+                  <label className="text-base font-medium text-gray-700" htmlFor="guest-name">Name (optional)</label>
+                  <button
+                    type="button"
+                    onClick={() => loginWithGoogle(window.location.pathname)}
+                    className="text-sm text-gray-400 underline hover:text-gray-600"
+                  >
+                    Sign in with Google
+                  </button>
+                </div>
+                <input
+                  id="guest-name"
+                  type="text"
+                  value={guestName}
+                  onChange={e => setGuestName(e.target.value.slice(0, NAME_MAX_LEN))}
+                  placeholder="Anonymous"
+                  maxLength={NAME_MAX_LEN}
+                  className="rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 w-full sm:w-64"
+                />
+              </div>
+            )}
+
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2">
+                {user && (
+                  user.avatar_url ? (
+                    <img
+                      src={user.avatar_url}
+                      alt={user.name}
+                      className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-500 flex-shrink-0">
+                      {(user.name || '?').charAt(0).toUpperCase()}
+                    </div>
+                  )
+                )}
+                {user && <span className="text-base font-medium text-gray-700">{user.name}</span>}
+                {user && <span className="text-base text-gray-400">·</span>}
+                <label className="text-base font-medium text-gray-700" htmlFor="payment-message">
+                  Leave a message (optional)
+                </label>
+              </div>
+              <textarea
+                id="payment-message"
+                value={message}
+                onChange={e => setMessage(e.target.value.slice(0, MESSAGE_MAX_LEN))}
+                placeholder="Say something nice…"
+                rows={3}
+                maxLength={MESSAGE_MAX_LEN}
+                className="rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+              />
+              <span className="text-sm text-gray-400 self-end">{message.length}/{MESSAGE_MAX_LEN}</span>
+            </div>
+
+            {error && <p className="text-base text-red-600">{error}</p>}
 
             <button
               type="submit"
               disabled={submitting}
-              className="self-start rounded-md bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
+              className="self-start -mt-3 rounded-full bg-amber-500 px-6 py-2.5 text-base font-semibold text-white hover:bg-amber-600 disabled:opacity-50 transition-colors"
             >
-              {submitting ? 'Redirecting…' : frequency === 'monthly' ? `Pay $${amount || 0}/month` : `Pay $${amount || 0}`}
+              {submitting ? 'Preparing checkout…' : frequency === 'monthly' ? `Pay $${amount || 0}/month` : `Pay $${amount || 0}`}
             </button>
-            <p className="text-xs text-gray-400">
-              You'll be redirected to Stripe to securely enter your payment details.
+            <p className="text-sm text-gray-400">
+              You'll enter your payment details securely below, powered by Stripe.
             </p>
           </form>
 
           <div className="mt-10 pt-6 border-t border-gray-200">
-            <p className="text-sm text-gray-500 mb-2">Already have a monthly payment set up?</p>
-            <button
-              onClick={handleManageSubscription}
-              disabled={manageLoading}
-              className="text-sm font-medium text-gray-700 hover:text-gray-900 underline disabled:opacity-50"
-            >
-              {manageLoading ? 'Loading…' : 'Manage your subscription'}
-            </button>
-            {manageError && <p className="text-sm text-red-600 mt-2">{manageError}</p>}
+            <p className="text-base text-gray-500 mb-2">Already have a monthly payment set up?</p>
+            {user ? (
+              <>
+                <button
+                  onClick={handleManageSubscription}
+                  disabled={manageLoading}
+                  className="text-base font-medium text-gray-700 hover:text-gray-900 underline disabled:opacity-50"
+                >
+                  {manageLoading ? 'Loading…' : 'Manage your subscription'}
+                </button>
+                {manageError && <p className="text-base text-red-600 mt-2">{manageError}</p>}
+              </>
+            ) : (
+              <form onSubmit={handleGuestPortalSubmit} className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                <input
+                  type="email"
+                  required
+                  value={guestEmail}
+                  onChange={e => setGuestEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 w-full sm:w-64"
+                />
+                <button
+                  type="submit"
+                  disabled={guestPortalLoading}
+                  className="rounded-md border border-gray-300 px-4 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                >
+                  {guestPortalLoading ? 'Sending…' : 'Send me a link'}
+                </button>
+              </form>
+            )}
+            {guestPortalMessage && <p className="text-base text-gray-500 mt-2">{guestPortalMessage}</p>}
           </div>
         </>
+      )}
+    </>
+  )
+
+  return (
+    <main className={`mx-auto px-6 py-16 ${commentsEnabled ? 'max-w-5xl' : 'max-w-md'}`}>
+      <h1 className="text-4xl font-bold text-gray-900 mb-2">
+        ☕ {pageName}
+      </h1>
+      <p className="text-gray-500 text-lg mb-8">
+        Enjoying the site? Chip in a one-time or monthly amount to help keep it running.
+      </p>
+
+      {returnLoading && (
+        <div className="mb-6 rounded-lg bg-gray-50 border border-gray-200 px-6 py-5">
+          <p className="text-gray-600 text-base">Checking your payment status…</p>
+        </div>
+      )}
+      {returnStatus === 'success' && (
+        <div className="mb-6 rounded-lg bg-amber-50 border border-amber-200 px-6 py-5 flex items-start justify-between gap-4">
+          <p className="text-amber-800 font-medium">🎉 Thank you for your support!</p>
+          <button onClick={dismissReturnStatus} className="text-amber-700 hover:text-amber-900 text-base">Dismiss</button>
+        </div>
+      )}
+      {returnStatus === 'incomplete' && (
+        <div className="mb-6 rounded-lg bg-gray-50 border border-gray-200 px-6 py-5 flex items-start justify-between gap-4">
+          <p className="text-gray-700">Checkout wasn't completed — no charge was made.</p>
+          <button onClick={dismissReturnStatus} className="text-gray-500 hover:text-gray-700 text-base">Dismiss</button>
+        </div>
+      )}
+
+      {commentsEnabled ? (
+        <div className="flex flex-col lg:flex-row lg:items-start gap-x-12">
+          {/* Payment column: DOM-first so it's on top on mobile; lg:order-2 moves it to the right column on desktop */}
+          <div className="lg:order-2 lg:flex-1 lg:min-w-0">
+            {paymentContent}
+          </div>
+          {/* Comments column: DOM-second so it's below payment on mobile; lg:order-1 moves it to the left column on desktop */}
+          <div className="lg:order-1 lg:flex-1 lg:min-w-0">
+            <PaymentComments enabled={commentsEnabled} />
+          </div>
+        </div>
+      ) : (
+        paymentContent
       )}
     </main>
   )
