@@ -95,6 +95,8 @@ def _config_to_dict(config):
         'blog_enabled': config.blog_enabled,
         'blog_page_name': config.blog_page_name,
         'blog_slug': config.blog_slug,
+        'blog_text': config.blog_text,
+        'blog_meta_description': config.blog_meta_description,
         'projects_enabled': config.projects_enabled,
         'projects_page_name': config.projects_page_name,
         'projects_text': config.projects_text,
@@ -109,6 +111,8 @@ def _config_to_dict(config):
         'contact_enabled': config.contact_enabled,
         'contact_page_name': config.contact_page_name,
         'contact_slug': config.contact_slug,
+        'contact_text': config.contact_text,
+        'contact_meta_description': config.contact_meta_description,
         'mailgun_api_key_set': bool(config.mailgun_api_key),
         'mailgun_domain': config.mailgun_domain,
         'smtp_from_email': config.smtp_from_email,
@@ -116,6 +120,8 @@ def _config_to_dict(config):
         'payment_enabled': config.payment_enabled,
         'payment_page_name': config.payment_page_name,
         'payment_slug': config.payment_slug,
+        'payment_text': config.payment_text,
+        'payment_meta_description': config.payment_meta_description,
         'payment_comments_enabled': config.payment_comments_enabled,
         'stripe_publishable_key': config.stripe_publishable_key,
         'stripe_secret_key_set': bool(config.stripe_secret_key),
@@ -127,6 +133,8 @@ def _config_to_dict(config):
         result['ai_demo_enabled'] = config.ai_demo_enabled
         result['ai_demo_page_name'] = config.ai_demo_page_name
         result['ai_demo_slug'] = config.ai_demo_slug
+        result['ai_demo_text'] = config.ai_demo_text
+        result['ai_demo_meta_description'] = config.ai_demo_meta_description
     return result
 
 
@@ -162,15 +170,16 @@ def update_admin_config():
         'site_title', 'site_description', 'domain', 'favicon_filename', 'timezone', 'users_enabled',
         'google_oauth_client_id',
         'home_enabled', 'home_page_name', 'home_text', 'home_meta_description',
-        'blog_enabled', 'blog_page_name', 'blog_slug',
+        'blog_enabled', 'blog_page_name', 'blog_slug', 'blog_text', 'blog_meta_description',
         'projects_enabled', 'projects_page_name', 'projects_text', 'projects_meta_description', 'projects_slug',
         'about_enabled', 'about_page_name', 'about_text', 'about_meta_description', 'headshot_filename', 'about_slug',
-        'contact_enabled', 'contact_page_name', 'contact_slug',
+        'contact_enabled', 'contact_page_name', 'contact_slug', 'contact_text', 'contact_meta_description',
         'mailgun_domain', 'smtp_from_email', 'forward_email',
         'payment_enabled', 'payment_page_name', 'stripe_publishable_key', 'payment_slug', 'payment_comments_enabled',
+        'payment_text', 'payment_meta_description',
     ]
     if current_app.config['ENABLE_AI_DEMOS']:
-        plain_fields += ['ai_demo_enabled', 'ai_demo_page_name', 'ai_demo_slug']
+        plain_fields += ['ai_demo_enabled', 'ai_demo_page_name', 'ai_demo_slug', 'ai_demo_text', 'ai_demo_meta_description']
     for field in plain_fields:
         if field in data:
             setattr(config, field, data[field])

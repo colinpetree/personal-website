@@ -30,6 +30,8 @@ class SiteConfig(db.Model):
     blog_enabled = db.Column(db.Boolean, nullable=False, default=False)
     blog_page_name = db.Column(db.String(100), nullable=False, default='Blog')
     blog_slug = db.Column(db.String(100), nullable=False, default='blog')
+    blog_text = db.Column(db.Text, nullable=True)
+    blog_meta_description = db.Column(db.Text, nullable=True)
 
     # Projects
     projects_enabled = db.Column(db.Boolean, nullable=False, default=False)
@@ -50,6 +52,8 @@ class SiteConfig(db.Model):
     contact_enabled = db.Column(db.Boolean, nullable=False, default=False)
     contact_page_name = db.Column(db.String(100), nullable=False, default='Contact')
     contact_slug = db.Column(db.String(100), nullable=False, default='contact')
+    contact_text = db.Column(db.Text, nullable=True)
+    contact_meta_description = db.Column(db.Text, nullable=True)
     mailgun_api_key = db.Column(db.Text, nullable=True)  # stored encrypted
     mailgun_domain = db.Column(db.String(255), nullable=True)
     smtp_from_email = db.Column(db.String(255), nullable=True)
@@ -59,11 +63,15 @@ class SiteConfig(db.Model):
     ai_demo_enabled = db.Column(db.Boolean, nullable=False, default=False)
     ai_demo_page_name = db.Column(db.String(100), nullable=False, default='AI Implementations')
     ai_demo_slug = db.Column(db.String(100), nullable=False, default='demo')
+    ai_demo_text = db.Column(db.Text, nullable=True)
+    ai_demo_meta_description = db.Column(db.Text, nullable=True)
 
     # Payment
     payment_enabled = db.Column(db.Boolean, nullable=False, default=False)
     payment_page_name = db.Column(db.String(100), nullable=False, default='Payment')
     payment_slug = db.Column(db.String(100), nullable=False, default='payment')
+    payment_text = db.Column(db.Text, nullable=True)
+    payment_meta_description = db.Column(db.Text, nullable=True)
     stripe_publishable_key = db.Column(db.Text, nullable=True)
     stripe_secret_key = db.Column(db.Text, nullable=True)  # stored encrypted
     stripe_webhook_secret = db.Column(db.Text, nullable=True)  # stored encrypted

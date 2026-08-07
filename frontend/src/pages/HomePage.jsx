@@ -23,7 +23,7 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-white max-w-3xl mx-auto px-6 py-16">
       <div
-        className="prose prose-gray max-w-none blog-content"
+        className="prose prose-gray max-w-none blog-content page-header-content"
         dangerouslySetInnerHTML={{ __html: config.home_text }}
       />
     </main>

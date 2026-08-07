@@ -5,6 +5,7 @@ import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { useUserAuth } from '../context/UserAuthContext'
 import PaymentComments from '../components/PaymentComments'
+import { setMetaDescription } from '../utils/meta'
 
 const PRESET_AMOUNTS = [3, 9, 15, 25]
 const MESSAGE_MAX_LEN = 500
@@ -45,6 +46,7 @@ export default function PaymentPage() {
     if (config?.site_title) {
       document.title = `${config.payment_page_name ?? 'Payment'} - ${config.site_title}`
     }
+    setMetaDescription(config?.payment_meta_description)
   }, [config])
 
   useEffect(() => {
@@ -170,7 +172,6 @@ export default function PaymentPage() {
     }
   }
 
-  const pageName = config?.payment_page_name ?? 'Payment'
   const commentsEnabled = !!config?.payment_comments_enabled
 
   const mainRef = useRef(null)
@@ -397,12 +398,12 @@ export default function PaymentPage() {
   return (
     <main ref={mainRef} className={`mx-auto px-6 py-16 ${commentsEnabled ? 'max-w-5xl' : 'max-w-md'} ${commentsEnabled ? 'lg:h-[calc(100vh-4rem-1px)] lg:overflow-hidden lg:flex lg:flex-col' : ''}`}>
       <div className={commentsEnabled ? 'lg:flex-shrink-0' : ''}>
-        <h1 className="text-4xl font-bold text-gray-900 mb-2">
-          ☕ {pageName}
-        </h1>
-        <p className="text-gray-500 text-lg mb-8">
-          Enjoying the site? Chip in a one-time or monthly amount to help keep it running.
-        </p>
+        {config?.payment_text && (
+          <div
+            className="prose prose-gray max-w-none blog-content page-header-content mb-8"
+            dangerouslySetInnerHTML={{ __html: config.payment_text }}
+          />
+        )}
 
         {returnLoading && (
           <div className="mb-6 rounded-lg bg-gray-50 border border-gray-200 px-6 py-5">

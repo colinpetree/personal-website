@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, EditableCard, Field, Input, InputWithPrefix, Toggle } from '../../components/admin/AdminPage'
 
@@ -61,6 +62,21 @@ export default function AdminAIDemoPage() {
             </>
           )}
         </EditableCard>
+
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Page content</h2>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {config?.ai_demo_text ? 'Content set' : 'No content set'}
+            </p>
+          </div>
+          <Link
+            to="/admin/demo/edit"
+            className="rounded-md bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-700 transition-colors shrink-0"
+          >
+            Edit content
+          </Link>
+        </div>
       </div>
     </PageShell>
   )
