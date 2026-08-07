@@ -55,12 +55,17 @@ function PaymentsSummaryCard() {
             ) : (
               <div className="flex flex-col divide-y divide-gray-100">
                 {summary.recent.map(d => (
-                  <div key={d.id} className="flex items-center justify-between py-2 text-sm">
-                    <div>
+                  <div key={d.id} className="flex items-start justify-between py-2 text-sm gap-3">
+                    <div className="min-w-0">
                       <p className="text-gray-900">{d.donor_name}</p>
                       <p className="text-xs text-gray-400">{new Date(d.created_at).toLocaleDateString()} · {d.mode === 'subscription' ? 'Monthly' : 'One-time'}</p>
+                      {d.message && (
+                        <p className="text-xs text-gray-500 mt-1 italic truncate">
+                          "{d.message}"{d.comment_visible === false && ' (hidden)'}
+                        </p>
+                      )}
                     </div>
-                    <p className="font-medium text-gray-900">{formatCurrency(d.amount)}</p>
+                    <p className="font-medium text-gray-900 flex-shrink-0">{formatCurrency(d.amount)}</p>
                   </div>
                 ))}
               </div>
@@ -90,6 +95,7 @@ export default function AdminPaymentPage() {
             payment_enabled: config?.payment_enabled ?? false,
             payment_page_name: config?.payment_page_name || 'Payment',
             payment_slug: config?.payment_slug || 'payment',
+            payment_comments_enabled: config?.payment_comments_enabled ?? true,
           }}
           onSave={values => save(values)}
         >
@@ -102,6 +108,7 @@ export default function AdminPaymentPage() {
               <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
                 <InputWithPrefix prefix={`https://${config?.domain || 'example.com'}/`} value={local.payment_slug} onChange={e => set('payment_slug', e.target.value.replace(/^\/+/, ''))} placeholder="payment" />
               </Field>
+              <Toggle label="Show supporter comments publicly" checked={local.payment_comments_enabled} onChange={v => set('payment_comments_enabled', v)} />
             </>
           ) : (
             <>
@@ -121,6 +128,15 @@ export default function AdminPaymentPage() {
               <div className="flex flex-col gap-1">
                 <p className="text-xs font-medium text-gray-500">URL</p>
                 <DisplayValue value={local.payment_slug ? `/${local.payment_slug}` : ''} fallback="/payment" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">Supporter comments</p>
+                <p className="text-sm">
+                  {local.payment_comments_enabled
+                    ? <span className="text-[#30cf43] font-medium">Shown publicly</span>
+                    : <span className="text-gray-400">Hidden</span>
+                  }
+                </p>
               </div>
             </>
           )}
