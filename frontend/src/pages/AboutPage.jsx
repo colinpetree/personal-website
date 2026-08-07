@@ -14,13 +14,6 @@ export default function AboutPage() {
 
   return (
     <main className="max-w-3xl mx-auto px-6 py-16">
-      {config?.headshot_filename && (
-        <img
-          src={`/api/uploads/${config.headshot_filename}`}
-          alt="Headshot"
-          className="w-40 h-40 rounded-full object-cover mb-8"
-        />
-      )}
       {config?.about_text ? (
         <div
           className="prose prose-gray max-w-none blog-content page-header-content"

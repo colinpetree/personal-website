@@ -24,7 +24,7 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 | Home | ✅ | ✅ (fixed `/`) | ✅ site title, page text (Lexical), meta description | **DONE** |
 | Blog | ✅ | ✅ | — | **DONE** |
 | Projects | ✅ | ✅ | ✅ page text (Lexical), meta description, + full project CRUD (image, reorder, visibility — beyond spec) | **DONE** |
-| About | ✅ | ✅ | ✅ page text (Lexical), meta description, headshot upload | **DONE** |
+| About | ✅ | ✅ | ✅ page text (Lexical), meta description | **DONE** |
 | Contact | ✅ | ✅ | ✅ full SMTP fields, Test Email dialog | **DONE** (see gap below) |
 | AI Implementations | ✅ | ✅ | — (API keys are env-var only, no admin UI field) | **DONE** as a config shell; page itself is unbuilt (see §6) |
 | Donate/Contribute | ✅ | ✅ | ✅ Stripe publishable/secret/webhook key fields (encrypted) | **DONE** — full Stripe Checkout integration (see §5) |
