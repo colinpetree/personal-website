@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUp, ChevronLeft, Download, ExternalLink, Search } from 'lucide-react'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
-import { useUserAuth } from '../../context/UserAuthContext'
+import { useRequireSignIn } from '../../hooks/useRequireSignIn'
 import SignInRequiredModal from '../../components/SignInRequiredModal'
 
 // Minimal markdown -> React renderer (headings, bold/italic/inline code, lists,
@@ -166,7 +166,7 @@ function EmbeddingPanel({ embedding }) {
 
 export default function RagPage() {
   const { config } = useSiteConfig()
-  const { user } = useUserAuth()
+  const { user, signInAvailable, showSignInModal, setShowSignInModal, requireSignIn } = useRequireSignIn()
   const [query, setQuery] = useState('')
   const [submittedQuery, setSubmittedQuery] = useState('')
   const [sending, setSending] = useState(false)
@@ -174,7 +174,6 @@ export default function RagPage() {
   const [results, setResults] = useState(null) // { vector, bm25, hybrid }
   const [embedding, setEmbedding] = useState(null)
   const [answer, setAnswer] = useState('')
-  const [showSignInModal, setShowSignInModal] = useState(false)
   const revealTimerRef = useRef(null)
   const abortControllerRef = useRef(null)
 
@@ -193,10 +192,7 @@ export default function RagPage() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!user) {
-      setShowSignInModal(true)
-      return
-    }
+    if (!requireSignIn()) return
 
     const text = query.trim()
     if (!text || sending) return
@@ -336,7 +332,7 @@ export default function RagPage() {
         <div className="absolute inset-x-0 bottom-0 px-6 pb-6 pt-10 pointer-events-none">
           <div className="absolute inset-y-0 left-0 right-0 bg-gradient-to-t from-white via-white/85 to-transparent" />
           <div className="max-w-3xl mx-auto pointer-events-auto relative">
-            {!user && (
+            {!user && signInAvailable && (
               <button
                 type="button"
                 aria-label="Sign in required"
@@ -411,10 +407,7 @@ export default function RagPage() {
             <a
               href="/api/ai-demo/rag/source.pdf"
               onClick={e => {
-                if (!user) {
-                  e.preventDefault()
-                  setShowSignInModal(true)
-                }
+                if (!requireSignIn()) e.preventDefault()
               }}
               className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-900"
             >

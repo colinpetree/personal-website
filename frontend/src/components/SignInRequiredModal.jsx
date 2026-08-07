@@ -1,7 +1,24 @@
 import { useUserAuth } from '../context/UserAuthContext'
+import { useSiteConfig } from '../hooks/useSiteConfig'
 
 export default function SignInRequiredModal({ onClose, title = 'Sign in required', message = 'Please sign in to access this demo.' }) {
   const { loginWithGoogle } = useUserAuth()
+  const { config } = useSiteConfig()
+
+  if (!config?.users_enabled) {
+    return (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
+        <div
+          className="bg-white rounded-xl shadow-lg w-full max-w-sm px-6 py-6 text-center"
+          onClick={e => e.stopPropagation()}
+        >
+          <h2 className="text-lg font-semibold text-gray-900 mb-2">Sign-in unavailable</h2>
+          <p className="text-sm text-gray-500 mb-5">Sign-in is currently disabled on this site.</p>
+          <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700">Close</button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
