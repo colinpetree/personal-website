@@ -42,7 +42,7 @@ def _comment_dict(c):
     elif user:
         author_name = user.name
         author_title = user.title
-        author_avatar = user.avatar_url
+        author_avatar = user.display_avatar_url
         is_owner_author = False
     else:
         author_name = c.guest_name or 'Anonymous'

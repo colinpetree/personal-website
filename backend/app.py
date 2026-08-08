@@ -61,8 +61,36 @@ def create_app():
 
     return app
 
+def _migrate_schema():
+    """Idempotent, additive schema patches for columns added after a table
+    already existed — db.create_all() only creates missing tables, it never
+    alters existing ones. Safe to run on every startup."""
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(db.engine)
+    with db.engine.begin() as conn:
+        user_columns = {c['name'] for c in inspector.get_columns('user')}
+        if 'avatar_filename' not in user_columns:
+            conn.execute(text('ALTER TABLE "user" ADD COLUMN avatar_filename VARCHAR(255)'))
+        if 'login_token_hash' not in user_columns:
+            conn.execute(text('ALTER TABLE "user" ADD COLUMN login_token_hash VARCHAR(255)'))
+        if 'login_token_expires' not in user_columns:
+            conn.execute(text('ALTER TABLE "user" ADD COLUMN login_token_expires TIMESTAMP'))
+
+        user_col_info = {c['name']: c for c in inspector.get_columns('user')}
+        if user_col_info.get('google_id', {}).get('nullable') is False:
+            conn.execute(text('ALTER TABLE "user" ALTER COLUMN google_id DROP NOT NULL'))
+
+        config_columns = {c['name'] for c in inspector.get_columns('site_config')}
+        if 'blog_comments_enabled' not in config_columns:
+            conn.execute(text(
+                'ALTER TABLE site_config ADD COLUMN blog_comments_enabled BOOLEAN NOT NULL DEFAULT TRUE'
+            ))
+
+
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
         db.create_all()
+        _migrate_schema()
     app.run(debug=True)

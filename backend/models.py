@@ -81,6 +81,7 @@ class SiteConfig(db.Model):
     favicon_filename = db.Column(db.String(255), nullable=True)
     timezone = db.Column(db.String(100), nullable=False, default='Etc/UTC')
     users_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    blog_comments_enabled = db.Column(db.Boolean, nullable=False, default=True)
     google_oauth_client_id = db.Column(db.Text, nullable=True)
     google_oauth_client_secret = db.Column(db.Text, nullable=True)  # stored encrypted
 
@@ -151,15 +152,24 @@ class User(db.Model):
     __tablename__ = 'user'
 
     id = db.Column(db.Integer, primary_key=True)
-    google_id = db.Column(db.String(255), nullable=False, unique=True)
+    google_id = db.Column(db.String(255), nullable=True, unique=True)
     email = db.Column(db.String(255), nullable=False, unique=True)
     name = db.Column(db.String(200), nullable=False)
     title = db.Column(db.String(200), nullable=True)
     avatar_url = db.Column(db.Text, nullable=True)
+    avatar_filename = db.Column(db.String(255), nullable=True)
+    login_token_hash = db.Column(db.String(255), nullable=True)
+    login_token_expires = db.Column(db.DateTime, nullable=True)
     can_comment = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     comments = db.relationship('Comment', backref='user', lazy='dynamic')
+
+    @property
+    def display_avatar_url(self):
+        if self.avatar_filename:
+            return f'/api/uploads/{self.avatar_filename}'
+        return self.avatar_url
 
 
 class Comment(db.Model):
