@@ -5,6 +5,7 @@ import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { useUserAuth } from '../context/UserAuthContext'
 import PaymentComments from '../components/PaymentComments'
+import SignInRequiredModal from '../components/SignInRequiredModal'
 import { setMetaDescription } from '../utils/meta'
 
 const PRESET_AMOUNTS = [3, 9, 15, 25]
@@ -14,8 +15,9 @@ const GUEST_PORTAL_GENERIC_MESSAGE = "If that email has an active subscription, 
 
 export default function PaymentPage() {
   const { config } = useSiteConfig()
-  const { user, loginWithGoogle } = useUserAuth()
+  const { user } = useUserAuth()
   const [searchParams, setSearchParams] = useSearchParams()
+  const [showSignInModal, setShowSignInModal] = useState(false)
 
   const [step, setStep] = useState('form') // 'form' | 'checkout'
   const [frequency, setFrequency] = useState('once') // 'once' | 'monthly'
@@ -33,6 +35,7 @@ export default function PaymentPage() {
   const [manageLoading, setManageLoading] = useState(false)
   const [manageError, setManageError] = useState('')
 
+  const [showGuestPortalForm, setShowGuestPortalForm] = useState(false)
   const [guestEmail, setGuestEmail] = useState('')
   const [guestPortalMessage, setGuestPortalMessage] = useState('')
   const [guestPortalLoading, setGuestPortalLoading] = useState(false)
@@ -198,6 +201,14 @@ export default function PaymentPage() {
 
   const paymentContent = (
     <>
+      {showSignInModal && (
+        <SignInRequiredModal
+          onClose={() => setShowSignInModal(false)}
+          title="Sign in"
+          message="Sign in to have your name and avatar attached to your support message."
+        />
+      )}
+
       {step === 'checkout' && clientSecret ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
@@ -292,10 +303,10 @@ export default function PaymentPage() {
                   {config?.users_enabled && (
                     <button
                       type="button"
-                      onClick={() => loginWithGoogle(window.location.pathname)}
+                      onClick={() => setShowSignInModal(true)}
                       className="text-sm text-gray-400 underline hover:text-gray-600"
                     >
-                      Sign in with Google
+                      Sign in
                     </button>
                   )}
                 </div>
@@ -370,25 +381,38 @@ export default function PaymentPage() {
                 {manageError && <p className="text-base text-red-600 mt-2">{manageError}</p>}
               </>
             ) : (
-              <form onSubmit={handleGuestPortalSubmit} className="flex flex-col sm:flex-row gap-2 sm:items-center">
-                <input
-                  type="email"
-                  required
-                  value={guestEmail}
-                  onChange={e => setGuestEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  className="rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 w-full sm:w-64"
-                />
+              <>
                 <button
-                  type="submit"
-                  disabled={guestPortalLoading}
-                  className="rounded-md border border-gray-300 px-4 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  type="button"
+                  onClick={() => setShowGuestPortalForm(v => !v)}
+                  className="text-sm text-gray-400 underline hover:text-gray-600"
                 >
-                  {guestPortalLoading ? 'Sending…' : 'Send link'}
+                  Manage subscription
                 </button>
-              </form>
+                {showGuestPortalForm && (
+                  <>
+                    <form onSubmit={handleGuestPortalSubmit} className="flex flex-col sm:flex-row gap-2 sm:items-center mt-3">
+                      <input
+                        type="email"
+                        required
+                        value={guestEmail}
+                        onChange={e => setGuestEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className="rounded-md border border-gray-300 px-3 py-2 text-base text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-400 w-full sm:w-64"
+                      />
+                      <button
+                        type="submit"
+                        disabled={guestPortalLoading}
+                        className="rounded-md border border-gray-300 px-4 py-2 text-base font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                      >
+                        {guestPortalLoading ? 'Sending…' : 'Send link'}
+                      </button>
+                    </form>
+                    {guestPortalMessage && <p className="text-base text-gray-500 mt-2">{guestPortalMessage}</p>}
+                  </>
+                )}
+              </>
             )}
-            {guestPortalMessage && <p className="text-base text-gray-500 mt-2">{guestPortalMessage}</p>}
           </div>
         </>
       )}

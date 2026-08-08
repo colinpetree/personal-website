@@ -96,7 +96,8 @@ export default function SignInRequiredModal({ onClose, title = 'Sign in required
         {mode === 'email' && (
           <form onSubmit={handleSendLink}>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">Sign in with email</h2>
-            <p className="text-sm text-gray-500 mb-4">We'll email you a link to sign in — no password needed.</p>
+            <p className="text-sm text-gray-500">We'll email you a link to sign in</p>
+            <p className="text-sm text-gray-500 mb-4">no password needed</p>
             <input
               type="email"
               required
