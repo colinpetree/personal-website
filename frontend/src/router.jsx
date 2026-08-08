@@ -37,6 +37,7 @@ import AdminPageContentEditor from './pages/admin/AdminPageContentEditor'
 import AdminBlogCommentsPage from './pages/admin/AdminBlogCommentsPage'
 import AdminUsersPage from './pages/admin/AdminUsersPage'
 import UserProfilePage from './pages/UserProfilePage'
+import MagicLinkVerifyPage from './pages/MagicLinkVerifyPage'
 
 // For admin-only pages, editors fall back to /admin/blog and contributors to /admin/blog/posts
 const adminOnlyFallback = (admin) =>
@@ -82,6 +83,7 @@ export function createRouter(slugs = {}) {
         ] : []),
         { path: payment, element: <PaymentPage /> },
         { path: 'profile', element: <UserProfilePage /> },
+        { path: 'auth/magic', element: <MagicLinkVerifyPage /> },
         { path: ':slug', element: <BlogPostPage /> },
         { path: '*', element: <NotFoundPage /> },
       ],

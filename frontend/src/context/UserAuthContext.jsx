@@ -17,6 +17,31 @@ export function UserAuthProvider({ children }) {
     window.location.href = `/api/auth/google?next=${encodeURIComponent(next)}`
   }
 
+  async function requestMagicLink(email, next = window.location.pathname) {
+    const res = await fetch('/api/auth/magic-link/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, next }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to send sign-in link')
+    return data
+  }
+
+  async function verifyMagicLink(token) {
+    const res = await fetch('/api/auth/magic-link/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ token }),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Invalid or expired sign-in link')
+    setUser(data)
+    return data
+  }
+
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
     setUser(null)
@@ -36,7 +61,7 @@ export function UserAuthProvider({ children }) {
   }
 
   return (
-    <UserAuthContext.Provider value={{ user, loading, loginWithGoogle, logout, updateProfile }}>
+    <UserAuthContext.Provider value={{ user, loading, loginWithGoogle, requestMagicLink, verifyMagicLink, logout, updateProfile }}>
       {children}
     </UserAuthContext.Provider>
   )
