@@ -226,14 +226,8 @@ def magic_link_verify():
         logout_user()
     session['user_id'] = user.id
 
-    return jsonify({
-        'id': user.id,
-        'name': user.name,
-        'title': user.title,
-        'email': user.email,
-        'avatar_url': user.display_avatar_url,
-        'can_comment': user.can_comment,
-    })
+    from routes.user import _user_dict
+    return jsonify(_user_dict(user))
 
 
 @auth_bp.route('/api/auth/logout', methods=['POST'])
@@ -263,13 +257,7 @@ def me():
 
     user = get_current_user()
     if user:
-        return jsonify({
-            'id': user.id,
-            'name': user.name,
-            'title': user.title,
-            'email': user.email,
-            'avatar_url': user.display_avatar_url,
-            'can_comment': user.can_comment,
-        })
+        from routes.user import _user_dict
+        return jsonify(_user_dict(user))
 
     return jsonify({'error': 'Not authenticated'}), 401

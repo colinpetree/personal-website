@@ -42,6 +42,28 @@ export function UserAuthProvider({ children }) {
     return data
   }
 
+  async function uploadAvatar(fileOrBlob, filename = 'avatar.png') {
+    const formData = new FormData()
+    formData.append('file', fileOrBlob, fileOrBlob.name || filename)
+    const res = await fetch('/api/user/upload-avatar', {
+      method: 'POST',
+      credentials: 'include',
+      body: formData,
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to upload avatar')
+    setUser(data)
+    return data
+  }
+
+  async function deleteAvatar() {
+    const res = await fetch('/api/user/avatar', { method: 'DELETE', credentials: 'include' })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'Failed to remove avatar')
+    setUser(data)
+    return data
+  }
+
   async function logout() {
     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
     setUser(null)
@@ -61,7 +83,7 @@ export function UserAuthProvider({ children }) {
   }
 
   return (
-    <UserAuthContext.Provider value={{ user, loading, loginWithGoogle, requestMagicLink, verifyMagicLink, logout, updateProfile }}>
+    <UserAuthContext.Provider value={{ user, loading, loginWithGoogle, requestMagicLink, verifyMagicLink, logout, updateProfile, uploadAvatar, deleteAvatar }}>
       {children}
     </UserAuthContext.Provider>
   )

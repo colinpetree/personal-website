@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { X, MoreHorizontal, Eye, EyeOff, Upload } from 'lucide-react'
 import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
 import { useToast } from './Toast'
+import AvatarCropperModal from '../AvatarCropperModal'
 
 export const ROLE_LABELS = {
   contributor: 'Contributor',
@@ -71,6 +72,7 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
 
   // Avatar upload
   const [avatarUploading, setAvatarUploading] = useState(false)
+  const [cropSrc, setCropSrc] = useState(null)
   const avatarInputRef = useRef(null)
 
   const isOwnAccount = admin?.id === account.id
@@ -195,22 +197,38 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
     }
   }
 
-  async function handleAvatarUpload(e) {
+  function handleAvatarSelect(e) {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
+    setCropSrc(URL.createObjectURL(file))
+  }
+
+  function closeCropper() {
+    if (cropSrc) URL.revokeObjectURL(cropSrc)
+    setCropSrc(null)
+  }
+
+  async function handleAvatarCropped(blob) {
     setAvatarUploading(true)
     const formData = new FormData()
-    formData.append('file', file)
+    formData.append('file', blob, 'avatar.png')
     try {
       const res = await fetch('/api/admin/upload', { method: 'POST', credentials: 'include', body: formData })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Upload failed')
       set('avatar_filename', data.filename)
+      closeCropper()
     } catch (err) {
       addToast({ message: err.message })
+      closeCropper()
     } finally {
       setAvatarUploading(false)
     }
+  }
+
+  function handleRemoveAvatar() {
+    set('avatar_filename', null)
   }
 
   const displayName = local.full_name || 'Staff User'
@@ -277,13 +295,30 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
                 <Upload size={16} className="text-white" />
               </button>
             )}
-            <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+            <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleAvatarSelect} />
           </div>
           <p className="text-base font-semibold text-gray-900">{displayName}</p>
           <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${ROLE_BADGE[local.role] || 'bg-gray-100 text-gray-600'}`}>
             {ROLE_LABELS[local.role] || local.role}
           </span>
+          {canEdit && local.avatar_filename && (
+            <button
+              type="button"
+              onClick={handleRemoveAvatar}
+              className="text-xs text-gray-400 hover:text-red-600"
+            >
+              Remove photo
+            </button>
+          )}
         </div>
+
+        {cropSrc && (
+          <AvatarCropperModal
+            imageSrc={cropSrc}
+            onCancel={closeCropper}
+            onCropped={handleAvatarCropped}
+          />
+        )}
 
         {/* Tab bar */}
         <div className="px-6 border-b border-gray-100">
