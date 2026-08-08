@@ -1,14 +1,21 @@
 from functools import wraps
+from datetime import datetime, timedelta
+from threading import Thread
 import json
 import base64
+import hashlib
 import secrets
+from urllib.parse import quote
 from flask import Blueprint, jsonify, request, session, redirect, current_app
 from flask_login import current_user, logout_user
 from extensions import db
 from models import User, SiteConfig
 from crypto import decrypt
+from email_utils import send_email, mail_configured
 
 auth_bp = Blueprint('auth', __name__)
+
+MAGIC_LINK_TTL = timedelta(minutes=15)
 
 GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token'
@@ -104,6 +111,16 @@ def google_callback():
     avatar_url = userinfo.get('picture')
 
     user = User.query.filter_by(google_id=google_id).first()
+    if not user and email:
+        # No Google-linked account yet — but an account may already exist for
+        # this email via magic-link sign-in (which has no google_id). Link the
+        # Google identity onto it instead of trying to insert a second row
+        # with the same email, which would violate the unique constraint.
+        user = User.query.filter(db.func.lower(User.email) == email.lower()).first()
+        if user:
+            user.google_id = google_id
+            if not user.avatar_url:
+                user.avatar_url = avatar_url
     if not user:
         user = User(google_id=google_id, email=email, name=name, avatar_url=avatar_url)
         db.session.add(user)
@@ -116,6 +133,107 @@ def google_callback():
         logout_user()
     session['user_id'] = user.id
     return redirect(next_url)
+
+
+def _send_magic_link_if_valid(app, email, next_url):
+    """Runs in a background thread, after the response has already been sent —
+    keeps magic_link_request()'s response time identical whether or not the
+    email matches an existing account, so timing can't be used to enumerate
+    registered users. Mirrors admin_auth._send_reset_email_if_valid."""
+    with app.app_context():
+        try:
+            config = SiteConfig.query.first()
+            if not (config and config.users_enabled and mail_configured(config) and email):
+                return
+
+            user = User.query.filter_by(email=email).first()
+            if not user:
+                user = User(email=email, name=email.split('@')[0], can_comment=True)
+                db.session.add(user)
+
+            token = secrets.token_urlsafe(32)
+            user.login_token_hash = hashlib.sha256(token.encode()).hexdigest()
+            user.login_token_expires = datetime.utcnow() + MAGIC_LINK_TTL
+            db.session.commit()
+
+            next_param = f'&next={quote(next_url)}' if next_url else ''
+            if config.domain:
+                link_url = f'https://{config.domain.rstrip("/")}/auth/magic?token={token}{next_param}'
+            else:
+                # Dev fallback — the Flask backend isn't where the frontend route
+                # lives; that's the Vite dev server.
+                link_url = f'http://localhost:5173/auth/magic?token={token}{next_param}'
+
+            config.mailgun_api_key = decrypt(config.mailgun_api_key)
+            send_email(
+                config,
+                user.email,
+                'Your sign-in link',
+                f'Click the link below to sign in.\n\n'
+                f'{link_url}\n\n'
+                f'This link expires in 15 minutes. If you did not request this, you can ignore this email.',
+                'Sign In',
+            )
+        except Exception:
+            # Silent by design — this runs after the response is already sent,
+            # so there's nothing left to report the failure to.
+            pass
+
+
+@auth_bp.route('/api/auth/magic-link/request', methods=['POST'])
+def magic_link_request():
+    config = SiteConfig.query.first()
+    if not config or not config.users_enabled:
+        return jsonify({'error': 'User accounts are disabled'}), 403
+
+    from routes.admin_auth import _safe_next_path
+
+    data = request.get_json(silent=True) or {}
+    email = (data.get('email') or '').strip().lower()
+    next_url = _safe_next_path(data.get('next'))
+
+    app = current_app._get_current_object()
+    Thread(target=_send_magic_link_if_valid, args=(app, email, next_url), daemon=True).start()
+
+    # Always return a generic response immediately so neither the response body
+    # nor its timing can be used to enumerate registered emails.
+    return jsonify({'message': 'If that email is registered, a sign-in link has been sent.'})
+
+
+@auth_bp.route('/api/auth/magic-link/verify', methods=['POST'])
+def magic_link_verify():
+    config = SiteConfig.query.first()
+    if not config or not config.users_enabled:
+        return jsonify({'error': 'User accounts are disabled'}), 403
+
+    data = request.get_json(silent=True) or {}
+    token = data.get('token') or ''
+    if not token:
+        return jsonify({'error': 'Token is required'}), 400
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    user = User.query.filter_by(login_token_hash=token_hash).first()
+    if not user or not user.login_token_expires or user.login_token_expires < datetime.utcnow():
+        return jsonify({'error': 'Invalid or expired sign-in link'}), 400
+
+    user.login_token_hash = None
+    user.login_token_expires = None
+    db.session.commit()
+
+    # A fresh magic-link sign-in always wins over a stale admin session in the
+    # same browser — same rule as google_callback's precedence.
+    if current_user.is_authenticated:
+        logout_user()
+    session['user_id'] = user.id
+
+    return jsonify({
+        'id': user.id,
+        'name': user.name,
+        'title': user.title,
+        'email': user.email,
+        'avatar_url': user.display_avatar_url,
+        'can_comment': user.can_comment,
+    })
 
 
 @auth_bp.route('/api/auth/logout', methods=['POST'])
@@ -150,7 +268,7 @@ def me():
             'name': user.name,
             'title': user.title,
             'email': user.email,
-            'avatar_url': user.avatar_url,
+            'avatar_url': user.display_avatar_url,
             'can_comment': user.can_comment,
         })
 

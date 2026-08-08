@@ -29,7 +29,7 @@ def _user_dict(u, comment_count):
         'name': u.name,
         'email': u.email,
         'title': u.title,
-        'avatar_url': u.avatar_url,
+        'avatar_url': u.display_avatar_url,
         'can_comment': u.can_comment,
         'created_at': u.created_at.isoformat() + 'Z',
         'comment_count': comment_count,
