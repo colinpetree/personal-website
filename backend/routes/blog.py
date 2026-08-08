@@ -125,16 +125,23 @@ def get_post(slug):
     return jsonify(_post_to_dict(post, include_content=True))
 
 
+def _comments_enabled(config):
+    return bool(config and config.users_enabled and config.blog_comments_enabled)
+
+
 @blog_bp.route('/api/blog/<slug>/comments')
 def list_comments(slug):
     post = BlogPost.query.filter_by(slug=slug).first_or_404()
+    config = SiteConfig.query.first()
+    if not _comments_enabled(config):
+        return jsonify({'enabled': False, 'comments': []})
     top_level = (
         Comment.query
         .filter_by(post_id=post.id, parent_id=None, is_deleted=False)
         .order_by(Comment.created_at)
         .all()
     )
-    return jsonify([_comment_dict(c) for c in top_level])
+    return jsonify({'enabled': True, 'comments': [_comment_dict(c) for c in top_level]})
 
 
 @blog_bp.route('/api/blog/author')
@@ -153,6 +160,12 @@ def get_blog_author():
 def post_comment(slug):
     post = BlogPost.query.filter_by(slug=slug, status='published').first_or_404()
     config = SiteConfig.query.first()
+
+    # Staff can always comment, regardless of the public comments toggle —
+    # matches the pre-existing behavior this gate is added in front of.
+    if not current_user.is_authenticated and not _comments_enabled(config):
+        return jsonify({'error': 'Comments are disabled.'}), 403
+
     data = request.get_json(silent=True) or {}
     parent_id = data.get('parent_id')
     content = (data.get('content') or '').strip()
@@ -162,10 +175,10 @@ def post_comment(slug):
         if not content:
             return jsonify({'error': 'Message is required.'}), 400
         comment = Comment(post_id=post.id, admin_id=current_user.id, parent_id=parent_id, content=content)
-    elif config and config.users_enabled:
+    else:
         uid = session.get('user_id')
         if not uid:
-            return jsonify({'error': 'Sign in with Google to comment.'}), 401
+            return jsonify({'error': 'Sign in to comment.'}), 401
         user = User.query.get(uid)
         if not user:
             return jsonify({'error': 'User not found.'}), 401
@@ -174,20 +187,6 @@ def post_comment(slug):
         if not content:
             return jsonify({'error': 'Message is required.'}), 400
         comment = Comment(post_id=post.id, user_id=uid, parent_id=parent_id, content=content)
-    else:
-        name = (data.get('name') or '').strip()
-        email = (data.get('email') or '').strip()
-        if not name or not content:
-            return jsonify({'error': 'Name and message are required.'}), 400
-        if email and '@' not in email:
-            return jsonify({'error': 'Invalid email address.'}), 400
-        comment = Comment(
-            post_id=post.id,
-            parent_id=parent_id,
-            content=content,
-            guest_name=name,
-            guest_email=email or None,
-        )
 
     db.session.add(comment)
     db.session.commit()

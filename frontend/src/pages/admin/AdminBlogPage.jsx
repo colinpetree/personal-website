@@ -23,6 +23,7 @@ export default function AdminBlogPage() {
             blog_enabled: config?.blog_enabled ?? false,
             blog_page_name: config?.blog_page_name || 'Blog',
             blog_slug: config?.blog_slug || 'blog',
+            blog_comments_enabled: config?.blog_comments_enabled ?? true,
           }}
           onSave={values => save(values)}
         >
@@ -35,6 +36,8 @@ export default function AdminBlogPage() {
               <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
                 <InputWithPrefix prefix={`https://${config?.domain || 'example.com'}/`} value={local.blog_slug} onChange={e => set('blog_slug', e.target.value.replace(/^\/+/, ''))} placeholder="blog" />
               </Field>
+              <Toggle label="Allow comments" checked={local.blog_comments_enabled} onChange={v => set('blog_comments_enabled', v)} />
+              <p className="text-xs text-gray-400 -mt-2">Comments also require user accounts to be enabled — see the Users settings.</p>
             </>
           ) : (
             <>
@@ -54,6 +57,15 @@ export default function AdminBlogPage() {
               <div className="flex flex-col gap-1">
                 <p className="text-xs font-medium text-gray-500">URL</p>
                 <DisplayValue value={local.blog_slug ? `/${local.blog_slug}` : ''} fallback="/blog" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">Comments</p>
+                <p className="text-sm">
+                  {local.blog_comments_enabled
+                    ? <span className="text-[#30cf43] font-medium">Allowed</span>
+                    : <span className="text-gray-400">Disabled</span>
+                  }
+                </p>
               </div>
             </>
           )}

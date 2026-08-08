@@ -90,4 +90,5 @@ def get_site_config():
         'payment_meta_description': config.payment_meta_description,
         'stripe_publishable_key': config.stripe_publishable_key,
         'payment_comments_enabled': config.payment_comments_enabled,
+        'blog_comments_enabled': config.blog_comments_enabled,
     })

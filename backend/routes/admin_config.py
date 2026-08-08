@@ -76,6 +76,7 @@ def _config_to_dict(config):
         'stripe_publishable_key': config.stripe_publishable_key,
         'stripe_secret_key_set': bool(config.stripe_secret_key),
         'stripe_webhook_secret_set': bool(config.stripe_webhook_secret),
+        'blog_comments_enabled': config.blog_comments_enabled,
     }
     # AI demo settings are only exposed to the admin UI when this deployment
     # has the feature built in — see app.config['ENABLE_AI_DEMOS'].
@@ -120,7 +121,7 @@ def update_admin_config():
         'site_title', 'site_description', 'domain', 'favicon_filename', 'timezone', 'users_enabled',
         'google_oauth_client_id',
         'home_enabled', 'home_page_name', 'home_text', 'home_meta_description',
-        'blog_enabled', 'blog_page_name', 'blog_slug', 'blog_text', 'blog_meta_description',
+        'blog_enabled', 'blog_page_name', 'blog_slug', 'blog_text', 'blog_meta_description', 'blog_comments_enabled',
         'projects_enabled', 'projects_page_name', 'projects_text', 'projects_meta_description', 'projects_slug',
         'about_enabled', 'about_page_name', 'about_text', 'about_meta_description', 'about_slug',
         'contact_enabled', 'contact_page_name', 'contact_slug', 'contact_text', 'contact_meta_description',
