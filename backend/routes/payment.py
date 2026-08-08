@@ -342,6 +342,9 @@ def payment_comments():
     total = query.count()
     rows = query.offset(offset).limit(limit).all()
 
+    user_ids = {p.user_id for p in rows if p.user_id}
+    users = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
+
     return jsonify({
         'enabled': True,
         'comments': [
@@ -352,6 +355,7 @@ def payment_comments():
                 'mode': p.mode,
                 'message': p.message,
                 'created_at': p.created_at.isoformat(),
+                'avatar_url': users[p.user_id].display_avatar_url if p.user_id in users else None,
             }
             for p in rows
         ],

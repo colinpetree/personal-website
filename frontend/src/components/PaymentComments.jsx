@@ -73,9 +73,18 @@ const PaymentComments = forwardRef(function PaymentComments({ enabled }, ref) {
           <div className="flex flex-col divide-y divide-gray-100">
             {comments.map(c => (
               <div key={c.id} className="flex gap-3 py-4">
-                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-base font-semibold text-amber-700 flex-shrink-0">
-                  {(c.display_name || '?').charAt(0).toUpperCase()}
-                </div>
+                {c.avatar_url ? (
+                  <img
+                    src={c.avatar_url}
+                    alt={c.display_name}
+                    className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-base font-semibold text-amber-700 flex-shrink-0">
+                    {(c.display_name || '?').charAt(0).toUpperCase()}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <p className="text-base">
                     <span className="font-medium text-gray-900">{c.display_name}</span>
