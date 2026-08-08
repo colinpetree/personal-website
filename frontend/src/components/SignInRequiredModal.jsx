@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Mail } from 'lucide-react'
+import { Mail, X } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 
@@ -38,12 +38,14 @@ export default function SignInRequiredModal({ onClose, title = 'Sign in required
     return (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
         <div
-          className="bg-white rounded-xl shadow-lg w-full max-w-sm px-6 py-6 text-center"
+          className="relative bg-white rounded-xl shadow-lg w-full max-w-sm px-6 pt-10 pb-6 text-center"
           onClick={e => e.stopPropagation()}
         >
+          <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+            <X size={18} />
+          </button>
           <h2 className="text-lg font-semibold text-gray-900 mb-2">Sign-in unavailable</h2>
-          <p className="text-sm text-gray-500 mb-5">Sign-in is currently disabled on this site.</p>
-          <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700">Close</button>
+          <p className="text-sm text-gray-500">Sign-in is currently disabled on this site.</p>
         </div>
       </div>
     )
@@ -67,14 +69,18 @@ export default function SignInRequiredModal({ onClose, title = 'Sign in required
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
-        className="bg-white rounded-xl shadow-lg w-full max-w-sm px-6 py-6 text-center"
+        className="relative bg-white rounded-xl shadow-lg w-full max-w-sm px-6 pt-10 pb-6 text-center"
         onClick={e => e.stopPropagation()}
       >
+        <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+          <X size={18} />
+        </button>
+
         {mode === 'choice' && (
           <>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">{title}</h2>
             <p className="text-sm text-gray-500 mb-5">{message}</p>
-            <div className="flex flex-col gap-3 mb-3">
+            <div className="flex flex-col gap-3">
               <BarOption onClick={() => loginWithGoogle(window.location.pathname)}>
                 <GoogleIcon />
                 Sign in with Google
@@ -84,7 +90,6 @@ export default function SignInRequiredModal({ onClose, title = 'Sign in required
                 Sign in with email
               </BarOption>
             </div>
-            <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700">Cancel</button>
           </>
         )}
 
@@ -118,10 +123,9 @@ export default function SignInRequiredModal({ onClose, title = 'Sign in required
         {mode === 'sent' && (
           <>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">Check your email</h2>
-            <p className="text-sm text-gray-500 mb-5">
+            <p className="text-sm text-gray-500">
               If {email} is registered, we've sent a sign-in link to it. Click the link in that email to sign in.
             </p>
-            <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700">Close</button>
           </>
         )}
       </div>

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Heart, Reply, MoreHorizontal, ChevronDown, X } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
+import { useSiteConfig } from '../hooks/useSiteConfig'
 import GalleryLightbox from '../components/GalleryLightbox'
 import SignInRequiredModal from '../components/SignInRequiredModal'
 import { setupSegmentLoopVideo } from '../utils/segmentLoopVideo'
@@ -247,89 +248,9 @@ function UserCommentForm({ slug, parentId, parentComment, onSuccess, onCancel, i
   )
 }
 
-function GuestCommentForm({ slug, parentId, parentComment, onSuccess, onCancel, isReply = false }) {
-  const [name, setName] = useState('')
-  const [email, setEmail] = useState('')
-  const [content, setContent] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
-
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setSubmitting(true)
-    setError('')
-    try {
-      const res = await fetch(`/api/blog/${slug}/comments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, content, parent_id: parentId || null }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to post comment')
-      setName('')
-      setEmail('')
-      setContent('')
-      onSuccess()
-    } catch (err) {
-      setError(err.message)
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Name *</label>
-          <input value={name} onChange={e => setName(e.target.value)} required className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Email (optional)</label>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400" />
-        </div>
-      </div>
-      <div>
-        {!isReply && <label className="block text-xs font-medium text-gray-700 mb-1">Comment *</label>}
-        {isReply && parentComment && (
-          <p className="text-xs text-gray-400 mb-2 truncate">
-            Reply to: <span className="font-semibold">{parentComment.content}</span>
-          </p>
-        )}
-        <div className="rounded-md border border-gray-300 focus-within:ring-2 focus-within:ring-gray-400">
-          <textarea
-            value={content}
-            onChange={e => setContent(e.target.value)}
-            required
-            rows={4}
-            placeholder={isReply ? 'Reply to comment…' : undefined}
-            className="w-full rounded-t-md px-3 py-2 text-sm focus:outline-none resize-none"
-            autoFocus={isReply}
-          />
-          <div className="flex items-center justify-between px-2 py-2">
-            {onCancel ? (
-              <button type="button" onClick={onCancel} className="text-sm text-gray-500 hover:text-gray-700 px-2 py-1">
-                Cancel
-              </button>
-            ) : <span />}
-            <button
-              type="submit"
-              disabled={submitting || !content.trim()}
-              className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${content.trim() ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-100 text-gray-400'}`}
-            >
-              {submitting ? 'Posting…' : isReply ? 'Add reply' : 'Add comment'}
-            </button>
-          </div>
-        </div>
-      </div>
-      {error && <p className="text-xs text-red-600">{error}</p>}
-    </form>
-  )
-}
-
 // ── Comment Item ───────────────────────────────────────────────────────────
 
-function CommentItem({ comment, slug, usersEnabled, currentUserId, likedIds, likeDeltas, onLike, onReport, onReplySuccess, depth = 0 }) {
+function CommentItem({ comment, slug, currentUserId, likedIds, likeDeltas, onLike, onReport, onReplySuccess, depth = 0 }) {
   const [showReplyForm, setShowReplyForm] = useState(false)
   const [repliesVisible, setRepliesVisible] = useState(true)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
@@ -339,7 +260,6 @@ function CommentItem({ comment, slug, usersEnabled, currentUserId, likedIds, lik
   const likeCount = (comment.like_count || 0) + (likeDeltas[comment.id] || 0)
   const isOwnComment = currentUserId && comment.user_id === currentUserId
   const hasReplies = comment.replies?.length > 0
-  const ReplyForm = usersEnabled ? UserCommentForm : GuestCommentForm
   const replyParentComment = depth > 0 ? comment : null
 
   useEffect(() => {
@@ -449,7 +369,7 @@ function CommentItem({ comment, slug, usersEnabled, currentUserId, likedIds, lik
         {/* Inline reply form */}
         {showReplyForm && (
           <div className="mt-3">
-            <ReplyForm
+            <UserCommentForm
               slug={slug}
               parentId={comment.id}
               parentComment={replyParentComment}
@@ -468,7 +388,6 @@ function CommentItem({ comment, slug, usersEnabled, currentUserId, likedIds, lik
                 key={r.id}
                 comment={r}
                 slug={slug}
-                usersEnabled={usersEnabled}
                 currentUserId={currentUserId}
                 likedIds={likedIds}
                 likeDeltas={likeDeltas}
@@ -498,11 +417,11 @@ function CommentItem({ comment, slug, usersEnabled, currentUserId, likedIds, lik
 export default function BlogPostPage() {
   const { slug } = useParams()
   const { user: currentUser } = useUserAuth()
+  const { config: siteConfig } = useSiteConfig()
   const [post, setPost] = useState(null)
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
-  const [siteConfig, setSiteConfig] = useState(null)
   const [sort, setSort] = useState('Best')
   const [reportingComment, setReportingComment] = useState(null)
   const [likeDeltas, setLikeDeltas] = useState({})
@@ -525,7 +444,8 @@ export default function BlogPostPage() {
   async function fetchComments() {
     const res = await fetch(`/api/blog/${slug}/comments`)
     if (res.ok) {
-      setComments(await res.json())
+      const data = await res.json()
+      setComments(data.comments || [])
       setLikeDeltas({})
     }
   }
@@ -533,7 +453,6 @@ export default function BlogPostPage() {
   useEffect(() => {
     fetchPost()
     fetchComments()
-    fetch('/api/site-config').then(r => r.ok ? r.json() : null).then(d => { if (d) setSiteConfig(d) })
     fetch('/api/blog/author').then(r => r.ok ? r.json() : null).then(d => { if (d?.name) setBlogAuthor(d) })
   }, [slug])
 
@@ -625,8 +544,7 @@ export default function BlogPostPage() {
     </main>
   )
 
-  const usersEnabled = siteConfig?.users_enabled ?? false
-  const CommentForm = usersEnabled ? UserCommentForm : GuestCommentForm
+  const commentsVisible = !!(siteConfig?.users_enabled && siteConfig?.blog_comments_enabled)
   const sortedComments = sortComments(comments, sort)
   const totalComments = countAllComments(comments)
 
@@ -708,44 +626,45 @@ export default function BlogPostPage() {
         />
       )}
 
-      <section>
-        <div className="flex items-baseline justify-between mb-10">
-          <h2 className="text-xl font-bold text-gray-900">Discussion</h2>
-          {totalComments > 0 && (
-            <span className="text-sm text-gray-400">
-              {totalComments === 1 ? '1 comment' : `${totalComments} comments`}
-            </span>
+      {commentsVisible && (
+        <section>
+          <div className="flex items-baseline justify-between mb-10">
+            <h2 className="text-xl font-bold text-gray-900">Discussion</h2>
+            {totalComments > 0 && (
+              <span className="text-sm text-gray-400">
+                {totalComments === 1 ? '1 comment' : `${totalComments} comments`}
+              </span>
+            )}
+          </div>
+
+          <div className="mb-8">
+            <UserCommentForm slug={slug} onSuccess={fetchComments} />
+          </div>
+
+          {comments.length > 0 && (
+            <>
+              <div className="mb-4">
+                <SortDropdown sort={sort} onChange={setSort} />
+              </div>
+              <div className="divide-y divide-gray-100">
+                {sortedComments.map(c => (
+                  <CommentItem
+                    key={c.id}
+                    comment={c}
+                    slug={slug}
+                    currentUserId={currentUser?.id}
+                    likedIds={likedIds}
+                    likeDeltas={likeDeltas}
+                    onLike={handleLike}
+                    onReport={setReportingComment}
+                    onReplySuccess={fetchComments}
+                  />
+                ))}
+              </div>
+            </>
           )}
-        </div>
-
-        <div className="mb-8">
-          <CommentForm slug={slug} onSuccess={fetchComments} />
-        </div>
-
-        {comments.length > 0 && (
-          <>
-            <div className="mb-4">
-              <SortDropdown sort={sort} onChange={setSort} />
-            </div>
-            <div className="divide-y divide-gray-100">
-              {sortedComments.map(c => (
-                <CommentItem
-                  key={c.id}
-                  comment={c}
-                  slug={slug}
-                  usersEnabled={usersEnabled}
-                  currentUserId={currentUser?.id}
-                  likedIds={likedIds}
-                  likeDeltas={likeDeltas}
-                  onLike={handleLike}
-                  onReport={setReportingComment}
-                  onReplySuccess={fetchComments}
-                />
-              ))}
-            </div>
-          </>
-        )}
-      </section>
+        </section>
+      )}
     </main>
   )
 }
