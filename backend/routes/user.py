@@ -7,6 +7,18 @@ from upload_utils import save_and_optimize_image, IMAGE_OPTIMIZE_EXTENSIONS
 user_bp = Blueprint('user', __name__)
 
 
+def _user_dict(user):
+    return {
+        'id': user.id,
+        'name': user.name,
+        'title': user.title,
+        'email': user.email,
+        'avatar_url': user.display_avatar_url,
+        'avatar_filename': user.avatar_filename,
+        'can_comment': user.can_comment,
+    }
+
+
 @user_bp.route('/api/user/profile', methods=['PUT'])
 @user_required
 def update_profile():
@@ -25,14 +37,7 @@ def update_profile():
     user.title = title or None
     db.session.commit()
 
-    return jsonify({
-        'id': user.id,
-        'name': user.name,
-        'title': user.title,
-        'email': user.email,
-        'avatar_url': user.display_avatar_url,
-        'can_comment': user.can_comment,
-    })
+    return jsonify(_user_dict(user))
 
 
 @user_bp.route('/api/user/upload-avatar', methods=['POST'])
@@ -62,4 +67,17 @@ def upload_avatar():
     user.avatar_filename = filename
     db.session.commit()
 
-    return jsonify({'avatar_filename': filename, 'avatar_url': user.display_avatar_url})
+    return jsonify(_user_dict(user))
+
+
+@user_bp.route('/api/user/avatar', methods=['DELETE'])
+@user_required
+def delete_avatar():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Authentication required'}), 401
+
+    user.avatar_filename = None
+    db.session.commit()
+
+    return jsonify(_user_dict(user))

@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { Upload } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import AvatarCropperModal from '../components/AvatarCropperModal'
 
 export default function UserProfilePage() {
-  const { user, loading, updateProfile } = useUserAuth()
+  const { user, loading, updateProfile, uploadAvatar, deleteAvatar } = useUserAuth()
   const { config } = useSiteConfig()
   const [name, setName] = useState('')
   const [title, setTitle] = useState('')
@@ -11,6 +13,13 @@ export default function UserProfilePage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+  // Shared lock across upload and remove so the two can't race each other —
+  // e.g. removing the avatar while a slower upload is still in flight would
+  // otherwise let the upload's response silently overwrite the removal.
+  const [avatarBusy, setAvatarBusy] = useState(null) // null | 'uploading' | 'removing'
+  const [avatarError, setAvatarError] = useState('')
+  const [cropSrc, setCropSrc] = useState(null)
+  const avatarInputRef = useRef(null)
 
   if (loading) {
     return (
@@ -65,6 +74,47 @@ export default function UserProfilePage() {
     }
   }
 
+  function handleAvatarSelect(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setAvatarError('')
+    setCropSrc(URL.createObjectURL(file))
+  }
+
+  function closeCropper() {
+    if (cropSrc) URL.revokeObjectURL(cropSrc)
+    setCropSrc(null)
+  }
+
+  async function handleCropped(blob) {
+    if (avatarBusy) return
+    setAvatarBusy('uploading')
+    setAvatarError('')
+    try {
+      await uploadAvatar(blob)
+      closeCropper()
+    } catch (err) {
+      setAvatarError(err.message)
+      closeCropper()
+    } finally {
+      setAvatarBusy(null)
+    }
+  }
+
+  async function handleRemoveAvatar() {
+    if (avatarBusy) return
+    setAvatarBusy('removing')
+    setAvatarError('')
+    try {
+      await deleteAvatar()
+    } catch (err) {
+      setAvatarError(err.message)
+    } finally {
+      setAvatarBusy(null)
+    }
+  }
+
   return (
     <main className="max-w-xl mx-auto px-6 py-16">
       <h1 className="text-2xl font-bold text-gray-900 mb-8">Your Profile</h1>
@@ -72,24 +122,61 @@ export default function UserProfilePage() {
       <div className="bg-white border border-gray-200 rounded-xl p-6 flex flex-col gap-6">
         {/* Avatar + name */}
         <div className="flex items-center gap-4">
-          {user.avatar_url ? (
-            <img
-              src={user.avatar_url}
-              alt={user.name}
-              className="w-16 h-16 rounded-full object-cover"
-              referrerPolicy="no-referrer"
+          <div className="relative group flex-shrink-0">
+            {user.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt={user.name}
+                className="w-16 h-16 rounded-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-xl font-semibold text-gray-600">
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={!!avatarBusy}
+              className="absolute inset-0 rounded-full bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+            >
+              <Upload size={16} className="text-white" />
+            </button>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              className="hidden"
+              onChange={handleAvatarSelect}
             />
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-xl font-semibold text-gray-600">
-              {user.name.charAt(0).toUpperCase()}
-            </div>
-          )}
+          </div>
           <div>
             <p className="font-semibold text-gray-900">{user.name}</p>
             {user.title && <p className="text-sm text-gray-500">{user.title}</p>}
             <p className="text-sm text-gray-400">{user.email}</p>
+            {user.avatar_filename && (
+              <button
+                type="button"
+                onClick={handleRemoveAvatar}
+                disabled={!!avatarBusy}
+                className="text-xs text-gray-400 hover:text-red-600 mt-1 disabled:opacity-50"
+              >
+                {avatarBusy === 'removing' ? 'Removing…' : 'Remove photo'}
+              </button>
+            )}
+            {avatarBusy === 'uploading' && <p className="text-xs text-gray-400 mt-1">Uploading…</p>}
+            {avatarError && <p className="text-xs text-red-600 mt-1">{avatarError}</p>}
           </div>
         </div>
+
+        {cropSrc && (
+          <AvatarCropperModal
+            imageSrc={cropSrc}
+            onCancel={closeCropper}
+            onCropped={handleCropped}
+          />
+        )}
 
         {/* Edit form */}
         {editing ? (
