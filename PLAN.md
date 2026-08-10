@@ -1,8 +1,8 @@
-# Personal Website — Overview Plan (Status: 2026-07-31)
+# Personal Website — Overview Plan (Status: 2026-08-08)
 
 ## Context
 
-This replaces the original "make an overview plan" request. The original spec (reproduced in full at the bottom) was written before implementation began. Significant progress has happened since — the Lexical blog editor was built out far beyond spec, several features were deliberately redesigned along the way (feature image instead of auto-thumbnail, top-level post URLs instead of `/blog/slug`, a full 4-tier role system instead of flat admin privilege), and some spec items were never started (AI chat, payments, deploy infra). This document is the new source of truth: as future tasks come in, check here first to see how they fit into what already exists and what's still owed.
+This replaces the original "make an overview plan" request. The original spec (reproduced in full at the bottom) was written before implementation began. Significant progress has happened since — the Lexical blog editor was built out far beyond spec, several features were deliberately redesigned along the way (feature image instead of auto-thumbnail, top-level post URLs instead of `/blog/slug`, a full 4-tier role system instead of flat admin privilege, Donate/Contribute renamed to "Payment" with guest checkout instead of requiring sign-in), and some spec items were never started (deploy infra). This document is the new source of truth: as future tasks come in, check here first to see how they fit into what already exists and what's still owed.
 
 Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 
@@ -12,9 +12,9 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 - [x] React Router (`createBrowserRouter`) with dynamic route generation from `SiteConfig` slugs — `frontend/src/router.jsx`.
 
 ## 2. Navbar
-- [x] Config-driven nav (`config.nav` array from `backend/routes/site_config.py:15-58`), filtered by `enabled` — `frontend/src/components/Navbar.jsx`.
-- [x] All 7 pages wired: Home, Blog, Projects, About, Contact, AI Implementations, Donate.
-- [x] Contact only shows when SMTP is configured; Donate only shows when a Stripe publishable key is set **and** public users (Google login) are enabled — since donating now requires signing in (see §5).
+- [x] Config-driven nav (`config.nav` array from `backend/routes/site_config.py`), filtered by `enabled` — `frontend/src/components/Navbar.jsx`.
+- [x] All 7 pages wired: Home, Blog, Projects, About, Contact, AI Implementations, Payment (renamed from "Donate/Contribute" — see §5).
+- [x] Contact only shows when Mailgun is configured (redesigned from SMTP — see §3d/Contact below); Payment only shows when a Stripe publishable key is set. Signing in is **not** required to see or use the Payment nav item — guests can pay and manage subscriptions by email (see §5).
 
 ## 3. Website Admin
 
@@ -22,17 +22,19 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 | Page | Enable/disable | Name/slug | Content/extra fields | Status |
 |---|---|---|---|---|
 | Home | ✅ | ✅ (fixed `/`) | ✅ site title, page text (Lexical), meta description | **DONE** |
-| Blog | ✅ | ✅ | — | **DONE** |
+| Blog | ✅ | ✅ | ✅ page text (Lexical) above the post list, meta description, comments toggle | **DONE** |
 | Projects | ✅ | ✅ | ✅ page text (Lexical), meta description, + full project CRUD (image, reorder, visibility — beyond spec) | **DONE** |
-| About | ✅ | ✅ | ✅ page text (Lexical), meta description | **DONE** |
-| Contact | ✅ | ✅ | ✅ full SMTP fields, Test Email dialog | **DONE** (see gap below) |
-| AI Implementations | ✅ | ✅ | — (API keys are env-var only, no admin UI field) | **DONE** as a config shell; page itself is unbuilt (see §6) |
-| Donate/Contribute | ✅ | ✅ | ✅ Stripe publishable/secret/webhook key fields (encrypted) | **DONE** — full Stripe Checkout integration (see §5) |
+| About | ✅ | ✅ | ✅ page text (Lexical), meta description (headshot upload removed — see below, photo is now just part of the page text) | **DONE** |
+| Contact | ✅ | ✅ | ✅ page text (Lexical), meta description, Mailgun API key/domain fields (redesigned from SMTP — see below), Test Email dialog | **DONE** |
+| AI Implementations | ✅ | ✅ | ✅ page text (Lexical), meta description (API keys are env-var only, no admin UI field) | **DONE** — config shell **and** all 8 v1 demo cards, see §6 |
+| Payment | ✅ | ✅ | ✅ page text (Lexical), meta description, Stripe publishable/secret/webhook key fields (encrypted), comments toggle | **DONE** — full Stripe Embedded Checkout with guest support (see §5) |
 
 - [x] Domain field → writes `backend/certbot_domain.txt` on save (`backend/routes/admin_config.py:182-186`).
 - [x] Favicon upload (PNG/JPG/JPEG/GIF, plus WebP) → applied via JS-injected `<link rel="icon">` in `Navbar.jsx:29-39`.
 - [x] Admin login (email/password) — `AdminLoginPage.jsx` + `backend/routes/admin_auth.py`.
-- [x] Admin password reset flow — forgot-password link, reset-token endpoints in `backend/routes/admin_auth.py`, reset email via existing SMTP settings. Shipped alongside "sign in as admin" flow and a shared email helper.
+- [x] Admin password reset flow — forgot-password link, reset-token endpoints in `backend/routes/admin_auth.py`, reset email via Mailgun (see redesign below). Shipped alongside a "sign in as admin" flow (`/api/admin/enter-public-site` — lets a logged-in admin browse the public site as themselves, evicting any regular-user session in the same browser) and a shared `backend/email_utils.py` helper.
+- [x] Admin login rate limiting and lockout — per-IP throttling (`LoginAttempt` table, 50 attempts / 15 min window) plus a per-account lockout after `MAX_FAILED_ATTEMPTS` (`AdminAccount.failed_login_attempts`/`lockout_until`, 15-minute lockout) — `backend/routes/admin_auth.py`.
+- [x] Email delivery — **redesigned from spec**: SMTP was replaced with the Mailgun HTTP API (`backend/email_utils.py`, `mailgun_api_key`/`mailgun_domain`/`smtp_from_email`/`forward_email` fields on `SiteConfig`). Used for the Contact form, admin password reset, and user magic-link sign-in (see §4).
 
 ### 3d. Blog Posts (Lexical editor)
 - [x] WYSIWYG Lexical editor → `content_html`.
@@ -51,10 +53,10 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 
 ### 3g. Users (admin-side)
 - [x] Enable/disable users toggle.
-- [~] "Disables comments when off" — in practice it doesn't block commenting, it falls back to a guest-comment form instead. Behavior differs from spec's "disables" wording; worth a decision on whether that's acceptable or needs tightening.
-- [x] "Disables payments when off" — resolved as a side effect of requiring Google login to donate (see §5): the donate nav item now also checks `users_enabled`, and the donate page itself is gated behind sign-in.
+- [x] "Disables comments when off" — **resolved 2026-08-08.** Guest commenting was removed entirely (`Add blog comments toggle and remove guest commenting`): `blog.py`'s `_comments_enabled()` now requires both `users_enabled` **and** the new `blog_comments_enabled` toggle, `BlogPostPage.jsx`'s guest name/email comment form is gone, and unauthenticated visitors are routed to `SignInRequiredModal` (Google or email sign-in) instead. Comments (blog and payment) now always carry a real `User`/`AdminAccount` identity — no more `guest_name`/`guest_email` path for new comments.
+- [x] "Disables payments when off" — **superseded.** Payments no longer require sign-in at all (see §5's guest-checkout redesign), so `users_enabled` has no bearing on the Payment page anymore; this spec line no longer applies as originally worded.
 - [x] Google OAuth client ID/secret configurable in admin.
-- [x] Admin editing a user's profile (name/title/email) — `PUT /api/admin/users/<id>` now accepts `name`/`email`/`title` (`backend/routes/admin_users.py`), surfaced via a profile editing modal + shared `Select` component on the frontend.
+- [x] Admin editing a user's profile (name/title/email) — `PUT /api/admin/users/<id>` now accepts `name`/`email`/`title` (`backend/routes/admin_users.py`), surfaced via `UserProfileModal.jsx` + shared `ui/Select.jsx` component.
 - [x] Prevent a user from commenting (`can_comment` toggle).
 - [x] Export users to CSV.
 
@@ -63,42 +65,43 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 - [x] First admin seeded with default email `admin` / default password `admin`, role `owner` (`backend/seed.py`).
 - [x] Role hierarchy (`contributor < editor < administrator < owner`) replaces the original spec's flat equal-privilege accounts — deliberate upgrade, confirmed working well. Owner-role deletion protection (rather than "first account ever created") is the accepted design; no change needed here.
 
-## 4. Users (public-side, Google OAuth)
+## 4. Users (public-side)
 - [x] Google OAuth login (`backend/routes/auth.py`).
+- [x] **Beyond spec — magic-link email sign-in** (`Add magic-link email sign-in and user avatar uploads`, `Add email sign-in option to the sign-in modal`): a second sign-in path alongside Google, for visitors who don't want to use Google. `POST /api/auth/magic-link/request` emails a 15-minute single-use token via Mailgun (`_send_magic_link_if_valid`, run on a background thread so response timing can't be used to enumerate registered emails); `POST /api/auth/magic-link/verify` (surfaced at `/auth/magic` via `MagicLinkVerifyPage.jsx`) redeems it into a session. Auto-creates a `User` row on first request if the email isn't registered yet. If a Google-linked account already exists for that email, sign-in links onto the same row rather than erroring on the unique-email constraint. `SignInRequiredModal.jsx` now offers both options wherever sign-in is required.
+- [x] **Beyond spec — user avatar uploads with cropping**: `User.avatar_filename` (and the matching `AdminAccount.avatar_filename` for staff) with an in-browser crop step (`AvatarCropperModal.jsx`, `utils/cropImage.js`) before upload, editable from `UserProfilePage.jsx` / `StaffProfileModal.jsx`. `User.display_avatar_url` prefers the uploaded file over the Google-provided `avatar_url`, falling back to it if no upload exists. Shown next to blog comments and payment comments (see §5).
 - [x] Users edit their own name/title shown in comments.
-- [x] Threaded commenting (replies to posts and to other comments).
-- [x] Users accessing a payment form on the donate page — now built (Stripe Checkout). Donating **requires** Google sign-in (a deliberate deviation from the original spec's "access to payment form" wording, decided so subscription self-management could reuse the existing user-identity system — see §5).
+- [x] Threaded commenting (replies to posts and to other comments) — guest commenting removed, all commenters are now signed in (see §3g).
+- [x] Users accessing a payment form — now built (Stripe Embedded Checkout, see §5). **Redesigned from the original "requires Google sign-in" decision**: sign-in is no longer required at all for payments — guests can pay and manage subscriptions by email. Signed-in users still get a streamlined flow (name/email prefilled, "Manage your subscription" without re-entering an email).
 
-## 5. Donate/Contribute page
+## 5. Payment page (renamed from "Donate/Contribute")
 
-### Shipped (2026-07-31)
-- [x] Stripe API key fields in admin config (publishable + secret + webhook signing secret, all encrypted) — `backend/models.py`, `backend/routes/admin_config.py`, `frontend/src/pages/admin/AdminDonatePage.jsx`.
-- [x] Public payment form — `frontend/src/pages/DonatePage.jsx`: preset ($5/$10/$25/$50) + custom amount, one-time/monthly toggle, redirects to Stripe-hosted Checkout (no card data touches our backend). Handles `?status=success` / `?status=cancelled` return states.
+Everything below shipped 2026-07-31 through 2026-08-08. The section title, routes, files, and DB table were all renamed **donate → payment** on 2026-08-06 (`Rename donate/donation to payment throughout the app`): `backend/routes/donate.py` → `backend/routes/payment.py`, `DonatePage.jsx`/`AdminDonatePage.jsx` → `PaymentPage.jsx`/`AdminPaymentPage.jsx`, the `donation` table → `payment` table, `/api/donate/*` → `/api/payment/*`, `donate_slug`/`donate_page_name` → `payment_slug`/`payment_page_name`. This doc uses the new names throughout; if older memory or notes reference "donate", they mean this section.
+
+- [x] Stripe API key fields in admin config (publishable + secret + webhook signing secret, all encrypted) — `backend/models.py`, `backend/routes/admin_config.py`, `frontend/src/pages/admin/AdminPaymentPage.jsx`.
+- [x] **Redesigned twice since the original build**: first from Stripe-hosted Checkout to **Stripe Embedded Checkout** (`ui_mode: 'embedded_page'`), then to drop the sign-in requirement entirely (`Switch payment checkout to Stripe Embedded Checkout with guest support`, `Allow guest checkout without requiring Google login`). This resolves the open question from the 2026-07-31 status: guests can now pay and manage subscriptions without ever signing in.
+- [x] Public payment form — `frontend/src/pages/PaymentPage.jsx`: preset ($5/$10/$25/$50) + custom amount, one-time/monthly toggle, optional message + display name (guests only — signed-in users are identified via their `User.name`), embedded Stripe Checkout iframe, `?status=return&session_id=...` completion handling.
 - [x] One-time vs. subscription options via Stripe Checkout `mode: payment | subscription` with inline `price_data` (no pre-created Stripe Price objects needed).
-- [x] **Donations require Google sign-in** — the donate form is gated behind the same "Sign in with Google" pattern used for blog comments (`UserCommentForm` in `BlogPostPage.jsx`, reused in `DonatePage.jsx`). Decided so subscription self-management could identify the donor without a separate email-verification system.
-- [x] `Donation` ledger table (`backend/models.py`) — `user_id` FK, `stripe_customer_id`/`stripe_subscription_id`, `stripe_object_id` (unique, idempotency against webhook retries), `amount`, `mode`, `created_at`. A brand-new table, so `db.create_all()` picked it up automatically on restart — no manual `ALTER TABLE` needed (unlike the `stripe_webhook_secret` column on the existing `site_config` table).
-- [x] Stripe checkout/webhook backend routes — `backend/routes/donate.py`:
-  - `POST /api/donate/create-checkout-session` (`@user_required`) — passes `customer_email`/`client_reference_id` so the webhook can tie payments back to the logged-in `User`.
-  - `POST /api/donate/webhook` — verifies the Stripe signature; `checkout.session.completed` records the first charge (one-time or a subscription's first invoice), `invoice.paid` records subscription **renewals** only (skips `billing_reason=subscription_create` to avoid double-counting the same invoice); both are idempotent via `stripe_object_id`.
-  - `POST /api/donate/manage-subscription` (`@user_required`) — finds the caller's latest subscription `Donation`, opens a Stripe Billing Portal session, returns the redirect URL. Surfaced as a "Manage your subscription" link on `DonatePage.jsx`.
-  - `GET /api/admin/donate/summary` (`role_at_least('administrator')`) — total received, this-month total, and a recent-transactions list (joined to `User` for donor name), rendered as a "Donations" dashboard card on `AdminDonatePage.jsx` (admin-only, same gate as the Stripe keys card).
-- [x] Nav visibility (`backend/routes/site_config.py`) — donate nav item now also requires `users_enabled`, since donating requires being logged in; closes the previously-tracked "disables payments when off" gap as a side effect.
-- `stripe` added to `requirements.txt`, blueprint registered in `backend/app.py`.
+- [x] `Payment` ledger table (`backend/models.py`, renamed from `Donation`) — `user_id` FK (nullable — guests have none), `email`, `display_name`, `message`, `comment_visible`, `stripe_customer_id`/`stripe_subscription_id`, `stripe_object_id` (unique, idempotency against webhook retries), `amount`, `mode`, `created_at`.
+- [x] Stripe checkout/webhook backend routes — `backend/routes/payment.py`:
+  - `POST /api/payment/create-checkout-session` — no longer `@user_required`. Signed-in users get `customer_email`/`client_reference_id` set automatically; guests supply `display_name` directly and get `customer_creation: 'if_required'` in one-time mode (subscriptions always create a Stripe Customer on their own).
+  - `POST /api/payment/checkout-session-status` — polls a session's status/payment_status for the return page.
+  - `POST /api/payment/webhook` — verifies the Stripe signature; `checkout.session.completed` records the first charge (one-time or a subscription's first invoice) via `_record_payment`, `invoice.paid` records subscription **renewals** only (skips `billing_reason=subscription_create` to avoid double-counting), carrying forward the payer's identity but not their original message. Both idempotent via `stripe_object_id`.
+  - `POST /api/payment/manage-subscription` (`@user_required`) — for signed-in users: finds their latest subscription `Payment`, opens a Stripe Billing Portal session.
+  - `POST /api/payment/guest-portal-link` — **new, guest equivalent of manage-subscription**: takes an email, looks up the matching subscription by `Payment.email`, and emails a Billing Portal link via Mailgun. Always returns the same generic message regardless of whether the email matched (enumeration-resistant, mirrors the magic-link/reset-password pattern), and is IP-throttled via the new `PortalLinkRequest` table (5 requests / hour / IP). Any internal failure (bad Stripe key, mail failure) is logged but never changes the response shape.
+  - `GET /api/payment/comments` — public, paginated list of payments that opted in to a visible comment (`comment_visible` + non-empty `message`), each with `display_name`, `amount`, `mode`, `message`, and the payer's avatar if they were signed in. Gated on the new `payment_comments_enabled` toggle. Rendered by `PaymentComments.jsx` on the public page.
+  - `GET /api/admin/payment/summary` (`role_at_least('administrator')`) — total received, this-month total, recent-transactions list (now also shows `comment_visible` per row), on `AdminPaymentPage.jsx`.
+- `stripe` in `requirements.txt`, blueprint registered in `backend/app.py`.
 
-**Manual steps required** (this project has no migration tooling, per `CLAUDE.md`):
-1. Run `ALTER TABLE site_config ADD COLUMN stripe_webhook_secret TEXT;` in pgAdmin (existing-table column addition needs this; the new `donation` table does not).
-2. Run `pip install -r requirements.txt` in the backend venv for the new `stripe` dependency.
-3. In the Stripe Dashboard, create a webhook destination at `https://<domain>/api/donate/webhook` listening for `checkout.session.completed` and `invoice.paid`, and paste its signing secret into the admin donate page.
-4. In the Stripe Dashboard, save a default Customer Portal configuration (Settings → Billing → Customer portal) — required before `manage-subscription` will work.
+**Manual steps required** (this project has no migration tooling, per `CLAUDE.md`): see `backend/migrations/2026_donate_overhaul.sql` and `2026_donate_to_payment_rename.sql` for the exact `ALTER TABLE`/rename statements to run in pgAdmin, in addition to the original webhook-secret column addition and Stripe Dashboard webhook/Customer Portal setup already noted for the initial build.
 
-**Verified locally** (2026-07-31) via `stripe listen` in test mode: checkout → payment → `checkout.session.completed` webhook → `Donation` row recorded end to end. One bug fixed during testing — the installed `stripe` SDK returns `StripeObject`s that don't support dict-style `.get()`; switched to `getattr(obj, 'field', default)` throughout the webhook handler. Renewal (`invoice.paid`), the admin dashboard numbers, and the manage-subscription portal redirect are implemented but not yet individually re-verified after that fix.
+**Verified locally** (2026-07-31, pre-rename) via `stripe listen` in test mode: checkout → payment → webhook → ledger row recorded end to end, including the `StripeObject`-has-no-`.get()` fix (`getattr(obj, 'field', default)` throughout the webhook handler). The guest-checkout and embedded-checkout redesign (2026-08-06) has not been individually re-verified against a live Stripe test session since.
 
-**Open question — revisit later**: is requiring Google login for *all* donations (including small one-time gifts) the right call? Flagged by the user as likely to change — it adds real friction before payment for casual donors and doesn't add actual payment security (Stripe already owns fraud/chargeback risk independent of site login). It was chosen because it made subscription self-management trivial to build safely with no separate identity-verification system. If revisited, the likely direction is: allow anonymous one-time checkout, and only require identity (login or a magic-link-style email flow) for the manage-subscription path specifically — which would need `create_checkout_session` to support an anonymous path and `Donation.user_id` to become nullable. Not scheduled.
+**Open question from 2026-07-31 — now resolved**: the guest-checkout redesign above was the "likely direction" flagged back then, now shipped. No open question remains here.
 
 ## 6. AI Implementations page
 
-- [~] **8 of 8 v1 cards shipped: Conversation basics, Tool use, MCP, Web search, RAG, Prompt evaluation, Prompt engineering, Vision.** `AIDemoPage.jsx` is a Google-login-gated grid of all 8 cards, all clickable. Backend: `backend/routes/ai_demo.py` (`ai_demo_bp`, registered in `app.py` gated on `ENABLE_AI_DEMOS`) exposes one route per demo under `/api/ai-demo/<demo>/<action>`, always `@user_required`, always a `_client()` → 503 guard when `ANTHROPIC_API_KEY` is missing (env-var only, confirmed decision — no encrypted admin fields). Conversation basics streams plain text; Tool use and MCP run a client-side agentic tool loop (NDJSON `text_delta`/`tool_call`/`tool_result`/`done`/`error` events); Web search uses Anthropic's built-in server-side `web_search_20250305` tool (`server_tool_use`/`web_search_tool_result` content blocks), single-call (no client loop needed), events assembled by iterating `stream.current_message_snapshot` at each `content_block_stop` to preserve real chronological order. RAG is a single query → results UI (not chat): `backend/rag_index.py` ports a from-scratch `VectorIndex`/`BM25Index`/`Retriever` (reciprocal rank fusion) classes over a fixed canned sample document, lazily building the index once per process (module-level cache + lock) on first request; `POST /api/ai-demo/rag/search` gates on both `ANTHROPIC_API_KEY` and `VOYAGE_API_KEY` (`voyageai`, now in use), yields one `retrieval` NDJSON event (vector/bm25/hybrid ranked chunks) followed by `text_delta`s for an answer generated only from the hybrid results. Prompt evaluation is a run-and-results UI (not chat): `POST /api/ai-demo/prompt-evaluation/run` runs a fixed 3-case dataset (JSON/Python/regex code-gen tasks) through a `ThreadPoolExecutor` two-stage pipeline — all 3 outputs generated concurrently, then all 3 graded concurrently (a local deterministic syntax check plus an LLM-judge rubric score) — yielding `output`/`graded` NDJSON events via `as_completed` as each test case finishes each stage, so `PromptEvaluationPage.jsx` renders 3 side-by-side columns that resolve together rather than one at a time. Prompt engineering is a single-input, side-by-side output UI (not chat): `POST /api/ai-demo/prompt-engineering/run` takes a visitor-editable passage (defaults to a canned sample), runs it through a fixed naive prompt and a fixed refined prompt concurrently via the same `ThreadPoolExecutor` two-stage pattern (generate both, then grade both against one shared `solution_criteria` with the same LLM-judge rubric approach as Prompt evaluation, minus the syntax-check stage since there's no deterministic format to validate here), yielding `prompts`/`output`/`graded`/`summary` NDJSON events so `PromptEngineeringPage.jsx` shows both prompts' text plus their scored outputs side by side with a score-delta summary. Vision is an upload → analysis UI (not chat), and the simplest route shape of all eight — no tools, just `conversation-basics`'s plain-text `text/plain` stream: `POST /api/ai-demo/vision/analyze` takes a visitor-uploaded image (base64 + media_type, validated against a 5MB size cap and an allowed JPEG/PNG/GIF/WebP type set before any API call), sends it as an `image` content block alongside a single fixed general-purpose analysis prompt, and streams the response back — nothing is persisted to `backend/uploads/` or anywhere else, the image only ever exists in that one request. `VisionPage.jsx` is a drag-and-drop/click upload zone with an image preview, "Analyze image" trigger, and the same markdown-render + reveal-timer treatment as every other demo's output.
-- Not yet manually verified in-browser (needs a real Google OAuth login to reach the gated page) — should be smoke-tested before considering this slice fully done.
+- [x] **8 of 8 v1 cards shipped: Conversation basics, Tool use, MCP, Web search, RAG, Prompt evaluation, Prompt engineering, Vision.** All built 2026-08-03 through 2026-08-05, in the order they appear on the grid, then reordered/copy-tweaked (`Reorder demo cards and tweak copy on the AI Implementations page`). Manually smoke-tested — the previous "not yet verified in-browser" note is stale.
+- [x] **Access control loosened from the original decision (2026-08-03, `Preview AI demos without sign-in and add gated sign-in modal`)**: visitors can now open any demo card and see its UI without signing in first; the sign-in gate (`SignInRequiredModal`, Google or email) only fires when they actually try to run a demo (submit a message, run a query, etc.) rather than blocking the whole page up front. `useRequireSignIn` (`frontend/src/hooks/useRequireSignIn.js`) is the shared hook every demo page now calls to wrap its "run" action. `AIDemoPage.jsx` itself (`AI-demo-guidelines` skill covers required conventions for any further changes here). `AIDemoPage.jsx` is now a preview-first grid of all 8 cards. Backend: `backend/routes/ai_demo.py` (`ai_demo_bp`, registered in `app.py` gated on `ENABLE_AI_DEMOS`) exposes one route per demo under `/api/ai-demo/<demo>/<action>`, always `@user_required`, always a `_client()` → 503 guard when `ANTHROPIC_API_KEY` is missing (env-var only, confirmed decision — no encrypted admin fields). Conversation basics streams plain text; Tool use and MCP run a client-side agentic tool loop (NDJSON `text_delta`/`tool_call`/`tool_result`/`done`/`error` events); Web search uses Anthropic's built-in server-side `web_search_20250305` tool (`server_tool_use`/`web_search_tool_result` content blocks), single-call (no client loop needed), events assembled by iterating `stream.current_message_snapshot` at each `content_block_stop` to preserve real chronological order. RAG is a single query → results UI (not chat): `backend/rag_index.py` ports a from-scratch `VectorIndex`/`BM25Index`/`Retriever` (reciprocal rank fusion) classes over a fixed canned sample document, lazily building the index once per process (module-level cache + lock) on first request; `POST /api/ai-demo/rag/search` gates on both `ANTHROPIC_API_KEY` and `VOYAGE_API_KEY` (`voyageai`, now in use), yields one `retrieval` NDJSON event (vector/bm25/hybrid ranked chunks) followed by `text_delta`s for an answer generated only from the hybrid results. Prompt evaluation is a run-and-results UI (not chat): `POST /api/ai-demo/prompt-evaluation/run` runs a fixed 3-case dataset (JSON/Python/regex code-gen tasks) through a `ThreadPoolExecutor` two-stage pipeline — all 3 outputs generated concurrently, then all 3 graded concurrently (a local deterministic syntax check plus an LLM-judge rubric score) — yielding `output`/`graded` NDJSON events via `as_completed` as each test case finishes each stage, so `PromptEvaluationPage.jsx` renders 3 side-by-side columns that resolve together rather than one at a time. Prompt engineering is a single-input, side-by-side output UI (not chat): `POST /api/ai-demo/prompt-engineering/run` takes a visitor-editable passage (defaults to a canned sample), runs it through a fixed naive prompt and a fixed refined prompt concurrently via the same `ThreadPoolExecutor` two-stage pattern (generate both, then grade both against one shared `solution_criteria` with the same LLM-judge rubric approach as Prompt evaluation, minus the syntax-check stage since there's no deterministic format to validate here), yielding `prompts`/`output`/`graded`/`summary` NDJSON events so `PromptEngineeringPage.jsx` shows both prompts' text plus their scored outputs side by side with a score-delta summary. Vision is an upload → analysis UI (not chat), and the simplest route shape of all eight — no tools, just `conversation-basics`'s plain-text `text/plain` stream: `POST /api/ai-demo/vision/analyze` takes a visitor-uploaded image (base64 + media_type, validated against a 5MB size cap and an allowed JPEG/PNG/GIF/WebP type set before any API call), sends it as an `image` content block alongside a single fixed general-purpose analysis prompt, and streams the response back — nothing is persisted to `backend/uploads/` or anywhere else, the image only ever exists in that one request. `VisionPage.jsx` is a drag-and-drop/click upload zone with an image preview, "Analyze image" trigger, and the same markdown-render + reveal-timer treatment as every other demo's output.
 
 ### Product design
 - Public `/demo` page shows a **grid of cards**, one per AI capability, each with a title + short description.
@@ -124,12 +127,12 @@ Checkbox key: `[x]` done, `[~]` partial/needs follow-up, `[ ]` not started.
 
 **RAG data source**: a fixed sample dataset (small canned document set) — not the site's live blog content, and not visitor-uploaded documents. Keeps the demo self-contained and independent of how much blog content exists at any given time.
 
-**Access control**: demos require Google login (reuse the existing `UserAuthContext`/Google OAuth system already built for blog comments) rather than being open to anonymous visitors or rate-limited by IP. This ties every live Anthropic/Voyage API call to an identifiable account for abuse tracing and keeps the existing users system as the single gate for anything that costs money to run.
+**Access control**: sign-in (Google or email magic-link) is required to actually *run* a demo, ties every live Anthropic/Voyage API call to an identifiable account for abuse tracing, and keeps the existing users system as the single gate for anything that costs money to run. **Loosened 2026-08-03** from the original "gate the whole page" decision above — see the status line at the top of this section.
 
-### Still open for the implementation-planning pass (not yet decided)
-- Exact backend architecture: one Flask blueprint per demo vs. a shared `AIDemoService`-style module.
-- Whether `ANTHROPIC_API_KEY`/`VOYAGE_API_KEY` stay env-var-only or get admin-configurable fields (current `AdminAIDemoPage.jsx` only documents them as env vars).
-- Frontend: new `frontend/src/pages/AIDemoPage.jsx` becomes the card grid; each demo likely gets its own route (e.g. `/demo/tool-use`) and page component under a new `frontend/src/pages/ai-demos/` directory.
+### Implementation-planning questions — now resolved
+- Backend architecture: one Flask blueprint per demo action under `ai_demo_bp`, not a separate service module.
+- `ANTHROPIC_API_KEY`/`VOYAGE_API_KEY` stayed env-var-only, as originally leaning.
+- Frontend: `AIDemoPage.jsx` is the card grid; each demo has its own route under `frontend/src/pages/ai-demos/` (e.g. `/demo/tool-use`).
 
 ### Build flag: making the whole AI demo feature optional for other users of this project (shipped 2026-07-31)
 
@@ -146,7 +149,7 @@ Added a **deployment-time** env flag on both sides (separate from the runtime `a
 - [ ] **Flask does not serve the built frontend.** No static/catch-all route in `backend/app.py`. Frontend and backend are architected as two separately-deployed services (implying a reverse proxy is expected in front of them), but that reverse-proxy layer doesn't exist in-repo either.
 
 ## 8. Dependency lists
-- [x] `backend/requirements.txt` — pinned, reasonably complete for what's built (no `stripe`, no `anthropic`/`voyageai` — consistent with §5/§6 being unbuilt).
+- [x] `backend/requirements.txt` — pinned, includes `stripe`, `anthropic`, `voyageai` for §5/§6.
 - [x] `frontend/package.json` — complete for what's built.
 
 ## 9. Deploy dependencies: Let's Encrypt / Certbot, Varnish
@@ -155,20 +158,25 @@ Added a **deployment-time** env flag on both sides (separate from the runtime `a
 
 ---
 
-## What's actually left to reach the current target (priority-ordered, roughly cheapest → biggest)
+## What's actually left to reach the current target
 
-1. ~~Admin password reset~~ — **done**, see §3a above.
-2. ~~Render `meta_description` as a real `<meta name="description">` tag~~ — **done**. `frontend/src/utils/meta.js` adds a shared `setMetaDescription()` helper that upserts `<meta name="description">`; wired into `BlogPostPage.jsx` (post's `meta_description`, falls back to `excerpt`), `HomePage.jsx`, `AboutPage.jsx`, `ProjectsPage.jsx` (their `*_meta_description` config fields). `backend/routes/site_config.py` now also exposes `home_meta_description`/`projects_meta_description`/`about_meta_description` on the public `/api/site-config` endpoint (previously admin-only).
-3. **Next up.** Wire `users_enabled=false` to actually disable commenting (not just fall back to guest mode) — the donate-page half of this is now done, see §5.
-4. ~~Admin ability to edit a user's own profile fields (name/title/email)~~ — **done**, see §3g above.
-5. ~~AI Implementations page~~ — **done**: all 8 v1 cards shipped (conversation basics, tool use, RAG, MCP, prompt evaluation, prompt engineering, web search, vision), see §6 above. Not yet manually smoke-tested in-browser.
-6. ~~Donate/Contribute — Stripe Checkout integration~~ — **done**, see §5 above.
-7. Deployment infrastructure: combined build pipeline, Flask/nginx static-serving or reverse-proxy setup, actual certbot automation consuming `certbot_domain.txt`, Varnish cache layer, and general "how does this get deployed to a Linux box" documentation/scripting — none of this exists yet.
+Every spec item is now done except deployment infrastructure — the one substantial gap remaining:
+
+1. **Only open item.** Deployment infrastructure: combined build pipeline, Flask/nginx static-serving or reverse-proxy setup, actual certbot automation consuming `certbot_domain.txt`, Varnish cache layer, and general "how does this get deployed to a Linux box" documentation/scripting — none of this exists yet (§7/§9).
+
+Everything else closed out since the 2026-07-31 status, beyond what's already detailed in the sections above:
+- ~~Admin password reset~~, ~~meta descriptions as real `<meta>` tags~~, ~~admin editing a user's profile~~, ~~AI Implementations page (all 8 cards)~~, ~~Donate/Contribute Stripe integration~~ — all done, see §3a/§6/§3g/§6/§5.
+- ~~Wire `users_enabled=false` to actually disable commenting~~ — **done 2026-08-08**, see §3g: guest commenting was removed outright rather than tightening the guest-fallback, so this is moot now.
+- Beyond-spec additions not on the original punch list at all: magic-link email sign-in, user/staff avatar uploads with cropping, admin login rate limiting/lockout, Mailgun replacing SMTP, page-content editing extended to Blog/Contact/AI Demo/Payment (previously only Home/Projects/About), payment comments with avatars, guest checkout + guest subscription management by email. See §3a/§4/§5.
 
 ## Deliberate deviations from the original spec (not gaps — just documenting the decision trail)
 - Blog thumbnails: manual "Feature Image" field, not auto-derived from the post's first image.
 - Blog post URLs: top-level (`/my-post`), not nested under `/blog/`.
 - Admin accounts: full 4-tier role hierarchy (`contributor < editor < administrator < owner`) instead of flat equal-privilege accounts, with owner-role deletion protection instead of first-account protection — confirmed working better than the original design, keep as-is.
+- Donate/Contribute renamed to "Payment" throughout the codebase (routes, files, DB table, config fields) — see §5.
+- Payments and comments no longer require Google sign-in at all — original spec implied a payment form behind login, then an intermediate 2026-07-31 decision required Google login for *all* payments; both were superseded by full guest support (guest checkout, guest subscription management by email, and a second email-magic-link sign-in option alongside Google for anyone who does want an account). See §4/§5.
+- Email delivery: Mailgun HTTP API instead of raw SMTP (`Replace SMTP email sending with Mailgun API`) — used for Contact, admin password reset, and magic-link sign-in.
+- About page headshot: removed as a dedicated upload field — the photo is now just whatever the admin puts in the page's Lexical text content, same as every other page.
 
 ---
 
