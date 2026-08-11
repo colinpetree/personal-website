@@ -838,10 +838,6 @@ PROMPT_ENGINEERING_GRADER_MAX_TOKENS = 512
 
 PROMPT_ENGINEERING_TASK = 'Extract topics mentioned from a passage of text into a JSON array of strings.'
 
-# Original passages written for this demo (not sourced from the reference course material) - fixed
-# and read-only in the UI, since the point of this demo is comparing prompts, not passages. Each is
-# written with room for a naive extractor to over-infer, duplicate, or vary granularity, so the
-# refined prompt's improvement is visible.
 PROMPT_ENGINEERING_PASSAGES = {
     'coral-reefs': {
         'label': 'Coral reef bleaching',
@@ -906,15 +902,8 @@ PROMPT_ENGINEERING_SOLUTION_CRITERIA = (
 
 PROMPT_ENGINEERING_MAX_PROMPT_CHARS = 1000
 
-# Reference: 03-prompt-engineering/008_Prompting_Exercise.ipynb cell-6, stripped down further -
-# deliberately bare-bones (no guidelines, no worked example) so the naive/refined gap is visible.
-# Editable by the visitor in the UI; this is only the seed default.
 PROMPT_ENGINEERING_DEFAULT_NAIVE_PROMPT = 'Generate a JSON array of strings of the topics names from the paragraph'
 
-# Reference: same notebook, cell-7 ("instructor solution") - explicit numbered steps instead of
-# leaving inference/granularity/dedup judgment implicit. Editable by the visitor in the UI. Contains
-# a literal "{passage}" placeholder that _build_prompt_engineering_message substitutes the selected
-# passage into, so the visitor can see and control exactly where it lands in the prompt.
 PROMPT_ENGINEERING_DEFAULT_REFINED_PROMPT = (
     'Extract key topics mentioned from a passage of text from a scholarly journal into a JSON array '
     'of strings.\n\n'
