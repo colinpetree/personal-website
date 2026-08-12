@@ -2,8 +2,21 @@ import os
 import uuid
 import base64
 import io
+from flask import current_app
 
 IMAGE_OPTIMIZE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
+
+
+def get_app_data_dir():
+    """Persistent runtime data directory — defaults to the Flask app's own
+    root (today's behavior, for local dev) but is overridable via
+    APP_DATA_DIR so a versioned release/PyInstaller bundle can point uploads,
+    certbot_domain.txt, etc. at a stable location that survives upgrades."""
+    return os.getenv('APP_DATA_DIR', current_app.root_path)
+
+
+def get_uploads_dir():
+    return os.path.join(get_app_data_dir(), 'uploads')
 
 
 def optimize_image(input_path, uploads_dir, base_name):

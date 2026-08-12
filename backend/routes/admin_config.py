@@ -8,7 +8,8 @@ from models import SiteConfig, SiteEventLog
 from crypto import encrypt, decrypt
 from routes.admin_auth import admin_required, role_at_least
 from email_utils import send_email, mail_configured
-from upload_utils import save_and_optimize_image, IMAGE_OPTIMIZE_EXTENSIONS
+from upload_utils import save_and_optimize_image, IMAGE_OPTIMIZE_EXTENSIONS, get_app_data_dir, get_uploads_dir
+from varnish_purge import purge_all_public
 
 admin_config_bp = Blueprint('admin_config', __name__)
 
@@ -147,7 +148,7 @@ def update_admin_config():
 
     # Write domain to certbot_domain.txt when set
     if 'domain' in data and data['domain']:
-        cert_file = os.path.join(current_app.root_path, 'certbot_domain.txt')
+        cert_file = os.path.join(get_app_data_dir(), 'certbot_domain.txt')
         with open(cert_file, 'w') as f:
             f.write(data['domain'])
 
@@ -169,6 +170,7 @@ def update_admin_config():
 
     from extensions import db
     db.session.commit()
+    purge_all_public()
     return jsonify(_config_to_dict(config))
 
 
@@ -187,7 +189,7 @@ def upload_file():
         return jsonify({'error': 'File type not allowed.'}), 400
 
     base_name = uuid.uuid4().hex
-    uploads_dir = os.path.join(current_app.root_path, 'uploads')
+    uploads_dir = get_uploads_dir()
     os.makedirs(uploads_dir, exist_ok=True)
 
     if ext in IMAGE_OPTIMIZE_EXTENSIONS:
@@ -236,7 +238,7 @@ def upload_recording():
         return jsonify({'error': 'No file provided'}), 400
 
     base = uuid.uuid4().hex
-    uploads_dir = os.path.join(current_app.root_path, 'uploads')
+    uploads_dir = get_uploads_dir()
     os.makedirs(uploads_dir, exist_ok=True)
 
     orig_ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in (file.filename or '') else 'webm'

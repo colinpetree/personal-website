@@ -1,8 +1,7 @@
-import os
-from flask import Blueprint, jsonify, request, current_app
+from flask import Blueprint, jsonify, request
 from extensions import db
 from routes.auth import get_current_user, user_required
-from upload_utils import save_and_optimize_image, IMAGE_OPTIMIZE_EXTENSIONS
+from upload_utils import save_and_optimize_image, IMAGE_OPTIMIZE_EXTENSIONS, get_uploads_dir
 
 user_bp = Blueprint('user', __name__)
 
@@ -58,7 +57,7 @@ def upload_avatar():
     if ext not in IMAGE_OPTIMIZE_EXTENSIONS:
         return jsonify({'error': 'File type not allowed. Use PNG, JPG, or WebP.'}), 400
 
-    uploads_dir = os.path.join(current_app.root_path, 'uploads')
+    uploads_dir = get_uploads_dir()
     try:
         filename, _srcset, _lqip = save_and_optimize_image(file, uploads_dir)
     except Exception:
