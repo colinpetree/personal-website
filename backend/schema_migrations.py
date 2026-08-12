@@ -28,7 +28,7 @@ def seed_known_migrations(engine, filenames):
         conn.execute(text(
             'CREATE TABLE IF NOT EXISTS schema_migrations ('
             'filename VARCHAR(255) PRIMARY KEY, '
-            'applied_at TIMESTAMP NOT NULL DEFAULT now())'
+            'applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)'
         ))
         for filename in filenames:
             conn.execute(
@@ -50,7 +50,7 @@ def run_pending_migrations(engine, migrations_dir):
         conn.execute(text(
             'CREATE TABLE IF NOT EXISTS schema_migrations ('
             'filename VARCHAR(255) PRIMARY KEY, '
-            'applied_at TIMESTAMP NOT NULL DEFAULT now())'
+            'applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)'
         ))
         applied = {row[0] for row in conn.execute(text('SELECT filename FROM schema_migrations'))}
 
