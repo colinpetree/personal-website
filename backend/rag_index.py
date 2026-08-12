@@ -262,7 +262,12 @@ _cached = None  # (vector_index, bm25_index, retriever), built once per process
 # every restart and eat into Voyage's free-tier rate limit. This caches only the
 # document side of the pipeline - every query is still embedded live against Voyage on
 # every search, which is the part actually worth watching happen in a RAG demo.
-_CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'rag_embedding_cache.json')
+_app_data_dir = os.getenv('APP_DATA_DIR')
+if _app_data_dir:
+    _CACHE_PATH = os.path.join(_app_data_dir, 'rag_embedding_cache.json')
+else:
+    # Local dev default — unchanged from before APP_DATA_DIR existed.
+    _CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data', 'rag_embedding_cache.json')
 
 
 def _cache_fingerprint(cache_key):

@@ -1,0 +1,6 @@
+# Scripts and config that run/get parsed on the Linux build/production
+# boxes must always have LF line endings, regardless of core.autocrlf on
+# any Windows dev machine that touches this repo — CRLF in a shebang line
+# breaks bash entirely ("$'\r': command not found" or worse).
+*.sh text eol=lf
+deploy/** text eol=lf

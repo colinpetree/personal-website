@@ -25,5 +25,11 @@ editor-example-images/
 backend/certbot_domain.txt
 backend/data/rag_embedding_cache.json
 
+# PyInstaller build output (deploy/scripts/build-on-pi.sh, local-test mode)
+backend/build/
+backend/build-windows-test/
+backend/dist-windows-test/
+backend/.build-venv-windows-test/
+
 # Claude Code
 .claude/settings.local.json

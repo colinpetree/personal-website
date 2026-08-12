@@ -5,6 +5,7 @@ from flask_login import current_user
 from extensions import db
 from models import BlogPost, Comment, User, AdminAccount, SiteEventLog, SiteConfig
 from routes.admin_auth import admin_required, role_at_least
+from varnish_purge import ban_pattern
 
 
 def _log(area, action_type, subject, subject_is_bold=False):
@@ -112,6 +113,7 @@ def create_post():
     db.session.add(post)
     _log('Post', 'added', title, subject_is_bold=True)
     db.session.commit()
+    ban_pattern('^/api/blog')
     return jsonify(_post_to_dict(post, include_content=True)), 201
 
 
@@ -160,6 +162,7 @@ def update_post(post_id):
     post.updated_at = datetime.utcnow()
     _log('Post', 'edited', post.title, subject_is_bold=True)
     db.session.commit()
+    ban_pattern('^/api/blog')
     return jsonify(_post_to_dict(post, include_content=True))
 
 
@@ -170,6 +173,7 @@ def delete_post(post_id):
     _log('Post', 'deleted', post.title, subject_is_bold=True)
     db.session.delete(post)
     db.session.commit()
+    ban_pattern('^/api/blog')
     return jsonify({'message': 'Post deleted'})
 
 
@@ -207,4 +211,5 @@ def delete_comment(comment_id):
     _log('Comment', 'deleted', f'"{excerpt}"')
     comment.is_deleted = True
     db.session.commit()
+    ban_pattern('^/api/blog')
     return jsonify({'message': 'Comment deleted'})

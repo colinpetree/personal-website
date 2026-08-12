@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 from extensions import db
 from models import Project
 from routes.admin_auth import admin_required, role_at_least
+from varnish_purge import ban_pattern
 
 admin_projects_bp = Blueprint('admin_projects', __name__)
 
@@ -45,6 +46,7 @@ def create_project():
     )
     db.session.add(project)
     db.session.commit()
+    ban_pattern('^/api/projects')
     return jsonify(_project_to_dict(project)), 201
 
 
@@ -64,6 +66,7 @@ def update_project(project_id):
         project.title = data['title'].strip()
 
     db.session.commit()
+    ban_pattern('^/api/projects')
     return jsonify(_project_to_dict(project))
 
 
@@ -73,6 +76,7 @@ def delete_project(project_id):
     project = Project.query.get_or_404(project_id)
     db.session.delete(project)
     db.session.commit()
+    ban_pattern('^/api/projects')
     return jsonify({'message': 'Project deleted'})
 
 
@@ -86,4 +90,5 @@ def reorder_projects():
         if project:
             project.order = item.get('order', project.order)
     db.session.commit()
+    ban_pattern('^/api/projects')
     return jsonify({'message': 'Order updated'})

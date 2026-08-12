@@ -1,0 +1,29 @@
+[Unit]
+Description=Personal Website (Flask + embedded gunicorn)
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=personalweb
+Group=personalweb
+WorkingDirectory=/opt/personal-website/current/backend
+EnvironmentFile=/opt/personal-website/data/.env
+Environment=APP_DATA_DIR=/opt/personal-website/data
+Environment=MIGRATIONS_DIR=/opt/personal-website/current/migrations
+Environment=GUNICORN_BIND=127.0.0.1:__BACKEND_PORT__
+Environment=GUNICORN_GRACEFUL_TIMEOUT=30
+Environment=GUNICORN_MAX_REQUESTS=1000
+Environment=GUNICORN_MAX_REQUESTS_JITTER=100
+ExecStart=/opt/personal-website/current/backend/server
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ReadWritePaths=/opt/personal-website/data
+
+[Install]
+WantedBy=multi-user.target

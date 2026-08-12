@@ -159,29 +159,51 @@ Added a **deployment-time** env flag on both sides (separate from the runtime `a
 
 ## 7. Build script
 - [x] Frontend build (`vite build` via `frontend/package.json`).
-- [ ] **No combined frontend+backend build/deploy script.** No Dockerfile, docker-compose, Makefile, or CI/CD config anywhere in the repo.
-- [ ] **Flask does not serve the built frontend.** No static/catch-all route in `backend/app.py`. Frontend and backend are architected as two separately-deployed services (implying a reverse proxy is expected in front of them), but that reverse-proxy layer doesn't exist in-repo either.
+- [x] **Combined frontend+backend build/deploy pipeline — shipped 2026-08-08.** No Docker/Dockerfile (deliberate — see §10 below); instead `backend/server.py` + `backend/pyinstaller.spec` package the Flask backend into a standalone PyInstaller `--onedir` bundle (embedded gunicorn, no system Python/pip needed on the target), built natively on ARM64 (a Raspberry Pi 3 running Ubuntu Server 24.04, dedicated as a build box). `deploy/scripts/build-on-pi.sh` builds both frontend and backend and assembles a versioned release tarball; `deploy/scripts/deploy-to-pi.bat` triggers it from Windows over plain SSH (no WSL/rsync dependency). Full design at [the deployment plan](file:///C:/Users/Colin/.claude/plans/create-an-in-depth-toasty-taco.md).
+- [x] **Flask does not serve the built frontend — by design, not a gap.** Nginx serves `frontend/dist` directly and reverse-proxies `/api/*` through Varnish to gunicorn (`deploy/nginx/personal-website.conf`). This confirms the original architecture note was intentional, not an oversight.
 
 ## 8. Dependency lists
 - [x] `backend/requirements.txt` — pinned, includes `stripe`, `anthropic`, `voyageai` for §5/§6.
 - [x] `frontend/package.json` — complete for what's built.
 
 ## 9. Deploy dependencies: Let's Encrypt / Certbot, Varnish
-- [~] **Certbot — domain-capture half only.** Saving `domain` in admin config writes `backend/certbot_domain.txt` (gitignored). No actual certbot invocation, renewal automation, or reverse-proxy config exists anywhere in the repo — something external is expected to consume that file, but that external piece isn't part of this codebase yet.
-- [ ] **Varnish — zero references anywhere.** Not started at all.
+- [x] **Certbot — shipped 2026-08-08.** `backend/routes/admin_config.py` still writes the domain to `certbot_domain.txt` (now under `APP_DATA_DIR`, not the app's own install dir — see §10), and `deploy/scripts/install.sh` reads it to template `server_name` into the Nginx config before printing the exact `certbot --nginx -d <domain>` command to run once, interactively (deliberately not fully automated — see the deployment plan's §12 reasoning). Renewal is handled by Certbot's own `certbot.timer`, no further scripting needed.
+- [x] **Varnish — shipped 2026-08-08.** `deploy/varnish/default.vcl`: caches static assets/uploads long-TTL and a public-GET allowlist (blog, projects, site-config, payment comments) short-TTL, bypasses on any session cookie or `/api/admin/`|`/api/auth/` request, and exposes a PURGE/BAN endpoint restricted to localhost. `backend/varnish_purge.py` calls it after every content-mutating admin route (post/project CRUD, and a blanket purge on any site-config save) — fully opt-in via `VARNISH_PURGE_URL`, a no-op when unset so local dev is unaffected.
+
+## 10. Deployment infrastructure (added 2026-08-08, not in the original spec)
+
+Full design, decisions, and reasoning: [the deployment plan](file:///C:/Users/Colin/.claude/plans/create-an-in-depth-toasty-taco.md) (`C:\Users\Colin\.claude\plans\create-an-in-depth-toasty-taco.md`). Summary:
+
+- **Stack**: Nginx (HTTPS via Certbot) → Varnish (cache) → gunicorn (embedded in the packaged app) → Flask, all on a single Ubuntu Server 24.04 ARM64 box running PostgreSQL locally, managed via systemd (`deploy/systemd/personal-website.service`, hardened with `NoNewPrivileges`/`ProtectSystem=strict`/etc., non-root `personalweb` user).
+- **No Docker anywhere** — PyInstaller `--onedir` bundle, built natively on a Raspberry Pi 3 (Ubuntu Server 24.04 ARM64, matching production exactly to avoid glibc drift), never on Windows or via cross-compilation.
+- **`APP_DATA_DIR`** (`backend/upload_utils.py`'s `get_app_data_dir()`/`get_uploads_dir()`) decouples uploads, `certbot_domain.txt`, and the RAG embedding cache from the app's own install path — required since a PyInstaller bundle and Capistrano-style versioned release directory both replace "next to `app.py`" on every upgrade. Defaults to today's behavior when unset, so local dev is unaffected.
+- **Releases**: Capistrano-style (`/opt/personal-website/releases/vX.Y.Z/` + a `current` symlink), published as GitHub Releases on a **separate** repo, checksummed (SHA256), versioned via the root `VERSION` file, published manually via `deploy/scripts/publish-release.sh` (runs on the Pi, where `gh` auth lives).
+- **`deploy/scripts/install.sh`** handles first-install vs. upgrade: never overwrites `.env` or persistent data, hash-compares systemd/nginx/Varnish config templates against what's live (auto-installs only on first run, otherwise writes `*.new` and warns rather than silently clobbering hand-tuned prod config), runs pending SQL migrations (new `backend/schema_migrations.py` — a tracked `schema_migrations` table, replacing ad-hoc manual `.sql` runs going forward) before cutting traffic over, health-checks after restart, and automatically rolls back on failure. `deploy/scripts/rollback.sh` reverts to any previously-extracted release on demand.
+- **ufw firewall required**: only 80/443/SSH inbound: everything else (Postgres, gunicorn, Varnish) stays loopback-only — documented in the deployment plan §12a.
+
+---
+
+## Known issues / pre-launch follow-ups
+
+Surfaced during the deployment-infrastructure review (2026-08-08) but deliberately kept **out** of the deployment plan since they're application-code changes or operational additions independent of the build/deploy mechanics, and further code changes are expected before actual launch anyway:
+
+- `SESSION_COOKIE_SECURE` is not currently set on the Flask session cookie — should be enabled for HTTPS (`backend/app.py`).
+- No infra- or app-level rate limiting on the AI Implementations endpoints beyond per-account gating — worth a limiter given they're real Anthropic/Voyage API spend per call (`backend/routes/ai_demo.py`).
+- No PostgreSQL backup strategy (no `pg_dump` schedule/retention, no restore procedure) and no backup coverage for `backend/uploads/`.
+- No monitoring/alerting for service crash-loops, disk usage (uploads grows unbounded), or Certbot renewal failures.
+- No automated test suite in the repo (per `CLAUDE.md`) and no staging environment — releases go straight from the Pi build to production install with no CI gate.
+- Frontend API calls and Flask-CORS config haven't been explicitly re-verified for the production same-origin topology (should be a quick grep for any hardcoded `localhost:5000` and a check that CORS origins are tightened, not wide open, in prod).
 
 ---
 
 ## What's actually left to reach the current target
 
-Every spec item is now done except deployment infrastructure — the one substantial gap remaining:
+Every spec item is done, including deployment infrastructure — see §10 and the follow-ups above for what's still worth tightening before a real launch.
 
-1. **Only open item.** Deployment infrastructure: combined build pipeline, Flask/nginx static-serving or reverse-proxy setup, actual certbot automation consuming `certbot_domain.txt`, Varnish cache layer, and general "how does this get deployed to a Linux box" documentation/scripting — none of this exists yet (§7/§9).
-
-Everything else closed out since the 2026-07-31 status, beyond what's already detailed in the sections above:
-- ~~Admin password reset~~, ~~meta descriptions as real `<meta>` tags~~, ~~admin editing a user's profile~~, ~~AI Implementations page (all 8 cards)~~, ~~Donate/Contribute Stripe integration~~ — all done, see §3a/§6/§3g/§6/§5.
+Everything closed out since the 2026-07-31 status, beyond what's already detailed in the sections above:
+- ~~Admin password reset~~, ~~meta descriptions as real `<meta>` tags~~, ~~admin editing a user's profile~~, ~~AI Implementations page (all 8 cards)~~, ~~Donate/Contribute Stripe integration~~, ~~deployment infrastructure~~ — all done, see §3a/§6/§3g/§6/§5/§10.
 - ~~Wire `users_enabled=false` to actually disable commenting~~ — **done 2026-08-08**, see §3g: guest commenting was removed outright rather than tightening the guest-fallback, so this is moot now.
-- Beyond-spec additions not on the original punch list at all: magic-link email sign-in, user/staff avatar uploads with cropping, admin login rate limiting/lockout, Mailgun replacing SMTP, page-content editing extended to Blog/Contact/AI Demo/Payment (previously only Home/Projects/About), payment comments with avatars, guest checkout + guest subscription management by email. See §3a/§4/§5.
+- Beyond-spec additions not on the original punch list at all: magic-link email sign-in, user/staff avatar uploads with cropping, admin login rate limiting/lockout, Mailgun replacing SMTP, page-content editing extended to Blog/Contact/AI Demo/Payment (previously only Home/Projects/About), payment comments with avatars, guest checkout + guest subscription management by email, full deployment pipeline (§10). See §3a/§4/§5/§10.
 
 ## Deliberate deviations from the original spec (not gaps — just documenting the decision trail)
 - Blog thumbnails: manual "Feature Image" field, not auto-derived from the post's first image.
