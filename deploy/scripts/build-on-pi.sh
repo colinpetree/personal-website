@@ -88,7 +88,12 @@ SMOKE_PID=$!
 trap 'kill $SMOKE_PID 2>/dev/null || true; rm -f "$SMOKE_DB"; rm -rf "$SMOKE_DATA_DIR"' EXIT
 
 for i in $(seq 1 15); do
-    if curl -sf "http://127.0.0.1:8099/api/site-config" >/dev/null 2>&1; then
+    # No -f here deliberately: the smoke DB is never seeded (seed.py doesn't
+    # run), so /api/site-config correctly 404s with "Site not configured".
+    # That's still proof the whole stack (gunicorn/Flask/SQLAlchemy) booted
+    # and is routing requests — a real connection failure gives a nonzero
+    # curl exit even without -f, which is all this loop needs to detect.
+    if curl -s "http://127.0.0.1:8099/api/site-config" >/dev/null 2>&1; then
         echo "Smoke test OK — server responded."
         break
     fi
