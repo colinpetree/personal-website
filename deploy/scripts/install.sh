@@ -297,6 +297,10 @@ if [ "$FIRST_INSTALL" = true ]; then
     echo "      Left unconfigured this exposes the cache directly, bypassing nginx's TLS."
     echo "   2. ufw: allow only 22 (or your SSH port), 80, 443; deny everything else."
     echo "   3. Confirm PostgreSQL is installed and DATABASE_URL in .env points at it."
+    echo "   4. Confirm libnginx-mod-http-brotli is installed (apt install"
+    echo "      libnginx-mod-http-brotli) — nginx auto-loads it via"
+    echo "      /etc/nginx/modules-enabled/, no nginx.conf edit needed. Without"
+    echo "      it, nginx -t fails on the brotli/brotli_static directives below."
     echo "=========================================================================="
 fi
 
