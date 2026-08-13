@@ -55,6 +55,12 @@ sub vcl_recv {
 }
 
 sub vcl_backend_response {
+    # Deliberately not setting beresp.do_gzip anywhere in this file —
+    # compression is handled entirely at the nginx layer, per-client, after
+    # Varnish (see deploy/nginx/personal-website.conf). Varnish must keep
+    # storing/serving plain responses; adding do_gzip here would reintroduce
+    # the classic Varnish+compression bug (one cached encoding served to
+    # every client regardless of what they asked for).
     if (bereq.url ~ "^/api/uploads/") {
         set beresp.ttl = 365d;
     } else if (bereq.url ~ "^/api/(blog|projects|site-config|payment/comments)") {
