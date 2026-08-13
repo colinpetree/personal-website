@@ -1,7 +1,30 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
+import { useLoaderData } from 'react-router'
 import { ExternalLink } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { setMetaDescription } from '../utils/meta'
+import { apiUrl } from '../lib/apiFetch'
+
+async function fetchProjects() {
+  const res = await fetch(apiUrl('/api/projects'))
+  return res.ok ? await res.json() : []
+}
+
+// Prerendered at build time.
+export async function loader() {
+  return fetchProjects()
+}
+
+// Required in addition to loader — under ssr:false, loader only runs for
+// prerendered paths (no server exists to run it otherwise, and no .data
+// file exists for an unprerendered route). clientLoader.hydrate=true makes
+// this run in-browser on the very first hard load too, covering both the
+// generic/no-prerendering build profile and this page not having been
+// prerendered for some other reason.
+export async function clientLoader() {
+  return fetchProjects()
+}
+clientLoader.hydrate = true
 
 function ProjectCardSkeleton() {
   return (
@@ -16,10 +39,21 @@ function ProjectCardSkeleton() {
   )
 }
 
+// Shown only while clientLoader is resolving on a hard load with nothing
+// prerendered yet.
+export function HydrateFallback() {
+  return (
+    <main className="max-w-4xl mx-auto px-6 py-16">
+      <div className="grid gap-6 sm:grid-cols-2">
+        {Array.from({ length: 4 }).map((_, i) => <ProjectCardSkeleton key={i} />)}
+      </div>
+    </main>
+  )
+}
+
 export default function ProjectsPage() {
   const { config } = useSiteConfig()
-  const [projects, setProjects] = useState([])
-  const [loading, setLoading] = useState(true)
+  const projects = useLoaderData()
 
   useEffect(() => {
     if (config?.site_title) {
@@ -27,13 +61,6 @@ export default function ProjectsPage() {
     }
     setMetaDescription(config?.projects_meta_description)
   }, [config])
-
-  useEffect(() => {
-    fetch('/api/projects')
-      .then(res => res.ok ? res.json() : [])
-      .then(data => { setProjects(data); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [])
 
   return (
     <main className="max-w-4xl mx-auto px-6 py-16">
@@ -44,11 +71,7 @@ export default function ProjectsPage() {
         />
       )}
 
-      {loading ? (
-        <div className="grid gap-6 sm:grid-cols-2">
-          {Array.from({ length: 4 }).map((_, i) => <ProjectCardSkeleton key={i} />)}
-        </div>
-      ) : projects.length === 0 ? (
+      {projects.length === 0 ? (
         <p className="text-gray-400">No projects yet.</p>
       ) : (
         <div className="grid gap-6 sm:grid-cols-2">

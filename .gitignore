@@ -11,6 +11,8 @@ venv/
 # Node
 node_modules/
 dist/
+frontend/build/
+frontend/.react-router/
 .vite/
 
 # OS

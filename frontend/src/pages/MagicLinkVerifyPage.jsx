@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams } from 'react-router'
 import { useUserAuth } from '../context/UserAuthContext'
 
 export default function MagicLinkVerifyPage() {

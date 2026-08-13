@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { Link, useLoaderData } from 'react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { setMetaDescription } from '../utils/meta'
+import { apiUrl } from '../lib/apiFetch'
 
 function BlogListSkeleton() {
   return (
@@ -22,11 +23,60 @@ function BlogListSkeleton() {
   )
 }
 
+async function fetchFirstPage() {
+  const res = await fetch(apiUrl('/api/blog?page=1&per_page=10'))
+  return res.ok ? await res.json() : { posts: [], total: 0, page: 1, pages: 1 }
+}
+
+// Prerendered at build time, page 1 only — pagination beyond that stays a
+// plain client-side fetch (see the effect below), matching the prerender
+// scope in react-router.config.ts.
+export async function loader() {
+  return fetchFirstPage()
+}
+
+// Required in addition to loader — under ssr:false, loader only runs for
+// prerendered paths (no server exists to run it otherwise, and no .data
+// file exists for an unprerendered route). clientLoader.hydrate=true makes
+// this run in-browser on the very first hard load too, covering both the
+// generic/no-prerendering build profile and any content published after
+// the last prerender build.
+export async function clientLoader() {
+  return fetchFirstPage()
+}
+clientLoader.hydrate = true
+
+// Shown only while clientLoader resolves on a hard load with nothing
+// prerendered yet — reuses the same skeleton already used for the
+// page-2+ pagination loading state below.
+export function HydrateFallback() {
+  return (
+    <main className="max-w-3xl mx-auto px-6 py-16">
+      <BlogListSkeleton />
+    </main>
+  )
+}
+
 export default function BlogPage() {
   const { config } = useSiteConfig()
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const initialData = useLoaderData()
+  const [data, setData] = useState(initialData)
+  const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
+  const isFirstRender = useRef(true)
+
+  // Same fix as BlogPostPage.jsx: `data` is only seeded from useLoaderData()
+  // on first mount via useState(initialData) — if this route's loader ever
+  // reruns while the component stays mounted (a future revalidation; this
+  // route has no dynamic param so it can't happen via navigation the way
+  // BlogPostPage's slug change can), the fresh page-1 data would otherwise
+  // be silently ignored. Also resets to page 1, since the loader always
+  // fetches page 1 only — staying on a later page after a resync would show
+  // page-1 posts under a "Page 2 of N" pager.
+  useEffect(() => {
+    setData(initialData)
+    setPage(1)
+  }, [initialData])
 
   useEffect(() => {
     if (config?.site_title) {
@@ -36,6 +86,12 @@ export default function BlogPage() {
   }, [config])
 
   useEffect(() => {
+    // Page 1 already came from the loader — only fetch client-side when
+    // the user actually navigates to another page.
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
     setLoading(true)
     fetch(`/api/blog?page=${page}&per_page=10`)
       .then(r => r.json())

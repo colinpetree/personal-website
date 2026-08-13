@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { ArrowLeft, PanelRight } from 'lucide-react'
 import RichTextEditor from '../../components/admin/editor'
 import { Field, Textarea } from '../../components/admin/AdminPage'

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, Card, EditableCard, Field, Input, InputWithPrefix, Toggle } from '../../components/admin/AdminPage'
 import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
+import RoleGuard from '../../components/admin/RoleGuard'
 
 function DisplayValue({ value, fallback = '—' }) {
   return <p className="text-sm text-gray-900 truncate">{value || <span className="text-gray-400">{fallback}</span>}</p>
@@ -79,6 +80,14 @@ function PaymentsSummaryCard() {
 }
 
 export default function AdminPaymentPage() {
+  return (
+    <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+      <AdminPaymentPageContent />
+    </RoleGuard>
+  )
+}
+
+function AdminPaymentPageContent() {
   const { admin } = useAdminAuth()
   const { config, loading, save } = useAdminConfig()
   const isAdmin = isAtLeast(admin, 'administrator')

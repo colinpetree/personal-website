@@ -1,6 +1,11 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
+
+// For admin-only pages, editors fall back to /admin/blog and contributors to
+// /admin/blog/posts — shared by every RoleGuard-wrapped admin route.
+export const adminOnlyFallback = (admin) =>
+  admin?.role === 'editor' ? '/admin/blog' : '/admin/blog/posts'
 
 /**
  * Wraps a route element and redirects if the current admin doesn't meet minRole.
