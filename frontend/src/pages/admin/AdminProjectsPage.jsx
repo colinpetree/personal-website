@@ -1,14 +1,23 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { ArrowUp, ArrowDown } from 'lucide-react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, EditableCard, Field, Input, InputWithPrefix, Textarea, Toggle } from '../../components/admin/AdminPage'
+import RoleGuard from '../../components/admin/RoleGuard'
 
 function DisplayValue({ value, fallback = '—' }) {
   return <p className="text-sm text-gray-900">{value || <span className="text-gray-400">{fallback}</span>}</p>
 }
 
 export default function AdminProjectsPage() {
+  return (
+    <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+      <AdminProjectsPageContent />
+    </RoleGuard>
+  )
+}
+
+function AdminProjectsPageContent() {
   const { config, loading: configLoading, save } = useAdminConfig()
   const [projects, setProjects] = useState([])
   const [projLoading, setProjLoading] = useState(true)

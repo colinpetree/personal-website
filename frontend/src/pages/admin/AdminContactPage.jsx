@@ -1,6 +1,7 @@
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, EditableCard, Field, Input, InputWithPrefix, Toggle } from '../../components/admin/AdminPage'
+import RoleGuard from '../../components/admin/RoleGuard'
 
 function DisplayValue({ value, fallback = '—' }) {
   return (
@@ -9,6 +10,14 @@ function DisplayValue({ value, fallback = '—' }) {
 }
 
 export default function AdminContactPage() {
+  return (
+    <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+      <AdminContactPageContent />
+    </RoleGuard>
+  )
+}
+
+function AdminContactPageContent() {
   const { config, loading, save } = useAdminConfig()
 
   if (loading) return <div className="p-8 text-gray-400">Loading…</div>

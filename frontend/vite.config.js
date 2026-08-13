@@ -1,11 +1,16 @@
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { reactRouter } from '@react-router/dev/vite'
 import zlib from 'node:zlib'
 import { compression } from 'vite-plugin-compression2'
 
+// @vitejs/plugin-react is deliberately NOT included alongside reactRouter()
+// — reactRouter() already handles JSX/Fast Refresh itself. Running both
+// together builds fine but breaks `react-router dev`'s HMR outright
+// ("Identifier 'RefreshRuntime' has already been declared", confirmed by
+// actually running the dev server) since both inject the refresh preamble.
 export default defineConfig({
   plugins: [
-    react(),
+    reactRouter(),
     // Precompress build output at build time (runs on the Pi build box, not
     // production) so nginx's gzip_static/brotli_static can serve these
     // siblings with zero runtime CPU cost on the small ARM production box.

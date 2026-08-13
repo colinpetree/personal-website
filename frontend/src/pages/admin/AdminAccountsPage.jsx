@@ -4,6 +4,7 @@ import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
 import { useToast } from '../../components/admin/Toast'
 import { PageShell } from '../../components/admin/AdminPage'
 import StaffProfileModal, { AvatarCircle, ROLE_BADGE, ROLE_LABELS, ROLE_DESCRIPTIONS } from '../../components/admin/StaffProfileModal'
+import RoleGuard, { adminOnlyFallback } from '../../components/admin/RoleGuard'
 
 // ─── Add Account Modal ────────────────────────────────────────────────────────
 
@@ -107,6 +108,14 @@ const TABS = [
 ]
 
 export default function AdminAccountsPage() {
+  return (
+    <RoleGuard minRole="administrator" fallback={adminOnlyFallback}>
+      <AdminAccountsPageContent />
+    </RoleGuard>
+  )
+}
+
+function AdminAccountsPageContent() {
   const { admin } = useAdminAuth()
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)

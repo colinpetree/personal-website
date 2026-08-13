@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { EditableCard, Field, Input, Toggle } from '../../components/admin/AdminPage'
 import UserProfileModal from '../../components/admin/UserProfileModal'
+import RoleGuard, { adminOnlyFallback } from '../../components/admin/RoleGuard'
 
 function RedirectUriBox({ uri }) {
   const [copied, setCopied] = useState(false)
@@ -32,6 +33,14 @@ function RedirectUriBox({ uri }) {
 }
 
 export default function AdminUsersPage() {
+  return (
+    <RoleGuard minRole="administrator" fallback={adminOnlyFallback}>
+      <AdminUsersPageContent />
+    </RoleGuard>
+  )
+}
+
+function AdminUsersPageContent() {
   const { config, save } = useAdminConfig()
   const [users, setUsers] = useState([])
   const [total, setTotal] = useState(0)

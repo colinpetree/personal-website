@@ -5,6 +5,7 @@ import FileDropzone from '../../components/admin/FileDropzone'
 import HistoryModal from '../../components/admin/HistoryModal'
 import Select from '../../components/ui/Select'
 import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
+import RoleGuard, { adminOnlyFallback } from '../../components/admin/RoleGuard'
 
 const TIMEZONES = [
   { name: 'Pacific/Pago_Pago', label: '(GMT -11:00) Midway Island, Samoa' },
@@ -102,6 +103,14 @@ function DisplayValue({ value, fallback = '—' }) {
 }
 
 export default function AdminSettingsPage() {
+  return (
+    <RoleGuard minRole="administrator" fallback={adminOnlyFallback}>
+      <AdminSettingsPageContent />
+    </RoleGuard>
+  )
+}
+
+function AdminSettingsPageContent() {
   const { admin } = useAdminAuth()
   const { config, loading, save } = useAdminConfig()
   const isAdmin = isAtLeast(admin, 'administrator')

@@ -39,6 +39,31 @@ echo "==> Building v$VERSION from $REPO_DIR"
 echo "==> Building frontend"
 cd "$REPO_DIR/frontend"
 npm ci
+
+# PRERENDER_BASE_URL: the live production domain, used only at build time to
+# fetch already-published content (site-config, blog posts) for static
+# prerendering (react-router.config.ts's prerender()). Lives in a small
+# untracked env file on the Pi build box (never in the repo, never in
+# backend/.env.example — production's domain is DB-only per architecture
+# decision, this is a build-time-only, Pi-local convenience var, analogous
+# to how PI_HOST is documented as a one-time local setup value rather than
+# repo config).
+#
+# Unset (e.g. the very first build, before any prod site is live, or the
+# generic/template build profile — see PLAN.md) is a supported, expected
+# state — prerender() degrades gracefully to zero prerendered routes,
+# matching pre-SSG pure-CSR build output exactly.
+PI_BUILD_ENV="$HOME/.personal-website-build.env"
+if [ -f "$PI_BUILD_ENV" ]; then
+    # shellcheck source=/dev/null
+    set -a; source "$PI_BUILD_ENV"; set +a
+fi
+if [ -z "${PRERENDER_BASE_URL:-}" ]; then
+    echo "==> PRERENDER_BASE_URL not set (see $PI_BUILD_ENV) — building with zero prerendered routes."
+else
+    echo "==> Prerendering against $PRERENDER_BASE_URL"
+fi
+
 npm run build
 
 # ---- Backend ------------------------------------------------------------
@@ -121,7 +146,11 @@ mkdir -p "$RELEASE_DIR"
 
 cp -r "$REPO_DIR/backend/dist/server" "$RELEASE_DIR/backend"
 mkdir -p "$RELEASE_DIR/frontend"
-cp -r "$REPO_DIR/frontend/dist" "$RELEASE_DIR/frontend/dist"
+# React Router framework mode builds to build/client/, not dist/ (that was
+# the plain-Vite convention pre-SSG-migration) -- copied to frontend/dist/
+# in the release layout regardless, so nginx's `root .../frontend/dist`
+# doesn't need to change.
+cp -r "$REPO_DIR/frontend/build/client" "$RELEASE_DIR/frontend/dist"
 
 mkdir -p "$RELEASE_DIR/migrations"
 PREV_TAG="$(git -C "$REPO_DIR" describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo '')"

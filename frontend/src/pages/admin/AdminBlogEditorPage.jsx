@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router'
 import { ArrowLeft, Calendar, ChevronRight, ExternalLink, PanelRight, Plus, Trash2, Upload, X } from 'lucide-react'
 import { DayPicker } from 'react-day-picker'
 import RichTextEditor from '../../components/admin/editor'

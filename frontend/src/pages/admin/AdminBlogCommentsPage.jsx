@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from 'react-router'
 import { ArrowLeft, X, Search, Trash2 } from 'lucide-react'
 import { PageShell } from '../../components/admin/AdminPage'
+import RoleGuard from '../../components/admin/RoleGuard'
 
 function CommentCard({ c, isReply, onDelete }) {
   function formatDate(iso) {
@@ -42,6 +43,14 @@ function CommentCard({ c, isReply, onDelete }) {
 }
 
 export default function AdminBlogCommentsPage() {
+  return (
+    <RoleGuard minRole="editor" fallback="/admin/blog/posts">
+      <AdminBlogCommentsPageContent />
+    </RoleGuard>
+  )
+}
+
+function AdminBlogCommentsPageContent() {
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
   const [confirmComment, setConfirmComment] = useState(null)

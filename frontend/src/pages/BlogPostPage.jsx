@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useLoaderData, Link } from 'react-router'
 import { ArrowLeft, Heart, Reply, MoreHorizontal, ChevronDown, X } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
@@ -7,29 +7,7 @@ import GalleryLightbox from '../components/GalleryLightbox'
 import SignInRequiredModal from '../components/SignInRequiredModal'
 import { setupSegmentLoopVideo } from '../utils/segmentLoopVideo'
 import { setMetaDescription } from '../utils/meta'
-
-// ── Skeletons ─────────────────────────────────────────────────────────────
-
-function BlogPostSkeleton() {
-  return (
-    <main className="max-w-3xl mx-auto px-6 py-16 animate-pulse">
-      <div className="h-10 bg-gray-100 rounded w-5/6 mb-3" />
-      <div className="h-10 bg-gray-100 rounded w-2/3 mb-6" />
-      <div className="flex items-center gap-2 mb-8">
-        <div className="w-8 h-8 rounded-full bg-gray-100 shrink-0" />
-        <div className="flex flex-col gap-1.5">
-          <div className="h-3 bg-gray-100 rounded w-24" />
-          <div className="h-3 bg-gray-100 rounded w-20" />
-        </div>
-      </div>
-      <div className="flex flex-col gap-3">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className={`h-4 bg-gray-100 rounded ${i % 5 === 4 ? 'w-2/3' : 'w-full'}`} />
-        ))}
-      </div>
-    </main>
-  )
-}
+import { apiUrl } from '../lib/apiFetch'
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -414,18 +392,81 @@ function CommentItem({ comment, slug, currentUserId, likedIds, likeDeltas, onLik
 
 // ── Blog Post Page ─────────────────────────────────────────────────────────
 
+// Shared by loader (build-time prerender) and clientLoader (runtime, for
+// any slug not in that prerender list — see clientLoader below for why
+// both are needed, not just loader).
+async function fetchPostData(slug) {
+  const postRes = await fetch(apiUrl(`/api/blog/${slug}`))
+  if (postRes.status === 404) {
+    return { notFound: true, post: null, comments: [], blogAuthor: null }
+  }
+  if (!postRes.ok) throw new Error(`Failed to load post ${slug}: HTTP ${postRes.status}`)
+  const post = await postRes.json()
+
+  const [commentsRes, authorRes] = await Promise.all([
+    fetch(apiUrl(`/api/blog/${slug}/comments`)),
+    fetch(apiUrl('/api/blog/author')),
+  ])
+  const comments = commentsRes.ok ? (await commentsRes.json()).comments ?? [] : []
+  const blogAuthor = authorRes.ok ? await authorRes.json() : null
+
+  return { notFound: false, post, comments, blogAuthor }
+}
+
+// Runs in Node at prerender time, ONLY for slugs react-router.config.ts's
+// prerender() returned.
+export async function loader({ params }) {
+  return fetchPostData(params.slug)
+}
+
+// Runs in the browser — required in addition to loader, not redundant with
+// it: under ssr:false, `loader` only works for prerendered paths (there's
+// no server to run it for anything else, and no .data file exists for an
+// unprerendered route — confirmed directly, curling <route>.data for an
+// unprerendered route returns the SPA shell HTML, not data, which is what
+// produced "No result found for routeId" / "Unable to decode turbo-stream
+// response" before this fix). clientLoader.hydrate=true makes this run on
+// the very first hard load too, not just subsequent client-side nav — a
+// post published after the last prerender build resolves correctly this
+// way instead of erroring.
+export async function clientLoader({ params }) {
+  return fetchPostData(params.slug)
+}
+clientLoader.hydrate = true
+
+// Shown only while clientLoader is resolving on a hard load of a post that
+// wasn't prerendered (a prerendered post's real content is already in the
+// HTML and renders immediately; this never appears for those).
+export function HydrateFallback() {
+  return (
+    <main className="max-w-3xl mx-auto px-6 py-16 animate-pulse">
+      <div className="h-10 bg-gray-100 rounded w-5/6 mb-3" />
+      <div className="h-10 bg-gray-100 rounded w-2/3 mb-6" />
+      <div className="flex items-center gap-2 mb-8">
+        <div className="w-8 h-8 rounded-full bg-gray-100 shrink-0" />
+        <div className="flex flex-col gap-1.5">
+          <div className="h-3 bg-gray-100 rounded w-24" />
+          <div className="h-3 bg-gray-100 rounded w-20" />
+        </div>
+      </div>
+      <div className="flex flex-col gap-3">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div key={i} className={`h-4 bg-gray-100 rounded ${i % 5 === 4 ? 'w-2/3' : 'w-full'}`} />
+        ))}
+      </div>
+    </main>
+  )
+}
+
 export default function BlogPostPage() {
   const { slug } = useParams()
   const { user: currentUser } = useUserAuth()
   const { config: siteConfig } = useSiteConfig()
-  const [post, setPost] = useState(null)
-  const [comments, setComments] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [notFound, setNotFound] = useState(false)
+  const { notFound, post, comments: initialComments, blogAuthor } = useLoaderData()
+  const [comments, setComments] = useState(initialComments)
   const [sort, setSort] = useState('Best')
   const [reportingComment, setReportingComment] = useState(null)
   const [likeDeltas, setLikeDeltas] = useState({})
-  const [blogAuthor, setBlogAuthor] = useState(null)
   const [likedIds, setLikedIds] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem('liked_comments') || '[]')) }
     catch { return new Set() }
@@ -434,12 +475,21 @@ export default function BlogPostPage() {
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const articleRef = useRef(null)
 
-  async function fetchPost() {
-    const res = await fetch(`/api/blog/${slug}`)
-    if (res.status === 404) { setNotFound(true); setLoading(false); return }
-    setPost(await res.json())
-    setLoading(false)
-  }
+  // BlogPostPage is reused (not remounted) when navigating client-side
+  // between two different posts, since both match the same ':slug' route —
+  // useState(initialComments) above only seeds on the very first mount, so
+  // without this, clicking from one post to another left the previous
+  // post's comments (and any open report modal/lightbox) showing under the
+  // new post's title/content. Keyed on initialComments' identity, not slug,
+  // so it also correctly resyncs on any future revalidation that doesn't
+  // change the slug, not just a slug change specifically.
+  useEffect(() => {
+    setComments(initialComments)
+    setLikeDeltas({})
+    setReportingComment(null)
+    setLightboxImages([])
+    setLightboxIndex(null)
+  }, [initialComments])
 
   async function fetchComments() {
     const res = await fetch(`/api/blog/${slug}/comments`)
@@ -449,12 +499,6 @@ export default function BlogPostPage() {
       setLikeDeltas({})
     }
   }
-
-  useEffect(() => {
-    fetchPost()
-    fetchComments()
-    fetch('/api/blog/author').then(r => r.ok ? r.json() : null).then(d => { if (d?.name) setBlogAuthor(d) })
-  }, [slug])
 
   useEffect(() => {
     if (post?.title) {
@@ -532,8 +576,6 @@ export default function BlogPostPage() {
     const cleanups = Array.from(figures).map(setupSegmentLoopVideo).filter(Boolean)
     return () => cleanups.forEach(fn => fn())
   }, [post?.content_html])
-
-  if (loading) return <BlogPostSkeleton />
 
   if (notFound) return (
     <main className="max-w-3xl mx-auto px-6 py-16">
