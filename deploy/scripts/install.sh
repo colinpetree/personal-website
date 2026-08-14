@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Runs ON THE PRODUCTION SERVER. Installs or upgrades to a given release.
 #
+# Normal first-time flow: run deploy/scripts/bootstrap.sh once first — it
+# provisions the OS/Postgres and writes a complete $DATA_DIR/.env, so this
+# script needs no manual .env editing. If bootstrap.sh was given a domain,
+# this script's domain prompt below is skipped entirely (already resolved
+# from $DATA_DIR/certbot_domain.txt).
+#
 # Usage:
 #   install.sh /path/to/personal-website-vX.Y.Z.tar.gz [--domain example.com]
 #   install.sh vX.Y.Z --releases-repo <owner>/<repo> [--domain example.com]
@@ -10,8 +16,8 @@
 # no terminal to answer the interactive prompt install.sh falls back to
 # otherwise. It seeds $DATA_DIR/certbot_domain.txt directly, which also
 # triggers obtaining a Let's Encrypt certificate on the spot if one doesn't
-# already exist. Once a domain is set (by this flag, the prompt, or the
-# admin UI), it's never required again.
+# already exist. Once a domain is set (by this flag, the prompt, bootstrap.sh,
+# or the admin UI), it's never required again.
 set -euo pipefail
 
 APP_ROOT="/opt/personal-website"
@@ -93,6 +99,21 @@ fi
 # ---- 3. Persistent data dirs — created once, never touched again ---------
 mkdir -p "$DATA_DIR/uploads"
 touch -a "$DATA_DIR/certbot_domain.txt"
+
+# This script runs as root (sudo), so everything just created under $DATA_DIR
+# is root-owned by default — but the systemd unit runs the app as the
+# unprivileged `personalweb` user (ReadWritePaths= only lifts systemd's own
+# sandboxing, it does not grant actual Unix write permission). Without this,
+# every runtime write here (uploads, certbot_domain.txt, the RAG cache)
+# throws PermissionError. Safe to re-run on every install, not just first —
+# a plain `chown -R` on already-correctly-owned files is a no-op.
+if id personalweb >/dev/null 2>&1; then
+    chown -R personalweb:personalweb "$DATA_DIR"
+else
+    echo "WARNING: system user 'personalweb' does not exist — skipping chown of $DATA_DIR."
+    echo "         The app will fail to write uploads/certbot_domain.txt/etc. until this"
+    echo "         user exists and owns $DATA_DIR (see deploy plan §2)."
+fi
 
 # ---- 4. systemd / nginx / varnish config -----------------------------------
 HASH_FILE="$DATA_DIR/deployed-config-hashes.txt"
@@ -320,15 +341,47 @@ _run_server() {
     )
 }
 
-# ---- 4b. First install only: seed the 4 pre-existing legacy migrations as
-# already-applied. They describe how an ALREADY-EXISTING (pre-rename)
-# database reaches today's schema — db.create_all() on a fresh database
-# already creates that schema directly, so actually running them here would
-# fail outright (e.g. "relation donation does not exist"). Automatic and
-# unconditional on first install, not a manual step to remember.
-if [ "$FIRST_INSTALL" = true ]; then
+# Whether the *database* has ever been seeded — deliberately NOT the same
+# thing as $FIRST_INSTALL above, which only reflects whether this SERVER has
+# installed a release before (systemd-unit-file presence). Those two can
+# diverge: resetting/replacing the database while the systemd unit is still
+# installed would make FIRST_INSTALL false while the DB is genuinely empty,
+# silently skipping both seeding steps below and leaving the site permanently
+# stuck on "Site not configured" with no admin account. Querying the DB
+# itself (via server --db-is-fresh, checking for schema_migrations) is the
+# only signal that can't be fooled by that mismatch.
+DB_IS_FRESH="$(_run_server --db-is-fresh)"
+
+# ---- 4b. Only on a genuinely fresh database: seed the 4 pre-existing legacy
+# migrations as already-applied. They describe how an ALREADY-EXISTING
+# (pre-rename) database reaches today's schema — db.create_all() on a fresh
+# database already creates that schema directly, so actually running them
+# here would fail outright (e.g. "relation donation does not exist").
+# Automatic and unconditional, not a manual step to remember.
+if [ "$DB_IS_FRESH" = "true" ]; then
     echo "==> Seeding legacy migrations as already-applied (fresh database)"
     if ! _run_server --seed-known-migrations; then
+        echo "SEEDING FAILED — aborting before touching the current release."
+        exit 1
+    fi
+fi
+
+# ---- 4c. Only on a genuinely fresh database: seed Profile/SiteConfig/
+# AdminAccount — server.py --seed-initial-data (§0.2) is itself always a safe
+# no-op past the first row in each table, but there's no reason to run it on
+# every upgrade. SiteConfig in particular must exist before the post-cutover
+# health check below (§7/§8), which polls /api/site-config. AdminAccount
+# always seeds as admin@example.com / admin — change this via the admin UI
+# immediately after first login.
+if [ "$DB_IS_FRESH" = "true" ]; then
+    echo "==> Seeding initial Profile/SiteConfig/AdminAccount data"
+    if [ -n "$DOMAIN" ]; then
+        # Pre-fills SiteConfig.domain with whatever domain was already
+        # resolved above (from certbot_domain.txt/--domain/prompt), so it
+        # shows up in the admin panel immediately instead of needing re-entry.
+        export SITE_DOMAIN="$DOMAIN"
+    fi
+    if ! _run_server --seed-initial-data; then
         echo "SEEDING FAILED — aborting before touching the current release."
         exit 1
     fi
@@ -342,7 +395,17 @@ if ! _run_server --migrate-only; then
 fi
 
 # ---- 6. Atomic cutover ------------------------------------------------------
-PREVIOUS_RELEASE="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
+# Only resolve a previous release if $CURRENT_LINK actually exists yet — GNU
+# `readlink -f` on a not-yet-existing path doesn't return empty, it just
+# echoes the literal (nonexistent) path back. On a genuine first install that
+# made PREVIOUS_RELEASE equal to $CURRENT_LINK itself, and a failed health
+# check below would then `ln -sfn "$CURRENT_LINK" "$CURRENT_LINK"` — a
+# self-referential symlink ("too many levels of symbolic links" on every
+# subsequent access) instead of the intended "nothing to roll back to".
+PREVIOUS_RELEASE=""
+if [ -L "$CURRENT_LINK" ]; then
+    PREVIOUS_RELEASE="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
+fi
 echo "==> Cutting over to $RELEASE_NAME"
 ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 systemctl restart personal-website
