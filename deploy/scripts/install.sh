@@ -157,6 +157,10 @@ _install_config() {
 # into both the systemd unit and the VCL below so they can never drift
 # independently (previously each hardcoded its own copy of "8000").
 BACKEND_PORT="8000"
+# Must match the -a 127.0.0.1:__ varnishd is bound to in bootstrap.sh's
+# systemd override — templated into nginx's upstream so it proxies to
+# Varnish itself, not straight past it to gunicorn.
+VARNISH_PORT="6081"
 
 # ---- Determine domain — prompt interactively on first install if needed --
 DOMAIN="$(cat "$DATA_DIR/certbot_domain.txt" 2>/dev/null || true)"
@@ -256,7 +260,7 @@ if [ -n "$DOMAIN" ] && [ -f "$CERT_DIR/fullchain.pem" ]; then
     sed -e "s#__DOMAIN__#$DOMAIN#g" \
         -e "s#__SSL_CERT__#$CERT_DIR/fullchain.pem#g" \
         -e "s#__SSL_KEY__#$CERT_DIR/privkey.pem#g" \
-        -e "s#__BACKEND_PORT__#$BACKEND_PORT#g" \
+        -e "s#__VARNISH_PORT__#$VARNISH_PORT#g" \
         "$RELEASE_DIR/deploy/nginx/personal-website.conf" > "$NGINX_SRC"
     INSTALL_FULL_NGINX_CONFIG=true
 else

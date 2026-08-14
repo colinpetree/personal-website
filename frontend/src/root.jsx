@@ -7,10 +7,7 @@ import { TooltipProvider } from './components/ui/Tooltip'
 import { apiUrl } from './lib/apiFetch'
 import './index.css'
 
-// Root loader — runs for every route (prerendered or not), replacing
-// main.jsx's one-time fetch-before-render. Composes automatically with
-// every nested route's own loader.
-export async function loader() {
+async function fetchSiteConfig() {
   try {
     const res = await fetch(apiUrl('/api/site-config'))
     if (!res.ok) return null
@@ -18,6 +15,31 @@ export async function loader() {
   } catch {
     return null
   }
+}
+
+// Root loader — prerendered at build time (see react-router.config.ts).
+export async function loader() {
+  return fetchSiteConfig()
+}
+
+// Required in addition to loader — under ssr:false, loader only runs for
+// prerendered paths (no server exists to run it otherwise). Without this,
+// any route built with the generic/no-prerendering profile (PRERENDER_BASE_URL
+// unreachable at build time, e.g. the domain didn't exist yet) permanently
+// hydrates with config=null and never fetches it live — same fix already
+// applied to BlogPage/ProjectsPage/BlogPostPage. clientLoader.hydrate=true
+// makes this run in-browser on the very first hard load too.
+export async function clientLoader() {
+  return fetchSiteConfig()
+}
+clientLoader.hydrate = true
+
+// Shown only while clientLoader resolves on a hard load with nothing
+// prerendered yet — covers the whole tree (Navbar + page content both read
+// site-config from context), so kept intentionally blank rather than
+// guessing at a page-specific skeleton.
+export function HydrateFallback() {
+  return <main className="min-h-screen bg-white" />
 }
 
 export function Layout({ children }) {
