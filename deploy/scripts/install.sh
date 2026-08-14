@@ -350,7 +350,11 @@ _run_server() {
 # stuck on "Site not configured" with no admin account. Querying the DB
 # itself (via server --db-is-fresh, checking for schema_migrations) is the
 # only signal that can't be fooled by that mismatch.
-DB_IS_FRESH="$(_run_server --db-is-fresh)"
+if ! DB_IS_FRESH="$(_run_server --db-is-fresh)"; then
+    echo "DB FRESHNESS CHECK FAILED — aborting before touching the current release."
+    echo "(Check DATABASE_URL in $DATA_DIR/.env and that PostgreSQL is reachable.)"
+    exit 1
+fi
 
 # ---- 4b. Only on a genuinely fresh database: seed the 4 pre-existing legacy
 # migrations as already-applied. They describe how an ALREADY-EXISTING

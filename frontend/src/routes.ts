@@ -18,16 +18,25 @@ export default (async () => {
   // -based absolute fetch, same source of truth as react-router.config.ts.
   const base = process.env.PRERENDER_BASE_URL ?? 'http://localhost:5000'
   if (process.env.PRERENDER_BASE_URL) {
-    // A real production build (PRERENDER_BASE_URL explicitly set) must not
-    // silently swallow a fetch failure here the way the dev-mode branch
-    // below does — react-router.config.ts's prerender() does NOT catch this
-    // same class of failure for the same PRERENDER_BASE_URL, so a silent
-    // fallback to FALLBACK_SLUGS here risks this file and prerender()
-    // disagreeing on slugs (e.g. this falls back to '/blog' while
-    // prerender() successfully fetches the real '/articles' and tries to
-    // prerender a path this route table never registers). Let it throw and
-    // fail the build loudly instead, consistent with prerender().
-    slugs = await getSlugs(base)
+    // PRERENDER_BASE_URL being *set* doesn't guarantee it's reachable or
+    // configured yet — react-router.config.ts's prerender() now falls back
+    // to zero prerendered routes on exactly this failure (a wrong/dead
+    // domain, DB not seeded, etc.) rather than crashing the build. This file
+    // must match that fallback, not just avoid crashing outright: if this
+    // stayed on FALLBACK_SLUGS while prerender() failed differently, the two
+    // could disagree on route paths — but since prerender() prerenders
+    // NOTHING when the fetch fails, there's nothing for these fallback slugs
+    // to disagree with in that case. They only need to agree when the fetch
+    // actually succeeds, which both call sites do independently but
+    // identically off the same live PRERENDER_BASE_URL.
+    try {
+      slugs = await getSlugs(base)
+    } catch (err) {
+      console.warn(
+        `[routes] Failed to fetch site-config from PRERENDER_BASE_URL (${base}) — ` +
+        `falling back to default route slugs. Cause: ${err.message}`
+      )
+    }
   } else {
     // No PRERENDER_BASE_URL configured at all (local dev, or a fresh clone
     // before the dev backend is even seeded) — a fetch failure here is

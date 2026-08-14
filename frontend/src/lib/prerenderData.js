@@ -3,15 +3,29 @@
 // slugs, so this is the single fetch both import rather than each doing
 // its own request against the same endpoint.
 
-export async function getSlugs(baseUrl) {
-  const res = await fetch(`${baseUrl}/api/site-config`)
-  if (!res.ok) throw new Error(`Failed to fetch site-config for prerender: HTTP ${res.status}`)
-  const config = await res.json()
-  const {
-    blog = 'blog', projects = 'projects', about = 'about',
-    contact = 'contact', ai_demo = 'demo', payment = 'payment',
-  } = config.slugs ?? {}
-  return { blog, projects, about, contact, ai_demo, payment }
+// Memoized per baseUrl, deliberately: react-router.config.ts's prerender()
+// and routes.ts both call this independently with the same baseUrl. Two
+// unmemoized fetches could disagree if a transient failure hit only one of
+// them (one falls back to default slugs while the other gets the real ones,
+// and prerender() then tries to prerender a path routes.ts never
+// registered) — sharing one promise means both call sites always resolve or
+// reject identically, no matter which one triggers the actual fetch first.
+const _slugsPromises = new Map()
+
+export function getSlugs(baseUrl) {
+  if (!_slugsPromises.has(baseUrl)) {
+    _slugsPromises.set(baseUrl, (async () => {
+      const res = await fetch(`${baseUrl}/api/site-config`)
+      if (!res.ok) throw new Error(`Failed to fetch site-config for prerender: HTTP ${res.status}`)
+      const config = await res.json()
+      const {
+        blog = 'blog', projects = 'projects', about = 'about',
+        contact = 'contact', ai_demo = 'demo', payment = 'payment',
+      } = config.slugs ?? {}
+      return { blog, projects, about, contact, ai_demo, payment }
+    })())
+  }
+  return _slugsPromises.get(baseUrl)
 }
 
 export async function listAllPublishedSlugs(baseUrl) {
