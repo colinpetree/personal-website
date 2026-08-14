@@ -28,16 +28,28 @@ export function getSlugs(baseUrl) {
   return _slugsPromises.get(baseUrl)
 }
 
-export async function listAllPublishedSlugs(baseUrl) {
-  const slugs = []
-  let page = 1
-  while (true) {
-    const res = await fetch(`${baseUrl}/api/blog?page=${page}&per_page=50`)
-    if (!res.ok) throw new Error(`Failed to fetch /api/blog page ${page} for prerender: HTTP ${res.status}`)
-    const data = await res.json()
-    slugs.push(...data.posts.map((p) => p.slug))
-    if (page >= data.pages) break
-    page += 1
+// Memoized per baseUrl for the same reason as getSlugs above — routes.ts and
+// react-router.config.ts both call this independently, and an unmemoized
+// pair of fetches could disagree if a post got published in the window
+// between them (routes.ts picks BlogPostPageClientOnly.jsx for zero posts
+// while react-router.config.ts's prerender() already sees the new one).
+const _postSlugsPromises = new Map()
+
+export function listAllPublishedSlugs(baseUrl) {
+  if (!_postSlugsPromises.has(baseUrl)) {
+    _postSlugsPromises.set(baseUrl, (async () => {
+      const slugs = []
+      let page = 1
+      while (true) {
+        const res = await fetch(`${baseUrl}/api/blog?page=${page}&per_page=50`)
+        if (!res.ok) throw new Error(`Failed to fetch /api/blog page ${page} for prerender: HTTP ${res.status}`)
+        const data = await res.json()
+        slugs.push(...data.posts.map((p) => p.slug))
+        if (page >= data.pages) break
+        page += 1
+      }
+      return slugs
+    })())
   }
-  return slugs
+  return _postSlugsPromises.get(baseUrl)
 }
