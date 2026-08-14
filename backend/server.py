@@ -9,16 +9,32 @@ functions that need it — this keeps `--check-imports` usable cross-platform
 though the app itself can only ever actually run on Linux.
 
 Usage:
-    server                  # runs migrations, then starts serving
-    server --migrate-only   # runs migrations only, then exits (used by
-                             # deploy/scripts/install.sh before cutting
-                             # traffic over to a new release)
-    server --check-imports  # imports every dependency PyInstaller is known
-                             # to have trouble bundling (see pyinstaller.spec)
-                             # and exits non-zero if any fail — a fast,
-                             # credential-free smoke test for missing hidden
-                             # imports, run by deploy/scripts/build-on-pi.sh
-                             # right after the frozen binary is built.
+    server                       # runs migrations, then starts serving
+    server --migrate-only        # runs migrations only, then exits (used by
+                                  # deploy/scripts/install.sh before cutting
+                                  # traffic over to a new release)
+    server --check-imports       # imports every dependency PyInstaller is known
+                                  # to have trouble bundling (see pyinstaller.spec)
+                                  # and exits non-zero if any fail — a fast,
+                                  # credential-free smoke test for missing hidden
+                                  # imports, run by deploy/scripts/build-on-pi.sh
+                                  # right after the frozen binary is built.
+    server --seed-initial-data   # creates the first Profile/SiteConfig/AdminAccount
+                                  # rows on a brand-new database, then exits. No-op
+                                  # if any of the three already exist (safe to call
+                                  # unconditionally — creates tables itself if
+                                  # needed). AdminAccount always uses
+                                  # admin@example.com / admin — change this
+                                  # immediately after first login. Optionally reads
+                                  # SITE_DOMAIN from the environment to pre-fill
+                                  # SiteConfig.domain.
+    server --db-is-fresh         # prints "true"/"false": whether schema_migrations
+                                  # exists yet in the target database. Read-only,
+                                  # always exits 0. install.sh uses this (rather
+                                  # than its own local FIRST_INSTALL) to decide
+                                  # whether to seed legacy migrations/initial data,
+                                  # so resetting the database doesn't require also
+                                  # resetting this server's systemd unit.
 """
 import os
 import sys
@@ -78,6 +94,88 @@ def run_migrations(app):
         run_pending_migrations(db.engine, migrations_dir)
 
 
+def db_is_fresh(app):
+    """True iff `schema_migrations` doesn't exist yet in the target database
+    — a reliable, read-only signal that this database has never been through
+    run_pending_migrations()/seed_known_migrations() before, independent of
+    whether *this server* has installed a release before. install.sh uses
+    this (not its own FIRST_INSTALL, which only reflects local systemd-unit
+    presence) to decide whether to seed legacy migrations / initial data —
+    otherwise resetting/replacing the database while the systemd unit is
+    still installed would silently skip both, leaving the site permanently
+    unconfigured with no admin account."""
+    from sqlalchemy import inspect as sa_inspect
+    from extensions import db
+    with app.app_context():
+        return not sa_inspect(db.engine).has_table('schema_migrations')
+
+
+_DEFAULT_ADMIN_EMAIL = 'admin@example.com'
+_DEFAULT_ADMIN_PASSWORD = 'admin'
+
+
+def seed_initial_data(app):
+    """Creates the first Profile/SiteConfig/AdminAccount rows on a brand-new
+    database — the production equivalent of backend/seed.py, which is dev-only
+    and isn't bundled into the PyInstaller release. Deliberately conservative:
+    only acts when a table is completely empty, so re-running this on every
+    install (like --seed-known-migrations) is always a safe no-op past the
+    first. Never overwrites or reads back existing rows.
+
+    AdminAccount always uses the same known default (admin@example.com /
+    admin) rather than a generated one-time password — the goal is a
+    first-install flow with zero manual steps between "run install.sh" and
+    "log in", and a self-service password-change flow already exists in the
+    admin UI for the user to secure the account immediately afterward."""
+    from extensions import db
+    from models import Profile, SiteConfig, AdminAccount
+
+    with app.app_context():
+        # Self-sufficient rather than trusting a prior --seed-known-migrations
+        # call to have created these tables first — db.create_all() is a
+        # cheap no-op for tables that already exist, so this is safe to call
+        # unconditionally every time, including standalone/out-of-order runs.
+        db.create_all()
+
+        if not Profile.query.first():
+            db.session.add(Profile(
+                name='My Website',
+                title='',
+                bio='',
+            ))
+            print('Seeded Profile (edit via the admin panel).')
+
+        if not SiteConfig.query.first():
+            db.session.add(SiteConfig(
+                site_title='My Website',
+                home_enabled=True,
+                home_page_name='Home',
+                home_text='<p>Welcome.</p>',
+                domain=os.getenv('SITE_DOMAIN') or None,
+            ))
+            print('Seeded SiteConfig (edit via the admin panel).')
+
+        db.session.commit()
+
+        if not AdminAccount.query.first():
+            admin = AdminAccount(
+                full_name='Admin',
+                email=_DEFAULT_ADMIN_EMAIL,
+                role='owner',
+            )
+            admin.set_password(_DEFAULT_ADMIN_PASSWORD)
+            db.session.add(admin)
+            db.session.commit()
+            print('')
+            print('==========================================================================')
+            print(f' Admin account created — email: {_DEFAULT_ADMIN_EMAIL}  password: {_DEFAULT_ADMIN_PASSWORD}')
+            print(' These are default, publicly-known credentials. Log in and change the')
+            print(' password immediately via the admin profile menu.')
+            print('==========================================================================')
+        else:
+            print('AdminAccount already exists — not creating another.')
+
+
 def _gunicorn_options():
     return {
         'bind': os.getenv('GUNICORN_BIND', '127.0.0.1:8000'),
@@ -123,6 +221,10 @@ def main():
     from app import create_app
     app = create_app()
 
+    if '--db-is-fresh' in sys.argv:
+        print('true' if db_is_fresh(app) else 'false')
+        return
+
     if '--seed-known-migrations' in sys.argv:
         from extensions import db
         from schema_migrations import seed_known_migrations, LEGACY_MIGRATIONS
@@ -133,6 +235,10 @@ def main():
 
     if '--migrate-only' in sys.argv:
         run_migrations(app)
+        return
+
+    if '--seed-initial-data' in sys.argv:
+        seed_initial_data(app)
         return
 
     run_migrations(app)

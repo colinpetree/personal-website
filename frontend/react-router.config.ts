@@ -21,8 +21,28 @@ export default {
 
     const { getSlugs, listAllPublishedSlugs } = await import('./src/lib/prerenderData.js')
 
-    const slugs = await getSlugs(PRERENDER_BASE_URL)
-    const postSlugs = await listAllPublishedSlugs(PRERENDER_BASE_URL)
+    // PRERENDER_BASE_URL being *set* doesn't guarantee it's actually
+    // reachable or configured yet (wrong/not-yet-live domain, DB not seeded
+    // so /api/site-config 404s, etc.) — getSlugs/listAllPublishedSlugs throw
+    // in any of those cases. Baking that failure into a static file is worse
+    // than not prerendering at all: a bad snapshot (e.g. "Home page not
+    // configured") gets served by nginx forever until the next rebuild, even
+    // after the real site/DB comes online, since the client only re-runs
+    // loaders on client-side navigation, never on the initial hydration of
+    // prerendered HTML. Treat any failure here exactly like PRERENDER_BASE_URL
+    // being unset: zero prerendered routes, falling through to the plain CSR
+    // shell so the browser fetches live from Flask instead.
+    let slugs, postSlugs
+    try {
+      slugs = await getSlugs(PRERENDER_BASE_URL)
+      postSlugs = await listAllPublishedSlugs(PRERENDER_BASE_URL)
+    } catch (err) {
+      console.warn(
+        `[prerender] Failed to fetch content from PRERENDER_BASE_URL (${PRERENDER_BASE_URL}) — ` +
+        `building with zero prerendered routes (pure SPA fallback). Cause: ${err.message}`
+      )
+      return []
+    }
 
     // Deliberately excluded: /admin/*, /{payment}, /{ai_demo}(+subroutes),
     // /profile, /auth/magic — all session-gated or write-heavy; never valid
