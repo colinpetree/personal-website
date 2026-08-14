@@ -195,7 +195,7 @@ function AdminPaymentPageContent() {
                 hint={
                   config?.stripe_webhook_secret_set
                     ? 'Currently set — enter a new value to replace it.'
-                    : `Create a webhook in your Stripe dashboard pointing to https://${config?.domain || 'your-domain.com'}/api/payment/webhook, listening for checkout.session.completed, then paste its signing secret here.`
+                    : `Create a webhook in your Stripe dashboard pointing to https://${config?.domain || 'your-domain.com'}/api/payment/webhook, listening for checkout.session.completed and invoice.paid (the second is required for recording subscription renewals — one-time payments and a subscription's first charge work with just the first event, but every renewal after that needs invoice.paid to be recorded), then paste its signing secret here.`
                 }
               >
                 <Input type="password" value={local.stripe_webhook_secret} onChange={e => set('stripe_webhook_secret', e.target.value)} placeholder={config?.stripe_webhook_secret_set ? '••••••••' : 'whsec_…'} />

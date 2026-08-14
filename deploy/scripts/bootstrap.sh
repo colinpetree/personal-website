@@ -53,12 +53,24 @@ ufw --force enable
 
 echo "==> 4. Binding Varnish to 127.0.0.1:6081"
 # Varnish's packaged default is 0.0.0.0:6081, which would expose the cache
-# directly to the internet, bypassing nginx's TLS termination entirely.
+# directly to the internet, bypassing nginx's TLS termination entirely. This
+# override is otherwise IDENTICAL to the packaged unit's ExecStart (see
+# `systemctl cat varnish`) — only `-a :6081` becomes `-a 127.0.0.1:6081`.
+# Both `-F` (foreground) and `-j unix,user=vcache` (privilege drop) are
+# load-bearing, not incidental: the unit is Type=simple, which requires
+# ExecStart's process to BE the running service. Without -F, varnishd
+# daemonizes as it normally would from a shell — the process systemd is
+# tracking exits almost immediately after handing off to the daemonized
+# child, systemd treats that exit as "the service stopped" and sends
+# SIGTERM to the orphaned-but-still-cgrouped child a moment later. Confirmed
+# by hitting exactly this failure mode (varnish silently dying ~1-2s after
+# every start, no error, exit code 0) after an earlier version of this
+# override dropped -F.
 mkdir -p /etc/systemd/system/varnish.service.d
 cat > /etc/systemd/system/varnish.service.d/override.conf <<'EOF'
 [Service]
 ExecStart=
-ExecStart=/usr/sbin/varnishd -a 127.0.0.1:6081 -T localhost:6082 -f /etc/varnish/default.vcl -S /etc/varnish/secret -s malloc,256m
+ExecStart=/usr/sbin/varnishd -j unix,user=vcache -F -a 127.0.0.1:6081 -T localhost:6082 -f /etc/varnish/default.vcl -S /etc/varnish/secret -s malloc,256m
 EOF
 systemctl daemon-reload
 # enable --now (not just start) so it also survives a reboot; the restart

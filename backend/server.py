@@ -146,11 +146,28 @@ def seed_initial_data(app):
             print('Seeded Profile (edit via the admin panel).')
 
         if not SiteConfig.query.first():
+            # Every non-home page gets an <h1> of its own nav label as a
+            # starter — visibly "there's a page here" instead of a blank
+            # editor when an admin opens it for the first time. Home is
+            # deliberately excluded (welcome text reads fine without a
+            # redundant "Home" heading above it).
             db.session.add(SiteConfig(
                 site_title='My Website',
                 home_enabled=True,
                 home_page_name='Home',
                 home_text='<p>Welcome.</p>',
+                blog_page_name='Blog',
+                blog_text='<h1>Blog</h1>',
+                projects_page_name='Projects',
+                projects_text='<h1>Projects</h1>',
+                about_page_name='About',
+                about_text='<h1>About</h1>',
+                contact_page_name='Contact',
+                contact_text='<h1>Contact</h1>',
+                ai_demo_page_name='AI Implementations',
+                ai_demo_text='<h1>AI Implementations</h1>',
+                payment_page_name='Payment',
+                payment_text='<h1>Payment</h1>',
                 domain=os.getenv('SITE_DOMAIN') or None,
             ))
             print('Seeded SiteConfig (edit via the admin panel).')
