@@ -6,8 +6,8 @@ import { useSiteConfig } from '../hooks/useSiteConfig'
 import GalleryLightbox from '../components/GalleryLightbox'
 import SignInRequiredModal from '../components/SignInRequiredModal'
 import { setupSegmentLoopVideo } from '../utils/segmentLoopVideo'
-import { setMetaDescription } from '../utils/meta'
-import { apiUrl } from '../lib/apiFetch'
+import { buildMeta, absoluteUploadUrl, siteFallbackImage } from '../utils/meta'
+import { apiUrl, fetchSiteConfig } from '../lib/apiFetch'
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -392,13 +392,45 @@ function CommentItem({ comment, slug, currentUserId, likedIds, likeDeltas, onLik
 
 // ── Blog Post Page ─────────────────────────────────────────────────────────
 
+// Slug-keyed cache of the last fetchPostData() result per slug, read
+// synchronously by meta() below (see its comment for why: this route's
+// component also calls useLoaderData(), and that combination makes
+// meta()'s own `data` param come back undefined at prerender time —
+// confirmed empirically, same issue as BlogPage/ProjectsPage). Multiple
+// posts prerender within one build, so — unlike apiFetch.js's single-value
+// site-config cache — this needs to be keyed, not a single last-write-wins
+// variable.
+//
+// Bounded, not a plain Map: in the browser this lives for the whole tab
+// session, and a long session clicking through many different posts would
+// otherwise accumulate an ever-growing cache of full post/comments/author
+// data that's never freed. Map preserves insertion order, so the oldest
+// entry is always the first key — evicting it on overflow gives a simple,
+// good-enough LRU-ish bound without needing a dedicated cache library.
+const _resolvedPostData = new Map()
+const MAX_CACHED_POSTS = 20
+
+function cachePostData(slug, result) {
+  _resolvedPostData.delete(slug) // re-insert at the end (most-recently-used) if already present
+  _resolvedPostData.set(slug, result)
+  if (_resolvedPostData.size > MAX_CACHED_POSTS) {
+    _resolvedPostData.delete(_resolvedPostData.keys().next().value)
+  }
+}
+
 // Shared by loader (build-time prerender) and clientLoader (runtime, for
 // any slug not in that prerender list — see clientLoader below for why
-// both are needed, not just loader).
+// both are needed, not just loader). config is fetched alongside purely to
+// populate apiFetch.js's getCachedSiteConfig() cache in time for meta().
 async function fetchPostData(slug) {
-  const postRes = await fetch(apiUrl(`/api/blog/${slug}`))
+  const [postRes, config] = await Promise.all([
+    fetch(apiUrl(`/api/blog/${slug}`)),
+    fetchSiteConfig(),
+  ])
   if (postRes.status === 404) {
-    return { notFound: true, post: null, comments: [], blogAuthor: null }
+    const result = { notFound: true, post: null, comments: [], blogAuthor: null, config }
+    cachePostData(slug, result)
+    return result
   }
   if (!postRes.ok) throw new Error(`Failed to load post ${slug}: HTTP ${postRes.status}`)
   const post = await postRes.json()
@@ -410,7 +442,9 @@ async function fetchPostData(slug) {
   const comments = commentsRes.ok ? (await commentsRes.json()).comments ?? [] : []
   const blogAuthor = authorRes.ok ? await authorRes.json() : null
 
-  return { notFound: false, post, comments, blogAuthor }
+  const result = { notFound: false, post, comments, blogAuthor, config }
+  cachePostData(slug, result)
+  return result
 }
 
 // Runs in Node at prerender time, ONLY for slugs react-router.config.ts's
@@ -433,6 +467,29 @@ export async function clientLoader({ params }) {
   return fetchPostData(params.slug)
 }
 clientLoader.hydrate = true
+
+// og:image needs an absolute URL (scrapers fetch it directly, they don't
+// resolve relative to the page), and site_title falls back to config since
+// a 404'd/unloaded post has no title of its own to show. Reads
+// _resolvedPostData via params.slug rather than the `data` param — params
+// come from route matching (reliable), not loader data (confirmed
+// unreliable in meta() here, see _resolvedPostData's own comment above).
+export function meta({ params }) {
+  const cached = _resolvedPostData.get(params.slug)
+  const config = cached?.config
+  const post = cached?.post
+  if (!post) {
+    return buildMeta({ title: config?.site_title, image: siteFallbackImage(config) })
+  }
+  return buildMeta({
+    title: post.title,
+    description: post.meta_description || post.excerpt,
+    image: post.thumbnail_filename
+      ? absoluteUploadUrl(config, `/api/uploads/${post.thumbnail_filename}`)
+      : siteFallbackImage(config),
+    type: 'article',
+  })
+}
 
 // Shown only while clientLoader is resolving on a hard load of a post that
 // wasn't prerendered (a prerendered post's real content is already in the
@@ -499,13 +556,6 @@ export default function BlogPostPage() {
       setLikeDeltas({})
     }
   }
-
-  useEffect(() => {
-    if (post?.title) {
-      document.title = post.title
-    }
-    setMetaDescription(post?.meta_description || post?.excerpt)
-  }, [post])
 
   function handleLike(commentId, currentlyLiked) {
     const delta = currentlyLiked ? -1 : 1

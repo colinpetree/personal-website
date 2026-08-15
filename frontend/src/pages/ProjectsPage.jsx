@@ -1,13 +1,20 @@
-import { useEffect } from 'react'
 import { useLoaderData } from 'react-router'
 import { ExternalLink } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
-import { setMetaDescription } from '../utils/meta'
-import { apiUrl } from '../lib/apiFetch'
+import { buildMeta, siteFallbackImage } from '../utils/meta'
+import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
 
+// fetchSiteConfig() runs alongside the project fetch purely to populate
+// getCachedSiteConfig()'s cache in time for meta() below (see its usage
+// there for why) — its resolved value isn't otherwise part of this route's
+// own data (the component reads config from context, not this).
 async function fetchProjects() {
-  const res = await fetch(apiUrl('/api/projects'))
-  return res.ok ? await res.json() : []
+  const [projectsRes] = await Promise.all([
+    fetch(apiUrl('/api/projects')),
+    fetchSiteConfig(),
+  ])
+  const projects = projectsRes.ok ? await projectsRes.json() : []
+  return { projects }
 }
 
 // Prerendered at build time.
@@ -39,6 +46,19 @@ function ProjectCardSkeleton() {
   )
 }
 
+// data.config would be the natural source here, but this route's component
+// also calls useLoaderData() — confirmed that combination makes meta()'s
+// `data` param unreliable at prerender time (see getCachedSiteConfig in
+// apiFetch.js). Read the synchronous cache instead.
+export function meta() {
+  const config = getCachedSiteConfig()
+  return buildMeta({
+    title: config?.site_title ? `${config.projects_page_name ?? 'Projects'} - ${config.site_title}` : undefined,
+    description: config?.projects_meta_description,
+    image: siteFallbackImage(config),
+  })
+}
+
 // Shown only while clientLoader is resolving on a hard load with nothing
 // prerendered yet.
 export function HydrateFallback() {
@@ -53,14 +73,7 @@ export function HydrateFallback() {
 
 export default function ProjectsPage() {
   const { config } = useSiteConfig()
-  const projects = useLoaderData()
-
-  useEffect(() => {
-    if (config?.site_title) {
-      document.title = `${config.projects_page_name ?? 'Projects'} - ${config.site_title}`
-    }
-    setMetaDescription(config?.projects_meta_description)
-  }, [config])
+  const { projects } = useLoaderData()
 
   return (
     <main className="max-w-4xl mx-auto px-6 py-16">

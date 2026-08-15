@@ -6,12 +6,39 @@ import { useSiteConfig } from '../hooks/useSiteConfig'
 import { useUserAuth } from '../context/UserAuthContext'
 import PaymentComments from '../components/PaymentComments'
 import SignInRequiredModal from '../components/SignInRequiredModal'
-import { setMetaDescription } from '../utils/meta'
+import { fetchSiteConfig } from '../lib/apiFetch'
+import { buildMeta, siteFallbackImage } from '../utils/meta'
 
 const PRESET_AMOUNTS = [3, 9, 15, 25]
 const MESSAGE_MAX_LEN = 500
 const NAME_MAX_LEN = 100
 const GUEST_PORTAL_GENERIC_MESSAGE = "If that email has an active subscription, we've sent a management link."
+
+// clientLoader ONLY — no bare `loader` here. This route is deliberately
+// excluded from react-router.config.ts's prerender() (session-gated/write-
+// heavy), so a `loader` export would trip react-router's ssr:false
+// validation (a route with `loader` must have at least one prerendered
+// path for its route id — see BlogPostPage.jsx/routes.ts for the same
+// constraint hit and fixed elsewhere). clientLoader.hydrate=true still
+// gets this real config data before the first render, same as everywhere
+// else — just via the client-only path since there's no prerendering to
+// race against here.
+export async function clientLoader() {
+  return fetchSiteConfig()
+}
+clientLoader.hydrate = true
+
+export function HydrateFallback() {
+  return <main className="min-h-screen bg-white" />
+}
+
+export function meta({ data }) {
+  return buildMeta({
+    title: data?.site_title ? `${data.payment_page_name ?? 'Payment'} - ${data.site_title}` : undefined,
+    description: data?.payment_meta_description,
+    image: siteFallbackImage(data),
+  })
+}
 
 export default function PaymentPage() {
   const { config } = useSiteConfig()
@@ -44,13 +71,6 @@ export default function PaymentPage() {
     if (!config?.stripe_publishable_key) return null
     return loadStripe(config.stripe_publishable_key)
   }, [config?.stripe_publishable_key])
-
-  useEffect(() => {
-    if (config?.site_title) {
-      document.title = `${config.payment_page_name ?? 'Payment'} - ${config.site_title}`
-    }
-    setMetaDescription(config?.payment_meta_description)
-  }, [config])
 
   useEffect(() => {
     if (step !== 'checkout') return

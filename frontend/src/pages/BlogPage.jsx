@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useLoaderData } from 'react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
-import { setMetaDescription } from '../utils/meta'
-import { apiUrl } from '../lib/apiFetch'
+import { buildMeta, siteFallbackImage } from '../utils/meta'
+import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
 
 function BlogListSkeleton() {
   return (
@@ -23,9 +23,17 @@ function BlogListSkeleton() {
   )
 }
 
+// fetchSiteConfig() runs alongside the post fetch purely to populate
+// getCachedSiteConfig()'s cache in time for meta() below (see its usage
+// there for why) — its resolved value isn't otherwise part of this route's
+// own data (the component reads config from context, not this).
 async function fetchFirstPage() {
-  const res = await fetch(apiUrl('/api/blog?page=1&per_page=10'))
-  return res.ok ? await res.json() : { posts: [], total: 0, page: 1, pages: 1 }
+  const [postsRes] = await Promise.all([
+    fetch(apiUrl('/api/blog?page=1&per_page=10')),
+    fetchSiteConfig(),
+  ])
+  const posts = postsRes.ok ? await postsRes.json() : { posts: [], total: 0, page: 1, pages: 1 }
+  return posts
 }
 
 // Prerendered at build time, page 1 only — pagination beyond that stays a
@@ -45,6 +53,19 @@ export async function clientLoader() {
   return fetchFirstPage()
 }
 clientLoader.hydrate = true
+
+// data.config would be the natural source here, but this route's component
+// also calls useLoaderData() — confirmed that combination makes meta()'s
+// `data` param unreliable at prerender time (see getCachedSiteConfig in
+// apiFetch.js). Read the synchronous cache instead.
+export function meta() {
+  const config = getCachedSiteConfig()
+  return buildMeta({
+    title: config?.site_title ? `${config.blog_page_name ?? 'Blog'} - ${config.site_title}` : undefined,
+    description: config?.blog_meta_description,
+    image: siteFallbackImage(config),
+  })
+}
 
 // Shown only while clientLoader resolves on a hard load with nothing
 // prerendered yet — reuses the same skeleton already used for the
@@ -77,13 +98,6 @@ export default function BlogPage() {
     setData(initialData)
     setPage(1)
   }, [initialData])
-
-  useEffect(() => {
-    if (config?.site_title) {
-      document.title = `${config.blog_page_name ?? 'Blog'} - ${config.site_title}`
-    }
-    setMetaDescription(config?.blog_meta_description)
-  }, [config])
 
   useEffect(() => {
     // Page 1 already came from the loader — only fetch client-side when

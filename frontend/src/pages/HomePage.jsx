@@ -1,16 +1,32 @@
-import { useEffect } from 'react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
-import { setMetaDescription } from '../utils/meta'
+import { fetchSiteConfig } from '../lib/apiFetch'
+import { buildMeta, siteFallbackImage } from '../utils/meta'
+
+// Purely for meta() below — the page body still reads config from context
+// via useSiteConfig(), fed by root's own loader. This separate fetch exists
+// because meta() can't reliably reach root's data through `matches` during
+// prerendering (confirmed unreliable — see root.jsx); it needs its own
+// directly-awaited copy, shared/memoized with every other page via
+// fetchSiteConfig() so it's not a redundant network call per page.
+export async function loader() {
+  return fetchSiteConfig()
+}
+
+export async function clientLoader() {
+  return fetchSiteConfig()
+}
+clientLoader.hydrate = true
+
+export function meta({ data }) {
+  return buildMeta({
+    title: data?.site_title,
+    description: data?.home_meta_description,
+    image: siteFallbackImage(data),
+  })
+}
 
 export default function HomePage() {
   const { config } = useSiteConfig()
-
-  useEffect(() => {
-    if (config?.site_title) {
-      document.title = config.site_title
-    }
-    setMetaDescription(config?.home_meta_description)
-  }, [config])
 
   if (!config?.home_text) {
     return (

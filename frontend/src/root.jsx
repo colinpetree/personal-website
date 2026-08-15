@@ -4,18 +4,9 @@ import { AdminAuthProvider } from './context/AdminAuthContext'
 import { UserAuthProvider } from './context/UserAuthContext'
 import { SiteConfigProvider } from './context/SiteConfigContext'
 import { TooltipProvider } from './components/ui/Tooltip'
-import { apiUrl } from './lib/apiFetch'
+import { fetchSiteConfig } from './lib/apiFetch'
+import { buildMeta, siteFallbackImage } from './utils/meta'
 import './index.css'
-
-async function fetchSiteConfig() {
-  try {
-    const res = await fetch(apiUrl('/api/site-config'))
-    if (!res.ok) return null
-    return await res.json()
-  } catch {
-    return null
-  }
-}
 
 // Root loader — prerendered at build time (see react-router.config.ts).
 export async function loader() {
@@ -42,13 +33,28 @@ export function HydrateFallback() {
   return <main className="min-h-screen bg-white" />
 }
 
+// Root's own meta/OG tags — react-router's per-route meta REPLACES rather
+// than merges (a route with its own meta() export doesn't automatically
+// inherit the parent's), so every other page needs its own complete tag
+// set too, not just an override of this one. See HomePage.jsx etc., which
+// each fetch their own config via fetchSiteConfig() (shared/memoized with
+// this one, see apiFetch.js) rather than trying to reach this route's data
+// through `matches` — confirmed unreliable during prerendering, since the
+// <head> renders before this route's own async fetch resolves for anyone
+// visiting a DIFFERENT path.
+export function meta({ data }) {
+  return buildMeta({
+    title: data?.site_title || 'My Website',
+    image: siteFallbackImage(data),
+  })
+}
+
 export function Layout({ children }) {
   return (
     <html lang="en">
       <head>
         <meta charSet="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Colin Petree</title>
         <Meta />
         <Links />
       </head>
