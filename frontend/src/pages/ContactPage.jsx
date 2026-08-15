@@ -1,21 +1,34 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
-import { setMetaDescription } from '../utils/meta'
+import { fetchSiteConfig } from '../lib/apiFetch'
+import { buildMeta, siteFallbackImage } from '../utils/meta'
 
 const INITIAL = { name: '', email: '', subject: '', message: '' }
+
+// Purely for meta() below — see HomePage.jsx for why this route needs its
+// own directly-awaited config fetch. Page body still reads from context.
+export async function loader() {
+  return fetchSiteConfig()
+}
+
+export async function clientLoader() {
+  return fetchSiteConfig()
+}
+clientLoader.hydrate = true
+
+export function meta({ data }) {
+  return buildMeta({
+    title: data?.site_title ? `${data.contact_page_name ?? 'Contact'} - ${data.site_title}` : undefined,
+    description: data?.contact_meta_description,
+    image: siteFallbackImage(data),
+  })
+}
 
 export default function ContactPage() {
   const { config } = useSiteConfig()
   const [form, setForm] = useState(INITIAL)
   const [status, setStatus] = useState(null) // 'sending' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState('')
-
-  useEffect(() => {
-    if (config?.site_title) {
-      document.title = `${config.contact_page_name ?? 'Contact'} - ${config.site_title}`
-    }
-    setMetaDescription(config?.contact_meta_description)
-  }, [config])
 
   function handleChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))

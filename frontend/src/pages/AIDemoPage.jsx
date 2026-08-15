@@ -1,7 +1,7 @@
-import { useEffect } from 'react'
 import { Link } from 'react-router'
 import { useSiteConfig } from '../hooks/useSiteConfig'
-import { setMetaDescription } from '../utils/meta'
+import { fetchSiteConfig } from '../lib/apiFetch'
+import { buildMeta, siteFallbackImage } from '../utils/meta'
 
 const DEMOS = [
   {
@@ -54,15 +54,29 @@ const DEMOS = [
   }
 ]
 
+// clientLoader ONLY — no bare `loader`. Same reasoning as PaymentPage.jsx:
+// this route is deliberately excluded from react-router.config.ts's
+// prerender() (session-gated/write-heavy), so a `loader` export would trip
+// react-router's ssr:false validation.
+export async function clientLoader() {
+  return fetchSiteConfig()
+}
+clientLoader.hydrate = true
+
+export function HydrateFallback() {
+  return <main className="min-h-screen bg-white" />
+}
+
+export function meta({ data }) {
+  return buildMeta({
+    title: data?.site_title ? `${data.ai_demo_page_name ?? 'AI'} - ${data.site_title}` : undefined,
+    description: data?.ai_demo_meta_description,
+    image: siteFallbackImage(data),
+  })
+}
+
 export default function AIDemoPage() {
   const { config } = useSiteConfig()
-
-  useEffect(() => {
-    if (config?.site_title) {
-      document.title = `${config.ai_demo_page_name ?? 'AI'} - ${config.site_title}`
-    }
-    setMetaDescription(config?.ai_demo_meta_description)
-  }, [config])
 
   return (
     <main className="max-w-4xl mx-auto px-6 py-16">

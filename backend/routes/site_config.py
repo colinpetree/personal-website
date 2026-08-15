@@ -14,6 +14,11 @@ def get_site_config():
     return jsonify({
         'site_title': config.site_title,
         'favicon_filename': config.favicon_filename,
+        # Not a secret — it's the site's own public hostname, visible in every
+        # visitor's URL bar already. Needed by the frontend to build absolute
+        # og:image URLs (Open Graph/Twitter Card scrapers fetch images
+        # directly and don't resolve relative URLs against the page).
+        'domain': config.domain,
         'nav': [
             {
                 'key': 'home',
