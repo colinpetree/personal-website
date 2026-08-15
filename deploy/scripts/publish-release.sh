@@ -4,26 +4,30 @@
 # already built by build-on-pi.sh as a GitHub Release on the SEPARATE
 # releases repo.
 #
-# Usage: publish-release.sh --bump patch|minor|major --releases-repo <owner>/<repo>
+# Usage: publish-release.sh [--minor|--major] [--releases-repo <owner>/<repo>]
+# Defaults to a patch bump, publishing to colinpetree/personal-website-dist.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 STAGING="$HOME/personal-website-build/release-staging"
+DEFAULT_RELEASES_REPO="colinpetree/personal-website-dist"
 
 BUMP="patch"
-RELEASES_REPO=""
+RELEASES_REPO="$DEFAULT_RELEASES_REPO"
 while [ $# -gt 0 ]; do
     case "$1" in
+        --minor) BUMP="minor"; shift ;;
+        --major) BUMP="major"; shift ;;
         --bump) BUMP="$2"; shift 2 ;;
         --releases-repo) RELEASES_REPO="$2"; shift 2 ;;
         *) echo "Unknown argument: $1"; exit 1 ;;
     esac
 done
 
-if [ -z "$RELEASES_REPO" ]; then
-    echo "Usage: publish-release.sh --bump patch|minor|major --releases-repo <owner>/<repo>"
-    exit 1
-fi
+case "$BUMP" in
+    major|minor|patch) ;;
+    *) echo "Invalid --bump: $BUMP (expected patch|minor|major)"; exit 1 ;;
+esac
 
 cd "$REPO_DIR"
 CURRENT="$(cat VERSION | tr -d '[:space:]')"
@@ -32,10 +36,19 @@ case "$BUMP" in
     major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
     minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
     patch) PATCH=$((PATCH + 1)) ;;
-    *) echo "Invalid --bump: $BUMP (expected patch|minor|major)"; exit 1 ;;
 esac
 NEW_VERSION="$MAJOR.$MINOR.$PATCH"
 TAG="v$NEW_VERSION"
+
+echo "=================================================="
+echo " Current version : $CURRENT"
+echo " New version      : $NEW_VERSION ($BUMP bump)"
+echo " Releases repo    : $RELEASES_REPO"
+echo "--------------------------------------------------"
+echo " Use --minor or --major to bump a bigger number."
+echo " Use --releases-repo <owner>/<repo> to change the target repo."
+echo "=================================================="
+read -r -p "Press Enter to continue, or Ctrl+C to cancel... "
 
 # Write the bump but deliberately do NOT commit/tag yet — if the rebuild
 # below fails (the exact case its smoke test exists to catch), a commit or
