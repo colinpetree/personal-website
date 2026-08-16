@@ -8,16 +8,91 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+from functools import wraps
+
 from dateutil.relativedelta import relativedelta
 from anthropic import Anthropic
 import voyageai
 from flask import Blueprint, Response, current_app, jsonify, request, send_from_directory, stream_with_context
+from flask_login import current_user
 
-from routes.auth import user_required
+from extensions import db
+from models import AiDemoAccessLink, SiteConfig
+from crypto import decrypt
+from email_utils import send_email, mail_configured
+from routes.auth import user_required, get_current_user
 import mcp_runtime
 import rag_index
 
 ai_demo_bp = Blueprint('ai_demo', __name__)
+
+DEMO_TITLES = {
+    'conversation-basics': 'Conversation basics',
+    'tool-use': 'Tool use',
+    'web-search': 'Web search',
+    'mcp': 'MCP',
+    'prompt-evaluation': 'Prompt evaluation',
+    'prompt-engineering': 'Prompt engineering',
+    'rag': 'RAG / hybrid search',
+    'vision': 'Vision',
+}
+
+
+def _has_demo_access():
+    if current_user.is_authenticated:  # admin/staff always allowed
+        return True
+    user = get_current_user()
+    return bool(user and user.ai_demo_access)
+
+
+def ai_demo_access_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not _has_demo_access():
+            return jsonify({'error': 'access_required'}), 403
+        return f(*args, **kwargs)
+    return decorated
+
+
+@ai_demo_bp.route('/api/ai-demo/access-links')
+def list_access_links():
+    return jsonify({l.demo_key: {'url': l.url, 'text': l.text} for l in AiDemoAccessLink.query.all()})
+
+
+@ai_demo_bp.route('/api/ai-demo/request-access', methods=['POST'])
+@user_required
+def request_demo_access():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Authentication required'}), 401
+
+    # Each account can only trigger one notification email, ever - a repeat click (e.g.
+    # after closing and reopening the modal before the admin has acted) is a no-op that
+    # still reports success, so the frontend doesn't need a separate "already requested"
+    # state to handle.
+    if user.ai_demo_access_requested_at:
+        return jsonify({'message': 'Request already sent.'})
+
+    config = SiteConfig.query.first()
+    if not (config and mail_configured(config) and config.forward_email):
+        return jsonify({'error': 'Access requests are not available.'}), 503
+
+    data = request.get_json(silent=True) or {}
+    demo_key = data.get('demo_key')
+    demo_title = DEMO_TITLES.get(demo_key, demo_key or 'an AI demo')
+
+    body = f"{user.name} <{user.email}> is requesting access to the \"{demo_title}\" AI demo."
+
+    try:
+        config.mailgun_api_key = decrypt(config.mailgun_api_key)
+        send_email(config, config.forward_email, 'AI Demo Access Request', body, 'AI Demo')
+    except Exception:
+        return jsonify({'error': 'Failed to send request. Please try again later.'}), 500
+
+    user.ai_demo_access_requested_at = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({'message': 'Request sent.'})
 
 MODEL = 'claude-sonnet-5'
 MCP_MODEL = 'claude-haiku-4-5-20251001'
@@ -149,6 +224,7 @@ def _assistant_content_for_replay(message):
 
 @ai_demo_bp.route('/api/ai-demo/conversation-basics/chat', methods=['POST'])
 @user_required
+@ai_demo_access_required
 def conversation_basics_chat():
     client = _client()
     if not client:
@@ -190,6 +266,7 @@ def conversation_basics_chat():
 
 @ai_demo_bp.route('/api/ai-demo/tool-use/chat', methods=['POST'])
 @user_required
+@ai_demo_access_required
 def tool_use_chat():
     client = _client()
     if not client:
@@ -284,6 +361,7 @@ WEB_SEARCH_MAX_TOKENS = 4096
 
 @ai_demo_bp.route('/api/ai-demo/web-search/chat', methods=['POST'])
 @user_required
+@ai_demo_access_required
 def web_search_chat():
     client = _client()
     if not client:
@@ -351,6 +429,7 @@ def _run_mcp_tool(name, tool_input):
 
 @ai_demo_bp.route('/api/ai-demo/mcp/tools', methods=['GET'])
 @user_required
+@ai_demo_access_required
 def mcp_tools():
     if not mcp_runtime.is_configured():
         return jsonify({'error': MCP_UNAVAILABLE_MESSAGE}), 503
@@ -366,6 +445,7 @@ def mcp_tools():
 
 @ai_demo_bp.route('/api/ai-demo/mcp/chat', methods=['POST'])
 @user_required
+@ai_demo_access_required
 def mcp_chat():
     data = request.get_json(silent=True) or {}
     messages = data.get('messages')
@@ -480,6 +560,7 @@ RAG_SOURCE_PDF_FILENAME = 'deseq2-love-huber-anders-2014.pdf'
 
 @ai_demo_bp.route('/api/ai-demo/rag/source.pdf')
 @user_required
+@ai_demo_access_required
 def rag_source_pdf():
     data_dir = os.path.join(current_app.root_path, 'data')
     return send_from_directory(
@@ -492,6 +573,7 @@ def rag_source_pdf():
 
 @ai_demo_bp.route('/api/ai-demo/rag/search', methods=['POST'])
 @user_required
+@ai_demo_access_required
 def rag_search():
     client = _client()
     voyage_client = _voyage_client()
@@ -760,6 +842,7 @@ def _grade_by_model(client, test_case, output):
 
 @ai_demo_bp.route('/api/ai-demo/prompt-evaluation/run', methods=['POST'])
 @user_required
+@ai_demo_access_required
 def prompt_evaluation_run():
     client = _client()
     if not client:
@@ -980,6 +1063,7 @@ def _grade_prompt_engineering_output(client, passage, output):
 
 @ai_demo_bp.route('/api/ai-demo/prompt-engineering/run', methods=['POST'])
 @user_required
+@ai_demo_access_required
 def prompt_engineering_run():
     client = _client()
     if not client:
@@ -1065,6 +1149,7 @@ VISION_SYSTEM_PROMPT = (
 
 @ai_demo_bp.route('/api/ai-demo/vision/analyze', methods=['POST'])
 @user_required
+@ai_demo_access_required
 def vision_analyze():
     client = _client()
     if not client:

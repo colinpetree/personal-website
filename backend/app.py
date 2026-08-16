@@ -57,7 +57,9 @@ def create_app():
 
     if app.config['ENABLE_AI_DEMOS']:
         from routes.ai_demo import ai_demo_bp
+        from routes.admin_ai_demo_links import admin_ai_demo_links_bp
         app.register_blueprint(ai_demo_bp)
+        app.register_blueprint(admin_ai_demo_links_bp)
 
     return app
 
@@ -85,6 +87,15 @@ def _migrate_schema():
         if 'blog_comments_enabled' not in config_columns:
             conn.execute(text(
                 'ALTER TABLE site_config ADD COLUMN blog_comments_enabled BOOLEAN NOT NULL DEFAULT TRUE'
+            ))
+
+        if 'ai_demo_access' not in user_columns:
+            conn.execute(text(
+                'ALTER TABLE "user" ADD COLUMN ai_demo_access BOOLEAN NOT NULL DEFAULT FALSE'
+            ))
+        if 'ai_demo_access_requested_at' not in user_columns:
+            conn.execute(text(
+                'ALTER TABLE "user" ADD COLUMN ai_demo_access_requested_at TIMESTAMP'
             ))
 
 

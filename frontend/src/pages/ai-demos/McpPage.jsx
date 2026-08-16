@@ -3,8 +3,14 @@ import { Link } from 'react-router'
 import { ArrowUp, ArrowDown, ChevronLeft, Wrench, GitBranch, RotateCcw } from 'lucide-react'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import { useRequireSignIn } from '../../hooks/useRequireSignIn'
+import { useRequireAiDemoAccess } from '../../hooks/useRequireAiDemoAccess'
+import { useAiDemoAccessLinks } from '../../hooks/useAiDemoAccessLinks'
 import { Tooltip } from '../../components/ui/Tooltip'
 import SignInRequiredModal from '../../components/SignInRequiredModal'
+import AccessRequiredModal from '../../components/AccessRequiredModal'
+
+const DEMO_KEY = 'mcp'
+const DEMO_TITLE = 'MCP'
 
 // Minimal markdown -> React renderer (headings, bold/italic/inline code, lists,
 // paragraphs) — enough to render Claude's typical formatting without a new dependency.
@@ -189,6 +195,8 @@ function ToolCard({ block }) {
 export default function McpPage() {
   const { config } = useSiteConfig()
   const { user, signInAvailable, showSignInModal, setShowSignInModal, requireSignIn } = useRequireSignIn()
+  const { hasAccess, showAccessModal, setShowAccessModal, requireAccess } = useRequireAiDemoAccess()
+  const accessLinks = useAiDemoAccessLinks()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -212,17 +220,20 @@ export default function McpPage() {
   }, [config])
 
   // Tools are fetched live from GitHub's remote MCP server (rather than hardcoded like
-  // the Tool use demo) — only once signed in, since this endpoint is @user_required.
+  // the Tool use demo) — only once signed in AND granted access, since this endpoint is
+  // both @user_required and @ai_demo_access_required. Skipping the fetch entirely when
+  // !hasAccess (rather than letting it 403) keeps `tools` at its initial `null` so the
+  // panel can tell "access required" apart from "no tools" below.
   useEffect(() => {
-    if (!user) return
+    if (!user || !hasAccess) return
     fetch('/api/ai-demo/mcp/tools', { credentials: 'include' })
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : { tools: [], repo: null })
       .then(d => {
         setTools(d.tools ?? [])
         setRepo(d.repo ?? null)
       })
       .catch(() => setTools([]))
-  }, [user])
+  }, [user, hasAccess])
 
   useEffect(() => {
     const el = scrollContainerRef.current
@@ -295,6 +306,7 @@ export default function McpPage() {
   async function handleSend(e) {
     e.preventDefault()
     if (!requireSignIn()) return
+    if (!requireAccess()) return
 
     const text = input.trim()
     if (!text || sending) return
@@ -362,7 +374,11 @@ export default function McpPage() {
 
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}))
-        setError(data.error || 'Something went wrong. Please try again.')
+        if (data.error === 'access_required') {
+          setShowAccessModal(true)
+        } else {
+          setError(data.error || 'Something went wrong. Please try again.')
+        }
         setMessages(history)
         setSending(false)
         return
@@ -414,6 +430,14 @@ export default function McpPage() {
   return (
     <div className="h-[calc(100vh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden">
       {showSignInModal && <SignInRequiredModal onClose={() => setShowSignInModal(false)} />}
+      {showAccessModal && (
+        <AccessRequiredModal
+          onClose={() => setShowAccessModal(false)}
+          demoKey={DEMO_KEY}
+          demoTitle={DEMO_TITLE}
+          link={accessLinks[DEMO_KEY]}
+        />
+      )}
 
       {/* Chat column */}
       <div className="order-2 flex-1 min-w-0 min-h-0 flex flex-col relative">
@@ -484,6 +508,14 @@ export default function McpPage() {
                 className="absolute inset-0 z-10 cursor-pointer"
               />
             )}
+            {user && !hasAccess && (
+              <button
+                type="button"
+                aria-label="Access required"
+                onClick={() => setShowAccessModal(true)}
+                className="absolute inset-0 z-10 cursor-pointer"
+              />
+            )}
             {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
             <form
               onSubmit={handleSend}
@@ -541,6 +573,8 @@ export default function McpPage() {
           <p className="text-sm font-medium text-gray-700">Available tools</p>
           {!user ? (
             <p className="text-xs text-gray-400">Sign in to see live tools from GitHub's MCP server.</p>
+          ) : !hasAccess ? (
+            <p className="text-xs text-gray-400">You need access to this demo to see live tools.</p>
           ) : tools === null ? (
             <p className="text-xs text-gray-400">Loading…</p>
           ) : (

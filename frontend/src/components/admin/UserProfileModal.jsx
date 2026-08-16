@@ -3,6 +3,10 @@ import { X } from 'lucide-react'
 import { useToast } from './Toast'
 import { Toggle } from './AdminPage'
 
+// Deployment-time flag — matches the one AdminLayout.jsx uses to hide the AI
+// Demo nav item; keeps this toggle from appearing for a feature that isn't built.
+const AI_DEMOS_ENABLED = import.meta.env.VITE_ENABLE_AI_DEMOS !== 'false'
+
 export default function UserProfileModal({ user, onClose, onUpdated }) {
   const { addToast } = useToast()
 
@@ -23,7 +27,7 @@ export default function UserProfileModal({ user, onClose, onUpdated }) {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ name: local.name, email: local.email, title: local.title, can_comment: local.can_comment }),
+        body: JSON.stringify({ name: local.name, email: local.email, title: local.title, can_comment: local.can_comment, ai_demo_access: local.ai_demo_access }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Save failed')
@@ -102,6 +106,14 @@ export default function UserProfileModal({ user, onClose, onUpdated }) {
             checked={!local.can_comment}
             onChange={v => set('can_comment', !v)}
           />
+
+          {AI_DEMOS_ENABLED && (
+            <Toggle
+              label="Allow AI demo access"
+              checked={!!local.ai_demo_access}
+              onChange={v => set('ai_demo_access', v)}
+            />
+          )}
         </div>
 
         {/* Footer */}

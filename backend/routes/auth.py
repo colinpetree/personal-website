@@ -252,6 +252,7 @@ def me():
             'email': current_user.email,
             'avatar_url': f'/api/uploads/{current_user.avatar_filename}' if current_user.avatar_filename else None,
             'can_comment': True,
+            'ai_demo_access': True,
             'is_staff': True,
         })
 

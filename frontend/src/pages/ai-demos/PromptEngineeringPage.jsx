@@ -3,7 +3,13 @@ import { Link } from 'react-router'
 import { Check, ChevronDown, ChevronLeft, Play } from 'lucide-react'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import { useRequireSignIn } from '../../hooks/useRequireSignIn'
+import { useRequireAiDemoAccess } from '../../hooks/useRequireAiDemoAccess'
+import { useAiDemoAccessLinks } from '../../hooks/useAiDemoAccessLinks'
 import SignInRequiredModal from '../../components/SignInRequiredModal'
+import AccessRequiredModal from '../../components/AccessRequiredModal'
+
+const DEMO_KEY = 'prompt-engineering'
+const DEMO_TITLE = 'Prompt engineering'
 
 // Fixed, read-only passages - the point of this demo is comparing prompts, not passages, so these
 // aren't editable. Keep in sync with PROMPT_ENGINEERING_PASSAGES in backend/routes/ai_demo.py.
@@ -191,6 +197,8 @@ function OutputColumn({ variant, output, grade }) {
 export default function PromptEngineeringPage() {
   const { config } = useSiteConfig()
   const { user, signInAvailable, showSignInModal, setShowSignInModal, requireSignIn } = useRequireSignIn()
+  const { hasAccess, showAccessModal, setShowAccessModal, requireAccess } = useRequireAiDemoAccess()
+  const accessLinks = useAiDemoAccessLinks()
   const [passageId, setPassageId] = useState(PASSAGES[0].id)
   const [naivePrompt, setNaivePrompt] = useState(DEFAULT_NAIVE_PROMPT)
   const [refinedPrompt, setRefinedPrompt] = useState(DEFAULT_REFINED_PROMPT)
@@ -216,6 +224,7 @@ export default function PromptEngineeringPage() {
 
   async function handleRun() {
     if (!requireSignIn()) return
+    if (!requireAccess()) return
     if (running) return
 
     setError('')
@@ -238,7 +247,11 @@ export default function PromptEngineeringPage() {
 
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}))
-        setError(data.error || 'Something went wrong. Please try again.')
+        if (data.error === 'access_required') {
+          setShowAccessModal(true)
+        } else {
+          setError(data.error || 'Something went wrong. Please try again.')
+        }
         setRunning(false)
         return
       }
@@ -290,6 +303,14 @@ export default function PromptEngineeringPage() {
   return (
     <div className="h-[calc(100vh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden">
       {showSignInModal && <SignInRequiredModal onClose={() => setShowSignInModal(false)} />}
+      {showAccessModal && (
+        <AccessRequiredModal
+          onClose={() => setShowAccessModal(false)}
+          demoKey={DEMO_KEY}
+          demoTitle={DEMO_TITLE}
+          link={accessLinks[DEMO_KEY]}
+        />
+      )}
 
       {/* Results column */}
       <div className="order-2 flex-1 min-w-0 min-h-0 flex flex-col overflow-y-auto px-6 py-8">
@@ -300,6 +321,14 @@ export default function PromptEngineeringPage() {
                 type="button"
                 aria-label="Sign in required"
                 onClick={() => setShowSignInModal(true)}
+                className="absolute inset-0 z-10 cursor-pointer"
+              />
+            )}
+            {user && !hasAccess && (
+              <button
+                type="button"
+                aria-label="Access required"
+                onClick={() => setShowAccessModal(true)}
                 className="absolute inset-0 z-10 cursor-pointer"
               />
             )}

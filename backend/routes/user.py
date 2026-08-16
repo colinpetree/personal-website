@@ -15,6 +15,7 @@ def _user_dict(user):
         'avatar_url': user.display_avatar_url,
         'avatar_filename': user.avatar_filename,
         'can_comment': user.can_comment,
+        'ai_demo_access': user.ai_demo_access,
     }
 
 
