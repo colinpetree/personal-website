@@ -31,6 +31,7 @@ def _user_dict(u, comment_count):
         'title': u.title,
         'avatar_url': u.display_avatar_url,
         'can_comment': u.can_comment,
+        'ai_demo_access': u.ai_demo_access,
         'created_at': u.created_at.isoformat() + 'Z',
         'comment_count': comment_count,
     }
@@ -66,14 +67,21 @@ def update_user(user_id):
     data = request.get_json(silent=True) or {}
 
     edited = False
-    comment_status_suffix = None
+    status_notes = []
 
     if 'can_comment' in data:
         new_can_comment = bool(data['can_comment'])
         if new_can_comment != user.can_comment:
             user.can_comment = new_can_comment
             edited = True
-            comment_status_suffix = '(blocked from commenting)' if not new_can_comment else '(unblocked from commenting)'
+            status_notes.append('blocked from commenting' if not new_can_comment else 'unblocked from commenting')
+
+    if 'ai_demo_access' in data:
+        new_ai_demo_access = bool(data['ai_demo_access'])
+        if new_ai_demo_access != user.ai_demo_access:
+            user.ai_demo_access = new_ai_demo_access
+            edited = True
+            status_notes.append('AI demo access granted' if new_ai_demo_access else 'AI demo access revoked')
 
     if 'name' in data:
         new_name = (data['name'] or '').strip()
@@ -100,7 +108,8 @@ def update_user(user_id):
             edited = True
 
     if edited:
-        _log(current_user, 'User', 'edited', user.name, subject_is_bold=True, subject_suffix=comment_status_suffix)
+        suffix = f'({", ".join(status_notes)})' if status_notes else None
+        _log(current_user, 'User', 'edited', user.name, subject_is_bold=True, subject_suffix=suffix)
 
     db.session.commit()
     count = Comment.query.filter_by(user_id=user.id, is_deleted=False).count()
@@ -114,7 +123,7 @@ def export_users():
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['ID', 'Name', 'Email', 'Title', 'Can Comment', 'Comments', 'Joined'])
+    writer.writerow(['ID', 'Name', 'Email', 'Title', 'Can Comment', 'AI Demo Access', 'Comments', 'Joined'])
     for u in users:
         count = Comment.query.filter_by(user_id=u.id, is_deleted=False).count()
         writer.writerow([
@@ -123,6 +132,7 @@ def export_users():
             u.email,
             u.title or '',
             'Yes' if u.can_comment else 'No',
+            'Yes' if u.ai_demo_access else 'No',
             count,
             u.created_at.strftime('%Y-%m-%d'),
         ])

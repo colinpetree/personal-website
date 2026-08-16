@@ -2,57 +2,24 @@ import { Link } from 'react-router'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage } from '../utils/meta'
+import { AI_DEMO_LIST } from '../lib/aiDemos'
 
-const DEMOS = [
-  {
-    key: 'conversation-basics',
-    title: 'Conversation basics',
-    description: 'Chat with Claude. Featuring a custom system prompt, temperature control, and streaming responses',
-    available: true,
-  },
-  {
-    key: 'tool-use',
-    title: 'Tool use',
-    description: 'Watch Claude call a defined tool mid-conversation and use its result.',
-    available: true,
-  },
-  {
-    key: 'web-search',
-    title: 'Web search',
-    description: "Ask a question and watch Claude use Anthropic's own live web search tool to answer it.",
-    available: true,
-  },
-  {
-    key: 'mcp',
-    title: 'MCP',
-    description: "Ask about this site's real GitHub history via a live external MCP server.",
-    available: true,
-  },
-  {
-    key: 'prompt-evaluation',
-    title: 'Prompt evaluation',
-    description: 'Run a prompt against a test-case dataset and watch it get scored.',
-    available: true,
-  },
-  {
-    key: 'prompt-engineering',
-    title: 'Prompt engineering',
-    description: 'Compare a naive prompt against a refined one, side by side, scored by the same judge.',
-    available: true,
-  },
-  {
-    key: 'rag',
-    title: 'RAG / hybrid search',
-    description: 'Search a sample document set with vector, keyword, and hybrid retrieval.',
-    available: true,
-  },
-  {
-    key: 'vision',
-    title: 'Vision',
-    description: 'Upload an image and see Claude analyze it in detail.',
-    available: true,
-  }
-]
+const DEMO_DESCRIPTIONS = {
+  'conversation-basics': 'Chat with Claude. Featuring a custom system prompt, temperature control, and streaming responses',
+  'tool-use': 'Watch Claude call a defined tool mid-conversation and use its result.',
+  'web-search': "Ask a question and watch Claude use Anthropic's own live web search tool to answer it.",
+  'mcp': "Ask about this site's real GitHub history via a live external MCP server.",
+  'prompt-evaluation': 'Run a prompt against a test-case dataset and watch it get scored.',
+  'prompt-engineering': 'Compare a naive prompt against a refined one, side by side, scored by the same judge.',
+  'rag': 'Search a sample document set with vector, keyword, and hybrid retrieval.',
+  'vision': 'Upload an image and see Claude analyze it in detail.',
+}
+
+const DEMOS = AI_DEMO_LIST.map(demo => ({
+  ...demo,
+  description: DEMO_DESCRIPTIONS[demo.key],
+  available: true,
+}))
 
 // clientLoader ONLY — no bare `loader`. Same reasoning as PaymentPage.jsx:
 // this route is deliberately excluded from react-router.config.ts's

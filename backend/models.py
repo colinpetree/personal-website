@@ -161,6 +161,8 @@ class User(db.Model):
     login_token_hash = db.Column(db.String(255), nullable=True)
     login_token_expires = db.Column(db.DateTime, nullable=True)
     can_comment = db.Column(db.Boolean, nullable=False, default=True)
+    ai_demo_access = db.Column(db.Boolean, nullable=False, default=False)
+    ai_demo_access_requested_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     comments = db.relationship('Comment', backref='user', lazy='dynamic')
@@ -170,6 +172,15 @@ class User(db.Model):
         if self.avatar_filename:
             return f'/api/uploads/{self.avatar_filename}'
         return self.avatar_url
+
+
+class AiDemoAccessLink(db.Model):
+    __tablename__ = 'ai_demo_access_link'
+
+    id = db.Column(db.Integer, primary_key=True)
+    demo_key = db.Column(db.String(50), nullable=False, unique=True)
+    url = db.Column(db.String(500), nullable=False)
+    text = db.Column(db.String(200), nullable=False)
 
 
 class Comment(db.Model):

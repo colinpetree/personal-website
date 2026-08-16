@@ -3,7 +3,13 @@ import { Link } from 'react-router'
 import { ChevronLeft, ImagePlus, RotateCcw, Sparkles } from 'lucide-react'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import { useRequireSignIn } from '../../hooks/useRequireSignIn'
+import { useRequireAiDemoAccess } from '../../hooks/useRequireAiDemoAccess'
+import { useAiDemoAccessLinks } from '../../hooks/useAiDemoAccessLinks'
 import SignInRequiredModal from '../../components/SignInRequiredModal'
+import AccessRequiredModal from '../../components/AccessRequiredModal'
+
+const DEMO_KEY = 'vision'
+const DEMO_TITLE = 'Vision'
 
 const ALLOWED_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -123,6 +129,8 @@ function formatBytes(bytes) {
 export default function VisionPage() {
   const { config } = useSiteConfig()
   const { user, signInAvailable, showSignInModal, setShowSignInModal, requireSignIn } = useRequireSignIn()
+  const { hasAccess, showAccessModal, setShowAccessModal, requireAccess } = useRequireAiDemoAccess()
+  const accessLinks = useAiDemoAccessLinks()
   const [file, setFile] = useState(null)
   const [previewUrl, setPreviewUrl] = useState('')
   const [sending, setSending] = useState(false)
@@ -185,6 +193,7 @@ export default function VisionPage() {
 
   async function handleAnalyze() {
     if (!requireSignIn()) return
+    if (!requireAccess()) return
     if (!file || sending) return
 
     setError('')
@@ -236,7 +245,11 @@ export default function VisionPage() {
 
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}))
-        setError(data.error || 'Something went wrong. Please try again.')
+        if (data.error === 'access_required') {
+          setShowAccessModal(true)
+        } else {
+          setError(data.error || 'Something went wrong. Please try again.')
+        }
         setSending(false)
         return
       }
@@ -263,6 +276,14 @@ export default function VisionPage() {
   return (
     <div className="h-[calc(100vh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden">
       {showSignInModal && <SignInRequiredModal onClose={() => setShowSignInModal(false)} />}
+      {showAccessModal && (
+        <AccessRequiredModal
+          onClose={() => setShowAccessModal(false)}
+          demoKey={DEMO_KEY}
+          demoTitle={DEMO_TITLE}
+          link={accessLinks[DEMO_KEY]}
+        />
+      )}
 
       {/* Upload + result column */}
       <div className="order-2 flex-1 min-w-0 min-h-0 overflow-y-auto px-6 py-8 relative">
@@ -272,6 +293,14 @@ export default function VisionPage() {
               type="button"
               aria-label="Sign in required"
               onClick={() => setShowSignInModal(true)}
+              className="absolute inset-0 z-10 cursor-pointer"
+            />
+          )}
+          {user && !hasAccess && (
+            <button
+              type="button"
+              aria-label="Access required"
+              onClick={() => setShowAccessModal(true)}
               className="absolute inset-0 z-10 cursor-pointer"
             />
           )}

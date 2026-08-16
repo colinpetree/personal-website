@@ -3,8 +3,14 @@ import { Link } from 'react-router'
 import { ArrowUp, ArrowDown, ChevronLeft, Wrench, RotateCcw } from 'lucide-react'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import { useRequireSignIn } from '../../hooks/useRequireSignIn'
+import { useRequireAiDemoAccess } from '../../hooks/useRequireAiDemoAccess'
+import { useAiDemoAccessLinks } from '../../hooks/useAiDemoAccessLinks'
 import { Tooltip } from '../../components/ui/Tooltip'
 import SignInRequiredModal from '../../components/SignInRequiredModal'
+import AccessRequiredModal from '../../components/AccessRequiredModal'
+
+const DEMO_KEY = 'tool-use'
+const DEMO_TITLE = 'Tool use'
 
 const TOOLS = [
   { name: 'get_current_datetime', description: 'Gets the current date and time in a given timezone.' },
@@ -177,6 +183,8 @@ function ToolCard({ block }) {
 export default function ToolUsePage() {
   const { config } = useSiteConfig()
   const { user, signInAvailable, showSignInModal, setShowSignInModal, requireSignIn } = useRequireSignIn()
+  const { hasAccess, showAccessModal, setShowAccessModal, requireAccess } = useRequireAiDemoAccess()
+  const accessLinks = useAiDemoAccessLinks()
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -268,6 +276,7 @@ export default function ToolUsePage() {
   async function handleSend(e) {
     e.preventDefault()
     if (!requireSignIn()) return
+    if (!requireAccess()) return
 
     const text = input.trim()
     if (!text || sending) return
@@ -337,7 +346,11 @@ export default function ToolUsePage() {
 
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}))
-        setError(data.error || 'Something went wrong. Please try again.')
+        if (data.error === 'access_required') {
+          setShowAccessModal(true)
+        } else {
+          setError(data.error || 'Something went wrong. Please try again.')
+        }
         setMessages(history)
         setSending(false)
         return
@@ -389,6 +402,14 @@ export default function ToolUsePage() {
   return (
     <div className="h-[calc(100vh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden">
       {showSignInModal && <SignInRequiredModal onClose={() => setShowSignInModal(false)} />}
+      {showAccessModal && (
+        <AccessRequiredModal
+          onClose={() => setShowAccessModal(false)}
+          demoKey={DEMO_KEY}
+          demoTitle={DEMO_TITLE}
+          link={accessLinks[DEMO_KEY]}
+        />
+      )}
 
       {/* Chat column */}
       <div className="order-2 flex-1 min-w-0 min-h-0 flex flex-col relative">
@@ -456,6 +477,14 @@ export default function ToolUsePage() {
                 type="button"
                 aria-label="Sign in required"
                 onClick={() => setShowSignInModal(true)}
+                className="absolute inset-0 z-10 cursor-pointer"
+              />
+            )}
+            {user && !hasAccess && (
+              <button
+                type="button"
+                aria-label="Access required"
+                onClick={() => setShowAccessModal(true)}
                 className="absolute inset-0 z-10 cursor-pointer"
               />
             )}

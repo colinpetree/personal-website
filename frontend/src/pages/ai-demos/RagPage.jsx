@@ -3,7 +3,13 @@ import { Link } from 'react-router'
 import { ArrowUp, ChevronLeft, Download, ExternalLink, Search } from 'lucide-react'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import { useRequireSignIn } from '../../hooks/useRequireSignIn'
+import { useRequireAiDemoAccess } from '../../hooks/useRequireAiDemoAccess'
+import { useAiDemoAccessLinks } from '../../hooks/useAiDemoAccessLinks'
 import SignInRequiredModal from '../../components/SignInRequiredModal'
+import AccessRequiredModal from '../../components/AccessRequiredModal'
+
+const DEMO_KEY = 'rag'
+const DEMO_TITLE = 'RAG / hybrid search'
 
 // Minimal markdown -> React renderer (headings, bold/italic/inline code, lists,
 // paragraphs) — enough to render Claude's typical formatting without a new dependency.
@@ -167,6 +173,8 @@ function EmbeddingPanel({ embedding }) {
 export default function RagPage() {
   const { config } = useSiteConfig()
   const { user, signInAvailable, showSignInModal, setShowSignInModal, requireSignIn } = useRequireSignIn()
+  const { hasAccess, showAccessModal, setShowAccessModal, requireAccess } = useRequireAiDemoAccess()
+  const accessLinks = useAiDemoAccessLinks()
   const [query, setQuery] = useState('')
   const [submittedQuery, setSubmittedQuery] = useState('')
   const [sending, setSending] = useState(false)
@@ -193,6 +201,7 @@ export default function RagPage() {
   async function handleSubmit(e) {
     e.preventDefault()
     if (!requireSignIn()) return
+    if (!requireAccess()) return
 
     const text = query.trim()
     if (!text || sending) return
@@ -242,7 +251,11 @@ export default function RagPage() {
 
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}))
-        setError(data.error || 'Something went wrong. Please try again.')
+        if (data.error === 'access_required') {
+          setShowAccessModal(true)
+        } else {
+          setError(data.error || 'Something went wrong. Please try again.')
+        }
         setSending(false)
         return
       }
@@ -290,6 +303,14 @@ export default function RagPage() {
   return (
     <div className="h-[calc(100vh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden">
       {showSignInModal && <SignInRequiredModal onClose={() => setShowSignInModal(false)} />}
+      {showAccessModal && (
+        <AccessRequiredModal
+          onClose={() => setShowAccessModal(false)}
+          demoKey={DEMO_KEY}
+          demoTitle={DEMO_TITLE}
+          link={accessLinks[DEMO_KEY]}
+        />
+      )}
 
       {/* Search + results column */}
       <div className="order-2 flex-1 min-w-0 min-h-0 flex flex-col relative">
@@ -337,6 +358,14 @@ export default function RagPage() {
                 type="button"
                 aria-label="Sign in required"
                 onClick={() => setShowSignInModal(true)}
+                className="absolute inset-0 z-10 cursor-pointer"
+              />
+            )}
+            {user && !hasAccess && (
+              <button
+                type="button"
+                aria-label="Access required"
+                onClick={() => setShowAccessModal(true)}
                 className="absolute inset-0 z-10 cursor-pointer"
               />
             )}
@@ -407,7 +436,8 @@ export default function RagPage() {
             <a
               href="/api/ai-demo/rag/source.pdf"
               onClick={e => {
-                if (!requireSignIn()) e.preventDefault()
+                if (!requireSignIn()) { e.preventDefault(); return }
+                if (!requireAccess()) e.preventDefault()
               }}
               className="inline-flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-900"
             >
