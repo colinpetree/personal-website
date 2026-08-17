@@ -477,7 +477,7 @@ export default function McpPage() {
           <div className="max-w-2xl mx-auto min-h-full flex flex-col gap-6">
             {messages.length === 0 && (
               <div className="flex-1 flex items-center justify-center text-center px-4">
-                <p className="text-sm text-gray-400 max-w-sm">Ask about this project — e.g. "What were the last few commits?" or "Any open pull requests?"</p>
+                <p className="text-sm text-gray-400 max-w-sm">Ask about this project - "What were the last few commits?" or "What are the changes since the last version?"</p>
               </div>
             )}
             {messages.map((m, i) => (
