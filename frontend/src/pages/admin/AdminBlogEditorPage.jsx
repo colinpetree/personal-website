@@ -8,6 +8,7 @@ import { Tooltip } from '../../components/ui/Tooltip'
 import { useToast } from '../../components/admin/Toast'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import { useAdminAuth } from '../../context/AdminAuthContext'
+import { extractExcerpt } from '../../utils/extractExcerpt'
 
 const AUTOSAVE_DELAY = 2000
 
@@ -65,18 +66,6 @@ function countWords(html) {
   const text = new DOMParser().parseFromString(html, 'text/html').body.textContent || ''
   const words = text.trim().split(/\s+/).filter(Boolean)
   return words.length
-}
-
-function extractExcerpt(html) {
-  const doc = new DOMParser().parseFromString(html, 'text/html')
-  for (const tag of ['p', 'li']) {
-    const el = doc.querySelector(tag)
-    if (el) {
-      const text = el.textContent.trim()
-      if (text) return text
-    }
-  }
-  return ''
 }
 
 function slugify(text) {

@@ -6,6 +6,7 @@ import { Field, Textarea } from '../../components/admin/AdminPage'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { useToast } from '../../components/admin/Toast'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
+import { extractExcerpt } from '../../utils/extractExcerpt'
 
 function countWords(html) {
   const text = new DOMParser().parseFromString(html, 'text/html').body.textContent || ''
@@ -25,20 +26,33 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
   const [loaded, setLoaded] = useState(false)
 
   const editorRef = useRef(null)
+  // Same pattern as AdminBlogEditorPage.jsx's excerptEdited: once the admin
+  // types their own meta description, stop overwriting it on every content
+  // edit. Starts true when the saved value already looks hand-written (i.e.
+  // doesn't match what auto-extraction would currently produce) so an
+  // existing manual description isn't clobbered the moment the page loads.
+  const metaEdited = useRef(false)
 
   useEffect(() => {
     if (loading || loaded || !config) return
-    setContentHtml(config[contentField] || '')
-    setMetaDescription(config[metaField] || '')
+    const html = config[contentField] || ''
+    const savedMeta = config[metaField] || ''
+    setContentHtml(html)
+    setMetaDescription(savedMeta)
+    metaEdited.current = !!(savedMeta && savedMeta !== extractExcerpt(html))
     setLoaded(true)
   }, [loading, loaded, config, contentField, metaField])
 
   function handleContentChange(html) {
     setContentHtml(html)
+    if (!metaEdited.current) {
+      setMetaDescription(extractExcerpt(html))
+    }
     setIsDirty(true)
   }
 
   function handleMetaChange(e) {
+    metaEdited.current = true
     setMetaDescription(e.target.value)
     setIsDirty(true)
   }
