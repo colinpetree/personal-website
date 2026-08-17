@@ -38,6 +38,17 @@ DEMO_TITLES = {
 }
 
 
+def _stream_response(generator, mimetype):
+    # X-Accel-Buffering: no tells nginx not to buffer this response before
+    # forwarding it to the client. Without it, nginx's proxy_buffering (on by
+    # default) collects the whole upstream response into buffers and only
+    # flushes in bursts, which on a slow/complex demo answer shows up as a
+    # long pause followed by a sudden jump of text — confirmed by nginx
+    # holding text/plain and application/json (both in gzip_types) through
+    # its gzip filter too, which flushes on its own buffer-fill schedule.
+    return Response(stream_with_context(generator), mimetype=mimetype, headers={'X-Accel-Buffering': 'no'})
+
+
 def _has_demo_access():
     if current_user.is_authenticated:  # admin/staff always allowed
         return True
@@ -261,7 +272,7 @@ def conversation_basics_chat():
         except Exception as e:
             yield f'\n\n[Error: {e}]'
 
-    return Response(stream_with_context(generate()), mimetype='text/plain')
+    return _stream_response(generate(), 'text/plain')
 
 
 @ai_demo_bp.route('/api/ai-demo/tool-use/chat', methods=['POST'])
@@ -342,7 +353,7 @@ def tool_use_chat():
         except Exception as e:
             yield ndjson({'type': 'error', 'message': str(e)})
 
-    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+    return _stream_response(generate(), 'application/x-ndjson')
 
 
 WEB_SEARCH_SYSTEM_PROMPT = (
@@ -413,7 +424,7 @@ def web_search_chat():
         except Exception as e:
             yield ndjson({'type': 'error', 'message': str(e)})
 
-    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+    return _stream_response(generate(), 'application/x-ndjson')
 
 
 MCP_UNAVAILABLE_MESSAGE = 'The GitHub MCP demo is not configured on this server.'
@@ -537,7 +548,7 @@ def mcp_chat():
         except Exception as e:
             yield ndjson({'type': 'error', 'message': str(e)})
 
-    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+    return _stream_response(generate(), 'application/x-ndjson')
 
 
 RAG_SYSTEM_PROMPT = (
@@ -649,7 +660,7 @@ def rag_search():
         except Exception as e:
             yield ndjson({'type': 'error', 'message': str(e)})
 
-    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+    return _stream_response(generate(), 'application/x-ndjson')
 
 
 PROMPT_EVAL_MODEL = 'claude-haiku-4-5-20251001'  # matches the reference notebook: fast + reliable JSON formatting for the judge
@@ -912,7 +923,7 @@ def prompt_evaluation_run():
         except Exception as e:
             yield ndjson({'type': 'error', 'message': str(e)})
 
-    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+    return _stream_response(generate(), 'application/x-ndjson')
 
 
 PROMPT_ENGINEERING_MODEL = 'claude-haiku-4-5-20251001'  # matches the reference notebook
@@ -1132,7 +1143,7 @@ def prompt_engineering_run():
         except Exception as e:
             yield ndjson({'type': 'error', 'message': str(e)})
 
-    return Response(stream_with_context(generate()), mimetype='application/x-ndjson')
+    return _stream_response(generate(), 'application/x-ndjson')
 
 
 VISION_MAX_TOKENS = 1536
@@ -1192,4 +1203,4 @@ def vision_analyze():
         except Exception as e:
             yield f'\n\n[Error: {e}]'
 
-    return Response(stream_with_context(generate()), mimetype='text/plain')
+    return _stream_response(generate(), 'text/plain')
