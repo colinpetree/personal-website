@@ -78,8 +78,8 @@ export default function SignInRequiredModal({ onClose, title = 'Sign in required
 
         {mode === 'choice' && (
           <>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">{title}</h2>
-            <p className="text-sm text-gray-500 mb-5">{message}</p>
+            <h2 className={`text-lg font-semibold text-gray-900 ${message ? 'mb-2' : 'mb-5'}`}>{title}</h2>
+            {message && <p className="text-sm text-gray-500 mb-5">{message}</p>}
             <div className="flex flex-col gap-3">
               <BarOption onClick={() => loginWithGoogle(window.location.pathname)}>
                 <GoogleIcon />
