@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { ChevronLeft, ImagePlus, RotateCcw, Sparkles } from 'lucide-react'
+import { ChevronLeft, ImagePlus, RotateCcw, Sparkles, PanelLeft } from 'lucide-react'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { useRequireSignIn } from '../../hooks/useRequireSignIn'
 import { useRequireAiDemoAccess } from '../../hooks/useRequireAiDemoAccess'
 import { useAiDemoAccessLinks } from '../../hooks/useAiDemoAccessLinks'
@@ -128,6 +129,7 @@ function formatBytes(bytes) {
 
 export default function VisionPage() {
   const { config } = useSiteConfig()
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
   const { user, signInAvailable, showSignInModal, setShowSignInModal, requireSignIn } = useRequireSignIn()
   const { hasAccess, showAccessModal, setShowAccessModal, requireAccess } = useRequireAiDemoAccess()
   const accessLinks = useAiDemoAccessLinks()
@@ -137,6 +139,7 @@ export default function VisionPage() {
   const [error, setError] = useState('')
   const [answer, setAnswer] = useState('')
   const [dragging, setDragging] = useState(false)
+  const [panelOpen, setPanelOpen] = useState(false)
   const revealTimerRef = useRef(null)
   const abortControllerRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -274,7 +277,7 @@ export default function VisionPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden">
+    <div className="h-[calc(100vh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden relative">
       {showSignInModal && <SignInRequiredModal onClose={() => setShowSignInModal(false)} />}
       {showAccessModal && (
         <AccessRequiredModal
@@ -285,8 +288,26 @@ export default function VisionPage() {
         />
       )}
 
+      {panelOpen && (
+        <div
+          className="absolute inset-0 z-20 bg-black/30 lg:hidden"
+          onClick={() => setPanelOpen(false)}
+        />
+      )}
+
       {/* Upload + result column */}
-      <div className="order-2 flex-1 min-w-0 min-h-0 overflow-y-auto px-6 py-8 relative">
+      <div className="order-2 flex-1 min-w-0 min-h-0 flex flex-col relative">
+        {!panelOpen && (
+          <button
+            type="button"
+            onClick={() => setPanelOpen(true)}
+            aria-label="Open info panel"
+            className="lg:hidden absolute top-4 left-4 z-10 w-8 h-8 rounded-lg border border-gray-200 bg-white shadow-sm flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
+          >
+            <PanelLeft size={15} />
+          </button>
+        )}
+        <div className="flex-1 overflow-y-auto px-6 py-8 relative">
         <div className="max-w-2xl mx-auto flex flex-col gap-6">
           {!user && signInAvailable && (
             <button
@@ -369,10 +390,23 @@ export default function VisionPage() {
             </div>
           )}
         </div>
+        </div>
       </div>
 
       {/* Info panel */}
-      <div className="order-1 w-full lg:w-80 flex-shrink-0 min-h-0 border-b lg:border-b-0 lg:border-r border-gray-200 overflow-y-auto px-6 py-6">
+      <div
+        inert={panelOpen || isDesktop ? undefined : ''}
+        aria-hidden={!panelOpen && !isDesktop}
+        className={`order-1 absolute lg:static inset-y-0 left-0 z-30 lg:z-auto w-72 max-w-[85%] lg:w-80 flex-shrink-0 min-h-0 border-r border-gray-200 overflow-y-auto px-6 py-6 bg-white shadow-xl lg:shadow-none transform transition-transform duration-300 ease-in-out ${panelOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
+      >
+        <button
+          type="button"
+          onClick={() => setPanelOpen(false)}
+          aria-label="Close info panel"
+          className="lg:hidden absolute top-4 right-4 z-10 w-8 h-8 rounded-lg border border-gray-200 bg-white shadow-sm flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
+        >
+          <PanelLeft size={15} />
+        </button>
         <Link to={`/${config?.ai_demo_slug ?? 'demo'}`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ChevronLeft size={16} />
           Back to AI Implementations

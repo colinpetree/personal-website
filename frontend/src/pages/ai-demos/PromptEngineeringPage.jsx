@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { Check, ChevronDown, ChevronLeft, Play } from 'lucide-react'
+import { Check, ChevronDown, ChevronLeft, Play, PanelLeft } from 'lucide-react'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
+import { useMediaQuery } from '../../hooks/useMediaQuery'
 import { useRequireSignIn } from '../../hooks/useRequireSignIn'
 import { useRequireAiDemoAccess } from '../../hooks/useRequireAiDemoAccess'
 import { useAiDemoAccessLinks } from '../../hooks/useAiDemoAccessLinks'
@@ -196,6 +197,7 @@ function OutputColumn({ variant, output, grade }) {
 
 export default function PromptEngineeringPage() {
   const { config } = useSiteConfig()
+  const isDesktop = useMediaQuery('(min-width: 1024px)')
   const { user, signInAvailable, showSignInModal, setShowSignInModal, requireSignIn } = useRequireSignIn()
   const { hasAccess, showAccessModal, setShowAccessModal, requireAccess } = useRequireAiDemoAccess()
   const accessLinks = useAiDemoAccessLinks()
@@ -208,6 +210,7 @@ export default function PromptEngineeringPage() {
   const [outputs, setOutputs] = useState({})
   const [grades, setGrades] = useState({})
   const [summary, setSummary] = useState(null)
+  const [panelOpen, setPanelOpen] = useState(false)
   const abortControllerRef = useRef(null)
 
   useEffect(() => {
@@ -301,7 +304,7 @@ export default function PromptEngineeringPage() {
   const delta = summary ? summary.refined_score - summary.naive_score : null
 
   return (
-    <div className="h-[calc(100vh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden">
+    <div className="h-[calc(100vh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden relative">
       {showSignInModal && <SignInRequiredModal onClose={() => setShowSignInModal(false)} />}
       {showAccessModal && (
         <AccessRequiredModal
@@ -312,8 +315,26 @@ export default function PromptEngineeringPage() {
         />
       )}
 
+      {panelOpen && (
+        <div
+          className="absolute inset-0 z-20 bg-black/30 lg:hidden"
+          onClick={() => setPanelOpen(false)}
+        />
+      )}
+
       {/* Results column */}
-      <div className="order-2 flex-1 min-w-0 min-h-0 flex flex-col overflow-y-auto px-6 py-8">
+      <div className="order-2 flex-1 min-w-0 min-h-0 flex flex-col relative">
+        {!panelOpen && (
+          <button
+            type="button"
+            onClick={() => setPanelOpen(true)}
+            aria-label="Open info panel"
+            className="lg:hidden absolute top-4 left-4 z-10 w-8 h-8 rounded-lg border border-gray-200 bg-white shadow-sm flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
+          >
+            <PanelLeft size={15} />
+          </button>
+        )}
+        <div className="flex-1 overflow-y-auto px-6 py-8">
         <div className="max-w-4xl mx-auto w-full flex flex-col gap-6">
           <div className="relative flex flex-col gap-3">
             {!user && signInAvailable && (
@@ -407,10 +428,23 @@ export default function PromptEngineeringPage() {
             </div>
           )}
         </div>
+        </div>
       </div>
 
       {/* Info panel */}
-      <div className="order-1 w-full lg:w-80 flex-shrink-0 min-h-0 border-b lg:border-b-0 lg:border-r border-gray-200 overflow-y-auto px-6 py-6">
+      <div
+        inert={panelOpen || isDesktop ? undefined : ''}
+        aria-hidden={!panelOpen && !isDesktop}
+        className={`order-1 absolute lg:static inset-y-0 left-0 z-30 lg:z-auto w-72 max-w-[85%] lg:w-80 flex-shrink-0 min-h-0 border-r border-gray-200 overflow-y-auto px-6 py-6 bg-white shadow-xl lg:shadow-none transform transition-transform duration-300 ease-in-out ${panelOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
+      >
+        <button
+          type="button"
+          onClick={() => setPanelOpen(false)}
+          aria-label="Close info panel"
+          className="lg:hidden absolute top-4 right-4 z-10 w-8 h-8 rounded-lg border border-gray-200 bg-white shadow-sm flex items-center justify-center text-gray-500 hover:bg-gray-50 transition-colors"
+        >
+          <PanelLeft size={15} />
+        </button>
         <Link to={`/${config?.ai_demo_slug ?? 'demo'}`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ChevronLeft size={16} />
           Back to AI Implementations

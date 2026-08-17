@@ -134,48 +134,55 @@ export default function Navbar() {
         </button>
       </div>
 
-      {/* Mobile menu */}
-      {menuOpen && (
-        <nav className="md:hidden border-t border-gray-200 bg-white px-6 py-4 flex flex-col gap-4">
-          {navLinks.map(link => (
-            <Link
-              key={link.key}
-              to={link.path}
-              className={`text-sm font-medium ${
-                location.pathname === link.path ? 'text-gray-900' : 'text-gray-500'
-              }`}
-            >
-              {link.name}
-            </Link>
-          ))}
-          {usersEnabled && (
-            user ? (
-              <>
-                <div className="border-t border-gray-100 pt-3 flex items-center gap-3">
-                  {user.avatar_url ? (
-                    <img src={user.avatar_url} alt={user.name} className="w-7 h-7 rounded-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-600">
-                      {user.name.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <span className="text-sm font-medium text-gray-900">{user.name}</span>
-                </div>
-                <Link to="/profile" className="text-sm text-gray-500">Profile</Link>
-                <button onClick={logout} className="text-left text-sm text-gray-500">Sign out</button>
-              </>
-            ) : (
-              <button onClick={() => setShowSignInModal(true)} className="text-left text-sm text-gray-500">Sign in</button>
-            )
-          )}
-        </nav>
-      )}
+      {/* Mobile menu - full-screen overlay that swipes down/up beneath the sticky header.
+          Always mounted (for the transition) but visually off-screen when closed, so it's
+          marked inert to keep its links out of the tab order / a11y tree until opened.
+          md:hidden already makes it display:none at desktop widths regardless. */}
+      <nav
+        inert={menuOpen ? undefined : ''}
+        aria-hidden={!menuOpen}
+        className={`md:hidden fixed inset-x-0 top-16 bottom-0 z-40 bg-white overflow-y-auto px-6 py-8 flex flex-col gap-6 transform transition-transform duration-300 ease-in-out ${
+          menuOpen ? 'translate-y-0' : '-translate-y-[110%]'
+        }`}
+      >
+        {navLinks.map(link => (
+          <Link
+            key={link.key}
+            to={link.path}
+            className={`text-2xl font-semibold ${
+              location.pathname === link.path ? 'text-gray-900' : 'text-gray-500'
+            }`}
+          >
+            {link.name}
+          </Link>
+        ))}
+        {usersEnabled && (
+          user ? (
+            <>
+              <div className="border-t border-gray-100 pt-6 flex items-center gap-3">
+                {user.avatar_url ? (
+                  <img src={user.avatar_url} alt={user.name} className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold text-gray-600">
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <span className="text-lg font-medium text-gray-900">{user.name}</span>
+              </div>
+              <Link to="/profile" className="text-lg text-gray-500">Profile</Link>
+              <button onClick={logout} className="text-left text-lg text-gray-500">Sign out</button>
+            </>
+          ) : (
+            <button onClick={() => setShowSignInModal(true)} className="text-left text-lg text-gray-500">Sign in</button>
+          )
+        )}
+      </nav>
 
       {showSignInModal && (
         <SignInRequiredModal
           onClose={() => setShowSignInModal(false)}
           title="Sign in"
-          message="Sign in with your Google account to continue."
+          message={null}
         />
       )}
     </header>
