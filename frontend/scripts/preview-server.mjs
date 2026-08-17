@@ -20,6 +20,7 @@ import http from 'node:http'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { Readable, pipeline } from 'node:stream'
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'build', 'client')
 const PORT = Number(process.env.PREVIEW_PORT) || 4173
@@ -65,15 +66,30 @@ const server = http.createServer(async (req, res) => {
       headers,
       body,
     })
-    // arrayBuffer(), not text() — text() corrupts binary responses (images,
-    // videos served via /api/uploads/*), which is what broke media in blog
-    // posts/pages through this proxy.
-    const responseBody = Buffer.from(await upstream.arrayBuffer())
+    // Stream the body through rather than buffering it with arrayBuffer()/text() —
+    // buffering the whole response defeats the AI demo routes' streaming (the
+    // client would sit idle until Claude's full reply finished, then get it all
+    // at once). Piping the raw upstream stream also preserves binary responses
+    // (images/videos via /api/uploads/*) without needing text()'s corrupting
+    // string conversion.
     const responseHeaders = { 'Content-Type': upstream.headers.get('content-type') || 'application/octet-stream' }
     const setCookie = upstream.headers.get('set-cookie')
     if (setCookie) responseHeaders['set-cookie'] = setCookie
     res.writeHead(upstream.status, responseHeaders)
-    res.end(responseBody)
+    if (upstream.body) {
+      // pipeline(), not .pipe() — .pipe() leaves the source stream's 'error'
+      // event unhandled (e.g. Flask restarting mid-stream, or the browser
+      // aborting the request), which for a plain EventEmitter means an
+      // uncaught throw that kills this whole process, not just the one
+      // request. pipeline()'s callback absorbs that instead.
+      pipeline(Readable.fromWeb(upstream.body), res, (err) => {
+        if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') {
+          console.error(`[preview] /api proxy stream error for ${url.pathname}:`, err.message)
+        }
+      })
+    } else {
+      res.end()
+    }
     return
   }
 
