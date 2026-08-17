@@ -134,15 +134,15 @@ export default function Navbar() {
         </button>
       </div>
 
-      {/* Mobile menu - full-screen overlay that swipes down/up beneath the sticky header.
-          Always mounted (for the transition) but visually off-screen when closed, so it's
-          marked inert to keep its links out of the tab order / a11y tree until opened.
-          md:hidden already makes it display:none at desktop widths regardless. */}
+      {/* Mobile menu - full-height overlay directly below the sticky header. No transition;
+          it's simply shown/hidden. Marked inert while hidden to keep its links out of the
+          tab order / a11y tree until opened. md:hidden already makes it display:none at
+          desktop widths regardless. */}
       <nav
         inert={menuOpen ? undefined : ''}
         aria-hidden={!menuOpen}
-        className={`md:hidden fixed inset-x-0 top-16 bottom-0 z-40 bg-white overflow-y-auto px-6 py-8 flex flex-col gap-6 transform transition-transform duration-300 ease-in-out ${
-          menuOpen ? 'translate-y-0' : '-translate-y-[110%]'
+        className={`md:hidden fixed inset-x-0 top-16 bottom-0 z-40 bg-white overflow-y-auto px-6 py-8 flex-col gap-6 ${
+          menuOpen ? 'flex' : 'hidden'
         }`}
       >
         {navLinks.map(link => (
