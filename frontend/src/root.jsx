@@ -5,7 +5,7 @@ import { UserAuthProvider } from './context/UserAuthContext'
 import { SiteConfigProvider } from './context/SiteConfigContext'
 import { TooltipProvider } from './components/ui/Tooltip'
 import { fetchSiteConfig } from './lib/apiFetch'
-import { buildMeta, siteFallbackImage } from './utils/meta'
+import { buildMeta } from './utils/meta'
 import './index.css'
 
 // Root loader — prerendered at build time (see react-router.config.ts).
@@ -42,10 +42,27 @@ export function HydrateFallback() {
 // through `matches` — confirmed unreliable during prerendering, since the
 // <head> renders before this route's own async fetch resolves for anyone
 // visiting a DIFFERENT path.
-export function meta({ data }) {
+//
+// Title is deliberately a static placeholder, NOT `data?.site_title` — root's
+// own clientLoader.hydrate=true resolves independently of the body's
+// HydrateFallback boundary (which waits on the LEAF route's own hydrate
+// loader too), so on a fast local backend root's data is often already
+// resolved by react-router's very first hydrateRoot commit while the body
+// is still rendering HydrateFallback. If this title used live data, that
+// commit's title text (real site_title) wouldn't match the static/prerendered
+// shell's title (always this fallback, since no data existed at build time),
+// producing a hydration mismatch — React then discards and remounts the
+// ENTIRE document (Layout renders <html>, so hydrateRoot owns the whole
+// page), wiping every <style> tag in <head> including Vite's dev CSS
+// injection, i.e. the page loses all styling. Every real page already
+// overrides this with its own complete meta() (title included) once ITS
+// OWN hydrate loader resolves — properly gated behind the same boundary
+// that swaps its body content in — so this static fallback is only ever
+// visible for the brief instant before that, never a regression in the
+// actual displayed title.
+export function meta() {
   return buildMeta({
-    title: data?.site_title || 'My Website',
-    image: siteFallbackImage(data),
+    title: 'My Website',
   })
 }
 
