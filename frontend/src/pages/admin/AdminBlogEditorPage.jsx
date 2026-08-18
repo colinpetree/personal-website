@@ -5,6 +5,7 @@ import { DayPicker } from 'react-day-picker'
 import RichTextEditor from '../../components/admin/editor'
 import { Field, Input, InputWithPrefix, Textarea, Toggle } from '../../components/admin/AdminPage'
 import { Tooltip } from '../../components/ui/Tooltip'
+import FilterCombobox from '../../components/ui/FilterCombobox'
 import { useToast } from '../../components/admin/Toast'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import { useAdminAuth } from '../../context/AdminAuthContext'
@@ -406,6 +407,15 @@ export default function AdminBlogEditorPage() {
       .catch(() => {})
   }, [])
 
+  const [categories, setCategories] = useState([])
+
+  useEffect(() => {
+    fetch('/api/admin/blog/categories', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(setCategories)
+      .catch(() => {})
+  }, [])
+
   const [post, setPost] = useState(null)
   const [loading, setLoading] = useState(true)
   const [status, setStatus] = useState('draft')
@@ -449,6 +459,7 @@ export default function AdminBlogEditorPage() {
   const [thumbnailCaption, setThumbnailCaption] = useState('')
   const [thumbnailWidth, setThumbnailWidth] = useState(null)
   const [thumbnailHeight, setThumbnailHeight] = useState(null)
+  const [categoryId, setCategoryId] = useState(null)
 
   const autosaveTimer = useRef(null)
   const pendingFields = useRef({})
@@ -478,6 +489,7 @@ export default function AdminBlogEditorPage() {
         setThumbnailCaption(data.thumbnail_caption || '')
         setThumbnailWidth(data.thumbnail_width || null)
         setThumbnailHeight(data.thumbnail_height || null)
+        setCategoryId(data.category_id || null)
         const s = data.status || 'draft'
         setStatus(s)
         setContentHtml(data.content_html || '')
@@ -597,6 +609,7 @@ export default function AdminBlogEditorPage() {
       thumbnail_caption: thumbnailCaption || null,
       thumbnail_width: thumbnailWidth || null,
       thumbnail_height: thumbnailHeight || null,
+      category_id: categoryId || null,
       ...overrideFields,
     }).catch(() => {})
   }
@@ -651,6 +664,7 @@ export default function AdminBlogEditorPage() {
         thumbnail_caption: thumbnailCaption || null,
         thumbnail_width: thumbnailWidth || null,
         thumbnail_height: thumbnailHeight || null,
+        category_id: categoryId || null,
       })
       setPublishDialog(null)
       navigate('/admin/blog/posts', {
@@ -700,6 +714,7 @@ export default function AdminBlogEditorPage() {
         thumbnail_caption: thumbnailCaption || null,
         thumbnail_width: thumbnailWidth || null,
         thumbnail_height: thumbnailHeight || null,
+        category_id: categoryId || null,
         content_html: contentHtml,
         title,
       })
@@ -1007,6 +1022,16 @@ export default function AdminBlogEditorPage() {
               onBlur={handleSidebarSave}
               rows={3}
               placeholder="SEO description…"
+            />
+          </Field>
+
+          <Field label="Category">
+            <FilterCombobox
+              value={categoryId}
+              onChange={v => { setCategoryId(v); markDirty(); handleSidebarSave(undefined, { category_id: v }) }}
+              options={categories.map(c => ({ value: c.id, label: c.name }))}
+              placeholder="No category"
+              className="w-full"
             />
           </Field>
 

@@ -3,7 +3,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 from extensions import db
-from models import BlogPost, Comment, User, AdminAccount, SiteEventLog, SiteConfig
+from models import BlogPost, Comment, User, AdminAccount, SiteEventLog, SiteConfig, BlogCategory
 from routes.admin_auth import admin_required, role_at_least
 from varnish_purge import ban_pattern
 
@@ -74,6 +74,7 @@ def _post_to_dict(post, include_content=False):
         'thumbnail_width': post.thumbnail_width,
         'thumbnail_height': post.thumbnail_height,
         'author_id': post.author_id,
+        'category_id': post.category_id,
         'created_at': post.created_at.isoformat() + 'Z',
         'updated_at': post.updated_at.isoformat() + 'Z',
     }
@@ -153,6 +154,18 @@ def update_post(post_id):
     for field in ('content_html', 'excerpt', 'meta_description', 'scrollable_nav_enabled', 'thumbnail_filename', 'thumbnail_caption', 'thumbnail_width', 'thumbnail_height'):
         if field in data:
             setattr(post, field, data[field])
+
+    if 'category_id' in data:
+        category_id = data['category_id']
+        if category_id is None:
+            post.category_id = None
+        elif not isinstance(category_id, int) or isinstance(category_id, bool):
+            return jsonify({'error': 'Invalid category_id'}), 400
+        else:
+            category = BlogCategory.query.get(category_id)
+            if not category:
+                return jsonify({'error': 'Category not found'}), 400
+            post.category_id = category.id
 
     if 'status' in data and data['status'] in ('draft', 'scheduled', 'published'):
         post.status = data['status']

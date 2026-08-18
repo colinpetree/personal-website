@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { buildMeta, siteFallbackImage } from '../utils/meta'
 import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
+import CategoryFilterBar from '../components/CategoryFilterBar'
 
 function BlogListSkeleton() {
   return (
@@ -28,11 +29,13 @@ function BlogListSkeleton() {
 // there for why) — its resolved value isn't otherwise part of this route's
 // own data (the component reads config from context, not this).
 async function fetchFirstPage() {
-  const [postsRes] = await Promise.all([
+  const [postsRes, categoriesRes] = await Promise.all([
     fetch(apiUrl('/api/blog?page=1&per_page=10')),
+    fetch(apiUrl('/api/blog/categories')),
     fetchSiteConfig(),
   ])
   const posts = postsRes.ok ? await postsRes.json() : { posts: [], total: 0, page: 1, pages: 1 }
+  posts.categories = categoriesRes.ok ? await categoriesRes.json() : []
   return posts
 }
 
@@ -84,6 +87,7 @@ export default function BlogPage() {
   const [data, setData] = useState(initialData)
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
+  const [activeCategory, setActiveCategory] = useState(null)
   const isFirstRender = useRef(true)
 
   // Same fix as BlogPostPage.jsx: `data` is only seeded from useLoaderData()
@@ -97,21 +101,36 @@ export default function BlogPage() {
   useEffect(() => {
     setData(initialData)
     setPage(1)
+    setActiveCategory(null)
   }, [initialData])
 
   useEffect(() => {
-    // Page 1 already came from the loader — only fetch client-side when
-    // the user actually navigates to another page.
+    // Page 1 (with no category filter) already came from the loader — only
+    // fetch client-side when the user navigates to another page or selects
+    // a category, either of which lands here since both are effect deps.
     if (isFirstRender.current) {
       isFirstRender.current = false
       return
     }
     setLoading(true)
-    fetch(`/api/blog?page=${page}&per_page=10`)
+    const controller = new AbortController()
+    const params = new URLSearchParams({ page, per_page: 10 })
+    if (activeCategory) params.set('category', activeCategory)
+    fetch(`/api/blog?${params}`, { signal: controller.signal })
       .then(r => r.json())
-      .then(d => { setData(d); setLoading(false) })
-      .catch(() => setLoading(false))
-  }, [page])
+      .then(d => { setData(prev => ({ ...d, categories: prev.categories })); setLoading(false) })
+      .catch(err => { if (err.name !== 'AbortError') setLoading(false) })
+    // Aborts a still-in-flight request if page/activeCategory changes again
+    // before it resolves — without this, two overlapping requests (e.g. a
+    // page click immediately followed by a category click) could resolve out
+    // of order and leave stale posts on screen.
+    return () => controller.abort()
+  }, [page, activeCategory])
+
+  function handleCategorySelect(slug) {
+    setActiveCategory(slug)
+    setPage(1)
+  }
 
   function formatDate(iso) {
     if (!iso) return ''
@@ -127,10 +146,20 @@ export default function BlogPage() {
         />
       )}
 
+      {data?.categories?.length > 0 && (
+        <CategoryFilterBar
+          categories={data.categories}
+          activeSlug={activeCategory}
+          onSelect={handleCategorySelect}
+        />
+      )}
+
       {loading && <BlogListSkeleton />}
 
       {!loading && data?.posts?.length === 0 && (
-        <p className="text-gray-500">No posts published yet.</p>
+        <p className="text-gray-500">
+          {activeCategory ? 'No posts in this category yet.' : 'No posts published yet.'}
+        </p>
       )}
 
       {!loading && data?.posts?.length > 0 && (

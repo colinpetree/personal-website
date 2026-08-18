@@ -785,6 +785,15 @@ table.blog-table th .editor-paragraph.is-cursor-para:has(> br:only-child)::befor
 .blog-content .toggle[open] > summary.toggle-summary::after {
   transform: rotate(-180deg);
 }
+/* Category filter bar — hide the scrollbar entirely, it looks out of place on a badge row */
+.category-filter-scroll {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.category-filter-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 .blog-content .toggle > .toggle-body {
   padding: 0.75rem 1rem;
   border-top: 1px solid #f3f4f6;

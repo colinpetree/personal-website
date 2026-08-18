@@ -116,6 +116,7 @@ export default (async () => {
       route('blog', './pages/admin/AdminBlogPage.jsx'),
       route('blog/edit', './pages/admin/AdminBlogEditRoute.jsx'),
       route('blog/comments', './pages/admin/AdminBlogCommentsPage.jsx'),
+      route('blog/categories', './pages/admin/AdminBlogCategoriesPage.jsx'),
       route('projects', './pages/admin/AdminProjectsPage.jsx'),
       route('projects/edit', './pages/admin/AdminProjectsEditRoute.jsx'),
       route('about', './pages/admin/AdminAboutPage.jsx'),
