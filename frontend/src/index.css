@@ -330,6 +330,46 @@ html {
   padding-right: 0;
 }
 
+/* Responsive font sizes/weights/line-heights/margins for post body headings & paragraphs */
+.blog-content h1 { font-size: 32px; font-weight: 700; line-height: 38.5px; margin-top: 50px; margin-bottom: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
+.blog-content h2 { font-size: 30px; font-weight: 700; line-height: 34.5px; margin-top: 45px; margin-bottom: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
+.blog-content h3 { font-size: 24px; font-weight: 700; line-height: 29.25px; margin-top: 22px; margin-bottom: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
+.blog-content p { font-size: 18px; font-weight: 400; line-height: 28.45px; margin-top: 21px; margin-bottom: 0; color: #111827; }
+
+.blog-content ul li,
+.blog-content ol li { font-size: 14px; line-height: 24px; }
+
+@media (min-width: 1024px) {
+  .blog-content ul li,
+  .blog-content ol li { font-size: 16px; line-height: 28px; }
+}
+
+.blog-content table.blog-table,
+.blog-content table.blog-table td,
+.blog-content table.blog-table th,
+.blog-content table.blog-table td > p,
+.blog-content table.blog-table th > p { font-size: 14px; line-height: 22.5px; }
+
+/* Paragraph directly under a heading gets a smaller top margin than paragraph-after-paragraph */
+.blog-content h1 + p,
+.blog-content h2 + p,
+.blog-content h3 + p {
+  margin-top: 6px;
+}
+
+@media (min-width: 1024px) {
+  .blog-content h1 { font-size: 38px; line-height: 45.5px; margin-top: 58px; }
+  .blog-content h2 { font-size: 34px; line-height: 39px; margin-top: 53px; }
+  .blog-content h3 { font-size: 26px; line-height: 31.75px; margin-top: 30px; }
+  .blog-content p { font-size: 20px; line-height: 33.2px; margin-top: 29px; }
+
+  .blog-content h1 + p,
+  .blog-content h2 + p,
+  .blog-content h3 + p {
+    margin-top: 6px;
+  }
+}
+
 /* Page-header content (Home/Blog/Projects/About/Contact/AI Demo/Payment):
    the editor bakes a max-w-3xl mx-auto reading-column width into every
    block-level node (headings, paragraphs, lists, quotes), sized to match a
@@ -390,11 +430,20 @@ html {
 }
 
 /* In the editor, Lexical's live DOM uses empty wrapper <li> elements to hold nested lists.
-   Hide their markers so only the content <li> at each depth shows the tiered style.
-   (The public blog's exported HTML has no wrapper <li> — Lexical's exportDOM moves the
-   nested <ul>/<ol> directly into the previous content <li>, so no suppression is needed there.) */
+   Hide their markers so only the content <li> at each depth shows the tiered style. */
 [contenteditable="true"] li:has(> ul),
 [contenteditable="true"] li:has(> ol) { list-style-type: none; }
+
+/* exportDOM (@lexical/list) normally removes these wrapper <li> by merging their nested
+   list into the previous sibling <li> — but that merge only happens when a previous sibling
+   exists. An item indented with no sibling at that depth (e.g. Tab pressed repeatedly on a
+   lone item) has no sibling to merge into, so the empty wrapper leaks into content_html and
+   each level renders its own marker, stacking multiple markers on one line. Same suppression
+   as the editor rule above, applied to the public output for this edge case — but scoped to
+   :only-child, since (unlike the editor's live DOM) a merged parent <li> here legitimately
+   holds both its own text AND a nested list as siblings, and must keep its own marker. */
+.blog-content li:has(> ul:only-child),
+.blog-content li:has(> ol:only-child) { list-style-type: none; }
 
 /* Tiered bullet list styles set on the <ul> so content <li> inherit them,
    while wrapper <li> (with list-style-type: none above) are unaffected. */
@@ -490,6 +539,17 @@ html {
   max-width: 80rem;
   margin-left: auto;
   margin-right: auto;
+}
+
+/* Keep these elements sans-serif even though .blog-content's body text is serif */
+.blog-content table.blog-table,
+.blog-content .btn,
+.blog-content .header-btn,
+.blog-content .header-heading,
+.blog-content .header-subheading,
+.blog-content figure.audio-player,
+.blog-content .file-attachment {
+  font-family: ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Header block — reset prose margins on nested paragraphs */
