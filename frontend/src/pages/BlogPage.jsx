@@ -168,7 +168,7 @@ export default function BlogPage() {
             {data.posts.map(post => (
               <article key={post.id} className="flex flex-col sm:flex-row gap-4 sm:gap-6 py-8 first:pt-0">
                 {post.thumbnail_filename && (
-                  <Link to={`/${post.slug}`} className="shrink-0 order-1 sm:order-2">
+                  <Link to={activeCategory ? `/${post.slug}?category=${activeCategory}` : `/${post.slug}`} className="shrink-0 order-1 sm:order-2">
                     <img
                       src={`/api/uploads/${post.thumbnail_filename}`}
                       alt={post.title}
@@ -177,7 +177,7 @@ export default function BlogPage() {
                   </Link>
                 )}
                 <div className="flex-1 min-w-0 order-2 sm:order-1">
-                  <Link to={`/${post.slug}`}>
+                  <Link to={activeCategory ? `/${post.slug}?category=${activeCategory}` : `/${post.slug}`}>
                     <h2 className="text-xl lg:text-2xl font-bold text-gray-900 hover:text-gray-600 transition-colors mb-1">
                       {post.title}
                     </h2>

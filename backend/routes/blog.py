@@ -154,6 +154,48 @@ def get_post(slug):
     return jsonify(_post_to_dict(post, include_content=True))
 
 
+@blog_bp.route('/api/blog/<slug>/adjacent')
+def get_adjacent_posts(slug):
+    """Next (older) / previous (newer) post in publish-date order, optionally
+    scoped to a category — mirrors list_posts' filtering/ordering so the
+    result matches what the reader would see paging through /blog."""
+    _promote_scheduled()
+    now = datetime.utcnow()
+    current = BlogPost.query.filter_by(slug=slug, status='published').filter(
+        (BlogPost.publish_date == None) | (BlogPost.publish_date <= now)
+    ).first_or_404()
+
+    category_slug = request.args.get('category')
+    q = (
+        BlogPost.query
+        .filter_by(status='published')
+        .filter(
+            (BlogPost.publish_date == None) | (BlogPost.publish_date <= now)
+        )
+    )
+    if category_slug:
+        category = BlogCategory.query.filter_by(slug=category_slug).first()
+        q = q.filter_by(category_id=category.id if category else -1)
+    q = q.order_by(
+        BlogPost.publish_date.desc().nullslast(),
+        BlogPost.created_at.desc()
+    )
+    ids = [row.id for row in q.with_entities(BlogPost.id).all()]
+
+    next_post = previous_post = None
+    if current.id in ids:
+        index = ids.index(current.id)
+        if index + 1 < len(ids):
+            next_post = BlogPost.query.get(ids[index + 1])
+        if index > 0:
+            previous_post = BlogPost.query.get(ids[index - 1])
+
+    return jsonify({
+        'next': _post_to_dict(next_post) if next_post else None,
+        'previous': _post_to_dict(previous_post) if previous_post else None,
+    })
+
+
 def _comments_enabled(config):
     return bool(config and config.users_enabled and config.blog_comments_enabled)
 
