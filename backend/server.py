@@ -229,7 +229,7 @@ def send_deploy_report(app):
             release = os.getenv('DEPLOY_REPORT_RELEASE', 'unknown')
             previous = os.getenv('DEPLOY_REPORT_PREVIOUS', 'none')
             domain = os.getenv('DEPLOY_REPORT_DOMAIN') or os.getenv('DEPLOY_REPORT_HOSTNAME', 'unknown host')
-            label = f'v{previous} → v{release}'
+            label = f'{previous} → {release}'
 
             lines = [
                 f'Status: {status}',
@@ -248,9 +248,9 @@ def send_deploy_report(app):
                 stage = os.getenv('DEPLOY_REPORT_STAGE', 'unknown')
                 rolled_back = os.getenv('DEPLOY_REPORT_ROLLED_BACK', 'false') == 'true'
                 subject = f'[Deploy] {domain}: {label} FAILED at {stage}'
-                subject += f' — rolled back to v{previous}' if rolled_back else ' — NO ROLLBACK AVAILABLE'
+                subject += f' — rolled back to {previous}' if rolled_back else ' — NO ROLLBACK AVAILABLE'
                 lines.append(f'Failed stage: {stage}')
-                lines.append(f'Rolled back: {"yes, to v" + previous if rolled_back else "no"}')
+                lines.append(f'Rolled back: {"yes, to " + previous if rolled_back else "no"}')
                 health_error = os.getenv('DEPLOY_REPORT_HEALTH_ERROR')
                 if health_error:
                     lines.append(f'Last health-check error: {health_error}')
