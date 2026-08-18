@@ -360,7 +360,7 @@ export default function ConversationBasicsPage() {
   // 4rem matches Navbar's h-16 content height, +1px for its border-b (the header
   // itself has no explicit height, so that border sits outside the 4rem).
   return (
-    <div className="h-[calc(100vh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden relative">
+    <div className="h-[calc(100dvh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden relative">
       {showSignInModal && <SignInRequiredModal onClose={() => setShowSignInModal(false)} />}
       {showAccessModal && (
         <AccessRequiredModal

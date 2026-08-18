@@ -170,7 +170,7 @@ export default function Navbar() {
       <nav
         inert={menuOpen ? undefined : ''}
         aria-hidden={!menuOpen}
-        className={`md:hidden fixed inset-x-0 top-16 bottom-0 z-40 bg-white overflow-y-auto px-6 py-8 flex-col gap-6 ${
+        className={`md:hidden fixed inset-x-0 top-16 bottom-0 z-40 bg-white overflow-y-auto px-6 pt-2 pb-8 flex-col gap-1 ${
           menuOpen ? 'flex' : 'hidden'
         }`}
       >
@@ -178,7 +178,8 @@ export default function Navbar() {
           <Link
             key={link.key}
             to={link.path}
-            className={`text-2xl font-semibold ${
+            onClick={() => setMenuOpen(false)}
+            className={`text-2xl font-semibold -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
               location.pathname === link.path ? 'text-gray-900' : 'text-gray-500'
             }`}
           >
@@ -188,7 +189,7 @@ export default function Navbar() {
         {usersEnabled && (
           user ? (
             <>
-              <div className="border-t border-gray-100 pt-6 flex items-center gap-3">
+              <div className="border-t border-gray-100 mt-4 pt-6 flex items-center gap-3">
                 {user.avatar_url ? (
                   <img src={user.avatar_url} alt={user.name} className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
@@ -198,11 +199,11 @@ export default function Navbar() {
                 )}
                 <span className="text-lg font-medium text-gray-900">{user.name}</span>
               </div>
-              <Link to="/profile" className="text-lg text-gray-500">Profile</Link>
-              <button onClick={logout} className="text-left text-lg text-gray-500">Sign out</button>
+              <Link to="/profile" onClick={() => setMenuOpen(false)} className="text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Profile</Link>
+              <button onClick={logout} className="text-left text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign out</button>
             </>
           ) : (
-            <button onClick={() => setShowSignInModal(true)} className="text-left text-lg text-gray-500">Sign in</button>
+            <button onClick={() => setShowSignInModal(true)} className="text-left text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign in</button>
           )
         )}
       </nav>

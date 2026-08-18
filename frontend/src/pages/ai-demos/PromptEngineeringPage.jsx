@@ -304,7 +304,7 @@ export default function PromptEngineeringPage() {
   const delta = summary ? summary.refined_score - summary.naive_score : null
 
   return (
-    <div className="h-[calc(100vh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden relative">
+    <div className="h-[calc(100dvh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden relative">
       {showSignInModal && <SignInRequiredModal onClose={() => setShowSignInModal(false)} />}
       {showAccessModal && (
         <AccessRequiredModal
@@ -457,20 +457,20 @@ export default function PromptEngineeringPage() {
         <div className="flex flex-col gap-3 text-sm text-gray-600">
           <p>
             Both prompts ask Claude to extract topics from the passage into a JSON array of strings. The
-            <strong className="text-gray-800"> naive prompt</strong> is deliberately bare &mdash; it leaves judgment
+            <strong className="text-gray-800"> naive prompt</strong> is deliberately bare - it leaves judgment
             calls (how specific to be, whether to infer unstated concepts, avoiding duplicates) entirely implicit.
             The <strong className="text-gray-800">refined prompt</strong> spells out explicit steps instead. Edit
             either one to see how the output and its score change.
           </p>
           <p>
-            The passage is fixed and read-only &mdash; pick one of three from the dropdown &mdash; since the
+            The passage is fixed and read-only - pick one of three from the dropdown - since the
             point of this demo is comparing prompts, not passages. Write <code className="text-xs bg-gray-100 rounded px-1 py-0.5">{'{passage}'}</code> anywhere
             in a prompt box to control exactly where the selected passage gets inserted (the refined prompt
             does this by default); if you leave it out, the passage is simply appended to the end.
           </p>
           <p>
             This mirrors the <Link to={`/${config?.ai_demo_slug ?? 'demo'}/prompt-evaluation`} className="underline hover:text-gray-800">Prompt evaluation</Link> demo's
-            grading pipeline &mdash; an LLM judge scores output 1-10 against a fixed rubric, after listing strengths
+            grading pipeline - an LLM judge scores output 1-10 against a fixed rubric, after listing strengths
             and weaknesses. Here the test case is held fixed and the prompt is what changes, instead of the other
             way around.
           </p>

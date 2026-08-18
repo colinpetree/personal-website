@@ -431,7 +431,7 @@ export default function McpPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden relative">
+    <div className="h-[calc(100dvh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden relative">
       {showSignInModal && <SignInRequiredModal onClose={() => setShowSignInModal(false)} />}
       {showAccessModal && (
         <AccessRequiredModal
@@ -586,7 +586,7 @@ export default function McpPage() {
           Ask about this site's real GitHub history via a live external MCP server.
         </p>
         <p className="text-gray-500 text-sm mb-4">
-          These tools aren't defined in this app's code, and they're not even hosted by this app —
+          These tools aren't defined in this app's code, and they're not even hosted by this app -
           they're served by GitHub's own remote MCP server, connected to this project's real
           repository, read-only.
         </p>

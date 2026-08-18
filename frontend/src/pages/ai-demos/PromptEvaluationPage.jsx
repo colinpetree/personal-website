@@ -254,7 +254,7 @@ export default function PromptEvaluationPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden relative">
+    <div className="h-[calc(100dvh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden relative">
       {showSignInModal && <SignInRequiredModal onClose={() => setShowSignInModal(false)} />}
       {showAccessModal && (
         <AccessRequiredModal
