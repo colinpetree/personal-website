@@ -6,11 +6,12 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin'
 import { ListPlugin } from '@lexical/react/LexicalListPlugin'
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
-import { HeadingNode, QuoteNode } from '@lexical/rich-text'
+import { HeadingNode, QuoteNode, $createHeadingNode } from '@lexical/rich-text'
 import { ListNode, ListItemNode } from '@lexical/list'
 import { LinkNode } from '@lexical/link'
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin'
 import { TableNode, TableRowNode, TableCellNode } from '@lexical/table'
+import { $getRoot } from 'lexical'
 import theme from './theme'
 import { ImageNode, VideoNode, AudioNode, FileNode, GalleryNode, DividerNode, CalloutNode, ButtonNode, ToggleNode, CodeBlockNode, HeaderNode, YouTubeNode, VimeoNode, SpotifyNode, WideTableNode, StyledTableCellNode } from './nodes'
 import {
@@ -29,7 +30,7 @@ import {
 } from './plugins'
 
 const RichTextEditor = forwardRef(function RichTextEditor(
-  { initialHtml, onChange, placeholder = 'Start writing…' },
+  { initialHtml, onChange, placeholder = 'Start writing…', firstBlockH1 = false },
   ref
 ) {
   const initialConfig = {
@@ -42,6 +43,11 @@ const RichTextEditor = forwardRef(function RichTextEditor(
       { replace: TableCellNode, with: (n) => new StyledTableCellNode(n.__headerState, n.__colSpan, n.__width), withKlass: StyledTableCellNode },
     ],
     onError: (error) => { throw error },
+    ...(firstBlockH1 && {
+      editorState: () => {
+        $getRoot().append($createHeadingNode('h1'))
+      },
+    }),
   }
 
   return (

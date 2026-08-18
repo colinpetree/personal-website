@@ -1,8 +1,8 @@
 const theme = {
   heading: {
-    h1: 'max-w-3xl mx-auto px-6 text-3xl font-bold mt-6 mb-3',
-    h2: 'max-w-3xl mx-auto px-6 text-2xl font-bold mt-5 mb-2',
-    h3: 'max-w-3xl mx-auto px-6 text-xl font-semibold mt-4 mb-2',
+    h1: 'editor-heading max-w-3xl mx-auto px-6 text-3xl font-bold mt-6 mb-3',
+    h2: 'editor-heading max-w-3xl mx-auto px-6 text-2xl font-bold mt-5 mb-2',
+    h3: 'editor-heading max-w-3xl mx-auto px-6 text-xl font-semibold mt-4 mb-2',
   },
   paragraph: 'editor-paragraph max-w-3xl mx-auto px-6 mb-3 leading-relaxed',
   // Border is drawn via background-gradient in .editor-quote so it aligns with px-6 text position

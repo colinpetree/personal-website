@@ -68,8 +68,9 @@ export function LoadHtmlPlugin({ html }) {
   const loaded = useRef(false)
 
   useEffect(() => {
-    if (loaded.current || !html) return
+    if (loaded.current) return
     loaded.current = true
+    if (!html) return
     editor.update(() => {
       const parser = new DOMParser()
       const dom = parser.parseFromString(html, 'text/html')
@@ -556,7 +557,7 @@ export function SlashCommandPlugin() {
           return
         }
 
-        if (!$isParagraphNode(topLevel)) {
+        if (!$isParagraphNode(topLevel) && !$isHeadingNode(topLevel)) {
           setFocusedPara(null)
           setMenu(m => m.visible && !menuRef.current.embedAction ? { ...m, visible: false } : m)
           setPlusButton(b => b.visible ? { ...b, visible: false } : b)
