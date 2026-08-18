@@ -173,7 +173,7 @@ export default function AdminLayout() {
   const [showSelfProfile, setShowSelfProfile] = useState(false)
 
   const isEditorPage = /^\/admin\/blog\/posts\/[^/]+/.test(location.pathname)
-    || /^\/admin\/(home|about|projects)\/edit/.test(location.pathname)
+    || /^\/admin\/(home|about|projects|contact|payment|demo|blog)\/edit/.test(location.pathname)
 
   useEffect(() => {
     if (!loading && !admin) navigate('/admin/login', { replace: true })

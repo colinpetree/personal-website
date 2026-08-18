@@ -220,7 +220,8 @@ html {
 }
 
 /* Empty paragraph placeholder in the editor */
-.editor-paragraph.is-cursor-para:has(> br:only-child)::before {
+.editor-paragraph.is-cursor-para:has(> br:only-child)::before,
+.editor-heading.is-cursor-para:has(> br:only-child)::before {
   content: "Type '/' for commands";
   color: #9ca3af;
   pointer-events: none;

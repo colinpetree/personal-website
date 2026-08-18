@@ -113,6 +113,7 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
             initialHtml={contentHtml}
             onChange={handleContentChange}
             placeholder=""
+            firstBlockH1
           />
           <div style={{ height: '33vh' }} onClick={() => editorRef.current?.focusAtEnd()} />
         </div>
