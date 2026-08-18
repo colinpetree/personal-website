@@ -10,6 +10,12 @@ def create_app():
     app = Flask(__name__)
     app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    # Validate pooled connections before use and recycle them proactively —
+    # without this, a connection silently killed by an idle timeout (AWS's
+    # network path, Postgres itself) gets reused and fails with an opaque
+    # "SSL error: decryption failed" / "connection reset by peer" instead of
+    # being transparently replaced.
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True, 'pool_recycle': 280}
     app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-change-in-production')
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
