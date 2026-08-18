@@ -13,12 +13,16 @@ class Profile(db.Model):
     bio = db.Column(db.Text, nullable=True)
 
 
+DEFAULT_NAV_ORDER = ['home', 'blog', 'projects', 'about', 'contact', 'ai_demo', 'payment']
+
+
 class SiteConfig(db.Model):
     __tablename__ = 'site_config'
 
     id = db.Column(db.Integer, primary_key=True)
     site_title = db.Column(db.String(200), nullable=False, default='My Website')
     site_description = db.Column(db.Text, nullable=True)
+    nav_order = db.Column(db.Text, nullable=True)  # JSON array of page keys, e.g. '["home","blog",...]'
 
     # Home
     home_enabled = db.Column(db.Boolean, nullable=False, default=True)

@@ -9,39 +9,52 @@ import { useSiteConfig } from '../../hooks/useSiteConfig'
 // routes; keeps this sidebar link from pointing at a route that doesn't exist.
 const AI_DEMOS_ENABLED = import.meta.env.VITE_ENABLE_AI_DEMOS !== 'false'
 
-const NAV_GROUPS = [
-  {
-    label: 'Site Pages',
-    items: [
-      { to: '/admin/home', label: 'Home' },
-      {
-        to: '/admin/blog',
-        label: 'Blog',
-        end: true,
-        subItems: [
-          { to: '/admin/blog/posts', label: 'Posts' },
-          { to: '/admin/blog/comments', label: 'Comments' },
-        ],
-      },
-      { to: '/admin/projects', label: 'Projects' },
-      { to: '/admin/about', label: 'About' },
-      { to: '/admin/contact', label: 'Contact' },
-      ...(AI_DEMOS_ENABLED ? [{ to: '/admin/demo', label: 'AI Demo' }] : []),
-      { to: '/admin/payment', label: 'Payment' },
+// One entry per site page key — reordered per the admin's saved nav order
+// (see ReorderNavModal.jsx / SiteConfig.nav_order) rather than fixed here.
+const SITE_PAGE_LOOKUP = {
+  home: { to: '/admin/home', label: 'Home' },
+  blog: {
+    to: '/admin/blog',
+    label: 'Blog',
+    end: true,
+    subItems: [
+      { to: '/admin/blog/posts', label: 'Posts' },
+      { to: '/admin/blog/comments', label: 'Comments' },
     ],
   },
-  {
-    label: 'System Settings',
-    defaultCollapsed: true,
-    items: [
-      { to: '/admin', label: 'Site Settings', end: true },
-      { to: '/admin/accounts', label: 'Staff Accounts' },
-      { to: '/admin/users', label: 'Users' },
-    ],
-  },
-]
+  projects: { to: '/admin/projects', label: 'Projects' },
+  about: { to: '/admin/about', label: 'About' },
+  contact: { to: '/admin/contact', label: 'Contact' },
+  ai_demo: { to: '/admin/demo', label: 'AI Demo' },
+  payment: { to: '/admin/payment', label: 'Payment' },
+}
 
-function getFilteredNavGroups(role) {
+const DEFAULT_NAV_ORDER = ['home', 'blog', 'projects', 'about', 'contact', 'ai_demo', 'payment']
+
+function buildNavGroups(navOrder) {
+  const order = navOrder && navOrder.length ? navOrder : DEFAULT_NAV_ORDER
+  // The sidebar always lists every site page (regardless of the page's
+  // public enabled/disabled state), just in the configured order.
+  const sitePages = order
+    .filter(key => key !== 'ai_demo' || AI_DEMOS_ENABLED)
+    .map(key => SITE_PAGE_LOOKUP[key])
+    .filter(Boolean)
+
+  return [
+    { label: 'Site Pages', items: sitePages },
+    {
+      label: 'System Settings',
+      defaultCollapsed: true,
+      items: [
+        { to: '/admin', label: 'Site Settings', end: true },
+        { to: '/admin/accounts', label: 'Staff Accounts' },
+        { to: '/admin/users', label: 'Users' },
+      ],
+    },
+  ]
+}
+
+function getFilteredNavGroups(role, navOrder) {
   if (role === 'contributor') {
     return [
       {
@@ -53,8 +66,10 @@ function getFilteredNavGroups(role) {
     ]
   }
 
+  const navGroups = buildNavGroups(navOrder)
+
   if (role === 'editor') {
-    return NAV_GROUPS.map(group => {
+    return navGroups.map(group => {
       if (group.label === 'System Settings') {
         return {
           ...group,
@@ -65,7 +80,7 @@ function getFilteredNavGroups(role) {
     })
   }
 
-  return NAV_GROUPS
+  return navGroups
 }
 
 function NavGroup({ label, items, defaultCollapsed = false }) {
@@ -179,7 +194,7 @@ export default function AdminLayout() {
     navigate('/admin/login')
   }
 
-  const filteredNav = getFilteredNavGroups(admin.role)
+  const filteredNav = getFilteredNavGroups(admin.role, config?.nav?.map(n => n.key))
 
   return (
     <ToastProvider>

@@ -3,6 +3,7 @@ import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, Card, EditableCard, Field, Input, Textarea } from '../../components/admin/AdminPage'
 import FileDropzone from '../../components/admin/FileDropzone'
 import HistoryModal from '../../components/admin/HistoryModal'
+import ReorderNavModal from '../../components/admin/ReorderNavModal'
 import Select from '../../components/ui/Select'
 import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
 import RoleGuard, { adminOnlyFallback } from '../../components/admin/RoleGuard'
@@ -116,6 +117,7 @@ function AdminSettingsPageContent() {
   const isAdmin = isAtLeast(admin, 'administrator')
   const [faviconFile, setFaviconFile] = useState(null)
   const [showHistory, setShowHistory] = useState(false)
+  const [showReorderNav, setShowReorderNav] = useState(false)
   const [faviconUploading, setFaviconUploading] = useState(false)
   const [faviconSaved, setFaviconSaved] = useState(false)
   const [faviconError, setFaviconError] = useState('')
@@ -344,6 +346,22 @@ function AdminSettingsPageContent() {
           )}
         </EditableCard>}
 
+        {/* Navigation card */}
+        <Card>
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">Navigation</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Reorder pages and toggle visibility in the site nav</p>
+            </div>
+            <button
+              onClick={() => setShowReorderNav(true)}
+              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:border-gray-400 hover:text-gray-900 transition-colors flex-shrink-0"
+            >
+              Reorder Navigation
+            </button>
+          </div>
+        </Card>
+
         {/* History card */}
         <Card>
           <div className="flex items-center justify-between gap-4">
@@ -363,6 +381,10 @@ function AdminSettingsPageContent() {
       </div>
 
       {showHistory && <HistoryModal onClose={() => setShowHistory(false)} />}
+
+      {showReorderNav && (
+        <ReorderNavModal config={config} save={save} onClose={() => setShowReorderNav(false)} />
+      )}
 
       {showTestDialog && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">

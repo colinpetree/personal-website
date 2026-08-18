@@ -1,7 +1,21 @@
+import json
 from flask import Blueprint, jsonify, current_app
-from models import SiteConfig
+from models import SiteConfig, DEFAULT_NAV_ORDER
 
 site_config_bp = Blueprint('site_config', __name__)
+
+
+def _resolve_nav_order(config):
+    """Admin-configured order (JSON array of keys) falling back to the
+    default order, with any unknown/missing keys reconciled so a stale or
+    unset value never drops a page from the nav."""
+    try:
+        saved = json.loads(config.nav_order) if config.nav_order else []
+    except (TypeError, ValueError):
+        saved = []
+    order = [key for key in saved if key in DEFAULT_NAV_ORDER]
+    order += [key for key in DEFAULT_NAV_ORDER if key not in order]
+    return order
 
 
 @site_config_bp.route('/api/site-config')
@@ -9,6 +23,56 @@ def get_site_config():
     config = SiteConfig.query.first()
     if not config:
         return jsonify({'error': 'Site not configured'}), 404
+
+    nav_items = {
+        'home': {
+            'key': 'home',
+            'name': config.home_page_name,
+            'path': '/',
+            'enabled': config.home_enabled,
+        },
+        'blog': {
+            'key': 'blog',
+            'name': config.blog_page_name,
+            'path': f'/{config.blog_slug}',
+            'enabled': config.blog_enabled,
+        },
+        'projects': {
+            'key': 'projects',
+            'name': config.projects_page_name,
+            'path': f'/{config.projects_slug}',
+            'enabled': config.projects_enabled,
+        },
+        'about': {
+            'key': 'about',
+            'name': config.about_page_name,
+            'path': f'/{config.about_slug}',
+            'enabled': config.about_enabled,
+        },
+        'contact': {
+            'key': 'contact',
+            'name': config.contact_page_name,
+            'path': f'/{config.contact_slug}',
+            # Contact requires Mailgun to be configured before showing
+            'enabled': config.contact_enabled and bool(config.mailgun_api_key and config.mailgun_domain),
+        },
+        'ai_demo': {
+            'key': 'ai_demo',
+            'name': config.ai_demo_page_name,
+            'path': f'/{config.ai_demo_slug}',
+            # Also requires the deployment-time ENABLE_AI_DEMOS flag, so forks
+            # without the AI demo feature never advertise it via the nav.
+            'enabled': config.ai_demo_enabled and current_app.config['ENABLE_AI_DEMOS'],
+        },
+        'payment': {
+            'key': 'payment',
+            'name': config.payment_page_name,
+            'path': f'/{config.payment_slug}',
+            # Payment only requires Stripe to be configured — signing in is
+            # optional now, guests can pay and manage subscriptions by email.
+            'enabled': config.payment_enabled and bool(config.stripe_publishable_key),
+        },
+    }
 
     # Only return public-safe fields — no secrets (Mailgun API key, Stripe keys, OAuth secrets)
     return jsonify({
@@ -19,55 +83,7 @@ def get_site_config():
         # og:image URLs (Open Graph/Twitter Card scrapers fetch images
         # directly and don't resolve relative URLs against the page).
         'domain': config.domain,
-        'nav': [
-            {
-                'key': 'home',
-                'name': config.home_page_name,
-                'path': '/',
-                'enabled': config.home_enabled,
-            },
-            {
-                'key': 'blog',
-                'name': config.blog_page_name,
-                'path': f'/{config.blog_slug}',
-                'enabled': config.blog_enabled,
-            },
-            {
-                'key': 'projects',
-                'name': config.projects_page_name,
-                'path': f'/{config.projects_slug}',
-                'enabled': config.projects_enabled,
-            },
-            {
-                'key': 'about',
-                'name': config.about_page_name,
-                'path': f'/{config.about_slug}',
-                'enabled': config.about_enabled,
-            },
-            {
-                'key': 'contact',
-                'name': config.contact_page_name,
-                'path': f'/{config.contact_slug}',
-                # Contact requires Mailgun to be configured before showing
-                'enabled': config.contact_enabled and bool(config.mailgun_api_key and config.mailgun_domain),
-            },
-            {
-                'key': 'ai_demo',
-                'name': config.ai_demo_page_name,
-                'path': f'/{config.ai_demo_slug}',
-                # Also requires the deployment-time ENABLE_AI_DEMOS flag, so forks
-                # without the AI demo feature never advertise it via the nav.
-                'enabled': config.ai_demo_enabled and current_app.config['ENABLE_AI_DEMOS'],
-            },
-            {
-                'key': 'payment',
-                'name': config.payment_page_name,
-                'path': f'/{config.payment_slug}',
-                # Payment only requires Stripe to be configured — signing in is
-                # optional now, guests can pay and manage subscriptions by email.
-                'enabled': config.payment_enabled and bool(config.stripe_publishable_key),
-            },
-        ],
+        'nav': [nav_items[key] for key in _resolve_nav_order(config)],
         'slugs': {
             'blog': config.blog_slug,
             'projects': config.projects_slug,
