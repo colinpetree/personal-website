@@ -118,6 +118,16 @@ function AdminBlogPageContent() {
             </div>
             <ChevronRight size={16} strokeWidth={1.5} className="text-gray-400" />
           </Link>
+          <Link
+            to="/admin/blog/categories"
+            className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 bg-white hover:bg-gray-50 transition-colors"
+          >
+            <div>
+              <p className="text-sm font-medium text-gray-900">Manage Categories</p>
+              <p className="text-xs text-gray-500 mt-0.5">Organize posts into categories</p>
+            </div>
+            <ChevronRight size={16} strokeWidth={1.5} className="text-gray-400" />
+          </Link>
         </div>
 
       </div>

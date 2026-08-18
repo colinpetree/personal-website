@@ -136,6 +136,16 @@ class PortalLinkRequest(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
+class BlogCategory(db.Model):
+    __tablename__ = 'blog_category'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    slug = db.Column(db.String(100), nullable=False, unique=True)
+    order = db.Column(db.Integer, nullable=False, default=0)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
 class BlogPost(db.Model):
     __tablename__ = 'blog_post'
 
@@ -153,6 +163,7 @@ class BlogPost(db.Model):
     thumbnail_width = db.Column(db.Integer, nullable=True)
     thumbnail_height = db.Column(db.Integer, nullable=True)
     author_id = db.Column(db.Integer, db.ForeignKey('admin_account.id'), nullable=True)
+    category_id = db.Column(db.Integer, db.ForeignKey('blog_category.id'), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

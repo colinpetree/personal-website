@@ -237,7 +237,6 @@ function AdminAccountsPageContent() {
       {historyTarget && (
         <HistoryModalLazy
           initialAdminId={historyTarget.id}
-          initialAdminName={historyTarget.full_name}
           onClose={() => setHistoryTarget(null)}
         />
       )}

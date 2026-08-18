@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Filter } from 'lucide-react'
+import { Filter } from 'lucide-react'
 import { Toggle } from './AdminPage'
+import FilterCombobox from '../ui/FilterCombobox'
 
 function getInitials(name) {
   const words = (name || '').trim().split(/\s+/).filter(Boolean)
@@ -49,7 +50,7 @@ const FILTER_AREAS = [
   { key: 'Settings,User', label: 'Settings and staff' },
 ]
 
-export default function HistoryModal({ onClose, initialAdminId = null, initialAdminName = null }) {
+export default function HistoryModal({ onClose, initialAdminId = null }) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [staff, setStaff] = useState([])
@@ -61,10 +62,7 @@ export default function HistoryModal({ onClose, initialAdminId = null, initialAd
   const filterRef = useRef(null)
 
   // Staff search
-  const [staffSearch, setStaffSearch] = useState(initialAdminName || '')
-  const [staffSearchOpen, setStaffSearchOpen] = useState(false)
   const [selectedAdminId, setSelectedAdminId] = useState(initialAdminId)
-  const staffRef = useRef(null)
 
   useEffect(() => {
     fetch('/api/admin/history/staff', { credentials: 'include' })
@@ -95,11 +93,10 @@ export default function HistoryModal({ onClose, initialAdminId = null, initialAd
     setLoading(false)
   }
 
-  // Outside click handlers
+  // Outside click handler (filter popover only — FilterCombobox handles its own)
   useEffect(() => {
     function handleClick(e) {
       if (filterRef.current && !filterRef.current.contains(e.target)) setFilterOpen(false)
-      if (staffRef.current && !staffRef.current.contains(e.target)) setStaffSearchOpen(false)
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
@@ -107,9 +104,7 @@ export default function HistoryModal({ onClose, initialAdminId = null, initialAd
 
   const hasActiveFilters = Object.values(filterActions).some(Boolean) || Object.values(filterAreas).some(Boolean)
 
-  const filteredStaff = staff.filter(s =>
-    !staffSearch || s.name.toLowerCase().includes(staffSearch.toLowerCase())
-  )
+  const staffOptions = staff.map(s => ({ value: s.id, label: s.name, avatar_filename: s.avatar_filename }))
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
@@ -162,49 +157,20 @@ export default function HistoryModal({ onClose, initialAdminId = null, initialAd
             </div>
 
             {/* Staff search */}
-            <div className="relative" ref={staffRef}>
-              <input
-                type="text"
-                placeholder={selectedAdminId ? (staff.find(s => s.id === selectedAdminId)?.name || 'Search staff…') : 'Search staff…'}
-                value={staffSearch}
-                onFocus={() => {
-                  if (selectedAdminId) {
-                    setSelectedAdminId(null)
-                    setStaffSearch('')
-                  }
-                  setStaffSearchOpen(true)
-                }}
-                onChange={e => {
-                  setStaffSearch(e.target.value)
-                  setSelectedAdminId(null)
-                  setStaffSearchOpen(true)
-                }}
-                className={`w-40 text-sm border border-gray-200 rounded-lg px-3 py-1.5 pr-7 outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-100 ${selectedAdminId ? 'placeholder-gray-900 font-medium' : 'placeholder-gray-400'}`}
-              />
-              {selectedAdminId && (
-                <button
-                  onClick={() => { setSelectedAdminId(null); setStaffSearch('') }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  <X size={14} />
-                </button>
+            <FilterCombobox
+              value={selectedAdminId}
+              onChange={setSelectedAdminId}
+              options={staffOptions}
+              placeholder="Search staff…"
+              className="w-40"
+              menuClassName="right-0"
+              renderOption={opt => (
+                <>
+                  <AvatarCircle name={opt.label} avatarFilename={opt.avatar_filename} />
+                  <span className="truncate">{opt.label}</span>
+                </>
               )}
-              {staffSearchOpen && filteredStaff.length > 0 && (
-                <ul className="absolute right-0 z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                  {filteredStaff.map(s => (
-                    <li
-                      key={s.id}
-                      onMouseDown={e => e.preventDefault()}
-                      onClick={() => { setSelectedAdminId(s.id); setStaffSearch(''); setStaffSearchOpen(false) }}
-                      className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-gray-50 text-sm text-gray-700"
-                    >
-                      <AvatarCircle name={s.name} avatarFilename={s.avatar_filename} />
-                      <span className="truncate">{s.name}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+            />
           </div>
         </div>
 

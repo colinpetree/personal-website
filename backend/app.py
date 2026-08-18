@@ -33,6 +33,7 @@ def create_app():
     from routes.admin_projects import admin_projects_bp
     from routes.blog import blog_bp
     from routes.admin_blog import admin_blog_bp
+    from routes.admin_blog_categories import admin_blog_categories_bp
     from routes.auth import auth_bp
     from routes.user import user_bp
     from routes.admin_users import admin_users_bp
@@ -50,6 +51,7 @@ def create_app():
     app.register_blueprint(admin_projects_bp)
     app.register_blueprint(blog_bp)
     app.register_blueprint(admin_blog_bp)
+    app.register_blueprint(admin_blog_categories_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(admin_users_bp)
@@ -98,6 +100,18 @@ def _migrate_schema():
         if 'ai_demo_access_requested_at' not in user_columns:
             conn.execute(text(
                 'ALTER TABLE "user" ADD COLUMN ai_demo_access_requested_at TIMESTAMP'
+            ))
+
+        blog_post_columns = {c['name'] for c in inspector.get_columns('blog_post')}
+        if 'category_id' not in blog_post_columns:
+            conn.execute(text(
+                'ALTER TABLE blog_post ADD COLUMN category_id INTEGER REFERENCES blog_category(id)'
+            ))
+
+        blog_category_columns = {c['name'] for c in inspector.get_columns('blog_category')}
+        if 'order' not in blog_category_columns:
+            conn.execute(text(
+                'ALTER TABLE blog_category ADD COLUMN "order" INTEGER NOT NULL DEFAULT 0'
             ))
 
 

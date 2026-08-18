@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router'
 import { ArrowLeft, X, Search, Trash2 } from 'lucide-react'
 import { PageShell } from '../../components/admin/AdminPage'
 import RoleGuard from '../../components/admin/RoleGuard'
+import FilterCombobox from '../../components/ui/FilterCombobox'
 
 function CommentCard({ c, isReply, onDelete }) {
   function formatDate(iso) {
@@ -54,12 +55,9 @@ function AdminBlogCommentsPageContent() {
   const [comments, setComments] = useState([])
   const [loading, setLoading] = useState(true)
   const [confirmComment, setConfirmComment] = useState(null)
-  const [postSearch, setPostSearch] = useState('')
   const [selectedPostId, setSelectedPostId] = useState(null)
-  const [postDropdownOpen, setPostDropdownOpen] = useState(false)
   const [commentSearch, setCommentSearch] = useState('')
   const [showDeleted, setShowDeleted] = useState(false)
-  const postDropdownRef = useRef(null)
 
   async function fetchComments() {
     const res = await fetch('/api/admin/blog/comments', { credentials: 'include' })
@@ -69,16 +67,6 @@ function AdminBlogCommentsPageContent() {
   }
 
   useEffect(() => { fetchComments() }, [])
-
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (postDropdownRef.current && !postDropdownRef.current.contains(e.target)) {
-        setPostDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
 
   async function handleDelete() {
     await fetch(`/api/admin/blog/comments/${confirmComment.id}`, { method: 'DELETE', credentials: 'include' })
@@ -96,15 +84,7 @@ function AdminBlogCommentsPageContent() {
     return Object.values(map).sort((a, b) => a.title.localeCompare(b.title))
   }, [comments])
 
-  const filteredPostOptions = useMemo(() => {
-    if (!postSearch) return allPosts
-    return allPosts.filter(p => p.title.toLowerCase().includes(postSearch.toLowerCase()))
-  }, [allPosts, postSearch])
-
-  const selectedPostLabel = useMemo(
-    () => allPosts.find(p => p.id === selectedPostId)?.title || '',
-    [allPosts, selectedPostId]
-  )
+  const postOptions = useMemo(() => allPosts.map(p => ({ value: p.id, label: p.title })), [allPosts])
 
   function getAllDescendants(id, repliesByParent) {
     const direct = repliesByParent[id] || []
@@ -227,48 +207,13 @@ function AdminBlogCommentsPageContent() {
 
         {/* Post selector + show deleted toggle */}
         <div className="flex items-center gap-3">
-          <div ref={postDropdownRef} className="relative">
-            <input
-              type="text"
-              placeholder={selectedPostId ? selectedPostLabel : 'Filter by post…'}
-              value={postSearch}
-              onFocus={() => {
-                if (selectedPostId) {
-                  setSelectedPostId(null)
-                  setPostSearch('')
-                }
-                setPostDropdownOpen(true)
-              }}
-              onChange={e => {
-                setPostSearch(e.target.value)
-                setSelectedPostId(null)
-                setPostDropdownOpen(true)
-              }}
-              className={`w-56 text-sm border border-gray-200 rounded-lg px-3 py-2 pr-7 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100 ${selectedPostId ? 'placeholder-blue-600 font-medium' : 'placeholder-gray-400'}`}
-            />
-            {selectedPostId && (
-              <button
-                onClick={() => { setSelectedPostId(null); setPostSearch('') }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              >
-                <X size={14} />
-              </button>
-            )}
-            {postDropdownOpen && filteredPostOptions.length > 0 && (
-              <ul className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto text-sm">
-                {filteredPostOptions.map(p => (
-                  <li
-                    key={p.id}
-                    onMouseDown={e => e.preventDefault()}
-                    onClick={() => { setSelectedPostId(p.id); setPostSearch(''); setPostDropdownOpen(false) }}
-                    className={`px-3 py-2 cursor-pointer hover:bg-gray-50 ${selectedPostId === p.id ? 'text-blue-600 font-medium' : 'text-gray-700'}`}
-                  >
-                    {p.title}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          <FilterCombobox
+            value={selectedPostId}
+            onChange={setSelectedPostId}
+            options={postOptions}
+            placeholder="Filter by post…"
+            className="w-56"
+          />
 
           {/* Show deleted toggle */}
           <label className="flex items-center gap-2 cursor-pointer">

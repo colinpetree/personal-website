@@ -2,7 +2,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request, session
 from flask_login import current_user
 from extensions import db
-from models import AdminAccount, BlogPost, Comment, SiteConfig, User
+from models import AdminAccount, BlogCategory, BlogPost, Comment, SiteConfig, User
 from crypto import decrypt
 
 blog_bp = Blueprint('blog', __name__)
@@ -11,6 +11,7 @@ RESERVED_SLUGS = {'', 'blog', 'projects', 'about', 'contact', 'demo', 'payment',
 
 
 def _post_to_dict(post, include_content=False):
+    category = BlogCategory.query.get(post.category_id) if post.category_id else None
     d = {
         'id': post.id,
         'title': post.title,
@@ -24,6 +25,9 @@ def _post_to_dict(post, include_content=False):
         'thumbnail_caption': post.thumbnail_caption,
         'thumbnail_width': post.thumbnail_width,
         'thumbnail_height': post.thumbnail_height,
+        'category_id': post.category_id,
+        'category_name': category.name if category else None,
+        'category_slug': category.slug if category else None,
         'created_at': post.created_at.isoformat() + 'Z',
         'updated_at': post.updated_at.isoformat() + 'Z',
     }
@@ -96,6 +100,7 @@ def list_posts():
     _promote_scheduled()
     page = request.args.get('page', 1, type=int)
     per_page = min(request.args.get('per_page', 10, type=int), 50)
+    category_slug = request.args.get('category')
     now = datetime.utcnow()
     q = (
         BlogPost.query
@@ -103,10 +108,13 @@ def list_posts():
         .filter(
             (BlogPost.publish_date == None) | (BlogPost.publish_date <= now)
         )
-        .order_by(
-            BlogPost.publish_date.desc().nullslast(),
-            BlogPost.created_at.desc()
-        )
+    )
+    if category_slug:
+        category = BlogCategory.query.filter_by(slug=category_slug).first()
+        q = q.filter_by(category_id=category.id if category else -1)
+    q = q.order_by(
+        BlogPost.publish_date.desc().nullslast(),
+        BlogPost.created_at.desc()
     )
     pagination = q.paginate(page=page, per_page=per_page, error_out=False)
     return jsonify({
@@ -115,6 +123,26 @@ def list_posts():
         'page': page,
         'pages': pagination.pages,
     })
+
+
+@blog_bp.route('/api/blog/categories')
+def list_public_categories():
+    """Categories that currently have at least one visible published post."""
+    now = datetime.utcnow()
+    visible_posts = (
+        BlogPost.query
+        .filter_by(status='published')
+        .filter(
+            (BlogPost.publish_date == None) | (BlogPost.publish_date <= now),
+            BlogPost.category_id != None
+        )
+        .all()
+    )
+    category_ids = {p.category_id for p in visible_posts}
+    if not category_ids:
+        return jsonify([])
+    categories = BlogCategory.query.filter(BlogCategory.id.in_(category_ids)).order_by(BlogCategory.order.asc(), BlogCategory.id.asc()).all()
+    return jsonify([{'id': c.id, 'name': c.name, 'slug': c.slug} for c in categories])
 
 
 @blog_bp.route('/api/blog/<slug>')
