@@ -86,6 +86,7 @@ export default (async () => {
       route(slugs.payment, './pages/PaymentPage.jsx'),
       route('profile', './pages/UserProfilePage.jsx'),
       route('auth/magic', './pages/MagicLinkVerifyPage.jsx'),
+      route('search', './pages/SearchPage.jsx'),
       route(':slug', hasPublishedPosts ? './pages/BlogPostPage.jsx' : './pages/BlogPostPageClientOnly.jsx'),
       route('*', './pages/NotFoundPage.jsx'),
     ]),

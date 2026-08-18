@@ -22,7 +22,7 @@ def _log(area, action_type, subject, subject_is_bold=False):
 
 admin_blog_bp = Blueprint('admin_blog', __name__)
 
-_STATIC_RESERVED = {'', 'admin', 'api', 'profile'}
+_STATIC_RESERVED = {'', 'admin', 'api', 'profile', 'search'}
 
 
 def _get_reserved_slugs():

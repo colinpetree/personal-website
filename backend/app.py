@@ -38,6 +38,7 @@ def create_app():
     from routes.admin_users import admin_users_bp
     from routes.admin_history import admin_history_bp
     from routes.payment import payment_bp
+    from routes.search import search_bp
     app.register_blueprint(profile_bp)
     app.register_blueprint(site_config_bp)
     app.register_blueprint(projects_bp)
@@ -54,6 +55,7 @@ def create_app():
     app.register_blueprint(admin_users_bp)
     app.register_blueprint(admin_history_bp)
     app.register_blueprint(payment_bp)
+    app.register_blueprint(search_bp)
 
     if app.config['ENABLE_AI_DEMOS']:
         from routes.ai_demo import ai_demo_bp
