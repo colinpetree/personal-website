@@ -668,16 +668,16 @@ export default function BlogPostPage() {
         </div>
       )}
 
-      <h1 className="text-4xl font-bold text-gray-900 mb-3 leading-tight">{post.title}</h1>
+      <h1 className="text-[34px] lg:text-[42px] font-bold text-gray-900 mb-3 leading-[42.5px] lg:leading-[52.5px]">{post.title}</h1>
 
       {/* Author + date */}
       <div className="flex items-center gap-2 mb-8">
         {blogAuthor ? (() => {
           const authorHref = siteConfig?.about_enabled ? `/${siteConfig.about_slug || 'about'}` : '/'
           const avatar = blogAuthor.avatar_filename ? (
-            <img src={`/api/uploads/${blogAuthor.avatar_filename}`} className="w-8 h-8 rounded-full object-cover flex-shrink-0" alt={blogAuthor.name} />
+            <img src={`/api/uploads/${blogAuthor.avatar_filename}`} className="w-11 h-11 rounded-full object-cover flex-shrink-0" alt={blogAuthor.name} />
           ) : (
-            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-500 flex-shrink-0">
+            <div className="w-11 h-11 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold text-gray-500 flex-shrink-0">
               {(blogAuthor.name || '?').charAt(0).toUpperCase()}
             </div>
           )
@@ -685,8 +685,8 @@ export default function BlogPostPage() {
             <div className="flex items-center gap-2">
               <Link to={authorHref} className="hover:opacity-80 transition-opacity">{avatar}</Link>
               <div className="flex flex-col leading-tight">
-                <Link to={authorHref} className="text-sm font-medium text-gray-700 hover:opacity-80 transition-opacity">{blogAuthor.name}</Link>
-                <span className="text-xs text-gray-400">
+                <Link to={authorHref} className="text-base font-medium text-gray-700 hover:opacity-80 transition-opacity">{blogAuthor.name}</Link>
+                <span className="text-sm text-gray-400">
                   {new Date(post.publish_date || post.created_at).toLocaleDateString('en-US', {
                     month: 'long', day: 'numeric', year: 'numeric',
                   })}
@@ -695,7 +695,7 @@ export default function BlogPostPage() {
             </div>
           )
         })() : (
-          <span className="text-sm text-gray-400">
+          <span className="text-base text-gray-400">
             {new Date(post.publish_date || post.created_at).toLocaleDateString('en-US', {
               month: 'long', day: 'numeric', year: 'numeric',
             })}
@@ -705,7 +705,7 @@ export default function BlogPostPage() {
 
       <article
         ref={articleRef}
-        className="prose prose-gray max-w-none mb-16 blog-content"
+        className="prose prose-xl prose-gray max-w-none mb-16 blog-content font-serif"
         dangerouslySetInnerHTML={{ __html: post.content_html || '' }}
         onClick={handleArticleClick}
       />
