@@ -13,6 +13,7 @@ def send_email(config, to_address, subject, body_text, sender_label):
             'subject': subject,
             'text': body_text,
         },
+        timeout=10,
     )
     resp.raise_for_status()
 

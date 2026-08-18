@@ -35,6 +35,16 @@ Usage:
                                   # whether to seed legacy migrations/initial data,
                                   # so resetting the database doesn't require also
                                   # resetting this server's systemd unit.
+    server --send-deploy-report  # emails a success/failure report for the deploy
+                                  # that just ran, using the site's own Mailgun
+                                  # settings (SiteConfig.forward_email as the
+                                  # recipient). Reads DEPLOY_REPORT_* env vars set
+                                  # by install.sh (status, release/previous version,
+                                  # domain, timestamp, health-check diagnostics on
+                                  # failure). Always exits 0 and never raises —
+                                  # silently does nothing if Mailgun/forward_email
+                                  # isn't configured or sending fails, so a broken
+                                  # mail setup can never break a deploy.
 """
 import os
 import sys
@@ -193,6 +203,83 @@ def seed_initial_data(app):
             print('AdminAccount already exists — not creating another.')
 
 
+def send_deploy_report(app):
+    """Emails a success/failure report for the deploy that just ran, reusing
+    the site's own Mailgun settings (same config the public contact form
+    uses) and its forward_email as the recipient. Every fact comes from
+    DEPLOY_REPORT_* env vars set by install.sh — this function has no
+    knowledge of the deploy process itself, only what it's told.
+
+    Deliberately silent on any failure (unconfigured Mailgun, bad
+    ENCRYPTION_KEY, network error, missing env var, ...): a broken mail setup
+    must never be the reason a deploy script itself fails or emits noise.
+    Mirrors the exact silent-failure pattern already used for the "comment
+    reported" ops notification in routes/blog.py's report_comment()."""
+    try:
+        from crypto import decrypt
+        from email_utils import send_email, mail_configured
+        from models import SiteConfig
+
+        with app.app_context():
+            config = SiteConfig.query.first()
+            if not config or not config.forward_email or not mail_configured(config):
+                return
+
+            status = os.getenv('DEPLOY_REPORT_STATUS', 'unknown')
+            release = os.getenv('DEPLOY_REPORT_RELEASE', 'unknown')
+            previous = os.getenv('DEPLOY_REPORT_PREVIOUS', 'none')
+            domain = os.getenv('DEPLOY_REPORT_DOMAIN') or os.getenv('DEPLOY_REPORT_HOSTNAME', 'unknown host')
+            label = f'v{previous} → v{release}'
+
+            lines = [
+                f'Status: {status}',
+                f'Server: {os.getenv("DEPLOY_REPORT_HOSTNAME", "unknown")}',
+                f'Domain: {os.getenv("DEPLOY_REPORT_DOMAIN", "(none configured)")}',
+                f'Previous version: {previous}',
+                f'New version: {release}',
+                f'Timestamp: {os.getenv("DEPLOY_REPORT_TIMESTAMP", "unknown")}',
+                f'Disk usage: {os.getenv("DEPLOY_REPORT_DISK", "unknown")}',
+                f'Health-check attempts: {os.getenv("DEPLOY_REPORT_ATTEMPTS", "unknown")}',
+            ]
+
+            if status == 'success':
+                subject = f'[Deploy] {domain}: {label} succeeded'
+            else:
+                stage = os.getenv('DEPLOY_REPORT_STAGE', 'unknown')
+                rolled_back = os.getenv('DEPLOY_REPORT_ROLLED_BACK', 'false') == 'true'
+                subject = f'[Deploy] {domain}: {label} FAILED at {stage}'
+                subject += f' — rolled back to v{previous}' if rolled_back else ' — NO ROLLBACK AVAILABLE'
+                lines.append(f'Failed stage: {stage}')
+                lines.append(f'Rolled back: {"yes, to v" + previous if rolled_back else "no"}')
+                health_error = os.getenv('DEPLOY_REPORT_HEALTH_ERROR')
+                if health_error:
+                    lines.append(f'Last health-check error: {health_error}')
+                log_tail = os.getenv('DEPLOY_REPORT_LOG_TAIL')
+                if log_tail:
+                    # install.sh truncates this by byte count (tail -c), which
+                    # can split a multi-byte UTF-8 character mid-sequence. Python
+                    # decodes env vars with surrogateescape, so the broken bytes
+                    # load fine here but would raise UnicodeEncodeError deep
+                    # inside requests' strict-UTF-8 body encoding later — right
+                    # when this diagnostic-heavy failure email matters most.
+                    # Re-encoding with surrogateescape/decoding with replace
+                    # swaps any such fragment for U+FFFD instead of failing.
+                    log_tail = log_tail.encode('utf-8', 'surrogateescape').decode('utf-8', 'replace')
+                    lines.append('')
+                    lines.append('Recent service log:')
+                    lines.append(log_tail)
+
+            body = '\n'.join(lines)
+
+            try:
+                config.mailgun_api_key = decrypt(config.mailgun_api_key)
+                send_email(config, config.forward_email, subject, body, 'Deploy Report')
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 def _gunicorn_options():
     return {
         'bind': os.getenv('GUNICORN_BIND', '127.0.0.1:8000'),
@@ -256,6 +343,10 @@ def main():
 
     if '--seed-initial-data' in sys.argv:
         seed_initial_data(app)
+        return
+
+    if '--send-deploy-report' in sys.argv:
+        send_deploy_report(app)
         return
 
     run_migrations(app)
