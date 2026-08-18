@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router'
 import { ArrowLeft, Calendar, ChevronRight, ExternalLink, PanelRight, Plus, Trash2, Upload, X } from 'lucide-react'
 import { DayPicker } from 'react-day-picker'
 import RichTextEditor from '../../components/admin/editor'
-import { Field, Input, InputWithPrefix, Textarea } from '../../components/admin/AdminPage'
+import { Field, Input, InputWithPrefix, Textarea, Toggle } from '../../components/admin/AdminPage'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { useToast } from '../../components/admin/Toast'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
@@ -438,6 +438,7 @@ export default function AdminBlogEditorPage() {
   const [slug, setSlug] = useState('')
   const [excerpt, setExcerpt] = useState('')
   const [metaDescription, setMetaDescription] = useState('')
+  const [scrollableNavEnabled, setScrollableNavEnabled] = useState(false)
   // These are used by the sidebar AND the publish dialog
   const [publishDatePart, setPublishDatePart] = useState('')
   const [publishTimePart, setPublishTimePart] = useState('')
@@ -469,6 +470,7 @@ export default function AdminBlogEditorPage() {
         setExcerpt(data.excerpt || '')
         excerptEdited.current = !!(data.excerpt && data.excerpt !== extractExcerpt(data.content_html || ''))
         setMetaDescription(data.meta_description || '')
+        setScrollableNavEnabled(!!data.scrollable_nav_enabled)
         const dtStr = data.publish_date ? data.publish_date.slice(0, 16) : ''
         setPublishDatePart(dtStr ? dtStr.slice(0, 10) : '')
         setPublishTimePart(dtStr ? dtStr.slice(11, 16) : '')
@@ -581,7 +583,7 @@ export default function AdminBlogEditorPage() {
     markDirty()
   }
 
-  function handleSidebarSave(overrideDatePart) {
+  function handleSidebarSave(overrideDatePart, overrideFields = {}) {
     if (status !== 'draft') return
     clearTimeout(autosaveTimer.current)
     const dp = typeof overrideDatePart === 'string' ? overrideDatePart : publishDatePart
@@ -589,11 +591,13 @@ export default function AdminBlogEditorPage() {
       slug,
       excerpt,
       meta_description: metaDescription,
+      scrollable_nav_enabled: scrollableNavEnabled,
       publish_date: combineDate(dp),
       thumbnail_filename: thumbnailFilename || null,
       thumbnail_caption: thumbnailCaption || null,
       thumbnail_width: thumbnailWidth || null,
       thumbnail_height: thumbnailHeight || null,
+      ...overrideFields,
     }).catch(() => {})
   }
 
@@ -642,6 +646,7 @@ export default function AdminBlogEditorPage() {
         slug,
         excerpt,
         meta_description: metaDescription,
+        scrollable_nav_enabled: scrollableNavEnabled,
         thumbnail_filename: thumbnailFilename || null,
         thumbnail_caption: thumbnailCaption || null,
         thumbnail_width: thumbnailWidth || null,
@@ -689,6 +694,7 @@ export default function AdminBlogEditorPage() {
         slug,
         excerpt,
         meta_description: metaDescription,
+        scrollable_nav_enabled: scrollableNavEnabled,
         publish_date: combineDate(),
         thumbnail_filename: thumbnailFilename || null,
         thumbnail_caption: thumbnailCaption || null,
@@ -1003,6 +1009,12 @@ export default function AdminBlogEditorPage() {
               placeholder="SEO description…"
             />
           </Field>
+
+          <Toggle
+            label="Scrollable header navigation"
+            checked={scrollableNavEnabled}
+            onChange={v => { setScrollableNavEnabled(v); markDirty(); handleSidebarSave(undefined, { scrollable_nav_enabled: v }) }}
+          />
 
           <PublishDateField
             datePart={publishDatePart}

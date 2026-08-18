@@ -1,8 +1,10 @@
+import { useRef } from 'react'
 import { Link } from 'react-router'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage } from '../utils/meta'
 import { AI_DEMO_LIST } from '../lib/aiDemos'
+import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 
 const DEMO_DESCRIPTIONS = {
   'conversation-basics': 'Chat with Claude. Featuring a custom system prompt, temperature control, and streaming responses',
@@ -44,14 +46,21 @@ export function meta({ data }) {
 
 export default function AIDemoPage() {
   const { config } = useSiteConfig()
+  const contentRef = useRef(null)
 
   return (
     <main className="max-w-4xl mx-auto px-6 py-16">
       {config?.ai_demo_text && (
-        <div
-          className="prose prose-gray max-w-none blog-content page-header-content mb-8"
-          dangerouslySetInnerHTML={{ __html: config.ai_demo_text }}
-        />
+        <>
+          <div
+            ref={contentRef}
+            className="prose prose-gray max-w-none blog-content page-header-content mb-8"
+            dangerouslySetInnerHTML={{ __html: config.ai_demo_text }}
+          />
+          {config.ai_demo_scrollable_nav_enabled && (
+            <ScrollableHeaderNav containerRef={contentRef} contentKey={config.ai_demo_text} />
+          )}
+        </>
       )}
 
       <div className="grid gap-6 sm:grid-cols-2">

@@ -25,6 +25,7 @@ class SiteConfig(db.Model):
     home_page_name = db.Column(db.String(100), nullable=False, default='Home')
     home_text = db.Column(db.Text, nullable=True)
     home_meta_description = db.Column(db.Text, nullable=True)
+    home_scrollable_nav_enabled = db.Column(db.Boolean, nullable=False, default=False)
 
     # Blog
     blog_enabled = db.Column(db.Boolean, nullable=False, default=False)
@@ -38,6 +39,7 @@ class SiteConfig(db.Model):
     projects_page_name = db.Column(db.String(100), nullable=False, default='Projects')
     projects_text = db.Column(db.Text, nullable=True)
     projects_meta_description = db.Column(db.Text, nullable=True)
+    projects_scrollable_nav_enabled = db.Column(db.Boolean, nullable=False, default=False)
     projects_slug = db.Column(db.String(100), nullable=False, default='projects')
 
     # About
@@ -45,6 +47,7 @@ class SiteConfig(db.Model):
     about_page_name = db.Column(db.String(100), nullable=False, default='About')
     about_text = db.Column(db.Text, nullable=True)
     about_meta_description = db.Column(db.Text, nullable=True)
+    about_scrollable_nav_enabled = db.Column(db.Boolean, nullable=False, default=False)
     about_slug = db.Column(db.String(100), nullable=False, default='about')
 
     # Contact
@@ -53,6 +56,7 @@ class SiteConfig(db.Model):
     contact_slug = db.Column(db.String(100), nullable=False, default='contact')
     contact_text = db.Column(db.Text, nullable=True)
     contact_meta_description = db.Column(db.Text, nullable=True)
+    contact_scrollable_nav_enabled = db.Column(db.Boolean, nullable=False, default=False)
     mailgun_api_key = db.Column(db.Text, nullable=True)  # stored encrypted
     mailgun_domain = db.Column(db.String(255), nullable=True)
     smtp_from_email = db.Column(db.String(255), nullable=True)
@@ -64,6 +68,7 @@ class SiteConfig(db.Model):
     ai_demo_slug = db.Column(db.String(100), nullable=False, default='demo')
     ai_demo_text = db.Column(db.Text, nullable=True)
     ai_demo_meta_description = db.Column(db.Text, nullable=True)
+    ai_demo_scrollable_nav_enabled = db.Column(db.Boolean, nullable=False, default=False)
 
     # Payment
     payment_enabled = db.Column(db.Boolean, nullable=False, default=False)
@@ -71,6 +76,7 @@ class SiteConfig(db.Model):
     payment_slug = db.Column(db.String(100), nullable=False, default='payment')
     payment_text = db.Column(db.Text, nullable=True)
     payment_meta_description = db.Column(db.Text, nullable=True)
+    payment_scrollable_nav_enabled = db.Column(db.Boolean, nullable=False, default=False)
     stripe_publishable_key = db.Column(db.Text, nullable=True)
     stripe_secret_key = db.Column(db.Text, nullable=True)  # stored encrypted
     stripe_webhook_secret = db.Column(db.Text, nullable=True)  # stored encrypted
@@ -135,6 +141,7 @@ class BlogPost(db.Model):
     content_html = db.Column(db.Text, nullable=True)
     excerpt = db.Column(db.Text, nullable=True)
     meta_description = db.Column(db.String(500), nullable=True)
+    scrollable_nav_enabled = db.Column(db.Boolean, nullable=False, default=False)
     status = db.Column(db.String(20), nullable=False, default='draft')  # draft | scheduled | published
     publish_date = db.Column(db.DateTime, nullable=True)
     thumbnail_filename = db.Column(db.String(255), nullable=True)

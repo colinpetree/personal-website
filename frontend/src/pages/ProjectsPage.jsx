@@ -1,8 +1,10 @@
+import { useRef } from 'react'
 import { useLoaderData } from 'react-router'
 import { ExternalLink } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { buildMeta, siteFallbackImage } from '../utils/meta'
 import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
+import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 
 // fetchSiteConfig() runs alongside the project fetch purely to populate
 // getCachedSiteConfig()'s cache in time for meta() below (see its usage
@@ -74,14 +76,21 @@ export function HydrateFallback() {
 export default function ProjectsPage() {
   const { config } = useSiteConfig()
   const { projects } = useLoaderData()
+  const contentRef = useRef(null)
 
   return (
     <main className="max-w-4xl mx-auto px-6 py-16">
       {config?.projects_text && (
-        <div
-          className="prose prose-gray max-w-none blog-content page-header-content mb-12"
-          dangerouslySetInnerHTML={{ __html: config.projects_text }}
-        />
+        <>
+          <div
+            ref={contentRef}
+            className="prose prose-gray max-w-none blog-content page-header-content mb-12"
+            dangerouslySetInnerHTML={{ __html: config.projects_text }}
+          />
+          {config.projects_scrollable_nav_enabled && (
+            <ScrollableHeaderNav containerRef={contentRef} contentKey={config.projects_text} />
+          )}
+        </>
       )}
 
       {projects.length === 0 ? (

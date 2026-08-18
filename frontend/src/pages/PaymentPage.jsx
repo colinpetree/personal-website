@@ -6,6 +6,7 @@ import { useSiteConfig } from '../hooks/useSiteConfig'
 import { useUserAuth } from '../context/UserAuthContext'
 import PaymentComments from '../components/PaymentComments'
 import SignInRequiredModal from '../components/SignInRequiredModal'
+import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage } from '../utils/meta'
 
@@ -199,6 +200,7 @@ export default function PaymentPage() {
 
   const mainRef = useRef(null)
   const commentsRef = useRef(null)
+  const contentRef = useRef(null)
 
   useEffect(() => {
     if (!commentsEnabled) return
@@ -443,10 +445,16 @@ export default function PaymentPage() {
     <main ref={mainRef} className={`mx-auto px-6 py-16 ${commentsEnabled ? 'max-w-5xl' : 'max-w-md'} ${commentsEnabled ? 'lg:h-[calc(100vh-4rem-1px)] lg:overflow-hidden lg:flex lg:flex-col' : ''}`}>
       <div className={commentsEnabled ? 'lg:flex-shrink-0' : ''}>
         {config?.payment_text && (
-          <div
-            className="prose prose-gray max-w-none blog-content page-header-content mb-8"
-            dangerouslySetInnerHTML={{ __html: config.payment_text }}
-          />
+          <>
+            <div
+              ref={contentRef}
+              className="prose prose-gray max-w-none blog-content page-header-content mb-8"
+              dangerouslySetInnerHTML={{ __html: config.payment_text }}
+            />
+            {config.payment_scrollable_nav_enabled && (
+              <ScrollableHeaderNav containerRef={contentRef} contentKey={config.payment_text} />
+            )}
+          </>
         )}
 
         {returnLoading && (
