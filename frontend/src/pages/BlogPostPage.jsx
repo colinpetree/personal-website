@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useLoaderData, Link } from 'react-router'
+import { useParams, useLoaderData, useSearchParams, Link } from 'react-router'
 import { ArrowLeft, Heart, Reply, MoreHorizontal, ChevronDown, X } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import GalleryLightbox from '../components/GalleryLightbox'
 import SignInRequiredModal from '../components/SignInRequiredModal'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
+import BlogPostNav from '../components/BlogPostNav'
 import { setupSegmentLoopVideo } from '../utils/segmentLoopVideo'
 import { buildMeta, absoluteUploadUrl, siteFallbackImage } from '../utils/meta'
 import { apiUrl, fetchSiteConfig } from '../lib/apiFetch'
@@ -411,9 +412,13 @@ function CommentItem({ comment, slug, currentUserId, likedIds, likeDeltas, onLik
 const _resolvedPostData = new Map()
 const MAX_CACHED_POSTS = 20
 
-function cachePostData(slug, result) {
-  _resolvedPostData.delete(slug) // re-insert at the end (most-recently-used) if already present
-  _resolvedPostData.set(slug, result)
+function postCacheKey(slug, categorySlug) {
+  return `${slug}:${categorySlug || ''}`
+}
+
+function cachePostData(key, result) {
+  _resolvedPostData.delete(key) // re-insert at the end (most-recently-used) if already present
+  _resolvedPostData.set(key, result)
   if (_resolvedPostData.size > MAX_CACHED_POSTS) {
     _resolvedPostData.delete(_resolvedPostData.keys().next().value)
   }
@@ -423,35 +428,40 @@ function cachePostData(slug, result) {
 // any slug not in that prerender list — see clientLoader below for why
 // both are needed, not just loader). config is fetched alongside purely to
 // populate apiFetch.js's getCachedSiteConfig() cache in time for meta().
-async function fetchPostData(slug) {
+async function fetchPostData(slug, categorySlug) {
+  const key = postCacheKey(slug, categorySlug)
   const [postRes, config] = await Promise.all([
     fetch(apiUrl(`/api/blog/${slug}`)),
     fetchSiteConfig(),
   ])
   if (postRes.status === 404) {
-    const result = { notFound: true, post: null, comments: [], blogAuthor: null, config }
-    cachePostData(slug, result)
+    const result = { notFound: true, post: null, comments: [], blogAuthor: null, next: null, previous: null, config }
+    cachePostData(key, result)
     return result
   }
   if (!postRes.ok) throw new Error(`Failed to load post ${slug}: HTTP ${postRes.status}`)
   const post = await postRes.json()
 
-  const [commentsRes, authorRes] = await Promise.all([
+  const adjacentUrl = `/api/blog/${slug}/adjacent${categorySlug ? `?category=${categorySlug}` : ''}`
+  const [commentsRes, authorRes, adjacentRes] = await Promise.all([
     fetch(apiUrl(`/api/blog/${slug}/comments`)),
     fetch(apiUrl('/api/blog/author')),
+    fetch(apiUrl(adjacentUrl)),
   ])
   const comments = commentsRes.ok ? (await commentsRes.json()).comments ?? [] : []
   const blogAuthor = authorRes.ok ? await authorRes.json() : null
+  const adjacent = adjacentRes.ok ? await adjacentRes.json() : { next: null, previous: null }
 
-  const result = { notFound: false, post, comments, blogAuthor, config }
-  cachePostData(slug, result)
+  const result = { notFound: false, post, comments, blogAuthor, next: adjacent.next, previous: adjacent.previous, config }
+  cachePostData(key, result)
   return result
 }
 
 // Runs in Node at prerender time, ONLY for slugs react-router.config.ts's
 // prerender() returned.
-export async function loader({ params }) {
-  return fetchPostData(params.slug)
+export async function loader({ params, request }) {
+  const categorySlug = new URL(request.url).searchParams.get('category')
+  return fetchPostData(params.slug, categorySlug)
 }
 
 // Runs in the browser — required in addition to loader, not redundant with
@@ -464,8 +474,9 @@ export async function loader({ params }) {
 // the very first hard load too, not just subsequent client-side nav — a
 // post published after the last prerender build resolves correctly this
 // way instead of erroring.
-export async function clientLoader({ params }) {
-  return fetchPostData(params.slug)
+export async function clientLoader({ params, request }) {
+  const categorySlug = new URL(request.url).searchParams.get('category')
+  return fetchPostData(params.slug, categorySlug)
 }
 clientLoader.hydrate = true
 
@@ -475,8 +486,9 @@ clientLoader.hydrate = true
 // _resolvedPostData via params.slug rather than the `data` param — params
 // come from route matching (reliable), not loader data (confirmed
 // unreliable in meta() here, see _resolvedPostData's own comment above).
-export function meta({ params }) {
-  const cached = _resolvedPostData.get(params.slug)
+export function meta({ params, location }) {
+  const categorySlug = new URLSearchParams(location?.search).get('category')
+  const cached = _resolvedPostData.get(postCacheKey(params.slug, categorySlug))
   const config = cached?.config
   const post = cached?.post
   if (!post) {
@@ -518,9 +530,11 @@ export function HydrateFallback() {
 
 export default function BlogPostPage() {
   const { slug } = useParams()
+  const [searchParams] = useSearchParams()
+  const categorySlug = searchParams.get('category')
   const { user: currentUser } = useUserAuth()
   const { config: siteConfig } = useSiteConfig()
-  const { notFound, post, comments: initialComments, blogAuthor } = useLoaderData()
+  const { notFound, post, comments: initialComments, blogAuthor, next, previous } = useLoaderData()
   const [comments, setComments] = useState(initialComments)
   const [sort, setSort] = useState('Best')
   const [reportingComment, setReportingComment] = useState(null)
@@ -722,6 +736,8 @@ export default function BlogPostPage() {
           onNavigate={setLightboxIndex}
         />
       )}
+
+      <BlogPostNav next={next} previous={previous} categorySlug={categorySlug} />
 
       {commentsVisible && (
         <section>
