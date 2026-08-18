@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Runs ONCE on a fresh production server, before the first install.sh run.
 # Installs OS-level dependencies, creates the personalweb service user,
-# configures ufw/Varnish, provisions Postgres, and writes a fully-populated
-# .env (DATABASE_URL/SECRET_KEY/ENCRYPTION_KEY generated automatically) plus
-# the domain file install.sh reads for both TLS and admin-panel seeding.
+# configures ufw/Varnish/swap, provisions Postgres, and writes a
+# fully-populated .env (DATABASE_URL/SECRET_KEY/ENCRYPTION_KEY generated
+# automatically) plus the domain file install.sh reads for both TLS and
+# admin-panel seeding.
 #
 # Every step here is idempotent — safe to re-run (e.g. after a mid-way
 # failure). Once $DATA_DIR/.env exists it is never touched again, so a
@@ -35,7 +36,46 @@ else
     echo "    personalweb already exists, skipping"
 fi
 
-echo "==> 2. Installing packages"
+echo "==> 2. Configuring swap"
+# Safety net against OOM kills, not a working-set extension — a memory spike
+# (Postgres + gunicorn + nginx + Varnish all under load at once) gets turned
+# into "things get briefly slower" instead of the kernel killing a process
+# outright. Confirmed necessary: an OOM kill took down the backend server
+# process on a memory-constrained test box before this existed.
+if swapon --show=NAME --noheadings | grep -qx /swapfile; then
+    echo "    /swapfile already active, skipping"
+else
+    if [ ! -f /swapfile ]; then
+        MEM_KB="$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
+        MEM_MB=$(( MEM_KB / 1024 ))
+        # <=2GB RAM -> 2x RAM; 2-8GB -> 1x RAM; >8GB -> 4GB flat (diminishing
+        # returns swapping out that much on a well-provisioned box).
+        if [ "$MEM_MB" -le 2048 ]; then
+            SWAP_MB=$(( MEM_MB * 2 ))
+        elif [ "$MEM_MB" -le 8192 ]; then
+            SWAP_MB="$MEM_MB"
+        else
+            SWAP_MB=4096
+        fi
+        echo "    Detected ${MEM_MB}MB RAM — creating ${SWAP_MB}MB /swapfile"
+        fallocate -l "${SWAP_MB}M" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count="$SWAP_MB"
+    fi
+    # chmod/mkswap run every time we get here (not just on fresh creation) so
+    # an interrupted prior run (file created but never formatted/activated
+    # before bootstrap.sh died) gets finished off here instead of leaving
+    # swapon below to fail on an unformatted file forever after.
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+
+    # Keep the kernel biased toward RAM, only reaching for swap under real
+    # pressure — this is a safety net, not meant to be used routinely.
+    echo 'vm.swappiness=10' > /etc/sysctl.d/99-swappiness.conf
+    sysctl -p /etc/sysctl.d/99-swappiness.conf
+fi
+
+echo "==> 3. Installing packages"
 # universe is where libnginx-mod-http-brotli-* live on 24.04 — not enabled
 # by default on a stock Ubuntu Server image.
 add-apt-repository universe -y
@@ -43,7 +83,7 @@ apt update
 apt install -y postgresql nginx varnish certbot python3-certbot-nginx \
     libnginx-mod-http-brotli-filter libnginx-mod-http-brotli-static ufw
 
-echo "==> 3. Configuring firewall (ufw)"
+echo "==> 4. Configuring firewall (ufw)"
 ufw default deny incoming
 ufw default allow outgoing
 ufw allow 22/tcp
@@ -51,7 +91,7 @@ ufw allow 80/tcp
 ufw allow 443/tcp
 ufw --force enable
 
-echo "==> 4. Binding Varnish to 127.0.0.1:6081"
+echo "==> 5. Binding Varnish to 127.0.0.1:6081"
 # Varnish's packaged default is 0.0.0.0:6081, which would expose the cache
 # directly to the internet, bypassing nginx's TLS termination entirely. This
 # override is otherwise IDENTICAL to the packaged unit's ExecStart (see
@@ -79,10 +119,10 @@ systemctl daemon-reload
 systemctl enable --now varnish
 systemctl restart varnish
 
-echo "==> 5. Creating data directories"
+echo "==> 6. Creating data directories"
 mkdir -p "$DATA_DIR/uploads" "$APP_ROOT/releases"
 
-echo "==> 6. Generating .env"
+echo "==> 7. Generating .env"
 if [ -f "$DATA_DIR/.env" ]; then
     echo "    $DATA_DIR/.env already exists — leaving it untouched (secrets/DB password stay stable)."
 else
@@ -135,7 +175,7 @@ EOF
     echo "    Generated $DATA_DIR/.env (DATABASE_URL/SECRET_KEY/ENCRYPTION_KEY set automatically)."
 fi
 
-echo "==> 7. Domain (used for both the TLS cert and the admin panel)"
+echo "==> 8. Domain (used for both the TLS cert and the admin panel)"
 DOMAIN="$DOMAIN_ARG"
 if [ -z "$DOMAIN" ] && [ -t 0 ]; then
     read -rp "==> Domain this site will be served from (e.g. example.com, blank to skip for now): " DOMAIN
@@ -148,7 +188,7 @@ else
     echo "    No domain provided — set one later via install.sh --domain or the admin panel."
 fi
 
-echo "==> 8. Fixing ownership"
+echo "==> 9. Fixing ownership"
 chown -R personalweb:personalweb "$DATA_DIR"
 
 echo ""
