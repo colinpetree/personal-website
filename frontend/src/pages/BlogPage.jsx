@@ -8,11 +8,11 @@ import CategoryFilterBar from '../components/CategoryFilterBar'
 
 function BlogListSkeleton() {
   return (
-    <div className="flex flex-col gap-10 animate-pulse">
+    <div className="flex flex-col divide-y divide-gray-200 animate-pulse">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="flex gap-6">
-          <div className="shrink-0 w-28 h-20 bg-gray-100 rounded-lg" />
-          <div className="flex-1 min-w-0 flex flex-col gap-2 py-1">
+        <div key={i} className="flex flex-col sm:flex-row gap-4 sm:gap-6 py-8 first:pt-0">
+          <div className="shrink-0 w-full h-48 sm:w-28 sm:h-20 bg-gray-100 rounded-lg order-1 sm:order-2" />
+          <div className="flex-1 min-w-0 flex flex-col gap-2 py-1 order-2 sm:order-1">
             <div className="h-5 bg-gray-100 rounded w-3/4" />
             <div className="h-3 bg-gray-100 rounded w-full" />
             <div className="h-3 bg-gray-100 rounded w-5/6" />
@@ -164,30 +164,30 @@ export default function BlogPage() {
 
       {!loading && data?.posts?.length > 0 && (
         <>
-          <div className="flex flex-col gap-10">
+          <div className="flex flex-col divide-y divide-gray-200">
             {data.posts.map(post => (
-              <article key={post.id} className="flex gap-6">
+              <article key={post.id} className="flex flex-col sm:flex-row gap-4 sm:gap-6 py-8 first:pt-0">
                 {post.thumbnail_filename && (
-                  <Link to={`/${post.slug}`} className="shrink-0">
+                  <Link to={`/${post.slug}`} className="shrink-0 order-1 sm:order-2">
                     <img
                       src={`/api/uploads/${post.thumbnail_filename}`}
                       alt={post.title}
-                      className="w-28 h-20 object-cover rounded-lg"
+                      className="w-full h-48 sm:w-28 sm:h-20 object-cover rounded-lg"
                     />
                   </Link>
                 )}
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 order-2 sm:order-1">
                   <Link to={`/${post.slug}`}>
-                    <h2 className="text-xl font-semibold text-gray-900 hover:text-gray-600 transition-colors mb-1">
+                    <h2 className="text-xl lg:text-2xl font-bold text-gray-900 hover:text-gray-600 transition-colors mb-1">
                       {post.title}
                     </h2>
                   </Link>
                   {post.excerpt && (
-                    <p className="text-gray-600 text-sm leading-relaxed mb-2 line-clamp-3">
+                    <p className="text-gray-500 text-base leading-relaxed mb-2 line-clamp-2">
                       {post.excerpt}
                     </p>
                   )}
-                  <p className="text-xs text-gray-400">
+                  <p className="text-xs text-gray-600">
                     {formatDate(post.publish_date || post.created_at)}
                   </p>
                 </div>
