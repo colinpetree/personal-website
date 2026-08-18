@@ -152,15 +152,15 @@ mkdir -p "$RELEASE_DIR/frontend"
 # doesn't need to change.
 cp -r "$REPO_DIR/frontend/build/client" "$RELEASE_DIR/frontend/dist"
 
+# Always bundle every migration file, not just those since the previous tag —
+# install.sh's schema_migrations table already tracks per-file applied state,
+# so re-shipping an already-applied file is a safe no-op. Diffing against the
+# previous tag instead used to silently drop any migration whose release got
+# skipped on a given server (e.g. installing straight from v0.1.8 to v0.1.10
+# would omit migrations that first shipped in the skipped v0.1.9), breaking
+# the fast-forward guarantee schema_migrations is supposed to provide.
 mkdir -p "$RELEASE_DIR/migrations"
-PREV_TAG="$(git -C "$REPO_DIR" describe --tags --abbrev=0 --match 'v*' 2>/dev/null || echo '')"
-if [ -n "$PREV_TAG" ]; then
-    git -C "$REPO_DIR" diff --name-only "$PREV_TAG" HEAD -- backend/migrations | while read -r f; do
-        [ -f "$REPO_DIR/$f" ] && cp "$REPO_DIR/$f" "$RELEASE_DIR/migrations/"
-    done
-else
-    cp "$REPO_DIR"/backend/migrations/*.sql "$RELEASE_DIR/migrations/" 2>/dev/null || true
-fi
+cp "$REPO_DIR"/backend/migrations/*.sql "$RELEASE_DIR/migrations/" 2>/dev/null || true
 
 mkdir -p "$RELEASE_DIR/deploy/systemd" "$RELEASE_DIR/deploy/nginx" "$RELEASE_DIR/deploy/varnish"
 cp "$REPO_DIR/deploy/systemd/personal-website.service" "$RELEASE_DIR/deploy/systemd/"
