@@ -333,17 +333,19 @@ fi
 # the unit file's EnvironmentFile=/Environment= lines apply — without
 # explicitly sourcing .env and exporting these ourselves, DATABASE_URL etc.
 # are unset and both calls fail immediately.
-_run_server() {
+_run_server_in() {
+    local dir="$1"; shift
     (
         set -a
         # shellcheck source=/dev/null
         source "$DATA_DIR/.env"
         set +a
         export APP_DATA_DIR="$DATA_DIR"
-        export MIGRATIONS_DIR="$RELEASE_DIR/migrations"
-        exec "$RELEASE_DIR/backend/server" "$@"
+        export MIGRATIONS_DIR="$dir/migrations"
+        exec "$dir/backend/server" "$@"
     )
 }
+_run_server() { _run_server_in "$RELEASE_DIR" "$@"; }
 
 # Whether the *database* has ever been seeded — deliberately NOT the same
 # thing as $FIRST_INSTALL above, which only reflects whether this SERVER has
@@ -395,14 +397,6 @@ if [ "$DB_IS_FRESH" = "true" ]; then
     fi
 fi
 
-# ---- 5. Run pending SQL migrations before touching traffic ----------------
-echo "==> Running database migrations"
-if ! _run_server --migrate-only; then
-    echo "MIGRATION FAILED — aborting before touching the current release."
-    exit 1
-fi
-
-# ---- 6. Atomic cutover ------------------------------------------------------
 # Only resolve a previous release if $CURRENT_LINK actually exists yet — GNU
 # `readlink -f` on a not-yet-existing path doesn't return empty, it just
 # echoes the literal (nonexistent) path back. On a genuine first install that
@@ -410,10 +404,39 @@ fi
 # check below would then `ln -sfn "$CURRENT_LINK" "$CURRENT_LINK"` — a
 # self-referential symlink ("too many levels of symbolic links" on every
 # subsequent access) instead of the intended "nothing to roll back to".
+# Resolved here (before migrations run, not just before cutover) so it's
+# already available if the migration step below fails and needs to report it.
 PREVIOUS_RELEASE=""
 if [ -L "$CURRENT_LINK" ]; then
     PREVIOUS_RELEASE="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
 fi
+
+# Facts common to both the success and failure deploy-report emails —
+# gathered once and exported right before each `--send-deploy-report` call.
+# Silently a no-op downstream if Mailgun/forward_email isn't configured.
+_export_deploy_report_common() {
+    export DEPLOY_REPORT_RELEASE="$RELEASE_NAME"
+    export DEPLOY_REPORT_PREVIOUS="$([ -n "$PREVIOUS_RELEASE" ] && basename "$PREVIOUS_RELEASE" || echo "none")"
+    export DEPLOY_REPORT_DOMAIN="$DOMAIN"
+    export DEPLOY_REPORT_HOSTNAME="$(hostname -f 2>/dev/null || hostname)"
+    export DEPLOY_REPORT_TIMESTAMP="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+    export DEPLOY_REPORT_DISK="$(df -h "$APP_ROOT" 2>/dev/null | tail -1)"
+}
+
+# ---- 5. Run pending SQL migrations before touching traffic ----------------
+echo "==> Running database migrations"
+if ! _run_server --migrate-only; then
+    echo "MIGRATION FAILED — aborting before touching the current release."
+    _export_deploy_report_common
+    export DEPLOY_REPORT_STATUS=failure
+    export DEPLOY_REPORT_STAGE=migrate
+    export DEPLOY_REPORT_ROLLED_BACK=false
+    export DEPLOY_REPORT_ATTEMPTS=0
+    _run_server --send-deploy-report >/dev/null 2>&1 || true
+    exit 1
+fi
+
+# ---- 6. Atomic cutover ------------------------------------------------------
 echo "==> Cutting over to $RELEASE_NAME"
 ln -sfn "$RELEASE_DIR" "$CURRENT_LINK"
 systemctl restart personal-website
@@ -421,27 +444,47 @@ systemctl restart personal-website
 # ---- 7. Health check, with automatic rollback ------------------------------
 echo "==> Health check"
 HEALTHY=false
+LAST_HEALTH_ERROR=""
 for i in $(seq 1 15); do
-    if curl -sf "http://127.0.0.1:$BACKEND_PORT/api/site-config" >/dev/null 2>&1; then
+    if CURL_OUT="$(curl -sf "http://127.0.0.1:$BACKEND_PORT/api/site-config" 2>&1)"; then
         HEALTHY=true
         break
+    else
+        LAST_HEALTH_ERROR="$CURL_OUT"
     fi
     sleep 1
 done
 
 if [ "$HEALTHY" != true ]; then
     echo "HEALTH CHECK FAILED — rolling back."
+    ROLLED_BACK=false
+    REPORT_DIR="$RELEASE_DIR"
     if [ -n "$PREVIOUS_RELEASE" ] && [ -d "$PREVIOUS_RELEASE" ]; then
         ln -sfn "$PREVIOUS_RELEASE" "$CURRENT_LINK"
         systemctl restart personal-website
         echo "Rolled back to $(basename "$PREVIOUS_RELEASE")."
+        ROLLED_BACK=true
+        REPORT_DIR="$PREVIOUS_RELEASE"
     else
         echo "No previous release to roll back to — service left as-is, investigate manually."
     fi
+    _export_deploy_report_common
+    export DEPLOY_REPORT_STATUS=failure
+    export DEPLOY_REPORT_STAGE=healthcheck
+    export DEPLOY_REPORT_ROLLED_BACK="$ROLLED_BACK"
+    export DEPLOY_REPORT_ATTEMPTS="$i"
+    export DEPLOY_REPORT_HEALTH_ERROR="$LAST_HEALTH_ERROR"
+    export DEPLOY_REPORT_LOG_TAIL="$(journalctl -u personal-website -n 30 --no-pager 2>/dev/null | tail -c 4000)"
+    _run_server_in "$REPORT_DIR" --send-deploy-report >/dev/null 2>&1 || true
     exit 1
 fi
 
 echo "==> $RELEASE_NAME is live and healthy."
+
+_export_deploy_report_common
+export DEPLOY_REPORT_STATUS=success
+export DEPLOY_REPORT_ATTEMPTS="$i"
+_run_server --send-deploy-report >/dev/null 2>&1 || true
 
 # ---- 8. Prune old releases --------------------------------------------------
 cd "$RELEASES_DIR"
