@@ -1,10 +1,11 @@
 import os
+import json
 import uuid
 import shutil
 import subprocess
 from flask import Blueprint, jsonify, request, current_app
 from flask_login import current_user
-from models import SiteConfig, SiteEventLog
+from models import SiteConfig, SiteEventLog, DEFAULT_NAV_ORDER
 from crypto import encrypt, decrypt
 from routes.admin_auth import admin_required, role_at_least
 from email_utils import send_email, mail_configured
@@ -29,6 +30,7 @@ def _config_to_dict(config):
     result = {
         'site_title': config.site_title,
         'site_description': config.site_description,
+        'nav_order': json.loads(config.nav_order) if config.nav_order else DEFAULT_NAV_ORDER,
         'domain': config.domain,
         'favicon_filename': config.favicon_filename,
         'timezone': config.timezone,
@@ -142,6 +144,17 @@ def update_admin_config():
         if field in data:
             setattr(config, field, data[field])
 
+    # Nav order — validated separately since it needs JSON (de)serialization
+    if 'nav_order' in data:
+        nav_order = data['nav_order']
+        if (
+            not isinstance(nav_order, list)
+            or not all(key in DEFAULT_NAV_ORDER for key in nav_order)
+            or len(nav_order) != len(set(nav_order))
+        ):
+            return jsonify({'error': 'Invalid nav_order'}), 400
+        config.nav_order = json.dumps(nav_order)
+
     # Encrypted fields — only update if a non-empty value is provided
     if data.get('mailgun_api_key'):
         config.mailgun_api_key = encrypt(data['mailgun_api_key'])
@@ -159,7 +172,7 @@ def update_admin_config():
             f.write(data['domain'])
 
     # Log the settings change
-    changed_keys = [k for k in data if k in plain_fields or k in ('mailgun_api_key', 'stripe_secret_key', 'stripe_webhook_secret', 'google_oauth_client_secret')]
+    changed_keys = [k for k in data if k in plain_fields or k in ('nav_order', 'mailgun_api_key', 'stripe_secret_key', 'stripe_webhook_secret', 'google_oauth_client_secret')]
     if changed_keys:
         subject = 'Site (' + ', '.join(changed_keys) + ')'
         entry = SiteEventLog(
