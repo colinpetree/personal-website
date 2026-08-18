@@ -5,6 +5,7 @@ import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import GalleryLightbox from '../components/GalleryLightbox'
 import SignInRequiredModal from '../components/SignInRequiredModal'
+import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import { setupSegmentLoopVideo } from '../utils/segmentLoopVideo'
 import { buildMeta, absoluteUploadUrl, siteFallbackImage } from '../utils/meta'
 import { apiUrl, fetchSiteConfig } from '../lib/apiFetch'
@@ -708,6 +709,10 @@ export default function BlogPostPage() {
         dangerouslySetInnerHTML={{ __html: post.content_html || '' }}
         onClick={handleArticleClick}
       />
+
+      {post.scrollable_nav_enabled && (
+        <ScrollableHeaderNav containerRef={articleRef} contentKey={post.content_html} />
+      )}
 
       {lightboxIndex !== null && (
         <GalleryLightbox

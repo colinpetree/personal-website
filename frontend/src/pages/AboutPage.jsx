@@ -1,6 +1,8 @@
+import { useRef } from 'react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage } from '../utils/meta'
+import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 
 // Purely for meta() below — see HomePage.jsx for why this route needs its
 // own directly-awaited config fetch rather than reaching root's via
@@ -25,14 +27,21 @@ export function meta({ data }) {
 
 export default function AboutPage() {
   const { config } = useSiteConfig()
+  const contentRef = useRef(null)
 
   return (
     <main className="max-w-3xl mx-auto px-6 py-16">
       {config?.about_text ? (
-        <div
-          className="prose prose-gray max-w-none blog-content page-header-content"
-          dangerouslySetInnerHTML={{ __html: config.about_text }}
-        />
+        <>
+          <div
+            ref={contentRef}
+            className="prose prose-gray max-w-none blog-content page-header-content"
+            dangerouslySetInnerHTML={{ __html: config.about_text }}
+          />
+          {config.about_scrollable_nav_enabled && (
+            <ScrollableHeaderNav containerRef={contentRef} contentKey={config.about_text} />
+          )}
+        </>
       ) : (
         <p className="text-gray-400">About page not configured.</p>
       )}

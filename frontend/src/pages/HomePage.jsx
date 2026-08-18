@@ -1,6 +1,8 @@
+import { useRef } from 'react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage } from '../utils/meta'
+import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 
 // Purely for meta() below — the page body still reads config from context
 // via useSiteConfig(), fed by root's own loader. This separate fetch exists
@@ -27,6 +29,7 @@ export function meta({ data }) {
 
 export default function HomePage() {
   const { config } = useSiteConfig()
+  const contentRef = useRef(null)
 
   if (!config?.home_text) {
     return (
@@ -39,9 +42,13 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-white max-w-3xl mx-auto px-6 py-16">
       <div
+        ref={contentRef}
         className="prose prose-gray max-w-none blog-content page-header-content"
         dangerouslySetInnerHTML={{ __html: config.home_text }}
       />
+      {config.home_scrollable_nav_enabled && (
+        <ScrollableHeaderNav containerRef={contentRef} contentKey={config.home_text} />
+      )}
     </main>
   )
 }

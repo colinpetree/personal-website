@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router'
 import { ArrowLeft, PanelRight } from 'lucide-react'
 import RichTextEditor from '../../components/admin/editor'
-import { Field, Textarea } from '../../components/admin/AdminPage'
+import { Field, Textarea, Toggle } from '../../components/admin/AdminPage'
 import { Tooltip } from '../../components/ui/Tooltip'
 import { useToast } from '../../components/admin/Toast'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
@@ -14,12 +14,13 @@ function countWords(html) {
   return words.length
 }
 
-export default function AdminPageContentEditor({ pageTitle, backTo, contentField, metaField }) {
+export default function AdminPageContentEditor({ pageTitle, backTo, contentField, metaField, navField }) {
   const { config, loading, save } = useAdminConfig()
   const { addToast } = useToast()
 
   const [contentHtml, setContentHtml] = useState('')
   const [metaDescription, setMetaDescription] = useState('')
+  const [navEnabled, setNavEnabled] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [panelOpen, setPanelOpen] = useState(true)
@@ -39,9 +40,10 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
     const savedMeta = config[metaField] || ''
     setContentHtml(html)
     setMetaDescription(savedMeta)
+    setNavEnabled(!!config[navField])
     metaEdited.current = !!(savedMeta && savedMeta !== extractExcerpt(html))
     setLoaded(true)
-  }, [loading, loaded, config, contentField, metaField])
+  }, [loading, loaded, config, contentField, metaField, navField])
 
   function handleContentChange(html) {
     setContentHtml(html)
@@ -60,7 +62,7 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
   async function handleSave() {
     setSaving(true)
     try {
-      await save({ [contentField]: contentHtml, [metaField]: metaDescription })
+      await save({ [contentField]: contentHtml, [metaField]: metaDescription, [navField]: navEnabled })
       setIsDirty(false)
       addToast({ message: `${pageTitle} content saved` })
     } catch (err) {
@@ -136,6 +138,12 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
                 placeholder="SEO description…"
               />
             </Field>
+
+            <Toggle
+              label="Scrollable header navigation"
+              checked={navEnabled}
+              onChange={v => { setNavEnabled(v); setIsDirty(true) }}
+            />
           </div>
         </div>
       </div>

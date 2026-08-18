@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage } from '../utils/meta'
+import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 
 const INITIAL = { name: '', email: '', subject: '', message: '' }
 
@@ -26,6 +27,7 @@ export function meta({ data }) {
 
 export default function ContactPage() {
   const { config } = useSiteConfig()
+  const contentRef = useRef(null)
   const [form, setForm] = useState(INITIAL)
   const [status, setStatus] = useState(null) // 'sending' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState('')
@@ -62,10 +64,16 @@ export default function ContactPage() {
   return (
     <main className="max-w-2xl mx-auto px-6 py-16">
       {config?.contact_text && (
-        <div
-          className="prose prose-gray max-w-none blog-content page-header-content mb-8"
-          dangerouslySetInnerHTML={{ __html: config.contact_text }}
-        />
+        <>
+          <div
+            ref={contentRef}
+            className="prose prose-gray max-w-none blog-content page-header-content mb-8"
+            dangerouslySetInnerHTML={{ __html: config.contact_text }}
+          />
+          {config.contact_scrollable_nav_enabled && (
+            <ScrollableHeaderNav containerRef={contentRef} contentKey={config.contact_text} />
+          )}
+        </>
       )}
 
       {status === 'success' ? (

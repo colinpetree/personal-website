@@ -44,6 +44,7 @@ def _config_to_dict(config):
         'home_page_name': config.home_page_name,
         'home_text': config.home_text,
         'home_meta_description': config.home_meta_description,
+        'home_scrollable_nav_enabled': config.home_scrollable_nav_enabled,
         'blog_enabled': config.blog_enabled,
         'blog_page_name': config.blog_page_name,
         'blog_slug': config.blog_slug,
@@ -53,17 +54,20 @@ def _config_to_dict(config):
         'projects_page_name': config.projects_page_name,
         'projects_text': config.projects_text,
         'projects_meta_description': config.projects_meta_description,
+        'projects_scrollable_nav_enabled': config.projects_scrollable_nav_enabled,
         'projects_slug': config.projects_slug,
         'about_enabled': config.about_enabled,
         'about_page_name': config.about_page_name,
         'about_text': config.about_text,
         'about_meta_description': config.about_meta_description,
+        'about_scrollable_nav_enabled': config.about_scrollable_nav_enabled,
         'about_slug': config.about_slug,
         'contact_enabled': config.contact_enabled,
         'contact_page_name': config.contact_page_name,
         'contact_slug': config.contact_slug,
         'contact_text': config.contact_text,
         'contact_meta_description': config.contact_meta_description,
+        'contact_scrollable_nav_enabled': config.contact_scrollable_nav_enabled,
         'mailgun_api_key_set': bool(config.mailgun_api_key),
         'mailgun_domain': config.mailgun_domain,
         'smtp_from_email': config.smtp_from_email,
@@ -73,6 +77,7 @@ def _config_to_dict(config):
         'payment_slug': config.payment_slug,
         'payment_text': config.payment_text,
         'payment_meta_description': config.payment_meta_description,
+        'payment_scrollable_nav_enabled': config.payment_scrollable_nav_enabled,
         'payment_comments_enabled': config.payment_comments_enabled,
         'stripe_publishable_key': config.stripe_publishable_key,
         'stripe_secret_key_set': bool(config.stripe_secret_key),
@@ -87,6 +92,7 @@ def _config_to_dict(config):
         result['ai_demo_slug'] = config.ai_demo_slug
         result['ai_demo_text'] = config.ai_demo_text
         result['ai_demo_meta_description'] = config.ai_demo_meta_description
+        result['ai_demo_scrollable_nav_enabled'] = config.ai_demo_scrollable_nav_enabled
     return result
 
 
@@ -121,17 +127,17 @@ def update_admin_config():
     plain_fields = [
         'site_title', 'site_description', 'domain', 'favicon_filename', 'timezone', 'users_enabled',
         'google_oauth_client_id',
-        'home_enabled', 'home_page_name', 'home_text', 'home_meta_description',
+        'home_enabled', 'home_page_name', 'home_text', 'home_meta_description', 'home_scrollable_nav_enabled',
         'blog_enabled', 'blog_page_name', 'blog_slug', 'blog_text', 'blog_meta_description', 'blog_comments_enabled',
-        'projects_enabled', 'projects_page_name', 'projects_text', 'projects_meta_description', 'projects_slug',
-        'about_enabled', 'about_page_name', 'about_text', 'about_meta_description', 'about_slug',
-        'contact_enabled', 'contact_page_name', 'contact_slug', 'contact_text', 'contact_meta_description',
+        'projects_enabled', 'projects_page_name', 'projects_text', 'projects_meta_description', 'projects_scrollable_nav_enabled', 'projects_slug',
+        'about_enabled', 'about_page_name', 'about_text', 'about_meta_description', 'about_scrollable_nav_enabled', 'about_slug',
+        'contact_enabled', 'contact_page_name', 'contact_slug', 'contact_text', 'contact_meta_description', 'contact_scrollable_nav_enabled',
         'mailgun_domain', 'smtp_from_email', 'forward_email',
         'payment_enabled', 'payment_page_name', 'stripe_publishable_key', 'payment_slug', 'payment_comments_enabled',
-        'payment_text', 'payment_meta_description',
+        'payment_text', 'payment_meta_description', 'payment_scrollable_nav_enabled',
     ]
     if current_app.config['ENABLE_AI_DEMOS']:
-        plain_fields += ['ai_demo_enabled', 'ai_demo_page_name', 'ai_demo_slug', 'ai_demo_text', 'ai_demo_meta_description']
+        plain_fields += ['ai_demo_enabled', 'ai_demo_page_name', 'ai_demo_slug', 'ai_demo_text', 'ai_demo_meta_description', 'ai_demo_scrollable_nav_enabled']
     for field in plain_fields:
         if field in data:
             setattr(config, field, data[field])
