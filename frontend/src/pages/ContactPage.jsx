@@ -62,12 +62,12 @@ export default function ContactPage() {
   }
 
   return (
-    <main className="max-w-2xl mx-auto px-6 py-16">
+    <main className="max-w-2xl mx-auto px-6 pt-10 pb-16">
       {config?.contact_text && (
         <>
           <div
             ref={contentRef}
-            className="prose prose-gray max-w-none blog-content page-header-content mb-8"
+            className="prose prose-gray max-w-none blog-content page-header-content font-serif mb-8"
             dangerouslySetInnerHTML={{ __html: config.contact_text }}
           />
           {config.contact_scrollable_nav_enabled && (

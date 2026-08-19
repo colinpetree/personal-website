@@ -30,12 +30,12 @@ export default function AboutPage() {
   const contentRef = useRef(null)
 
   return (
-    <main className="max-w-3xl mx-auto px-6 py-16">
+    <main className="max-w-3xl mx-auto px-6 pt-10 pb-16">
       {config?.about_text ? (
         <>
           <div
             ref={contentRef}
-            className="prose prose-gray max-w-none blog-content page-header-content"
+            className="prose prose-gray max-w-none blog-content page-header-content font-serif"
             dangerouslySetInnerHTML={{ __html: config.about_text }}
           />
           {config.about_scrollable_nav_enabled && (

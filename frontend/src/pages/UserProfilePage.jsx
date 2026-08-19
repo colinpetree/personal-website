@@ -23,7 +23,7 @@ export default function UserProfilePage() {
 
   if (loading) {
     return (
-      <main className="max-w-xl mx-auto px-6 py-16">
+      <main className="max-w-xl mx-auto px-6 pt-10 pb-16">
         <p className="text-gray-400">Loading…</p>
       </main>
     )
@@ -31,7 +31,7 @@ export default function UserProfilePage() {
 
   if (!config?.users_enabled) {
     return (
-      <main className="max-w-xl mx-auto px-6 py-16">
+      <main className="max-w-xl mx-auto px-6 pt-10 pb-16">
         <p className="text-gray-600">User accounts are not enabled on this site.</p>
       </main>
     )
@@ -39,7 +39,7 @@ export default function UserProfilePage() {
 
   if (!user) {
     return (
-      <main className="max-w-xl mx-auto px-6 py-16">
+      <main className="max-w-xl mx-auto px-6 pt-10 pb-16">
         <p className="text-gray-600">You are not signed in.</p>
       </main>
     )
@@ -116,7 +116,7 @@ export default function UserProfilePage() {
   }
 
   return (
-    <main className="max-w-xl mx-auto px-6 py-16">
+    <main className="max-w-xl mx-auto px-6 pt-10 pb-16">
       <h1 className="text-2xl font-bold text-gray-900 mb-8">Your Profile</h1>
 
       <div className="bg-white border border-gray-200 rounded-xl p-6 flex flex-col gap-6">

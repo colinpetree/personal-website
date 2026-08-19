@@ -509,7 +509,7 @@ export function meta({ params, location }) {
 // HTML and renders immediately; this never appears for those).
 export function HydrateFallback() {
   return (
-    <main className="max-w-3xl mx-auto px-6 py-16 animate-pulse">
+    <main className="max-w-3xl mx-auto px-6 pt-10 pb-16 animate-pulse">
       <div className="h-10 bg-gray-100 rounded w-5/6 mb-3" />
       <div className="h-10 bg-gray-100 rounded w-2/3 mb-6" />
       <div className="flex items-center gap-2 mb-8">
@@ -643,7 +643,7 @@ export default function BlogPostPage() {
   }, [post?.content_html])
 
   if (notFound) return (
-    <main className="max-w-3xl mx-auto px-6 py-16">
+    <main className="max-w-3xl mx-auto px-6 pt-10 pb-16">
       <h1 className="text-2xl font-bold text-gray-900 mb-4">Post not found</h1>
       <Link to={`/${siteConfig?.nav?.find(p => p.key === 'blog')?.path ?? 'blog'}`} className="inline-flex items-center gap-1 text-blue-600 hover:underline">
         <ArrowLeft size={14} strokeWidth={1.5} />Back to blog
@@ -656,7 +656,7 @@ export default function BlogPostPage() {
   const totalComments = countAllComments(comments)
 
   return (
-    <main className="max-w-3xl mx-auto px-6 py-16">
+    <main className="max-w-3xl mx-auto px-6 pt-10 pb-16">
       {reportingComment && (
         <ReportModal
           comment={reportingComment}

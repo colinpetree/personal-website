@@ -408,18 +408,38 @@ html {
   margin-right: 0 !important;
 }
 
-.page-header-content h1 {
-  font-size: 2.25rem;
-  line-height: 2.5rem;
+/* The leading h1 is the page's own title (Home/About/Projects/etc.), not a
+   regular content heading, so it gets the same treatment as the Blog post
+   page's explicit <h1> title: larger, tighter line-height, sitting flush
+   with the page's top padding. Scoped to :first-child so any later heading
+   an admin adds inside the content keeps the normal .blog-content h1 style. */
+.page-header-content h1:first-child {
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 42.5px;
   color: #111827;
+  margin-top: 0;
+  margin-bottom: 12px;
 }
 
-/* The editor's own heading margin (mt-6) assumes it follows other content.
-   The leading title is always the first element, so it should sit flush
-   with the page's top padding, same as the Blog page's static <h1> — but
-   any later heading an admin adds should keep its normal spacing. */
-.page-header-content h1:first-child {
-  margin-top: 0;
+@media (min-width: 1024px) {
+  .page-header-content h1:first-child {
+    font-size: 42px;
+    line-height: 52.5px;
+  }
+}
+
+/* The tightened "heading + p" margin above is meant for in-body subheadings,
+   not the page title — a paragraph right after the title should use the
+   normal paragraph spacing, same as if no heading preceded it. */
+.page-header-content h1:first-child + p {
+  margin-top: 21px;
+}
+
+@media (min-width: 1024px) {
+  .page-header-content h1:first-child + p {
+    margin-top: 29px;
+  }
 }
 
 /* Lists: remove outer px-6 but keep pl-6 (1.5rem) for bullet/number indent */

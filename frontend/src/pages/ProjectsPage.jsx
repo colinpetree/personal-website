@@ -65,7 +65,7 @@ export function meta() {
 // prerendered yet.
 export function HydrateFallback() {
   return (
-    <main className="max-w-4xl mx-auto px-6 py-16">
+    <main className="max-w-4xl mx-auto px-6 pt-10 pb-16">
       <div className="grid gap-6 sm:grid-cols-2">
         {Array.from({ length: 4 }).map((_, i) => <ProjectCardSkeleton key={i} />)}
       </div>
@@ -79,12 +79,12 @@ export default function ProjectsPage() {
   const contentRef = useRef(null)
 
   return (
-    <main className="max-w-4xl mx-auto px-6 py-16">
+    <main className="max-w-4xl mx-auto px-6 pt-10 pb-16">
       {config?.projects_text && (
         <>
           <div
             ref={contentRef}
-            className="prose prose-gray max-w-none blog-content page-header-content mb-12"
+            className="prose prose-gray max-w-none blog-content page-header-content font-serif mb-12"
             dangerouslySetInnerHTML={{ __html: config.projects_text }}
           />
           {config.projects_scrollable_nav_enabled && (
