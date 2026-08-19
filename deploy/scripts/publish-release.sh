@@ -115,6 +115,12 @@ else
     echo " Version          : $CURRENT (unchanged — no bump requested)"
 fi
 echo " Releases repo    : $RELEASES_REPO"
+if [ "$NO_TARGET" = true ]; then
+    echo " Prerender domain : none (--no-target)"
+else
+    echo " Prerender domain : ${PRERENDER_BASE_URL:-<none set>}"
+    echo "   (change in $PI_BUILD_ENV on the Pi, then re-run)"
+fi
 [ "$NO_TARGET" = true ] && echo " Profile          : template (no prerendering)"
 [ "$NO_AI" = true ] && echo " AI demos         : excluded"
 echo "--------------------------------------------------"
