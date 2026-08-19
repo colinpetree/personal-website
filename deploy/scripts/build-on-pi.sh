@@ -53,17 +53,28 @@ npm ci
 # state — prerender() degrades gracefully to zero prerendered routes,
 # matching pre-SSG pure-CSR build output exactly.
 PI_BUILD_ENV="$HOME/.personal-website-build.env"
-if [ -f "$PI_BUILD_ENV" ]; then
+# Only source the Pi-local env file if the caller hasn't already forced
+# PRERENDER_BASE_URL itself — ${VAR+x} tests "is this set at all" (even to
+# an empty string), unlike ${VAR:-} which tests "set and non-empty". This is
+# what lets publish-release.sh's --no-target explicitly export
+# PRERENDER_BASE_URL="" to force a no-prerender build regardless of what's
+# in the file — without this check, sourcing the file here would silently
+# clobber that override with whatever it normally contains. Normal callers
+# (a bare manual run, or content-watch.sh's chain) never pre-set it, so this
+# is a no-op for them — the file gets sourced exactly as before.
+if [ -z "${PRERENDER_BASE_URL+x}" ] && [ -f "$PI_BUILD_ENV" ]; then
     # shellcheck source=/dev/null
     set -a; source "$PI_BUILD_ENV"; set +a
 fi
 
 # Staging directory is scoped by the domain being built for, not hardcoded
 # to one — lets this Pi build for a second domain later without one domain's
-# staging artifacts colliding with another's. Falls back to "unknown" so an
-# unset PRERENDER_BASE_URL (a supported state, e.g. a first build) still
-# produces a valid, if generic, path.
-BUILD_DOMAIN="$(echo "${PRERENDER_BASE_URL:-}" | sed -E 's#^https?://##; s#/.*##')"
+# staging artifacts colliding with another's. BUILD_DOMAIN itself can also
+# be forced by the caller (same --no-target case, which sets it to
+# "template" rather than letting it fall through to the generic "unknown"),
+# otherwise derived from PRERENDER_BASE_URL as before, falling back to
+# "unknown" only if neither is available.
+BUILD_DOMAIN="${BUILD_DOMAIN:-$(echo "${PRERENDER_BASE_URL:-}" | sed -E 's#^https?://##; s#/.*##')}"
 BUILD_DOMAIN="${BUILD_DOMAIN:-unknown}"
 STAGING="$BUILD_ROOT/release-staging-$BUILD_DOMAIN"
 
@@ -179,7 +190,17 @@ cp "$REPO_DIR/deploy/varnish/default.vcl" "$RELEASE_DIR/deploy/varnish/"
 cp "$REPO_DIR/deploy/scripts/install.sh" "$RELEASE_DIR/deploy/"
 cp "$REPO_DIR/deploy/scripts/rollback.sh" "$RELEASE_DIR/deploy/"
 cp "$REPO_DIR/deploy/scripts/update-watch.sh" "$RELEASE_DIR/deploy/"
-cp "$REPO_DIR/backend/.env.example" "$RELEASE_DIR/"
+if [ "${VITE_ENABLE_AI_DEMOS:-}" = "false" ]; then
+    # Template builds (publish-release.sh --no-target) already exclude the AI
+    # demo pages from the frontend bundle via this same flag — this defaults
+    # a fresh install of this specific tarball away from opting into the
+    # backend routes too, since ENABLE_AI_DEMOS is otherwise a runtime
+    # setting on whichever server installs it, not something build time can
+    # enforce directly.
+    sed 's/^ENABLE_AI_DEMOS=true$/ENABLE_AI_DEMOS=false/' "$REPO_DIR/backend/.env.example" > "$RELEASE_DIR/.env.example"
+else
+    cp "$REPO_DIR/backend/.env.example" "$RELEASE_DIR/"
+fi
 cp "$REPO_DIR/VERSION" "$RELEASE_DIR/"
 
 TARBALL="$STAGING/$RELEASE_NAME.tar.gz"
