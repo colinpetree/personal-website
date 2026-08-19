@@ -10,7 +10,7 @@
 # failure). Once $DATA_DIR/.env exists it is never touched again, so a
 # re-run never regenerates secrets or resets the Postgres password.
 #
-# Usage: sudo bash bootstrap.sh [--domain example.com]
+# Usage: sudo bash bootstrap.sh [--domain example.com] [--no-ai]
 set -euo pipefail
 
 APP_ROOT="/opt/personal-website"
@@ -22,12 +22,22 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 DOMAIN_ARG=""
+NO_AI=false
 while [ $# -gt 0 ]; do
     case "$1" in
         --domain) DOMAIN_ARG="$2"; shift 2 ;;
+        --no-ai) NO_AI=true; shift ;;
         *) echo "Unknown argument: $1"; exit 1 ;;
     esac
 done
+# ENABLE_AI_DEMOS default for the .env this script generates below. This is
+# the point where a --no-ai choice actually takes effect on a server's
+# backend — install.sh's own .env.example fallback (see build-on-pi.sh's
+# --no-ai handling) only ever runs `if [ ! -f "$DATA_DIR/.env" ]`, which is
+# never true after this script has already run, so that path alone can't
+# reach a normally-bootstrapped server.
+ENABLE_AI_DEMOS_DEFAULT=true
+[ "$NO_AI" = true ] && ENABLE_AI_DEMOS_DEFAULT=false
 
 echo "==> 1. System user"
 if ! id personalweb >/dev/null 2>&1; then
@@ -125,6 +135,10 @@ mkdir -p "$DATA_DIR/uploads" "$APP_ROOT/releases"
 echo "==> 7. Generating .env"
 if [ -f "$DATA_DIR/.env" ]; then
     echo "    $DATA_DIR/.env already exists — leaving it untouched (secrets/DB password stay stable)."
+    if [ "$NO_AI" = true ]; then
+        echo "    NOTE: --no-ai has no effect here — .env already existed from an earlier run,"
+        echo "    so ENABLE_AI_DEMOS was never (re)written. Edit $DATA_DIR/.env by hand if needed."
+    fi
 else
     # hex, not base64 — base64's +/= alphabet can complicate parsing the
     # resulting postgresql:// URI; hex is always alphanumeric.
@@ -162,7 +176,7 @@ DATABASE_URL=postgresql://personalweb:${DB_PASSWORD}@localhost:5432/personal_web
 FLASK_ENV=production
 SECRET_KEY=${SECRET_KEY}
 ENCRYPTION_KEY=${ENCRYPTION_KEY}
-ENABLE_AI_DEMOS=true
+ENABLE_AI_DEMOS=${ENABLE_AI_DEMOS_DEFAULT}
 
 # Fill in manually if you want these features enabled:
 ANTHROPIC_API_KEY=
