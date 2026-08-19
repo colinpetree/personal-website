@@ -170,6 +170,9 @@ function AdminSettingsPageContent() {
 
   return (
     <PageShell title="Site Settings">
+      {config?.app_version && (
+        <p className="text-xs text-gray-400 -mt-6 mb-6">Version {config.app_version}</p>
+      )}
       <div className="flex flex-col gap-6">
 
         {/* Title & description card */}

@@ -49,7 +49,13 @@ trap 'rm -rf "$WORKDIR"' EXIT
 if [[ "$ARG1" == v* && -n "$RELEASES_REPO" ]]; then
     echo "==> Downloading $ARG1 from $RELEASES_REPO"
     gh release download "$ARG1" --repo "$RELEASES_REPO" --dir "$WORKDIR"
-    TARBALL="$WORKDIR/personal-website-$ARG1.tar.gz"
+    # Discover the downloaded filename rather than guessing it from the tag —
+    # build-on-pi.sh always names the tarball after the bare VERSION file
+    # (e.g. personal-website-v0.1.12.tar.gz), which only happens to match the
+    # tag for an ordinary code release. A content-only release tag (e.g.
+    # v0.1.12-content-20260818153000, see publish-content-refresh.sh) never
+    # matches that filename, so a guessed path would silently miss it.
+    TARBALL="$(ls "$WORKDIR"/personal-website-*.tar.gz | head -1)"
     VERSION="${ARG1#v}"
 else
     TARBALL="$ARG1"
@@ -99,6 +105,11 @@ fi
 # ---- 3. Persistent data dirs — created once, never touched again ---------
 mkdir -p "$DATA_DIR/uploads"
 touch -a "$DATA_DIR/certbot_domain.txt"
+# Interval update-watch.sh (deploy/scripts/update-watch.sh) polls GitHub at,
+# in seconds. 1800 (30 min) balances the Pi's own ~20min build time against
+# not polling pointlessly during the long idle stretches between edits —
+# edit by hand any time, no restart needed, it's re-read every cycle.
+[ -f "$DATA_DIR/update-check-interval-seconds" ] || echo 1800 > "$DATA_DIR/update-check-interval-seconds"
 
 # This script runs as root (sudo), so everything just created under $DATA_DIR
 # is root-owned by default — but the systemd unit runs the app as the
@@ -280,6 +291,15 @@ fi
 sed "s/__BACKEND_PORT__/$BACKEND_PORT/g" "$RELEASE_DIR/deploy/varnish/default.vcl" > "$WORKDIR/default.vcl"
 _install_config varnish "$WORKDIR/default.vcl" "/etc/varnish/default.vcl"
 
+# No templating needed (no __BACKEND_PORT__/__DOMAIN__ placeholders), so this
+# one installs straight from the release dir. Same hash-diff-safe behavior as
+# the other three: unmodified on a later release is a no-op, a genuine change
+# writes .new instead of overwriting a hand-edit — see deploy/scripts/
+# update-watch.sh for how the *script* itself (as opposed to this unit file)
+# actually keeps itself current across releases.
+_install_config updater "$RELEASE_DIR/deploy/systemd/personal-website-updater.service" \
+    "/etc/systemd/system/personal-website-updater.service"
+
 systemctl daemon-reload
 
 # Reload nginx/Varnish unconditionally on every run, not just first install —
@@ -326,6 +346,12 @@ if [ "$FIRST_INSTALL" = true ]; then
     echo "      libnginx-mod-http-brotli) — nginx auto-loads it via"
     echo "      /etc/nginx/modules-enabled/, no nginx.conf edit needed. Without"
     echo "      it, nginx -t fails on the brotli/brotli_static directives below."
+    echo "   5. Auto-updates are NOT enabled yet — this install.sh run was manual,"
+    echo "      as every first install always is. Once you're ready to hand future"
+    echo "      releases (code or content) off to the auto-updater: edit"
+    echo "      UPDATE_WATCH_RELEASES_REPO in"
+    echo "      /etc/systemd/system/personal-website-updater.service, then run"
+    echo "      systemctl enable --now personal-website-updater"
     echo "=========================================================================="
 fi
 
@@ -480,6 +506,22 @@ if [ "$HEALTHY" != true ]; then
 fi
 
 echo "==> $RELEASE_NAME is live and healthy."
+
+echo "==> Purging Varnish cache"
+# purge_all_public()/ban_pattern() itself never propagates a failure — but
+# `|| true` here isn't about that function, it's about install.sh's own
+# `set -e`: _run_server spawns a whole separate process, whose create_app()
+# bootstrap runs unconditionally before the --purge-cache flag is even
+# checked. If that bootstrap failed for any unrelated reason (a transient DB
+# hiccup, disk full), an unguarded call here would abort this script right
+# after cutover+health-check already succeeded — skipping the deploy-report
+# email and release pruning for an otherwise-successful deploy, and making
+# update-watch.sh needlessly retry an install that already landed. Same
+# reasoning as the `|| true` on --send-deploy-report right below. Deliberately
+# NOT redirected to /dev/null, though — a real purge failure is only visible
+# via varnish_purge.py's own logging.getLogger(__name__).warning(...,
+# exc_info=True), and swallowing stderr here would throw that away for nothing.
+_run_server --purge-cache || true
 
 _export_deploy_report_common
 export DEPLOY_REPORT_STATUS=success

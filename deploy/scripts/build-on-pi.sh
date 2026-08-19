@@ -14,7 +14,6 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD_ROOT="$HOME/personal-website-build"
-STAGING="$BUILD_ROOT/release-staging"
 
 cd "$REPO_DIR"
 
@@ -58,6 +57,16 @@ if [ -f "$PI_BUILD_ENV" ]; then
     # shellcheck source=/dev/null
     set -a; source "$PI_BUILD_ENV"; set +a
 fi
+
+# Staging directory is scoped by the domain being built for, not hardcoded
+# to one — lets this Pi build for a second domain later without one domain's
+# staging artifacts colliding with another's. Falls back to "unknown" so an
+# unset PRERENDER_BASE_URL (a supported state, e.g. a first build) still
+# produces a valid, if generic, path.
+BUILD_DOMAIN="$(echo "${PRERENDER_BASE_URL:-}" | sed -E 's#^https?://##; s#/.*##')"
+BUILD_DOMAIN="${BUILD_DOMAIN:-unknown}"
+STAGING="$BUILD_ROOT/release-staging-$BUILD_DOMAIN"
+
 if [ -z "${PRERENDER_BASE_URL:-}" ]; then
     echo "==> PRERENDER_BASE_URL not set (see $PI_BUILD_ENV) — building with zero prerendered routes."
 else
@@ -164,10 +173,12 @@ cp "$REPO_DIR"/backend/migrations/*.sql "$RELEASE_DIR/migrations/" 2>/dev/null |
 
 mkdir -p "$RELEASE_DIR/deploy/systemd" "$RELEASE_DIR/deploy/nginx" "$RELEASE_DIR/deploy/varnish"
 cp "$REPO_DIR/deploy/systemd/personal-website.service" "$RELEASE_DIR/deploy/systemd/"
+cp "$REPO_DIR/deploy/systemd/personal-website-updater.service" "$RELEASE_DIR/deploy/systemd/"
 cp "$REPO_DIR/deploy/nginx/personal-website.conf" "$RELEASE_DIR/deploy/nginx/"
 cp "$REPO_DIR/deploy/varnish/default.vcl" "$RELEASE_DIR/deploy/varnish/"
 cp "$REPO_DIR/deploy/scripts/install.sh" "$RELEASE_DIR/deploy/"
 cp "$REPO_DIR/deploy/scripts/rollback.sh" "$RELEASE_DIR/deploy/"
+cp "$REPO_DIR/deploy/scripts/update-watch.sh" "$RELEASE_DIR/deploy/"
 cp "$REPO_DIR/backend/.env.example" "$RELEASE_DIR/"
 cp "$REPO_DIR/VERSION" "$RELEASE_DIR/"
 

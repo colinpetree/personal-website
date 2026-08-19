@@ -1,0 +1,19 @@
+[Unit]
+Description=Personal Website auto-updater (polls GitHub releases)
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/personal-website
+# Server-specific — set to the dist repo this server should track (e.g.
+# yourname/personal-website-dist) before the first
+# `systemctl enable --now personal-website-updater`. install.sh never
+# templates this in automatically; see its "remaining manual steps" output.
+Environment=UPDATE_WATCH_RELEASES_REPO=
+ExecStart=/bin/bash /opt/personal-website/current/deploy/update-watch.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
