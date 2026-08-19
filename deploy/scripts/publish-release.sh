@@ -4,7 +4,7 @@
 # tarball as a GitHub Release on the SEPARATE releases repo given by
 # --releases-repo.
 #
-# Usage: publish-release.sh [--patch|--minor|--major] [--releases-repo <owner>/<repo>] [--no-target] [--no-ai]
+# Usage: publish-release.sh [--patch|--minor|--major] [--releases-repo <owner>/<repo>] [--no-target] [--no-ai] [-y|--yes]
 # With no bump flag, VERSION is left untouched — this rebuilds and publishes
 # the CURRENT version to --releases-repo. That's the normal way to publish
 # the same code state to more than one repo (e.g. a real site's dist repo and
@@ -27,6 +27,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUMP=""   # empty = no bump, the default — must be explicitly requested now
 NO_TARGET=false
 NO_AI=false
+ASSUME_YES=false
 RELEASES_REPO_ARG=""
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -36,6 +37,7 @@ while [ $# -gt 0 ]; do
         --bump) BUMP="$2"; shift 2 ;;
         --no-target) NO_TARGET=true; shift ;;
         --no-ai) NO_AI=true; shift ;;
+        -y|--yes) ASSUME_YES=true; shift ;;
         --releases-repo) RELEASES_REPO_ARG="$2"; shift 2 ;;
         *) echo "Unknown argument: $1"; exit 1 ;;
     esac
@@ -130,8 +132,13 @@ echo " the same version to more than one repo with one call per repo, only"
 echo " passing a bump flag on whichever call should advance the version."
 echo " Use --no-target for a no-prerender template build (implies --no-ai)."
 echo " Use --no-ai on its own to exclude AI demos from a normal, targeted build."
+echo " Use -y/--yes to skip the confirmation prompt (e.g. when queuing multiple calls)."
 echo "=================================================="
-read -r -p "Press Enter to continue, or Ctrl+C to cancel... "
+if [ "$ASSUME_YES" = true ]; then
+    echo " -y/--yes passed — skipping confirmation."
+else
+    read -r -p "Press Enter to continue, or Ctrl+C to cancel... "
+fi
 
 if [ -n "$BUMP" ]; then
     # Write the bump but deliberately do NOT commit/tag yet — if the rebuild
