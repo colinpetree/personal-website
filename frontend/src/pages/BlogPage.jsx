@@ -75,7 +75,7 @@ export function meta() {
 // page-2+ pagination loading state below.
 export function HydrateFallback() {
   return (
-    <main className="max-w-3xl mx-auto px-6 py-16">
+    <main className="max-w-3xl mx-auto px-6 pt-10 pb-16">
       <BlogListSkeleton />
     </main>
   )
@@ -138,10 +138,10 @@ export default function BlogPage() {
   }
 
   return (
-    <main className="max-w-3xl mx-auto px-6 py-16">
+    <main className="max-w-3xl mx-auto px-6 pt-10 pb-16">
       {config?.blog_text && (
         <div
-          className="prose prose-gray max-w-none blog-content page-header-content mb-10"
+          className="prose prose-gray max-w-none blog-content page-header-content font-serif mb-10"
           dangerouslySetInnerHTML={{ __html: config.blog_text }}
         />
       )}
@@ -178,12 +178,12 @@ export default function BlogPage() {
                 )}
                 <div className="flex-1 min-w-0 order-2 sm:order-1">
                   <Link to={activeCategory ? `/${post.slug}?category=${activeCategory}` : `/${post.slug}`}>
-                    <h2 className="text-xl lg:text-2xl font-bold text-gray-900 hover:text-gray-600 transition-colors mb-1">
+                    <h2 className="text-xl lg:text-2xl font-bold text-gray-900 hover:text-gray-600 transition-colors mb-2 leading-[24px] lg:leading-[30px]">
                       {post.title}
                     </h2>
                   </Link>
                   {post.excerpt && (
-                    <p className="text-gray-500 text-base leading-relaxed mb-2 line-clamp-2">
+                    <p className="text-gray-500 text-base leading-[20px] mb-2 line-clamp-2">
                       {post.excerpt}
                     </p>
                   )}

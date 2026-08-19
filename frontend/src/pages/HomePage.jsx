@@ -40,10 +40,10 @@ export default function HomePage() {
   }
 
   return (
-    <main className="min-h-screen bg-white max-w-3xl mx-auto px-6 py-16">
+    <main className="min-h-screen bg-white max-w-3xl mx-auto px-6 pt-10 pb-16">
       <div
         ref={contentRef}
-        className="prose prose-gray max-w-none blog-content page-header-content"
+        className="prose prose-gray max-w-none blog-content page-header-content font-serif"
         dangerouslySetInnerHTML={{ __html: config.home_text }}
       />
       {config.home_scrollable_nav_enabled && (

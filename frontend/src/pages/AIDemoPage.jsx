@@ -49,12 +49,12 @@ export default function AIDemoPage() {
   const contentRef = useRef(null)
 
   return (
-    <main className="max-w-4xl mx-auto px-6 py-16">
+    <main className="max-w-4xl mx-auto px-6 pt-10 pb-16">
       {config?.ai_demo_text && (
         <>
           <div
             ref={contentRef}
-            className="prose prose-gray max-w-none blog-content page-header-content mb-8"
+            className="prose prose-gray max-w-none blog-content page-header-content font-serif mb-8"
             dangerouslySetInnerHTML={{ __html: config.ai_demo_text }}
           />
           {config.ai_demo_scrollable_nav_enabled && (

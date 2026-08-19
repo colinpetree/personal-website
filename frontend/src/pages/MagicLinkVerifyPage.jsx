@@ -36,7 +36,7 @@ export default function MagicLinkVerifyPage() {
 
   if (status === 'error') {
     return (
-      <main className="max-w-xl mx-auto px-6 py-16 text-center">
+      <main className="max-w-xl mx-auto px-6 pt-10 pb-16 text-center">
         <h1 className="text-xl font-semibold text-gray-900 mb-2">This link is invalid or has expired</h1>
         <p className="text-gray-500">Please request a new sign-in link and try again.</p>
       </main>
@@ -44,7 +44,7 @@ export default function MagicLinkVerifyPage() {
   }
 
   return (
-    <main className="max-w-xl mx-auto px-6 py-16 text-center">
+    <main className="max-w-xl mx-auto px-6 pt-10 pb-16 text-center">
       <p className="text-gray-400">Signing you in…</p>
     </main>
   )

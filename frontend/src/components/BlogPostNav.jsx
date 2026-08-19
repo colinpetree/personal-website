@@ -26,11 +26,11 @@ function NavCard({ post, direction, categorySlug }) {
             <><Chevron size={13} strokeWidth={2} className="shrink-0" /><span>Previous</span></>
           )}
         </p>
-        <h3 className="text-xl lg:text-2xl font-bold text-gray-900 group-hover:text-gray-600 transition-colors mb-1 line-clamp-1">
+        <h3 className="text-xl lg:text-2xl font-bold text-gray-900 group-hover:text-gray-600 transition-colors mb-2 line-clamp-1 leading-[24px] lg:leading-[30px]">
           {post.title}
         </h3>
         {post.excerpt && (
-          <p className="text-gray-500 text-base leading-relaxed mb-2 line-clamp-2">{post.excerpt}</p>
+          <p className="text-gray-500 text-base leading-[20px] mb-2 line-clamp-2">{post.excerpt}</p>
         )}
         <p className="text-xs text-gray-600">{formatDate(post.publish_date || post.created_at)}</p>
       </div>
