@@ -202,6 +202,11 @@ else
     cp "$REPO_DIR/backend/.env.example" "$RELEASE_DIR/"
 fi
 cp "$REPO_DIR/VERSION" "$RELEASE_DIR/"
+# Distinct from VERSION: a content-only release (publish-content-refresh.sh)
+# ships fresh prerendered pages under an unchanged VERSION, so this is what
+# actually tells the admin UI how current the static content is (see
+# backend/version.py's get_prerendered_at()).
+date -u +%Y-%m-%dT%H:%M:%SZ > "$RELEASE_DIR/PRERENDERED_AT"
 
 TARBALL="$STAGING/$RELEASE_NAME.tar.gz"
 tar -czf "$TARBALL" -C "$STAGING" "$RELEASE_NAME"

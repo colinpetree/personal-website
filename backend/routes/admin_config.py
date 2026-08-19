@@ -107,8 +107,9 @@ def get_admin_config():
     result = _config_to_dict(config)
     # Operational metadata about the running deployment, not a SiteConfig DB
     # column — added directly here rather than through _config_to_dict.
-    from version import get_app_version
+    from version import get_app_version, get_prerendered_at
     result['app_version'] = get_app_version()
+    result['prerendered_at'] = get_prerendered_at()
     return jsonify(result)
 
 

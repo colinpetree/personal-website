@@ -97,6 +97,21 @@ function LiveClock({ timezone }) {
   return <p className="text-xs text-gray-400">The local time here is currently {formatted}</p>
 }
 
+function formatPrerenderedAt(iso, timezone) {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleString('en-US', {
+    timeZone: timezone || 'UTC',
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
 function DisplayValue({ value, fallback = '—' }) {
   return (
     <p className="text-sm text-gray-900">{value || <span className="text-gray-400">{fallback}</span>}</p>
@@ -171,7 +186,12 @@ function AdminSettingsPageContent() {
   return (
     <PageShell title="Site Settings">
       {config?.app_version && (
-        <p className="text-xs text-gray-400 -mt-6 mb-6">Version {config.app_version}</p>
+        <p className="text-xs text-gray-400 -mt-6 mb-6">
+          Version {config.app_version}
+          {formatPrerenderedAt(config.prerendered_at, config.timezone) && (
+            <> - prerendered at {formatPrerenderedAt(config.prerendered_at, config.timezone)}</>
+          )}
+        </p>
       )}
       <div className="flex flex-col gap-6">
 
