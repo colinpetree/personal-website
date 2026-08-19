@@ -88,7 +88,14 @@ while true; do
            && [ -n "$NEW_INSTALL" ]; then
             _log "Downloaded and extracted. Installing via this release's own install.sh ($NEW_INSTALL)."
             INSTALL_OK=true
-            bash "$NEW_INSTALL" "$WORKDIR"/personal-website-*.tar.gz || INSTALL_OK=false
+            # --tag: without it install.sh names the release directory after
+            # the tarball's bare VERSION, which a content-only release never
+            # changes — that collided with the code release's own directory,
+            # silently skipped re-extraction every cycle, and meant this
+            # loop's own INSTALLED_TAG comparison above could never observe
+            # a successful content install. Result was an infinite reinstall
+            # loop. See install.sh's --tag comment for the full mechanism.
+            bash "$NEW_INSTALL" "$WORKDIR"/personal-website-*.tar.gz --tag "$LATEST_TAG" || INSTALL_OK=false
             if [ "$INSTALL_OK" = true ]; then
                 _log "install.sh for $LATEST_TAG succeeded."
             else

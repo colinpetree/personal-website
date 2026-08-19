@@ -8,8 +8,17 @@
 # from $DATA_DIR/certbot_domain.txt).
 #
 # Usage:
-#   install.sh /path/to/personal-website-vX.Y.Z.tar.gz [--domain example.com]
+#   install.sh /path/to/personal-website-vX.Y.Z.tar.gz [--tag <tag>] [--domain example.com]
 #   install.sh vX.Y.Z --releases-repo <owner>/<repo> [--domain example.com]
+#
+# --tag names the release directory under $APP_ROOT/releases (defaults to
+# "v$VERSION", derived from the tarball filename). Pass the actual GitHub
+# release tag here for a content-only release (e.g.
+# v0.1.12-content-20260818153000, see publish-content-refresh.sh) — it keeps
+# VERSION unchanged from the code release it's based on, so without --tag its
+# release directory would collide with that earlier release's. Not needed
+# with the vX.Y.Z / --releases-repo form above, which already uses the tag
+# as ARG1.
 #
 # --domain is only needed until a domain is known — before an admin has ever
 # logged in to save one via the settings page, and only if this session has
@@ -35,10 +44,12 @@ fi
 ARG1="$1"; shift || true
 RELEASES_REPO=""
 DOMAIN_ARG=""
+TAG_ARG=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --releases-repo) RELEASES_REPO="$2"; shift 2 ;;
         --domain) DOMAIN_ARG="$2"; shift 2 ;;
+        --tag) TAG_ARG="$2"; shift 2 ;;
         *) echo "Unknown argument: $1"; exit 1 ;;
     esac
 done
@@ -56,18 +67,19 @@ if [[ "$ARG1" == v* && -n "$RELEASES_REPO" ]]; then
     # v0.1.12-content-20260818153000, see publish-content-refresh.sh) never
     # matches that filename, so a guessed path would silently miss it.
     TARBALL="$(ls "$WORKDIR"/personal-website-*.tar.gz | head -1)"
-    VERSION="${ARG1#v}"
+    TAG_ARG="${TAG_ARG:-$ARG1}"
 else
     TARBALL="$ARG1"
-    BASENAME="$(basename "$TARBALL")"
-    VERSION="${BASENAME#personal-website-v}"
-    VERSION="${VERSION%.tar.gz}"
 fi
 
 if [ ! -f "$TARBALL" ]; then
     echo "Tarball not found: $TARBALL"
     exit 1
 fi
+
+BASENAME="$(basename "$TARBALL")"
+VERSION="${BASENAME#personal-website-v}"
+VERSION="${VERSION%.tar.gz}"
 
 # ---- 1. Integrity check ----------------------------------------------------
 if [ -f "$TARBALL.sha256" ]; then
@@ -77,7 +89,19 @@ else
     echo "WARNING: no .sha256 file found next to the tarball — skipping integrity check."
 fi
 
-RELEASE_NAME="v$VERSION"
+# The release directory is named after the release TAG, not the bare
+# VERSION — a content-only release (see publish-content-refresh.sh) ships a
+# tarball whose VERSION is unchanged from the code release it's based on, so
+# naming this directory after VERSION alone would collide with that earlier
+# release's already-extracted directory. That collision made every content
+# release silently skip extraction (the "already extracted" guard below) and
+# also broke update-watch.sh's installed-vs-latest tag comparison, which
+# reads this directory's basename — together that produced an infinite
+# reinstall loop, since the comparison could never observe a successful
+# content install. Defaulting TAG to "v$VERSION" keeps ordinary code
+# releases (and any manual invocation with just a tarball path) unchanged.
+TAG="${TAG_ARG:-v$VERSION}"
+RELEASE_NAME="$TAG"
 RELEASE_DIR="$RELEASES_DIR/$RELEASE_NAME"
 if [ -d "$RELEASE_DIR" ]; then
     echo "Release $RELEASE_NAME is already extracted at $RELEASE_DIR — remove it first if you want to re-extract."
