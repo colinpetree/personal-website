@@ -86,12 +86,14 @@ else
 fi
 
 echo "==> 3. Installing packages"
-# universe is where libnginx-mod-http-brotli-* live on 24.04 — not enabled
-# by default on a stock Ubuntu Server image.
+# universe is where libnginx-mod-http-brotli-* AND gh live on 24.04 — not
+# enabled by default on a stock Ubuntu Server image. gh is required on
+# production for update-watch.sh/install.sh's --releases-repo flow (gh
+# release download/list).
 add-apt-repository universe -y
 apt update
 apt install -y postgresql nginx varnish certbot python3-certbot-nginx \
-    libnginx-mod-http-brotli-filter libnginx-mod-http-brotli-static ufw
+    libnginx-mod-http-brotli-filter libnginx-mod-http-brotli-static ufw gh
 
 echo "==> 4. Configuring firewall (ufw)"
 ufw default deny incoming
