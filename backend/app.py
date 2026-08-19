@@ -23,6 +23,11 @@ def create_app():
     # feature (its own API keys/spend) without touching code. Not admin-toggleable;
     # ai_demo_enabled in SiteConfig is a separate runtime toggle for sites that have it.
     app.config['ENABLE_AI_DEMOS'] = os.getenv('ENABLE_AI_DEMOS', 'true').lower() == 'true'
+    # Shared secret the Pi's content-watch.sh authenticates with when POSTing
+    # to /api/watcher-alert — the Pi has no admin session cookie to send, so
+    # this substitutes for @admin_required there. Unset by default (route
+    # then always returns 403, never a silent no-op).
+    app.config['WATCHER_ALERT_SECRET'] = os.getenv('WATCHER_ALERT_SECRET', '')
 
     CORS(app, supports_credentials=True)
     db.init_app(app)

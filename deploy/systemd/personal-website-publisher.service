@@ -1,0 +1,14 @@
+[Unit]
+Description=Personal Website content-change watcher/publisher
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/src/personal-website
+Environment=CONTENT_WATCH_SITE_URL=https://example.com
+ExecStart=/bin/bash deploy/scripts/content-watch.sh
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target

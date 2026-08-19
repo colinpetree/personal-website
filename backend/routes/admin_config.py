@@ -104,7 +104,12 @@ def get_admin_config():
     config = SiteConfig.query.first()
     if not config:
         return jsonify({'error': 'No site config found'}), 404
-    return jsonify(_config_to_dict(config))
+    result = _config_to_dict(config)
+    # Operational metadata about the running deployment, not a SiteConfig DB
+    # column — added directly here rather than through _config_to_dict.
+    from version import get_app_version
+    result['app_version'] = get_app_version()
+    return jsonify(result)
 
 
 ADMIN_ONLY_FIELDS = {

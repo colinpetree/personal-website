@@ -9,8 +9,22 @@
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-STAGING="$HOME/personal-website-build/release-staging"
-DEFAULT_RELEASES_REPO="colinpetree/personal-website-dist"
+
+# Same PI_BUILD_ENV/BUILD_DOMAIN derivation build-on-pi.sh uses internally —
+# needed here too so this script's own STAGING/DEFAULT_RELEASES_REPO agree
+# with wherever the build-on-pi.sh subprocess below actually puts the
+# tarball, and so a manual code release always lands in the same
+# domain-scoped dist repo the auto-publish content-watch.sh flow uses (see
+# deploy/scripts/build-on-pi.sh and deploy/scripts/publish-content-refresh.sh).
+PI_BUILD_ENV="$HOME/.personal-website-build.env"
+if [ -f "$PI_BUILD_ENV" ]; then
+    # shellcheck source=/dev/null
+    set -a; source "$PI_BUILD_ENV"; set +a
+fi
+BUILD_DOMAIN="$(echo "${PRERENDER_BASE_URL:-}" | sed -E 's#^https?://##; s#/.*##')"
+BUILD_DOMAIN="${BUILD_DOMAIN:-unknown}"
+STAGING="$HOME/personal-website-build/release-staging-$BUILD_DOMAIN"
+DEFAULT_RELEASES_REPO="colinpetree/personal-website-dist-$BUILD_DOMAIN"
 
 BUMP="patch"
 RELEASES_REPO="$DEFAULT_RELEASES_REPO"

@@ -45,6 +45,23 @@ Usage:
                                   # silently does nothing if Mailgun/forward_email
                                   # isn't configured or sending fails, so a broken
                                   # mail setup can never break a deploy.
+    server --purge-cache          # bans the Varnish-cached /api/blog|projects|
+                                  # site-config|payment/comments responses (same
+                                  # ban admin edits already trigger). Run by
+                                  # install.sh right after a successful cutover, so
+                                  # a Pi-built release's content is never left
+                                  # behind Varnish's 60s safety-net TTL. Always
+                                  # exits 0 — purge_all_public() never raises.
+    server --send-watcher-alert   # emails the admin when a watcher loop (Pi or
+                                  # production, see deploy/scripts/content-watch.sh
+                                  # /update-watch.sh) has been unable to reach gh/
+                                  # GitHub for 48h+. Reads WATCHER_ALERT_SOURCE/
+                                  # WATCHER_ALERT_MESSAGE from the environment.
+                                  # Unlike --send-deploy-report, this DOES signal
+                                  # failure via its exit code (0 = actually sent,
+                                  # 1 = not sent) — the caller uses that to decide
+                                  # whether to stop retrying, so a silently-assumed
+                                  # success here would defeat the whole feature.
 """
 import os
 import sys
@@ -348,6 +365,20 @@ def main():
     if '--send-deploy-report' in sys.argv:
         send_deploy_report(app)
         return
+
+    if '--purge-cache' in sys.argv:
+        from varnish_purge import purge_all_public
+        purge_all_public()
+        return
+
+    if '--send-watcher-alert' in sys.argv:
+        from watcher_alerts import send_watcher_alert
+        with app.app_context():
+            sent = send_watcher_alert(os.getenv('WATCHER_ALERT_SOURCE', 'production'),
+                                       os.getenv('WATCHER_ALERT_MESSAGE', 'gh calls have been failing.'))
+        sys.exit(0 if sent else 1)   # exit code, not a bare `return` — update-watch.sh
+                                       # branches on this to decide whether the outage
+                                       # was actually alerted or needs retrying
 
     run_migrations(app)
     _run_gunicorn(app)

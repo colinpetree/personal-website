@@ -11,6 +11,7 @@ class Profile(db.Model):
     name = db.Column(db.String(100), nullable=False)
     title = db.Column(db.String(100), nullable=False)
     bio = db.Column(db.Text, nullable=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 DEFAULT_NAV_ORDER = ['home', 'blog', 'projects', 'about', 'contact', 'ai_demo', 'payment']
@@ -94,6 +95,7 @@ class SiteConfig(db.Model):
     blog_comments_enabled = db.Column(db.Boolean, nullable=False, default=True)
     google_oauth_client_id = db.Column(db.Text, nullable=True)
     google_oauth_client_secret = db.Column(db.Text, nullable=True)  # stored encrypted
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class AdminAccount(UserMixin, db.Model):
@@ -237,6 +239,7 @@ class Project(db.Model):
     image_filename = db.Column(db.String(255), nullable=True)
     order = db.Column(db.Integer, nullable=False, default=0)
     visible = db.Column(db.Boolean, nullable=False, default=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class Payment(db.Model):
