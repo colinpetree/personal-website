@@ -125,6 +125,13 @@ def _migrate_schema():
                 'ALTER TABLE blog_category ADD COLUMN "order" INTEGER NOT NULL DEFAULT 0'
             ))
 
+        for section in ('home', 'projects', 'about', 'contact', 'ai_demo', 'payment'):
+            column = f'{section}_page_width'
+            if column not in config_columns:
+                conn.execute(text(
+                    f"ALTER TABLE site_config ADD COLUMN {column} VARCHAR(20) NOT NULL DEFAULT 'regular'"
+                ))
+
 
 if __name__ == '__main__':
     app = create_app()

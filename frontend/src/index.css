@@ -275,6 +275,7 @@ html {
   text-align: center;
   margin-top: 0;
   padding: 0.5rem 1rem;
+  font-family: ui-sans-serif, system-ui, sans-serif;
 }
 
 .blog-content hr {
@@ -480,6 +481,35 @@ html {
   [contenteditable="true"] ol li { font-size: 16px; line-height: 28px; }
 }
 
+/* Editor-only preview of the public "Narrow" page-width setting (see the
+   .page-header-content[data-page-width="narrow"] rules below for the
+   public-site equivalent): every top-level block in the editor already
+   gets a fixed max-w-3xl (48rem) reading-column cap baked in via theme.js
+   (paragraphs, headings, lists, quotes, buttons, link groups, etc. all
+   share that literal Tailwind class) — shrink that cap to 524px here so
+   the WYSIWYG canvas matches. Header's own "Regular" width option reuses
+   the same max-w-3xl class for its wrapper, but per the public behavior
+   it must NOT narrow — .header-regular-preview marks that wrapper so it
+   can be excluded. Image/Video size themselves via inline styles, not
+   this class, so they're already unaffected. */
+.content-narrow-preview .max-w-3xl {
+  max-width: 524px !important;
+}
+.content-narrow-preview .header-regular-preview {
+  max-width: 48rem !important;
+}
+
+/* Audio/File/YouTube/Vimeo/Spotify all size themselves via an inline
+   max-width:740px style rather than the max-w-3xl class above (and,
+   unlike Header/Image/Video, are meant to actually shrink with the page's
+   Narrow setting rather than ignore it) — .media-regular-preview marks
+   their wrapper so this can override that inline style directly. An
+   !important author rule beats a plain inline style regardless of
+   selector specificity, so this doesn't need to out-specificity it. */
+.content-narrow-preview .media-regular-preview {
+  max-width: 524px !important;
+}
+
 /* Page-header content (Home/Blog/Projects/About/Contact/AI Demo/Payment):
    the editor bakes a max-w-3xl mx-auto reading-column width into every
    block-level node (headings, paragraphs, lists, quotes), sized to match a
@@ -511,11 +541,51 @@ html {
 .page-header-content figure.audio-player,
 .page-header-content figure.embed-youtube,
 .page-header-content figure.embed-vimeo,
-.page-header-content figure.embed-spotify {
+.page-header-content figure.embed-spotify,
+.page-header-content .file-attachment {
   max-width: none !important;
   width: 100% !important;
   margin-left: 0 !important;
   margin-right: 0 !important;
+}
+
+/* Narrow page width (524px, for linktree-style pages) is meant to narrow
+   the reading column of text/buttons only. Header/Image/Video blocks left
+   at their "Regular" size should keep rendering at the site's normal
+   ~48rem content width instead of shrinking down to 524px — only an
+   explicit "Narrow" choice on the block itself (its own 524px width
+   option, image/video only) or the paragraph text should actually be
+   that narrow. Break the outer wrapper back out of the 524px container to
+   the viewport (same technique already used for Wide/Full), then re-cap
+   the actual visible content at 48rem via a nested element so it's
+   centered on the viewport rather than the narrow container. Wide/Full
+   already break out to the full viewport regardless of container width,
+   so they're unaffected by this; Audio/embeds are untouched too since
+   they weren't part of this request and have no such inner element to
+   re-cap. */
+.page-header-content[data-page-width="narrow"] header.header-regular,
+.page-header-content[data-page-width="narrow"] figure[data-width="regular"],
+.page-header-content[data-page-width="narrow"] figure.kg-width-regular {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  margin-left: calc(50% - 50vw) !important;
+  margin-right: calc(50% - 50vw) !important;
+  position: relative;
+}
+
+.page-header-content[data-page-width="narrow"] header.header-regular .header-inner {
+  max-width: 48rem;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.page-header-content[data-page-width="narrow"] figure[data-width="regular"] img,
+.page-header-content[data-page-width="narrow"] figure.kg-width-regular video {
+  max-width: 48rem !important;
+  width: 100% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  display: block;
 }
 
 /* The leading h1 is the page's own title (Home/About/Projects/etc.), not a
@@ -679,7 +749,9 @@ html {
 .blog-content .header-heading,
 .blog-content .header-subheading,
 .blog-content figure.audio-player,
-.blog-content .file-attachment {
+.blog-content .file-attachment,
+.blog-content .toggle-summary,
+.blog-content .toggle-body {
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -991,4 +1063,16 @@ table.blog-table th .editor-paragraph.is-cursor-para:has(> br:only-child)::befor
   font-size: 0.875rem;
   line-height: 1.625;
   color: #374151;
+}
+/* The nested toggle editors give every paragraph a 'my-0' theme class (zero
+   margin, matching the editor's tight appearance), but .blog-content p's
+   margin-top: 21px rule (an unlayered author rule) beats that Tailwind
+   utility regardless of specificity since Tailwind's utilities live in
+   @layer utilities — only visible on the public site since the editor
+   never applies that rule to begin with. Reinstate the zero top margin on
+   the first paragraph in each area so it doesn't get a stray gap under
+   the summary label / top of the body. */
+.blog-content .toggle-summary > p:first-child,
+.blog-content .toggle-body > p:first-child {
+  margin-top: 0;
 }

@@ -30,7 +30,7 @@ import {
 } from './plugins'
 
 const RichTextEditor = forwardRef(function RichTextEditor(
-  { initialHtml, onChange, placeholder = 'Start writing…', firstBlockH1 = false },
+  { initialHtml, onChange, placeholder = 'Start writing…', firstBlockH1 = false, narrowPreview = false },
   ref
 ) {
   const initialConfig = {
@@ -55,7 +55,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
       <div className="relative bg-white text-gray-900">
         <RichTextPlugin
           contentEditable={
-            <ContentEditable className="outline-none min-h-[500px] pt-2 pb-10 prose prose-gray max-w-none font-serif" />
+            <ContentEditable className={`outline-none min-h-[500px] pt-2 pb-10 prose prose-gray max-w-none font-serif${narrowPreview ? ' content-narrow-preview' : ''}`} />
           }
           placeholder={
             placeholder

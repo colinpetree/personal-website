@@ -4,7 +4,7 @@ import AdminPageContentEditor from './AdminPageContentEditor'
 export default function AdminProjectsEditRoute() {
   return (
     <RoleGuard minRole="editor" fallback="/admin/blog/posts">
-      <AdminPageContentEditor pageTitle="Projects" backTo="/admin/projects" contentField="projects_text" metaField="projects_meta_description" navField="projects_scrollable_nav_enabled" />
+      <AdminPageContentEditor pageTitle="Projects" backTo="/admin/projects" contentField="projects_text" metaField="projects_meta_description" navField="projects_scrollable_nav_enabled" widthField="projects_page_width" />
     </RoleGuard>
   )
 }

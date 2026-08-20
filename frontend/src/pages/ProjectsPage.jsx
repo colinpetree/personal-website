@@ -79,12 +79,13 @@ export default function ProjectsPage() {
   const contentRef = useRef(null)
 
   return (
-    <main className="max-w-4xl mx-auto px-6 pt-10 pb-16">
+    <main className={`mx-auto px-6 pt-10 pb-16 ${config?.projects_page_width === 'narrow' ? 'max-w-[524px]' : 'max-w-4xl'}`}>
       {config?.projects_text && (
         <>
           <div
             ref={contentRef}
             className="prose prose-gray max-w-none blog-content page-header-content font-serif mb-12"
+            data-page-width={config?.projects_page_width === 'narrow' ? 'narrow' : 'regular'}
             dangerouslySetInnerHTML={{ __html: config.projects_text }}
           />
           {config.projects_scrollable_nav_enabled && (

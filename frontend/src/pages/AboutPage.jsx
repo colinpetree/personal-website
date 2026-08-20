@@ -30,12 +30,13 @@ export default function AboutPage() {
   const contentRef = useRef(null)
 
   return (
-    <main className="max-w-3xl mx-auto px-6 pt-10 pb-16">
+    <main className={`mx-auto px-6 pt-10 pb-16 ${config?.about_page_width === 'narrow' ? 'max-w-[524px]' : 'max-w-3xl'}`}>
       {config?.about_text ? (
         <>
           <div
             ref={contentRef}
             className="prose prose-gray max-w-none blog-content page-header-content font-serif"
+            data-page-width={config?.about_page_width === 'narrow' ? 'narrow' : 'regular'}
             dangerouslySetInnerHTML={{ __html: config.about_text }}
           />
           {config.about_scrollable_nav_enabled && (
