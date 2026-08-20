@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom'
 import { useEffect, useLayoutEffect, useImperativeHandle, useRef, useState } from 'react'
 import {
-  Bold, Italic, Underline, Strikethrough, CodeXml, Link2, Link2Off,
+  Bold, Italic, Underline, Strikethrough, CodeXml, Link, Link2, Link2Off,
   Heading1, Heading2, Heading3,
   Type, Quote, SquareCode,
   List, ListOrdered, SquareSplitVertical, Image, Play, Music, Paperclip, Images, Plus, MessageSquareWarning, MousePointerClick, SquareChevronDown,
@@ -30,7 +30,7 @@ import {
   $getNodeByKey, $isParagraphNode, $isDecoratorNode, $isElementNode,
   $createNodeSelection, $setSelection, createCommand,
 } from 'lexical'
-import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createToggleNode, $createCodeBlockNode, $createHeaderNode, $createYouTubeNode, $createVimeoNode, $createSpotifyNode } from './nodes'
+import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createLinkGroupNode, $createToggleNode, $createCodeBlockNode, $createHeaderNode, $createYouTubeNode, $createVimeoNode, $createSpotifyNode } from './nodes'
 import { handleUpload, handleUploadFull } from './upload'
 import { Tooltip } from '../../ui/Tooltip'
 import { ColorSwatchMenu } from '../../ui/ColorPicker'
@@ -386,6 +386,7 @@ const SLASH_GROUPS = [
       { label: 'Quote',         Icon: Quote,                action: 'quote'   },
       { label: 'Toggle',        Icon: SquareChevronDown,    action: 'toggle'  },
       { label: 'Button',        Icon: MousePointerClick,    action: 'button'  },
+      { label: 'Link Group',    Icon: Link,                 action: 'linkGroup' },
       { label: 'Callout',       Icon: MessageSquareWarning, action: 'callout' },
       { label: 'Header',        Icon: RectangleHorizontal,  action: 'header'  },
     ],
@@ -843,6 +844,24 @@ export function SlashCommandPlugin() {
         } else {
           const para = $createParagraphNode()
           btn.insertAfter(para)
+          para.selectStart()
+        }
+      })
+      return
+    }
+
+    if (item.action === 'linkGroup') {
+      editor.update(() => {
+        const node = $getNodeByKey(nodeKey)
+        if (!node || !$isParagraphNode(node)) return
+        const group = $createLinkGroupNode()
+        node.replace(group)
+        const next = group.getNextSibling()
+        if ($isElementNode(next)) {
+          next.selectStart()
+        } else {
+          const para = $createParagraphNode()
+          group.insertAfter(para)
           para.selectStart()
         }
       })

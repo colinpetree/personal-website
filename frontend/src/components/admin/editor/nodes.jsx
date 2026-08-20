@@ -12,7 +12,7 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { TableNode, TableCellNode } from '@lexical/table'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Columns2, StretchHorizontal, Link2, Link2Off, X, Music, FileText, Plus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle } from 'lucide-react'
+import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Columns2, StretchHorizontal, Link, Link2, Link2Off, X, Music, FileText, Plus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, Grid2x2 } from 'lucide-react'
 import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
 
 function resolveTextColor(mode, bgHex) {
@@ -25,6 +25,7 @@ import emojiData from '@emoji-mart/data'
 import { handleUpload, handleUploadFull } from './upload'
 import { FloatingToolbarPlugin } from './plugins'
 import { Tooltip } from '../../ui/Tooltip'
+import { SOCIAL_PLATFORMS, GENERIC_ICONS, resolveLinkIcon } from './socialIcons'
 
 // ─── ImageNodeComponent ───────────────────────────────────────────────────────
 
@@ -2274,6 +2275,598 @@ export class ButtonNode extends DecoratorNode {
 
 export function $createButtonNode() {
   return new ButtonNode('', '', 'center', '#000000', 'light')
+}
+
+// ─── LinkGroupEditModal ─────────────────────────────────────────────────────
+
+function LinkGroupIconPreview({ link, size = 22 }) {
+  if (!link.iconEnabled) return null
+  const resolved = resolveLinkIcon(link)
+  if (!resolved) return <Link size={size} className="text-gray-300" />
+  if (resolved.type === 'emoji') return <span style={{ fontSize: size }}>{resolved.value}</span>
+  if (resolved.variant === 'platform') {
+    const badgeSize = size + 7
+    return (
+      <span
+        className="inline-flex items-center justify-center bg-white shrink-0"
+        style={{ width: badgeSize, height: badgeSize, borderRadius: '0.4em' }}
+      >
+        <span style={{ width: size, height: size }} dangerouslySetInnerHTML={{ __html: resolved.value }} />
+      </span>
+    )
+  }
+  return <span style={{ width: size, height: size }} dangerouslySetInnerHTML={{ __html: resolved.value }} />
+}
+
+function LinkGroupEditModal({ link, onSave, onClose }) {
+  const [text, setText] = useState(link.text)
+  const [url, setUrl] = useState(link.url)
+  const [iconEnabled, setIconEnabled] = useState(link.iconEnabled)
+  const [icon, setIcon] = useState(link.icon)
+  const [showPicker, setShowPicker] = useState(false)
+  const pickerRef = useRef(null)
+  const iconButtonRef = useRef(null)
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key !== 'Escape') return
+      // Close just the icon picker first if it's open, so Escape doesn't
+      // discard unsaved text/link edits when the author only meant to
+      // dismiss the picker.
+      if (showPicker) { setShowPicker(false); return }
+      onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose, showPicker])
+
+  useEffect(() => {
+    if (!showPicker) return
+    function handleOutside(e) {
+      if (
+        pickerRef.current && !pickerRef.current.contains(e.target) &&
+        iconButtonRef.current && !iconButtonRef.current.contains(e.target)
+      ) setShowPicker(false)
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [showPicker])
+
+  function handleSave() {
+    const trimmed = url.trim()
+    const normalized = trimmed && !trimmed.startsWith('http://') && !trimmed.startsWith('https://') ? `https://${trimmed}` : trimmed
+    onSave({ text: text.trim(), url: normalized, iconEnabled, icon })
+    onClose()
+  }
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50"
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <span className="text-sm font-semibold text-gray-800">Edit link</span>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Text to display</label>
+            <input
+              type="text"
+              value={text}
+              onChange={e => setText(e.target.value)}
+              onKeyDown={e => e.stopPropagation()}
+              placeholder="My Instagram"
+              className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Link</label>
+            <input
+              type="text"
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+              onKeyDown={e => e.stopPropagation()}
+              placeholder="https://instagram.com/yourname"
+              className="w-full text-sm border border-gray-200 rounded px-2 py-1.5 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-100"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIconEnabled(!iconEnabled)}
+                className={`relative inline-flex h-4 w-7 shrink-0 rounded-full transition-colors duration-200 ${
+                  iconEnabled ? 'bg-blue-500' : 'bg-gray-300'
+                }`}
+              >
+                <span className={`inline-block h-3 w-3 rounded-full bg-white shadow transition-transform duration-200 mt-0.5 ${
+                  iconEnabled ? 'translate-x-3.5' : 'translate-x-0.5'
+                }`} />
+              </button>
+              <span className="text-xs font-medium text-gray-500">Show icon</span>
+            </div>
+
+            <div className="relative">
+              <button
+                ref={iconButtonRef}
+                onClick={() => setShowPicker(v => !v)}
+                className={`w-8 h-8 flex items-center justify-center rounded-md border border-gray-200 hover:bg-gray-50 transition-opacity ${
+                  iconEnabled ? '' : 'opacity-40 grayscale'
+                }`}
+              >
+                <LinkGroupIconPreview link={{ text, url, iconEnabled: true, icon }} />
+              </button>
+
+              {showPicker && (
+                <div ref={pickerRef} className="absolute top-full right-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden">
+                  <div className="p-2 border-b border-gray-100">
+                    <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1.5 px-0.5">Social Icons</div>
+                    <div className="flex flex-wrap gap-1">
+                      {SOCIAL_PLATFORMS.map(p => (
+                        <Tooltip key={p.key} content={p.label}>
+                          <button
+                            onClick={() => { setIcon(`platform:${p.key}`); setShowPicker(false) }}
+                            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 transition-colors"
+                            dangerouslySetInnerHTML={{ __html: p.svg }}
+                          />
+                        </Tooltip>
+                      ))}
+                    </div>
+                    <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1.5 mt-2 px-0.5">Icons</div>
+                    <div className="flex flex-wrap gap-1">
+                      {GENERIC_ICONS.map(g => (
+                        <Tooltip key={g.key} content={g.label}>
+                          <button
+                            onClick={() => { setIcon(`icon:${g.key}`); setShowPicker(false) }}
+                            className="w-7 h-7 flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+                            dangerouslySetInnerHTML={{ __html: g.svg }}
+                          />
+                        </Tooltip>
+                      ))}
+                    </div>
+                  </div>
+                  <Picker
+                    data={emojiData}
+                    onEmojiSelect={(e) => { setIcon(e.native); setShowPicker(false) }}
+                    theme="light"
+                    previewPosition="none"
+                    skinTonePosition="none"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium"
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+// ─── LinkGroupNodeComponent ─────────────────────────────────────────────────
+
+const RADIUS_OPTIONS = [
+  { key: 'square', label: 'Square', radius: '0.125rem', preview: '2px' },
+  { key: 'rounded', label: 'Slightly rounded', radius: '0.5rem', preview: '5px' },
+  { key: 'pill', label: 'Pill', radius: '9999px', preview: '9999px' },
+]
+const RADIUS_MAP = Object.fromEntries(RADIUS_OPTIONS.map(o => [o.key, o.radius]))
+
+// White backgrounds darken slightly on hover (a white overlay would be invisible);
+// every other color lightens on hover instead.
+function linkGroupHoverOverlay(hex) {
+  if (!/^#[0-9a-f]{6}$/i.test(hex || '')) return 'rgba(255,255,255,0.18)'
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16)
+  const isNearWhite = r > 245 && g > 245 && b > 245
+  return isNearWhite ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.18)'
+}
+
+function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, borderColor, nodeKey, editor }) {
+  const containerRef = useRef(null)
+  const toolbarRef = useRef(null)
+  const textColorBtnRef = useRef(null)
+  const bgColorBtnRef = useRef(null)
+  const borderColorBtnRef = useRef(null)
+  const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
+  const [isHovered, setIsHovered] = useState(false)
+  const [editingIndex, setEditingIndex] = useState(null)
+  const [toolbarPos, setToolbarPos] = useState(null)
+  const [colorPanel, setColorPanel] = useState(null) // 'text' | 'bg' | 'border' | null
+
+  const showToolbar = (isSelected || colorPanel !== null) && editingIndex === null
+
+  useLayoutEffect(() => {
+    if (!showToolbar || !containerRef.current) { setToolbarPos(null); return }
+    function calc() {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const width = toolbarRef.current?.offsetWidth || 280
+      let left = rect.left + window.scrollX + rect.width / 2 - width / 2
+      left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - width - 8))
+      let top = rect.top + window.scrollY - 48
+      if (top < window.scrollY + 8) top = rect.bottom + window.scrollY + 8
+      setToolbarPos({ top, left })
+    }
+    calc()
+    window.addEventListener('scroll', calc, true)
+    window.addEventListener('resize', calc)
+    return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
+  }, [showToolbar])
+
+  useEffect(() => {
+    return editor.registerCommand(
+      CLICK_COMMAND,
+      (event) => {
+        const el = containerRef.current
+        if (!el || !el.contains(event.target)) return false
+        clearSelection()
+        setSelected(true)
+        return true
+      },
+      COMMAND_PRIORITY_LOW
+    )
+  }, [editor, setSelected, clearSelection])
+
+  useEffect(() => {
+    if (!isSelected) return
+    return editor.registerCommand(
+      KEY_DOWN_COMMAND,
+      (event) => {
+        if (event.key !== 'Enter') return false
+        event.preventDefault()
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (!node) return
+          const para = $createParagraphNode()
+          node.insertAfter(para)
+          para.selectStart()
+        })
+        return true
+      },
+      COMMAND_PRIORITY_HIGH
+    )
+  }, [isSelected, editor, nodeKey])
+
+  // Reads/writes the node's live __links inside the same editor.update, rather than
+  // computing the next array from the React `links` prop — avoids losing an update
+  // when two link edits (add/remove/save) happen before Lexical re-renders this
+  // component with fresh props.
+  function updateLinks(updater) {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (!node) return
+      const writable = node.getWritable()
+      writable.__links = updater(writable.__links)
+    })
+  }
+
+  function addLink() {
+    updateLinks(current => [...current, { text: '', url: '', iconEnabled: true, icon: null }])
+  }
+
+  function removeLink(index) {
+    updateLinks(current => current.filter((_, i) => i !== index))
+  }
+
+  function saveLink(index, updated) {
+    updateLinks(current => {
+      const next = [...current]
+      next[index] = updated
+      return next
+    })
+  }
+
+  function setField(setter, val) {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (!node) return
+      node.getWritable()[setter](val)
+    })
+  }
+
+  const itemRadius = RADIUS_MAP[radius] || RADIUS_MAP.rounded
+
+  return (
+    <div
+      ref={containerRef}
+      className={`my-2 py-3 max-w-lg mx-auto px-4 rounded-xl border border-dashed border-gray-200 transition-all ${
+        isSelected ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''
+      }`}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      <div className="flex flex-col gap-2">
+        {links.map((link, i) => (
+          <div key={i} className="relative group">
+            <button
+              onClick={() => setEditingIndex(i)}
+              style={{ borderRadius: itemRadius, background: buttonColor, borderColor, color: link.text ? textColor : undefined, '--lg-hover-overlay': linkGroupHoverOverlay(buttonColor), minHeight: '3.25rem' }}
+              className="link-group-editor-item relative overflow-hidden w-full flex items-center px-4 py-2 border hover:shadow-md transition-shadow text-sm font-medium"
+            >
+              <span className="absolute z-10 left-2.5 top-1/2 -translate-y-1/2 flex items-center">
+                <LinkGroupIconPreview link={link} />
+              </span>
+              <span className={`relative z-10 w-full text-center ${link.text ? '' : 'text-gray-400 font-normal'}`}>
+                {link.text || 'Click to add link details'}
+              </span>
+            </button>
+            <button
+              onMouseDown={e => e.stopPropagation()}
+              onClick={e => { e.stopPropagation(); removeLink(i) }}
+              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gray-700 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <X size={11} />
+            </button>
+          </div>
+        ))}
+
+        <button
+          onClick={addLink}
+          style={{ borderRadius: itemRadius, minHeight: '3.25rem' }}
+          className="w-full flex items-center justify-center gap-1.5 px-4 border border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors text-sm font-medium"
+        >
+          <Plus size={15} /> Add new link
+        </button>
+      </div>
+
+      {editingIndex !== null && links[editingIndex] && (
+        <LinkGroupEditModal
+          link={links[editingIndex]}
+          onSave={updated => saveLink(editingIndex, updated)}
+          onClose={() => setEditingIndex(null)}
+        />
+      )}
+
+      {showToolbar && toolbarPos && createPortal(
+        <div
+          ref={toolbarRef}
+          style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999 }}
+          className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl px-1.5 py-1 shadow-2xl"
+          onMouseDown={e => e.preventDefault()}
+        >
+          <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
+            {RADIUS_OPTIONS.map(opt => (
+              <Tooltip key={opt.key} content={opt.label}>
+                <button
+                  onClick={() => setField('setRadius', opt.key)}
+                  className={`p-1.5 rounded-md transition-colors ${radius === opt.key ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  <span className="block w-5 h-3 border-[1.5px] border-current" style={{ borderRadius: opt.preview }} />
+                </button>
+              </Tooltip>
+            ))}
+          </div>
+
+          <div className="w-px h-5 bg-gray-200 mx-0.5" />
+
+          <Tooltip content="Text color">
+            <button
+              ref={textColorBtnRef}
+              className={`p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors ${colorPanel === 'text' ? 'bg-gray-100 text-gray-800' : ''}`}
+              onClick={() => setColorPanel(p => p === 'text' ? null : 'text')}
+            >
+              <Type size={15} />
+            </button>
+          </Tooltip>
+          {colorPanel === 'text' && (
+            <ColorSwatchMenu
+              anchorEl={textColorBtnRef.current}
+              value={textColor}
+              onChange={val => setField('setTextColor', val)}
+              presets={['#000000', '#1f2937', '#374151', '#6b7280', '#9ca3af', '#ffffff']}
+              onOpenChange={open => { if (!open) setColorPanel(null) }}
+              initialOpen
+            />
+          )}
+
+          <Tooltip content="Button color">
+            <button
+              ref={bgColorBtnRef}
+              className={`p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors ${colorPanel === 'bg' ? 'bg-gray-100 text-gray-800' : ''}`}
+              onClick={() => setColorPanel(p => p === 'bg' ? null : 'bg')}
+            >
+              <PaintBucket size={15} />
+            </button>
+          </Tooltip>
+          {colorPanel === 'bg' && (
+            <ColorSwatchMenu
+              anchorEl={bgColorBtnRef.current}
+              value={buttonColor}
+              onChange={val => setField('setButtonColor', val)}
+              presets={['#ffffff', '#f3f4f6', '#000000', '#146AF8', '#22c55e', '#ef4444']}
+              onOpenChange={open => { if (!open) setColorPanel(null) }}
+              initialOpen
+            />
+          )}
+
+          <Tooltip content="Border color">
+            <button
+              ref={borderColorBtnRef}
+              className={`p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors ${colorPanel === 'border' ? 'bg-gray-100 text-gray-800' : ''}`}
+              onClick={() => setColorPanel(p => p === 'border' ? null : 'border')}
+            >
+              <Grid2x2 size={15} />
+            </button>
+          </Tooltip>
+          {colorPanel === 'border' && (
+            <ColorSwatchMenu
+              anchorEl={borderColorBtnRef.current}
+              value={borderColor}
+              onChange={val => setField('setBorderColor', val)}
+              presets={['transparent', '#e5e7eb', '#9ca3af', '#6b7280', '#374151', '#111827']}
+              onOpenChange={open => { if (!open) setColorPanel(null) }}
+              verticalLightness
+              initialOpen
+            />
+          )}
+        </div>,
+        document.body
+      )}
+    </div>
+  )
+}
+
+// ─── LinkGroupNode ────────────────────────────────────────────────────────────
+
+export class LinkGroupNode extends DecoratorNode {
+  static getType() { return 'linkGroup' }
+
+  static clone(node) {
+    return new LinkGroupNode(node.__links.map(l => ({ ...l })), node.__radius, node.__buttonColor, node.__textColor, node.__borderColor, node.__key)
+  }
+
+  static importJSON(data) {
+    return new LinkGroupNode(data.links || [], data.radius || 'rounded', data.buttonColor || '#ffffff', data.textColor || '#111827', data.borderColor || '#e5e7eb')
+  }
+
+  exportJSON() {
+    return {
+      type: 'linkGroup', version: 1,
+      links: this.__links.map(l => ({ ...l })),
+      radius: this.__radius, buttonColor: this.__buttonColor, textColor: this.__textColor, borderColor: this.__borderColor,
+    }
+  }
+
+  static importDOM() {
+    return {
+      div: (node) => {
+        if (!node.classList?.contains('link-group')) return null
+        return {
+          conversion: (domNode) => {
+            const links = Array.from(domNode.querySelectorAll('a.link-group-item')).map(a => ({
+              text: a.getAttribute('data-text') || '',
+              url: a.getAttribute('href') || '',
+              iconEnabled: a.getAttribute('data-icon-enabled') !== 'false',
+              icon: a.getAttribute('data-icon') || null,
+            }))
+            const radius = domNode.getAttribute('data-radius') || 'rounded'
+            const buttonColor = domNode.getAttribute('data-button-color') || '#ffffff'
+            const textColor = domNode.getAttribute('data-text-color') || '#111827'
+            const borderColor = domNode.getAttribute('data-border-color') || '#e5e7eb'
+            return { node: new LinkGroupNode(links, radius, buttonColor, textColor, borderColor) }
+          },
+          priority: 2,
+        }
+      },
+    }
+  }
+
+  constructor(links = [], radius = 'rounded', buttonColor = '#ffffff', textColor = '#111827', borderColor = '#e5e7eb', key) {
+    super(key)
+    this.__links = links
+    this.__radius = radius
+    this.__buttonColor = buttonColor
+    this.__textColor = textColor
+    this.__borderColor = borderColor
+  }
+
+  createDOM() {
+    const span = document.createElement('span')
+    span.style.display = 'contents'
+    return span
+  }
+
+  updateDOM() { return false }
+  isInline() { return false }
+
+  setLinks(links) { this.getWritable().__links = links }
+  setRadius(radius) { this.getWritable().__radius = radius }
+  setButtonColor(color) { this.getWritable().__buttonColor = color }
+  setTextColor(color) { this.getWritable().__textColor = color }
+  setBorderColor(color) { this.getWritable().__borderColor = color }
+
+  exportDOM() {
+    const wrap = document.createElement('div')
+    wrap.className = 'link-group'
+    wrap.setAttribute('data-radius', this.__radius)
+    wrap.setAttribute('data-button-color', this.__buttonColor)
+    wrap.setAttribute('data-text-color', this.__textColor)
+    wrap.setAttribute('data-border-color', this.__borderColor)
+    const itemRadius = RADIUS_MAP[this.__radius] || RADIUS_MAP.rounded
+    for (const link of this.__links) {
+      if (!link.url?.trim()) continue // no valid link — don't publish a dead button
+      const a = document.createElement('a')
+      a.className = 'link-group-item'
+      a.href = link.url
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      a.setAttribute('data-text', link.text || '')
+      a.setAttribute('data-icon-enabled', String(!!link.iconEnabled))
+      a.setAttribute('data-icon', link.icon || '')
+      a.style.borderRadius = itemRadius
+      a.style.background = this.__buttonColor
+      a.style.color = this.__textColor
+      a.style.borderColor = this.__borderColor
+      a.style.setProperty('--lg-hover-overlay', linkGroupHoverOverlay(this.__buttonColor))
+
+      const resolved = resolveLinkIcon(link)
+      if (resolved) {
+        const iconSpan = document.createElement('span')
+        iconSpan.className = 'link-group-icon'
+        if (resolved.variant === 'platform') {
+          const badge = document.createElement('span')
+          badge.className = 'link-group-icon-badge'
+          badge.innerHTML = resolved.value
+          iconSpan.appendChild(badge)
+        } else if (resolved.type === 'svg') {
+          iconSpan.innerHTML = resolved.value
+        } else {
+          iconSpan.textContent = resolved.value
+        }
+        a.appendChild(iconSpan)
+      }
+
+      const textSpan = document.createElement('span')
+      textSpan.className = 'link-group-text'
+      textSpan.textContent = link.text || ''
+      a.appendChild(textSpan)
+
+      wrap.appendChild(a)
+    }
+    return { element: wrap }
+  }
+
+  decorate(editor) {
+    return (
+      <LinkGroupNodeComponent
+        links={this.__links}
+        radius={this.__radius}
+        buttonColor={this.__buttonColor}
+        textColor={this.__textColor}
+        borderColor={this.__borderColor}
+        nodeKey={this.getKey()}
+        editor={editor}
+      />
+    )
+  }
+}
+
+export function $createLinkGroupNode() {
+  return new LinkGroupNode([])
 }
 
 // ─── ToggleSummarySyncPlugin ──────────────────────────────────────────────────

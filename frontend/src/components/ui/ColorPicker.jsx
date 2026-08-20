@@ -48,7 +48,7 @@ const RAINBOW = 'conic-gradient(red, yellow, lime, aqua, blue, magenta, red)'
 
 // ─── Shared picker popup UI (no trigger, no portal) ───────────────────────────
 
-function PickerPopup({ value, onChange }) {
+function PickerPopup({ value, onChange, verticalLightness = true }) {
   const safe = isValidHex(value) ? value : '#3b82f6'
   const initial = hexToHsv(safe)
   const [h, setH] = useState(initial.h)
@@ -58,10 +58,14 @@ function PickerPopup({ value, onChange }) {
 
   const svRef = useRef(null)
   const dragging = useRef(false)
+  const lightRef = useRef(null)
+  const lightDragging = useRef(false)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
   const hRef = useRef(h)
   hRef.current = h
+  const sRef = useRef(s)
+  sRef.current = s
   const lastEmittedRef = useRef(safe)
 
   useEffect(() => {
@@ -77,14 +81,23 @@ function PickerPopup({ value, onChange }) {
 
   useEffect(() => {
     function onMove(e) {
-      if (!dragging.current) return
-      const coords = getSVCoords(e)
-      if (!coords) return
-      setS(coords.s)
-      setV(coords.v)
-      emit(hRef.current, coords.s, coords.v)
+      if (dragging.current) {
+        const coords = getSVCoords(e)
+        if (coords) {
+          setS(coords.s)
+          setV(coords.v)
+          emit(hRef.current, coords.s, coords.v)
+        }
+      }
+      if (lightDragging.current) {
+        const newV = getLightV(e)
+        if (newV != null) {
+          setV(newV)
+          emit(hRef.current, sRef.current, newV)
+        }
+      }
     }
-    function onUp() { dragging.current = false }
+    function onUp() { dragging.current = false; lightDragging.current = false }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
@@ -97,6 +110,20 @@ function PickerPopup({ value, onChange }) {
       s: Math.max(0, Math.min(100, (e.clientX - rect.left) / rect.width * 100)),
       v: Math.max(0, Math.min(100, (1 - (e.clientY - rect.top) / rect.height) * 100)),
     }
+  }
+
+  function getLightV(e) {
+    const rect = lightRef.current?.getBoundingClientRect()
+    if (!rect) return null
+    return Math.max(0, Math.min(100, (1 - (e.clientY - rect.top) / rect.height) * 100))
+  }
+
+  function handleLightDown(e) {
+    lightDragging.current = true
+    const newV = getLightV(e)
+    if (newV == null) return
+    setV(newV)
+    emit(hRef.current, sRef.current, newV)
   }
 
   function emit(newH, newS, newV) {
@@ -140,20 +167,37 @@ function PickerPopup({ value, onChange }) {
 
   return (
     <>
-      {/* Saturation / Brightness square */}
-      <div
-        ref={svRef}
-        className="relative w-full rounded-lg overflow-hidden mb-3 select-none"
-        style={{ height: '120px', cursor: 'crosshair' }}
-        onMouseDown={handleSVDown}
-      >
-        <div className="absolute inset-0" style={{ background: pureHue }} />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #ffffff, transparent)' }} />
-        <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, #000000, transparent)' }} />
+      {/* Saturation / Brightness square (+ optional vertical lightness slider) */}
+      <div className="flex gap-2 mb-3">
         <div
-          className="absolute w-3 h-3 rounded-full border-2 border-white shadow pointer-events-none"
-          style={{ left: `${s}%`, top: `${100 - v}%`, transform: 'translate(-50%, -50%)' }}
-        />
+          ref={svRef}
+          className="relative flex-1 rounded-lg overflow-hidden select-none"
+          style={{ height: '120px', cursor: 'crosshair' }}
+          onMouseDown={handleSVDown}
+        >
+          <div className="absolute inset-0" style={{ background: pureHue }} />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to right, #ffffff, transparent)' }} />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(to top, #000000, transparent)' }} />
+          <div
+            className="absolute w-3 h-3 rounded-full border-2 border-white shadow pointer-events-none"
+            style={{ left: `${s}%`, top: `${100 - v}%`, transform: 'translate(-50%, -50%)' }}
+          />
+        </div>
+
+        {verticalLightness && (
+          <div
+            ref={lightRef}
+            onMouseDown={e => { e.preventDefault(); handleLightDown(e) }}
+            className="relative w-3.5 rounded-full select-none shrink-0"
+            style={{ height: '120px', cursor: 'ns-resize', background: `linear-gradient(to bottom, ${pureHue}, #000000)` }}
+            title="Lightness"
+          >
+            <div
+              className="absolute left-1/2 w-4 h-4 rounded-full border-2 border-white shadow pointer-events-none"
+              style={{ top: `${100 - v}%`, background: currentHex, transform: 'translate(-50%, -50%)' }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Hue slider */}
@@ -212,7 +256,7 @@ export default function ColorPicker({ value = '#3b82f6', onChange }) {
     const rect = triggerRef.current?.getBoundingClientRect()
     if (rect) {
       const top = rect.bottom + 6
-      const left = Math.min(rect.left, window.innerWidth - 216)
+      const left = Math.min(rect.left, window.innerWidth - 248)
       setPopPos({ top, left })
     }
     setOpen(true)
@@ -237,7 +281,7 @@ export default function ColorPicker({ value = '#3b82f6', onChange }) {
         <div
           ref={popoverRef}
           style={{ position: 'fixed', top: popPos.top, left: popPos.left, zIndex: 99999 }}
-          className="bg-white rounded-xl shadow-2xl border border-gray-200 p-3 w-52"
+          className="bg-white rounded-xl shadow-2xl border border-gray-200 p-3 w-60"
           onMouseDown={e => e.stopPropagation()}
         >
           <PickerPopup value={pickerColor} onChange={handleChange} />
@@ -263,6 +307,7 @@ export function ColorSwatchMenu({
   onOpenChange,
   initialOpen = false,
   anchorEl = null,
+  verticalLightness = true,
 }) {
   const initialCustom = isValidHex(value) && !presets.map(p => p.toLowerCase()).includes(value.toLowerCase())
     ? value
@@ -321,7 +366,15 @@ export function ColorSwatchMenu({
 
   function openPicker() {
     const rect = rainbowRef.current?.getBoundingClientRect()
-    if (rect) setPickerPos({ top: rect.top - 6, centerX: rect.left + rect.width / 2 })
+    if (rect) {
+      // Popover is centered on this point via translateX(-50%); clamp so it
+      // can't run off either edge of the viewport (width varies with the
+      // lightness slider — w-60/240px when shown, w-52/208px otherwise).
+      const width = verticalLightness ? 240 : 208
+      const rawCenterX = rect.left + rect.width / 2
+      const centerX = Math.min(Math.max(rawCenterX, width / 2 + 8), window.innerWidth - width / 2 - 8)
+      setPickerPos({ top: rect.top - 6, centerX })
+    }
     setPickerOpen(true)
   }
 
@@ -455,10 +508,10 @@ export function ColorSwatchMenu({
         <div
           ref={pickerPopoverRef}
           style={{ position: 'fixed', top: pickerPos.top, left: pickerPos.centerX, transform: 'translateX(-50%) translateY(-100%)', zIndex: 100000 }}
-          className="bg-white rounded-xl shadow-2xl border border-gray-200 p-3 w-52"
+          className={`bg-white rounded-xl shadow-2xl border border-gray-200 p-3 ${verticalLightness ? 'w-60' : 'w-52'}`}
           onMouseDown={e => e.stopPropagation()}
         >
-          <PickerPopup value={pickerColor} onChange={handlePickerChange} />
+          <PickerPopup value={pickerColor} onChange={handlePickerChange} verticalLightness={verticalLightness} />
         </div>,
         document.body
       )}
