@@ -55,7 +55,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
       <div className="relative bg-white text-gray-900">
         <RichTextPlugin
           contentEditable={
-            <ContentEditable className="outline-none min-h-[500px] pt-2 pb-10 prose prose-gray max-w-none" />
+            <ContentEditable className="outline-none min-h-[500px] pt-2 pb-10 prose prose-gray max-w-none font-serif" />
           }
           placeholder={
             placeholder

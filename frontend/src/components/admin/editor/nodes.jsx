@@ -795,7 +795,7 @@ function AudioNodeComponent({ src, filename, title, duration, thumbnailSrc, node
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-gray-700 truncate mt-0 mb-1">
+          <p className="text-sm font-medium font-sans text-gray-700 truncate mt-0 mb-1">
             {displayName}
             {durationStr && <span className="ml-2 text-xs text-gray-400 font-normal">{durationStr}</span>}
           </p>
@@ -1033,7 +1033,7 @@ function FileNodeComponent({ src, filename, mimeType, size, title, description, 
       style={{ maxWidth: '740px' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`my-4 mx-auto flex items-start gap-3 p-3 bg-gray-50 border rounded-lg transition-all select-none ${
+      className={`my-4 mx-auto flex items-start gap-3 p-3 bg-gray-50 border rounded-lg transition-all select-none font-sans ${
         showRing ? 'ring-2 ring-blue-500 border-transparent' : isHovered ? 'ring-1 ring-blue-300 border-transparent' : 'border-gray-200'
       }`}
     >
@@ -2087,7 +2087,7 @@ function ButtonNodeComponent({ label, href, align, buttonColor, textColorMode, n
     >
       <a
         style={{ backgroundColor: buttonColor, color: resolvedTextColor }}
-        className="inline-block text-sm font-medium px-5 py-2 rounded-lg pointer-events-none select-none no-underline"
+        className="inline-block text-sm font-medium font-sans px-5 py-2 rounded-lg pointer-events-none select-none no-underline"
       >
         {localLabel || <span style={{ color: 'white' }}>Add button text</span>}
       </a>
@@ -2279,23 +2279,44 @@ export function $createButtonNode() {
 
 // ─── LinkGroupEditModal ─────────────────────────────────────────────────────
 
+// Every icon type (brand SVG, generic SVG, emoji, or the no-icon placeholder) renders
+// inside a fixed-size slot of the same footprint, so icons in different link rows line
+// up in the same column and read as the same size — regardless of a given lucide icon's
+// intrinsic proportions or an emoji glyph's natural rendered width.
 function LinkGroupIconPreview({ link, size = 22 }) {
   if (!link.iconEnabled) return null
   const resolved = resolveLinkIcon(link)
-  if (!resolved) return <Link size={size} className="text-gray-300" />
-  if (resolved.type === 'emoji') return <span style={{ fontSize: size }}>{resolved.value}</span>
+  const badgeSize = size + 7
+  const slotStyle = { width: badgeSize, height: badgeSize }
+  if (!resolved) {
+    return (
+      <span className="inline-flex items-center justify-center shrink-0" style={slotStyle}>
+        <Link size={size} className="text-gray-300" />
+      </span>
+    )
+  }
+  if (resolved.type === 'emoji') {
+    return (
+      <span className="inline-flex items-center justify-center shrink-0" style={{ ...slotStyle, fontSize: size, lineHeight: 1 }}>
+        {resolved.value}
+      </span>
+    )
+  }
   if (resolved.variant === 'platform') {
-    const badgeSize = size + 7
     return (
       <span
         className="inline-flex items-center justify-center bg-white shrink-0"
-        style={{ width: badgeSize, height: badgeSize, borderRadius: '0.4em' }}
+        style={{ ...slotStyle, borderRadius: '0.4em' }}
       >
         <span style={{ width: size, height: size }} dangerouslySetInnerHTML={{ __html: resolved.value }} />
       </span>
     )
   }
-  return <span style={{ width: size, height: size }} dangerouslySetInnerHTML={{ __html: resolved.value }} />
+  return (
+    <span className="inline-flex items-center justify-center shrink-0" style={slotStyle}>
+      <span style={{ width: size, height: size }} dangerouslySetInnerHTML={{ __html: resolved.value }} />
+    </span>
+  )
 }
 
 function LinkGroupEditModal({ link, onSave, onClose }) {
@@ -2605,7 +2626,7 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, borderC
             <button
               onClick={() => setEditingIndex(i)}
               style={{ borderRadius: itemRadius, background: buttonColor, borderColor, color: link.text ? textColor : undefined, '--lg-hover-overlay': linkGroupHoverOverlay(buttonColor), minHeight: '3.25rem' }}
-              className="link-group-editor-item relative overflow-hidden w-full flex items-center px-4 py-2 border hover:shadow-md transition-shadow text-sm font-medium"
+              className="link-group-editor-item relative overflow-hidden w-full flex items-center px-4 py-2 border hover:shadow-md transition-shadow text-sm font-medium font-sans"
             >
               <span className="absolute z-10 left-2.5 top-1/2 -translate-y-1/2 flex items-center">
                 <LinkGroupIconPreview link={link} />
@@ -3706,11 +3727,11 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                 onFocus={() => setHeadingFocused(true)}
                 onBlur={() => setHeadingFocused(false)}
                 style={{ color: resolvedTextColor }}
-                className={`bg-transparent ${headingTextClass} font-bold outline-none w-full`}
+                className={`bg-transparent ${headingTextClass} font-bold font-sans outline-none w-full`}
               />
             }
             placeholder={
-              <div style={{ color: resolvedTextColor, opacity: 0.5 }} className={`pointer-events-none absolute top-0 left-0 right-0 ${headingTextClass} font-bold select-none ${textAlignClass}`}>Heading</div>
+              <div style={{ color: resolvedTextColor, opacity: 0.5 }} className={`pointer-events-none absolute top-0 left-0 right-0 ${headingTextClass} font-bold font-sans select-none ${textAlignClass}`}>Heading</div>
             }
             ErrorBoundary={LexicalErrorBoundary}
           />
@@ -3747,11 +3768,11 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                 onFocus={() => setSubheadingFocused(true)}
                 onBlur={() => setSubheadingFocused(false)}
                 style={{ color: resolvedTextColor, opacity: 0.8 }}
-                className={`bg-transparent ${subTextClass} outline-none w-full`}
+                className={`bg-transparent ${subTextClass} font-sans outline-none w-full`}
               />
             }
             placeholder={
-              <div style={{ color: resolvedTextColor, opacity: 0.4 }} className={`pointer-events-none absolute top-0 left-0 right-0 ${subTextClass} select-none ${textAlignClass}`}>Subheading</div>
+              <div style={{ color: resolvedTextColor, opacity: 0.4 }} className={`pointer-events-none absolute top-0 left-0 right-0 ${subTextClass} font-sans select-none ${textAlignClass}`}>Subheading</div>
             }
             ErrorBoundary={LexicalErrorBoundary}
           />
@@ -3781,7 +3802,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
       {buttonEnabled && (
         <div className={`mt-2 ${textAlignClass}`}>
           <span
-            className={`inline-block px-5 py-2 rounded-lg ${btnTextClass} font-medium pointer-events-none select-none`}
+            className={`inline-block px-5 py-2 rounded-lg ${btnTextClass} font-medium font-sans pointer-events-none select-none`}
             style={{ background: buttonColor, color: resolvedButtonTextColor }}
           >
             {localButtonText || <span style={{ color: resolvedButtonTextColor }}>Add button text</span>}
