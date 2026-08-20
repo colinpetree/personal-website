@@ -442,13 +442,14 @@ export default function PaymentPage() {
   )
 
   return (
-    <main ref={mainRef} className={`mx-auto px-6 pt-10 pb-16 ${commentsEnabled ? 'max-w-5xl' : 'max-w-md'} ${commentsEnabled ? 'lg:h-[calc(100vh-4rem-1px)] lg:overflow-hidden lg:flex lg:flex-col' : ''}`}>
+    <main ref={mainRef} className={`mx-auto px-6 pt-10 pb-16 ${config?.payment_page_width === 'narrow' ? 'max-w-[524px]' : (commentsEnabled ? 'max-w-5xl' : 'max-w-md')} ${commentsEnabled ? 'lg:h-[calc(100vh-4rem-1px)] lg:overflow-hidden lg:flex lg:flex-col' : ''}`}>
       <div className={commentsEnabled ? 'lg:flex-shrink-0' : ''}>
         {config?.payment_text && (
           <>
             <div
               ref={contentRef}
               className="prose prose-gray max-w-none blog-content page-header-content font-serif mb-8"
+              data-page-width={config?.payment_page_width === 'narrow' ? 'narrow' : 'regular'}
               dangerouslySetInnerHTML={{ __html: config.payment_text }}
             />
             {config.payment_scrollable_nav_enabled && (

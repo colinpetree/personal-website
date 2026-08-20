@@ -12,7 +12,7 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { TableNode, TableCellNode } from '@lexical/table'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, AlignJustify, Maximize2, Columns2, StretchHorizontal, Link, Link2, Link2Off, X, Music, FileText, Plus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, Grid2x2 } from 'lucide-react'
+import { AlignLeft, AlignCenter, Maximize2, Columns2, RectangleVertical, RectangleHorizontal, StretchHorizontal, Link, Link2, Link2Off, X, Music, FileText, Plus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, Grid2x2 } from 'lucide-react'
 import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
 
 function resolveTextColor(mode, bgHex) {
@@ -167,7 +167,7 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, node
     return () => document.removeEventListener('scroll', onScroll, { capture: true })
   }, [showLinkPopover])
 
-  const widthMaxMap = { regular: '740px', wide: '1040px', full: '100%' }
+  const widthMaxMap = { regular: '740px', wide: '1040px', full: '100%', narrow: '524px' }
 
   return (
     <>
@@ -208,7 +208,7 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, node
             onBlur={() => setCaptionFocused(false)}
             onClick={e => e.stopPropagation()}
             placeholder="Type caption for image (optional)"
-            className="w-full text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
+            className="w-full font-sans text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
           />
         </figcaption>
       </figure>
@@ -220,8 +220,9 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, node
           onMouseDown={e => e.preventDefault()}
         >
           {[
-            { key: 'regular', icon: AlignJustify,      title: 'Regular width' },
-            { key: 'wide',    icon: StretchHorizontal, title: 'Wide width' },
+            { key: 'narrow',  icon: RectangleVertical,   title: 'Narrow width' },
+            { key: 'regular', icon: RectangleHorizontal, title: 'Regular width' },
+            { key: 'wide',    icon: StretchHorizontal,   title: 'Wide width' },
             { key: 'full',    icon: Maximize2,           title: 'Full width' },
           ].map(({ key: w, icon: Icon, title }) => (
             <Tooltip key={w} content={title}>
@@ -378,6 +379,8 @@ export class ImageNode extends DecoratorNode {
       figure.style.cssText += ';width:min(1040px,100vw);position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0;border-radius:0.5rem;overflow:hidden'
     } else if (this.__width === 'full') {
       figure.style.cssText += ';width:100vw;position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0;border-radius:0;overflow:hidden'
+    } else if (this.__width === 'narrow') {
+      figure.style.cssText += ';max-width:524px;margin:1.5rem auto;border-radius:0.5rem;overflow:hidden'
     } else {
       figure.style.cssText += ';max-width:740px;margin:1.5rem auto;border-radius:0.5rem;overflow:hidden'
     }
@@ -538,7 +541,7 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, nodeKey, e
     })
   }
 
-  const widthMaxMap = { regular: '740px', wide: '1040px', full: '100%' }
+  const widthMaxMap = { regular: '740px', wide: '1040px', full: '100%', narrow: '524px' }
 
   return (
     <>
@@ -559,7 +562,7 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, nodeKey, e
             onBlur={() => setCaptionFocused(false)}
             onClick={e => e.stopPropagation()}
             placeholder="Type caption for video (optional)"
-            className="w-full text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
+            className="w-full font-sans text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
           />
         </figcaption>
       </figure>
@@ -571,8 +574,9 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, nodeKey, e
           onMouseDown={e => e.preventDefault()}
         >
           {[
-            { key: 'regular', icon: AlignJustify,      title: 'Regular width' },
-            { key: 'wide',    icon: StretchHorizontal, title: 'Wide width' },
+            { key: 'narrow',  icon: RectangleVertical,   title: 'Narrow width' },
+            { key: 'regular', icon: RectangleHorizontal, title: 'Regular width' },
+            { key: 'wide',    icon: StretchHorizontal,   title: 'Wide width' },
             { key: 'full',    icon: Maximize2,           title: 'Full width' },
           ].map(({ key: w, icon: Icon, title }) => (
             <Tooltip key={w} content={title}>
@@ -698,6 +702,9 @@ export class VideoNode extends DecoratorNode {
       figure.style.cssText = 'width:min(1040px,100vw);position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0;border-radius:0.5rem;overflow:hidden;background:#000'
     } else if (this.__width === 'full') {
       figure.style.cssText = 'width:100vw;position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0;border-radius:0;overflow:hidden;background:#000'
+    } else if (this.__width === 'narrow') {
+      figure.style.cssText = 'max-width:524px;margin:1.5rem auto;border-radius:0.5rem;overflow:hidden;background:#000'
+      if (this.__segmentLoop) figure.style.position = 'relative'
     } else {
       figure.style.cssText = 'max-width:740px;margin:1.5rem auto;border-radius:0.5rem;overflow:hidden;background:#000'
       if (this.__segmentLoop) figure.style.position = 'relative'
@@ -783,7 +790,7 @@ function AudioNodeComponent({ src, filename, title, duration, thumbnailSrc, node
         style={{ maxWidth: '740px' }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`my-4 mx-auto flex items-center gap-3 p-3 bg-gray-50 border rounded-lg transition-all select-none ${
+        className={`my-4 mx-auto media-regular-preview flex items-center gap-3 p-3 bg-gray-50 border rounded-lg transition-all select-none ${
           isSelected ? 'ring-2 ring-blue-500 border-transparent' : isHovered ? 'ring-1 ring-blue-300 border-transparent' : 'border-gray-200'
         }`}
       >
@@ -891,7 +898,7 @@ export class AudioNode extends DecoratorNode {
     figure.setAttribute('data-title', this.__title)
     figure.setAttribute('data-duration', String(this.__duration))
     if (this.__thumbnailSrc) figure.setAttribute('data-thumbnail-src', this.__thumbnailSrc)
-    figure.style.cssText = 'max-width:740px;margin:1rem auto;display:flex;align-items:center;gap:0.75rem;padding:0.75rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:0.5rem'
+    figure.style.cssText = 'box-sizing:border-box;max-width:740px;margin:1rem auto;display:flex;align-items:center;gap:0.75rem;padding:0.75rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:0.5rem'
 
     // Thumbnail or music icon
     if (this.__thumbnailSrc) {
@@ -1033,7 +1040,7 @@ function FileNodeComponent({ src, filename, mimeType, size, title, description, 
       style={{ maxWidth: '740px' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`my-4 mx-auto flex items-start gap-3 p-3 bg-gray-50 border rounded-lg transition-all select-none font-sans ${
+      className={`my-4 mx-auto media-regular-preview flex items-start gap-3 p-3 bg-gray-50 border rounded-lg transition-all select-none font-sans ${
         showRing ? 'ring-2 ring-blue-500 border-transparent' : isHovered ? 'ring-1 ring-blue-300 border-transparent' : 'border-gray-200'
       }`}
     >
@@ -1163,7 +1170,7 @@ export class FileNode extends DecoratorNode {
     wrap.setAttribute('data-size', String(this.__size))
     wrap.setAttribute('data-title', this.__title)
     wrap.setAttribute('data-description', this.__description)
-    wrap.style.cssText = 'max-width:740px;margin:1rem auto;display:flex;align-items:flex-start;gap:0.75rem;padding:0.75rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:0.5rem'
+    wrap.style.cssText = 'box-sizing:border-box;max-width:740px;margin:1rem auto;display:flex;align-items:flex-start;gap:0.75rem;padding:0.75rem;background:#f9fafb;border:1px solid #e5e7eb;border-radius:0.5rem'
 
     const iconWrap = document.createElement('div')
     iconWrap.style.cssText = 'flex-shrink:0;width:2.25rem;height:2.25rem;display:flex;align-items:center;justify-content:center;background:#dbeafe;border-radius:0.5rem;color:#2563eb;margin-top:2px'
@@ -1345,7 +1352,7 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
         onBlur={() => setCaptionFocused(false)}
         onClick={e => e.stopPropagation()}
         placeholder="Type caption for gallery (optional)"
-        className="w-full text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
+        className="w-full font-sans text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
       />
     </div>
   )
@@ -2648,7 +2655,7 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, borderC
         <button
           onClick={addLink}
           style={{ borderRadius: itemRadius, minHeight: '3.25rem' }}
-          className="w-full flex items-center justify-center gap-1.5 px-4 border border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors text-sm font-medium"
+          className="w-full flex items-center justify-center gap-1.5 px-4 border border-dashed border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors text-sm font-medium font-sans"
         >
           <Plus size={15} /> Add new link
         </button>
@@ -3105,11 +3112,11 @@ function ToggleNodeComponent({ summaryHtml, contentHtml, nodeKey, editor }) {
                   <ContentEditable
                     onFocus={() => setSummaryFocused(true)}
                     onBlur={() => setSummaryFocused(false)}
-                    className="outline-none font-semibold text-gray-800 text-base w-full leading-relaxed"
+                    className="outline-none font-sans font-semibold text-gray-800 text-base w-full leading-relaxed"
                   />
                 }
                 placeholder={
-                  <div className="text-gray-400 pointer-events-none absolute top-0 left-0 select-none text-base font-semibold">
+                  <div className="text-gray-400 pointer-events-none absolute top-0 left-0 select-none text-base font-sans font-semibold">
                     Toggle title…
                   </div>
                 }
@@ -3151,11 +3158,11 @@ function ToggleNodeComponent({ summaryHtml, contentHtml, nodeKey, editor }) {
                   <ContentEditable
                     onFocus={() => setBodyFocused(true)}
                     onBlur={() => setBodyFocused(false)}
-                    className="outline-none text-gray-700 text-sm w-full leading-relaxed"
+                    className="outline-none font-sans text-gray-700 text-sm w-full leading-relaxed"
                   />
                 }
                 placeholder={
-                  <div className="text-gray-400 pointer-events-none absolute top-3 left-4 select-none text-sm">
+                  <div className="text-gray-400 pointer-events-none absolute top-3 left-4 select-none text-sm font-sans">
                     Toggle content…
                   </div>
                 }
@@ -3690,7 +3697,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
     return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
   }, [showPanel, layout])
 
-  const outerClass = (layout === 'full' || layout === 'split') ? 'w-full' : layout === 'wide' ? 'max-w-7xl mx-auto' : 'max-w-3xl mx-auto'
+  const outerClass = (layout === 'full' || layout === 'split') ? 'w-full' : layout === 'wide' ? 'max-w-7xl mx-auto' : 'max-w-3xl mx-auto header-regular-preview'
   const sideMargin = (layout === 'full' || layout === 'split') ? '' : 'mx-6'
   const textAlignClass   = textAlign === 'center' ? 'text-center' : 'text-left'
   const minHeightClass   = layout === 'split' ? 'md:min-h-[600px]' : layout === 'full' ? 'md:min-h-[551px]' : layout === 'wide' ? 'md:min-h-[447px]' : 'md:min-h-[347px]'
@@ -3918,7 +3925,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                   className={`p-1.5 rounded-md transition-colors ${layout === 'regular' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   onClick={() => commitField('setLayout', 'regular')}
                 >
-                  <AlignJustify size={15} />
+                  <RectangleHorizontal size={15} />
                 </button>
               </Tooltip>
               <Tooltip content="Wide width">
@@ -4473,7 +4480,7 @@ function YouTubeNodeComponent({ videoId, caption, nodeKey, editor }) {
       style={{ maxWidth: '740px' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`my-4 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+      className={`my-4 mx-auto media-regular-preview rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
     >
       <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
         <iframe
@@ -4493,7 +4500,7 @@ function YouTubeNodeComponent({ videoId, caption, nodeKey, editor }) {
           onBlur={() => setCaptionFocused(false)}
           onClick={e => e.stopPropagation()}
           placeholder="Type caption (optional)"
-          className="w-full text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
+          className="w-full font-sans text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
         />
       </figcaption>
     </figure>
@@ -4651,7 +4658,7 @@ function VimeoNodeComponent({ videoId, caption, nodeKey, editor }) {
       style={{ maxWidth: '740px' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`my-4 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+      className={`my-4 mx-auto media-regular-preview rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
     >
       <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
         <iframe
@@ -4671,7 +4678,7 @@ function VimeoNodeComponent({ videoId, caption, nodeKey, editor }) {
           onBlur={() => setCaptionFocused(false)}
           onClick={e => e.stopPropagation()}
           placeholder="Type caption (optional)"
-          className="w-full text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
+          className="w-full font-sans text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
         />
       </figcaption>
     </figure>
@@ -4831,7 +4838,7 @@ function SpotifyNodeComponent({ embedPath, caption, nodeKey, editor }) {
       style={{ maxWidth: '740px' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`my-4 mx-auto rounded-xl overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+      className={`my-4 mx-auto media-regular-preview rounded-xl overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
     >
       <iframe
         src={`https://open.spotify.com/embed/${embedPath}`}
@@ -4850,7 +4857,7 @@ function SpotifyNodeComponent({ embedPath, caption, nodeKey, editor }) {
           onBlur={() => setCaptionFocused(false)}
           onClick={e => e.stopPropagation()}
           placeholder="Type caption (optional)"
-          className="w-full text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
+          className="w-full font-sans text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
         />
       </figcaption>
     </figure>
@@ -5019,6 +5026,14 @@ export class WideTableNode extends TableNode {
     const out = super.exportDOM(editor)
     const prevAfter = out.after
     const borderColor = this.__borderColor
+    // Use the node's own stored width state, same as the live editor
+    // (createDOM/updateDOM above) — previously this recomputed width from
+    // colCount >= 4 here, which disagreed with the editor's own colCount
+    // >= 6 auto-classification (see plugins.jsx), so a 4–5 column table
+    // could render 'wide'/centered on the public site while the editor
+    // showed it as 'regular'/left-aligned, or vice versa after a column
+    // was added/removed without changing colCount across that boundary.
+    const tableWidth = this.__tableWidth
     const colWidths = this.getColWidths()
     const DEFAULT_COL_WIDTH = 150
     out.after = (tableElement) => {
@@ -5029,13 +5044,11 @@ export class WideTableNode extends TableNode {
         // Use stored widths if available; otherwise default 150px/col so the table
         // always has an explicit pixel width and overflow-x: auto can fire.
         const effectiveColWidths = (colWidths && colWidths.length) ? colWidths : Array(colCount).fill(DEFAULT_COL_WIDTH)
-        // 4+ columns → wide; 1–3 columns → regular.
-        const effectiveWidth = colCount >= 4 ? 'wide' : 'regular'
-        decorateTableElement(el, effectiveWidth, effectiveColWidths, borderColor)
-        el.setAttribute('data-width', effectiveWidth)
+        decorateTableElement(el, tableWidth, effectiveColWidths, borderColor)
+        el.setAttribute('data-width', tableWidth)
         el.setAttribute('data-border-color', borderColor)
         const wrapper = document.createElement('div')
-        wrapper.className = `blog-table-wrapper blog-table-wrapper-${effectiveWidth}`
+        wrapper.className = `blog-table-wrapper blog-table-wrapper-${tableWidth}`
         wrapper.appendChild(el.cloneNode(true))
         return wrapper
       }

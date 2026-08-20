@@ -49,12 +49,13 @@ export default function AIDemoPage() {
   const contentRef = useRef(null)
 
   return (
-    <main className="max-w-4xl mx-auto px-6 pt-10 pb-16">
+    <main className={`mx-auto px-6 pt-10 pb-16 ${config?.ai_demo_page_width === 'narrow' ? 'max-w-[524px]' : 'max-w-4xl'}`}>
       {config?.ai_demo_text && (
         <>
           <div
             ref={contentRef}
             className="prose prose-gray max-w-none blog-content page-header-content font-serif mb-8"
+            data-page-width={config?.ai_demo_page_width === 'narrow' ? 'narrow' : 'regular'}
             dangerouslySetInnerHTML={{ __html: config.ai_demo_text }}
           />
           {config.ai_demo_scrollable_nav_enabled && (

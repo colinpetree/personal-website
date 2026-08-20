@@ -40,10 +40,11 @@ export default function HomePage() {
   }
 
   return (
-    <main className="min-h-screen bg-white max-w-3xl mx-auto px-6 pt-10 pb-16">
+    <main className={`min-h-screen bg-white mx-auto px-6 pt-10 pb-16 ${config.home_page_width === 'narrow' ? 'max-w-[524px]' : 'max-w-3xl'}`}>
       <div
         ref={contentRef}
         className="prose prose-gray max-w-none blog-content page-header-content font-serif"
+        data-page-width={config.home_page_width === 'narrow' ? 'narrow' : 'regular'}
         dangerouslySetInnerHTML={{ __html: config.home_text }}
       />
       {config.home_scrollable_nav_enabled && (

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router'
-import { ArrowLeft, PanelRight } from 'lucide-react'
+import { ArrowLeft, PanelRight, RectangleHorizontal, RectangleVertical } from 'lucide-react'
 import RichTextEditor from '../../components/admin/editor'
 import { Field, Textarea, Toggle } from '../../components/admin/AdminPage'
 import { Tooltip } from '../../components/ui/Tooltip'
@@ -14,13 +14,17 @@ function countWords(html) {
   return words.length
 }
 
-export default function AdminPageContentEditor({ pageTitle, backTo, contentField, metaField, navField }) {
+const widthButtonGroup = 'flex self-start gap-0.5 bg-gray-100 rounded-lg p-0.5'
+const widthButton = (active) => `p-1.5 rounded-md transition-colors ${active ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
+
+export default function AdminPageContentEditor({ pageTitle, backTo, contentField, metaField, navField, widthField }) {
   const { config, loading, save } = useAdminConfig()
   const { addToast } = useToast()
 
   const [contentHtml, setContentHtml] = useState('')
   const [metaDescription, setMetaDescription] = useState('')
   const [navEnabled, setNavEnabled] = useState(false)
+  const [pageWidth, setPageWidth] = useState('regular')
   const [isDirty, setIsDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [panelOpen, setPanelOpen] = useState(true)
@@ -41,9 +45,10 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
     setContentHtml(html)
     setMetaDescription(savedMeta)
     setNavEnabled(!!config[navField])
+    setPageWidth(widthField ? (config[widthField] || 'regular') : 'regular')
     metaEdited.current = !!(savedMeta && savedMeta !== extractExcerpt(html))
     setLoaded(true)
-  }, [loading, loaded, config, contentField, metaField, navField])
+  }, [loading, loaded, config, contentField, metaField, navField, widthField])
 
   function handleContentChange(html) {
     setContentHtml(html)
@@ -62,7 +67,12 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
   async function handleSave() {
     setSaving(true)
     try {
-      await save({ [contentField]: contentHtml, [metaField]: metaDescription, [navField]: navEnabled })
+      await save({
+        [contentField]: contentHtml,
+        [metaField]: metaDescription,
+        [navField]: navEnabled,
+        ...(widthField ? { [widthField]: pageWidth } : {}),
+      })
       setIsDirty(false)
       addToast({ message: `${pageTitle} content saved` })
     } catch (err) {
@@ -114,6 +124,7 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
             onChange={handleContentChange}
             placeholder=""
             firstBlockH1
+            narrowPreview={pageWidth === 'narrow'}
           />
           <div style={{ height: '33vh' }} onClick={() => editorRef.current?.focusAtEnd()} />
         </div>
@@ -139,6 +150,31 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
                 placeholder="SEO description…"
               />
             </Field>
+
+            {widthField && (
+              <Field label="Page width">
+                <div className={widthButtonGroup}>
+                  <Tooltip content="Regular width">
+                    <button
+                      type="button"
+                      className={widthButton(pageWidth === 'regular')}
+                      onClick={() => { setPageWidth('regular'); setIsDirty(true) }}
+                    >
+                      <RectangleHorizontal size={15} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Narrow width">
+                    <button
+                      type="button"
+                      className={widthButton(pageWidth === 'narrow')}
+                      onClick={() => { setPageWidth('narrow'); setIsDirty(true) }}
+                    >
+                      <RectangleVertical size={15} />
+                    </button>
+                  </Tooltip>
+                </div>
+              </Field>
+            )}
 
             <Toggle
               label="Scrollable header navigation"
