@@ -321,6 +321,84 @@ html {
   opacity: 0.18;
 }
 
+.blog-content .link-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 1.25rem 0;
+  max-width: 32rem;
+}
+.blog-content .link-group-item {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  min-height: 3.325rem;
+  padding: 0.6rem 1.25rem;
+  border-radius: 0.75rem;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  text-decoration: none !important;
+  color: #111827;
+  font-weight: 500;
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+.blog-content .link-group-item:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.blog-content .link-group-item::after,
+.link-group-editor-item::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--lg-hover-overlay, rgba(255, 255, 255, 0.18));
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.blog-content .link-group-item:hover::after,
+.link-group-editor-item:hover::after {
+  opacity: 1;
+}
+/* Icon is taken out of flex flow and pinned to the left edge so the text can be
+   centered against the button's full width instead of the space left over
+   after the icon — otherwise the text visually skews right of true center. */
+.blog-content .link-group-icon {
+  position: absolute;
+  z-index: 1;
+  left: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.blog-content .link-group-icon > svg {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+.blog-content .link-group-icon-badge {
+  width: 1.8125rem;
+  height: 1.8125rem;
+  border-radius: 0.4rem;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.blog-content .link-group-icon-badge svg {
+  width: 1.375rem;
+  height: 1.375rem;
+}
+.blog-content .link-group-text {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  text-align: center;
+}
+
 /* Strip the editor's outer px-6 from text elements on the public page */
 .blog-content h1,
 .blog-content h2,
@@ -564,6 +642,7 @@ html {
 /* Keep these elements sans-serif even though .blog-content's body text is serif */
 .blog-content table.blog-table,
 .blog-content .btn,
+.blog-content .link-group-item,
 .blog-content .header-btn,
 .blog-content .header-heading,
 .blog-content .header-subheading,
