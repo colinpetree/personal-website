@@ -25,7 +25,7 @@ import emojiData from '@emoji-mart/data'
 import { handleUpload, handleUploadFull } from './upload'
 import { FloatingToolbarPlugin } from './plugins'
 import { Tooltip } from '../../ui/Tooltip'
-import { SOCIAL_PLATFORMS, GENERIC_ICONS, resolveLinkIcon } from './socialIcons'
+import { SOCIAL_PLATFORMS, GENERIC_ICONS, resolveLinkIcon, getPlatformMonoSvg } from './socialIcons'
 
 // ─── ImageNodeComponent ───────────────────────────────────────────────────────
 
@@ -2445,6 +2445,18 @@ function LinkGroupEditModal({ link, onSave, onClose }) {
                             onClick={() => { setIcon(`platform:${p.key}`); setShowPicker(false) }}
                             className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 transition-colors"
                             dangerouslySetInnerHTML={{ __html: p.svg }}
+                          />
+                        </Tooltip>
+                      ))}
+                    </div>
+                    <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1.5 mt-2 px-0.5">Social Icons (Outline)</div>
+                    <div className="flex flex-wrap gap-1">
+                      {SOCIAL_PLATFORMS.map(p => (
+                        <Tooltip key={p.key} content={p.label}>
+                          <button
+                            onClick={() => { setIcon(`platform-mono:${p.key}`); setShowPicker(false) }}
+                            className="w-7 h-7 flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+                            dangerouslySetInnerHTML={{ __html: getPlatformMonoSvg(p.key) }}
                           />
                         </Tooltip>
                       ))}
