@@ -12,7 +12,7 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { TableNode, TableCellNode } from '@lexical/table'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, Maximize2, Columns2, RectangleVertical, RectangleHorizontal, StretchHorizontal, Link, Link2, Link2Off, X, Music, FileText, Plus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, Grid2x2 } from 'lucide-react'
+import { AlignLeft, AlignCenter, Maximize2, Columns2, RectangleVertical, RectangleHorizontal, StretchHorizontal, Link, Link2, Link2Off, X, Music, FileText, Plus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, GripVertical } from 'lucide-react'
 import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
 
 function resolveTextColor(mode, bgHex) {
@@ -2525,17 +2525,18 @@ function linkGroupHoverOverlay(hex) {
   return isNearWhite ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.18)'
 }
 
-function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, borderColor, nodeKey, editor }) {
+function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, nodeKey, editor }) {
   const containerRef = useRef(null)
   const toolbarRef = useRef(null)
   const textColorBtnRef = useRef(null)
   const bgColorBtnRef = useRef(null)
-  const borderColorBtnRef = useRef(null)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [isHovered, setIsHovered] = useState(false)
   const [editingIndex, setEditingIndex] = useState(null)
   const [toolbarPos, setToolbarPos] = useState(null)
-  const [colorPanel, setColorPanel] = useState(null) // 'text' | 'bg' | 'border' | null
+  const [colorPanel, setColorPanel] = useState(null) // 'text' | 'bg' | null
+  const [dragOrder, setDragOrder] = useState(null) // working array while a drag is in progress
+  const dragIndexRef = useRef(null)
 
   const showToolbar = (isSelected || colorPanel !== null) && editingIndex === null
 
@@ -2628,7 +2629,33 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, borderC
     })
   }
 
+  function handleDragStart(index) {
+    dragIndexRef.current = index
+    setDragOrder(links)
+  }
+
+  function handleDragEnter(overIndex) {
+    if (dragIndexRef.current === null) return
+    setDragOrder(current => {
+      if (!current) return current
+      const from = dragIndexRef.current
+      if (from === overIndex) return current
+      const next = [...current]
+      const [moved] = next.splice(from, 1)
+      next.splice(overIndex, 0, moved)
+      dragIndexRef.current = overIndex
+      return next
+    })
+  }
+
+  function handleDragEnd() {
+    if (dragOrder) updateLinks(() => dragOrder)
+    setDragOrder(null)
+    dragIndexRef.current = null
+  }
+
   const itemRadius = RADIUS_MAP[radius] || RADIUS_MAP.rounded
+  const displayLinks = dragOrder || links
 
   return (
     <div
@@ -2640,11 +2667,16 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, borderC
       onMouseLeave={() => setIsHovered(false)}
     >
       <div className="flex flex-col gap-2">
-        {links.map((link, i) => (
-          <div key={i} className="relative group">
+        {displayLinks.map((link, i) => (
+          <div
+            key={i}
+            className={`relative group ${dragIndexRef.current === i && dragOrder ? 'opacity-50' : ''}`}
+            onDragOver={e => { if (dragIndexRef.current === null) return; e.preventDefault(); handleDragEnter(i) }}
+            onDrop={e => e.preventDefault()}
+          >
             <button
               onClick={() => setEditingIndex(i)}
-              style={{ borderRadius: itemRadius, background: buttonColor, borderColor, color: link.text ? textColor : undefined, '--lg-hover-overlay': linkGroupHoverOverlay(buttonColor), minHeight: '3.25rem' }}
+              style={{ borderRadius: itemRadius, background: buttonColor, borderColor: textColor, color: link.text ? textColor : undefined, '--lg-hover-overlay': linkGroupHoverOverlay(buttonColor), minHeight: '3.25rem' }}
               className="link-group-editor-item relative overflow-hidden w-full flex items-center px-4 py-2 border hover:shadow-md transition-shadow text-sm font-medium font-sans"
             >
               <span className="absolute z-10 left-2.5 top-1/2 -translate-y-1/2 flex items-center">
@@ -2661,6 +2693,23 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, borderC
             >
               <X size={11} />
             </button>
+            <div
+              draggable
+              onDragStart={e => {
+                e.stopPropagation()
+                e.dataTransfer.effectAllowed = 'move'
+                e.dataTransfer.setData('text/plain', String(i))
+                const row = e.currentTarget.parentElement
+                if (row) e.dataTransfer.setDragImage(row, 20, 26)
+                handleDragStart(i)
+              }}
+              onDragEnd={e => { e.stopPropagation(); handleDragEnd() }}
+              onMouseDown={e => e.stopPropagation()}
+              onClick={e => e.stopPropagation()}
+              className="absolute z-20 right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+            >
+              <GripVertical size={15} />
+            </div>
           </div>
         ))}
 
@@ -2742,27 +2791,6 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, borderC
               initialOpen
             />
           )}
-
-          <Tooltip content="Border color">
-            <button
-              ref={borderColorBtnRef}
-              className={`p-1.5 rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors ${colorPanel === 'border' ? 'bg-gray-100 text-gray-800' : ''}`}
-              onClick={() => setColorPanel(p => p === 'border' ? null : 'border')}
-            >
-              <Grid2x2 size={15} />
-            </button>
-          </Tooltip>
-          {colorPanel === 'border' && (
-            <ColorSwatchMenu
-              anchorEl={borderColorBtnRef.current}
-              value={borderColor}
-              onChange={val => setField('setBorderColor', val)}
-              presets={['transparent', '#e5e7eb', '#9ca3af', '#6b7280', '#374151', '#111827']}
-              onOpenChange={open => { if (!open) setColorPanel(null) }}
-              verticalLightness
-              initialOpen
-            />
-          )}
         </div>,
         document.body
       )}
@@ -2776,18 +2804,18 @@ export class LinkGroupNode extends DecoratorNode {
   static getType() { return 'linkGroup' }
 
   static clone(node) {
-    return new LinkGroupNode(node.__links.map(l => ({ ...l })), node.__radius, node.__buttonColor, node.__textColor, node.__borderColor, node.__key)
+    return new LinkGroupNode(node.__links.map(l => ({ ...l })), node.__radius, node.__buttonColor, node.__textColor, node.__key)
   }
 
   static importJSON(data) {
-    return new LinkGroupNode(data.links || [], data.radius || 'rounded', data.buttonColor || '#ffffff', data.textColor || '#111827', data.borderColor || '#e5e7eb')
+    return new LinkGroupNode(data.links || [], data.radius || 'rounded', data.buttonColor || '#ffffff', data.textColor || '#111827')
   }
 
   exportJSON() {
     return {
       type: 'linkGroup', version: 1,
       links: this.__links.map(l => ({ ...l })),
-      radius: this.__radius, buttonColor: this.__buttonColor, textColor: this.__textColor, borderColor: this.__borderColor,
+      radius: this.__radius, buttonColor: this.__buttonColor, textColor: this.__textColor,
     }
   }
 
@@ -2806,8 +2834,7 @@ export class LinkGroupNode extends DecoratorNode {
             const radius = domNode.getAttribute('data-radius') || 'rounded'
             const buttonColor = domNode.getAttribute('data-button-color') || '#ffffff'
             const textColor = domNode.getAttribute('data-text-color') || '#111827'
-            const borderColor = domNode.getAttribute('data-border-color') || '#e5e7eb'
-            return { node: new LinkGroupNode(links, radius, buttonColor, textColor, borderColor) }
+            return { node: new LinkGroupNode(links, radius, buttonColor, textColor) }
           },
           priority: 2,
         }
@@ -2815,13 +2842,12 @@ export class LinkGroupNode extends DecoratorNode {
     }
   }
 
-  constructor(links = [], radius = 'rounded', buttonColor = '#ffffff', textColor = '#111827', borderColor = '#e5e7eb', key) {
+  constructor(links = [], radius = 'rounded', buttonColor = '#ffffff', textColor = '#111827', key) {
     super(key)
     this.__links = links
     this.__radius = radius
     this.__buttonColor = buttonColor
     this.__textColor = textColor
-    this.__borderColor = borderColor
   }
 
   createDOM() {
@@ -2837,7 +2863,6 @@ export class LinkGroupNode extends DecoratorNode {
   setRadius(radius) { this.getWritable().__radius = radius }
   setButtonColor(color) { this.getWritable().__buttonColor = color }
   setTextColor(color) { this.getWritable().__textColor = color }
-  setBorderColor(color) { this.getWritable().__borderColor = color }
 
   exportDOM() {
     const wrap = document.createElement('div')
@@ -2845,7 +2870,6 @@ export class LinkGroupNode extends DecoratorNode {
     wrap.setAttribute('data-radius', this.__radius)
     wrap.setAttribute('data-button-color', this.__buttonColor)
     wrap.setAttribute('data-text-color', this.__textColor)
-    wrap.setAttribute('data-border-color', this.__borderColor)
     const itemRadius = RADIUS_MAP[this.__radius] || RADIUS_MAP.rounded
     for (const link of this.__links) {
       if (!link.url?.trim()) continue // no valid link — don't publish a dead button
@@ -2860,7 +2884,7 @@ export class LinkGroupNode extends DecoratorNode {
       a.style.borderRadius = itemRadius
       a.style.background = this.__buttonColor
       a.style.color = this.__textColor
-      a.style.borderColor = this.__borderColor
+      a.style.borderColor = this.__textColor
       a.style.setProperty('--lg-hover-overlay', linkGroupHoverOverlay(this.__buttonColor))
 
       const resolved = resolveLinkIcon(link)
@@ -2897,7 +2921,6 @@ export class LinkGroupNode extends DecoratorNode {
         radius={this.__radius}
         buttonColor={this.__buttonColor}
         textColor={this.__textColor}
-        borderColor={this.__borderColor}
         nodeKey={this.getKey()}
         editor={editor}
       />
