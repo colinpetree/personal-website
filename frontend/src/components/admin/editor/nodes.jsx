@@ -2313,7 +2313,7 @@ function LinkGroupIconPreview({ link, size = 22 }) {
     return (
       <span
         className="inline-flex items-center justify-center bg-white shrink-0"
-        style={{ ...slotStyle, borderRadius: '0.4em' }}
+        style={{ ...slotStyle, borderRadius: '0.4rem' }}
       >
         <span style={{ width: size, height: size }} dangerouslySetInnerHTML={{ __html: resolved.value }} />
       </span>
@@ -2516,13 +2516,91 @@ const RADIUS_OPTIONS = [
 ]
 const RADIUS_MAP = Object.fromEntries(RADIUS_OPTIONS.map(o => [o.key, o.radius]))
 
-// White backgrounds darken slightly on hover (a white overlay would be invisible);
-// every other color lightens on hover instead.
-function linkGroupHoverOverlay(hex) {
-  if (!/^#[0-9a-f]{6}$/i.test(hex || '')) return 'rgba(255,255,255,0.18)'
-  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16)
-  const isNearWhite = r > 245 && g > 245 && b > 245
-  return isNearWhite ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.18)'
+function hexToRgb(hex) {
+  return {
+    r: parseInt(hex.slice(1, 3), 16),
+    g: parseInt(hex.slice(3, 5), 16),
+    b: parseInt(hex.slice(5, 7), 16),
+  }
+}
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255
+  const max = Math.max(r, g, b), min = Math.min(r, g, b)
+  let h = 0, s = 0
+  const l = (max + min) / 2
+  const d = max - min
+  if (d !== 0) {
+    s = d / (1 - Math.abs(2 * l - 1))
+    switch (max) {
+      case r: h = ((g - b) / d) % 6; break
+      case g: h = (b - r) / d + 2; break
+      default: h = (r - g) / d + 4
+    }
+    h *= 60
+    if (h < 0) h += 360
+  }
+  return { h, s: s * 100, l: l * 100 }
+}
+
+function hslToRgb(h, s, l) {
+  s /= 100; l /= 100
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = l - c / 2
+  let r = 0, g = 0, b = 0
+  if (h < 60) { r = c; g = x } else if (h < 120) { r = x; g = c }
+  else if (h < 180) { g = c; b = x } else if (h < 240) { g = x; b = c }
+  else if (h < 300) { r = x; b = c } else { r = c; b = x }
+  return {
+    r: Math.round((r + m) * 255),
+    g: Math.round((g + m) * 255),
+    b: Math.round((b + m) * 255),
+  }
+}
+
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(c => Math.max(0, Math.min(255, c)).toString(16).padStart(2, '0')).join('')
+}
+
+// Relative luminance (WCAG) decides direction: light backgrounds darken on hover,
+// dark backgrounds lighten — so the hover state reads as "this button responded"
+// rather than a translucent film sitting on top of it.
+function relativeLuminance(r, g, b) {
+  const [rl, gl, bl] = [r, g, b].map(c => {
+    c /= 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * rl + 0.7152 * gl + 0.0722 * bl
+}
+
+function linkGroupHoverColor(bgHex, textHex, darkenAmount = 4, lightenAmount = 12) {
+  if (!/^#[0-9a-f]{6}$/i.test(bgHex || '')) return '#f3f4f6'
+  const { r, g, b } = hexToRgb(bgHex)
+  const { h, s, l } = rgbToHsl(r, g, b)
+  const newL = Math.max(0, Math.min(100, l + (relativeLuminance(r, g, b) > 0.5 ? -darkenAmount : lightenAmount)))
+
+  // A near-white background is achromatic, so shifting its own (nonexistent) hue
+  // just darkens straight to gray. Borrow the font color's hue/saturation instead,
+  // at the same lightness, so the hover reads as a subtle tint rather than flat gray.
+  const isNearWhiteBg = r > 245 && g > 245 && b > 245
+  if (isNearWhiteBg && /^#[0-9a-f]{6}$/i.test(textHex || '')) {
+    const t = hexToRgb(textHex)
+    const textHsl = rgbToHsl(t.r, t.g, t.b)
+    const tinted = hslToRgb(textHsl.h, textHsl.s, newL)
+    return rgbToHex(tinted.r, tinted.g, tinted.b)
+  }
+
+  const shifted = hslToRgb(h, s, newL)
+  return rgbToHex(shifted.r, shifted.g, shifted.b)
+}
+
+// A white (or near-white) border reads as a harsh ring against a colored button
+// background, since it can't blend the way a darker outline does — drop it instead.
+function linkGroupBorderColor(textColor) {
+  if (!/^#[0-9a-f]{6}$/i.test(textColor || '')) return textColor
+  const { r, g, b } = hexToRgb(textColor)
+  return r > 245 && g > 245 && b > 245 ? 'transparent' : textColor
 }
 
 function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, nodeKey, editor }) {
@@ -2648,8 +2726,13 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, nodeKey
     })
   }
 
-  function handleDragEnd() {
-    if (dragOrder) updateLinks(() => dragOrder)
+  // `committed` is false when the browser reports the drag was cancelled (Escape,
+  // or dropped outside any valid target) — in that case discard the in-progress
+  // reorder instead of saving it. Comparing dragOrder to the original `links`
+  // reference (rather than just truthiness) also skips the update entirely when
+  // the handle was clicked/released without ever moving over another row.
+  function handleDragEnd(committed) {
+    if (committed && dragOrder && dragOrder !== links) updateLinks(() => dragOrder)
     setDragOrder(null)
     dragIndexRef.current = null
   }
@@ -2666,7 +2749,7 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, nodeKey
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-[0.6rem]">
         {displayLinks.map((link, i) => (
           <div
             key={i}
@@ -2676,10 +2759,10 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, nodeKey
           >
             <button
               onClick={() => setEditingIndex(i)}
-              style={{ borderRadius: itemRadius, background: buttonColor, borderColor: textColor, color: link.text ? textColor : undefined, '--lg-hover-overlay': linkGroupHoverOverlay(buttonColor), minHeight: '3.25rem' }}
-              className="link-group-editor-item relative overflow-hidden w-full flex items-center px-4 py-2 border hover:shadow-md transition-shadow text-sm font-medium font-sans"
+              style={{ borderRadius: itemRadius, borderColor: linkGroupBorderColor(textColor), color: link.text ? textColor : undefined, '--lg-bg': buttonColor, '--lg-hover-bg': linkGroupHoverColor(buttonColor, textColor), minHeight: '3.325rem', padding: '0.6rem 1.25rem' }}
+              className="link-group-editor-item relative overflow-hidden w-full flex items-center border text-sm font-medium font-sans"
             >
-              <span className="absolute z-10 left-2.5 top-1/2 -translate-y-1/2 flex items-center">
+              <span className="absolute z-10 left-[0.65rem] top-1/2 -translate-y-1/2 flex items-center">
                 <LinkGroupIconPreview link={link} />
               </span>
               <span className={`relative z-10 w-full text-center ${link.text ? '' : 'text-gray-400 font-normal'}`}>
@@ -2703,10 +2786,11 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, nodeKey
                 if (row) e.dataTransfer.setDragImage(row, 20, 26)
                 handleDragStart(i)
               }}
-              onDragEnd={e => { e.stopPropagation(); handleDragEnd() }}
+              onDragEnd={e => { e.stopPropagation(); handleDragEnd(e.dataTransfer.dropEffect !== 'none') }}
               onMouseDown={e => e.stopPropagation()}
               onClick={e => e.stopPropagation()}
-              className="absolute z-20 right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
+              style={{ color: textColor }}
+              className="absolute z-20 right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
             >
               <GripVertical size={15} />
             </div>
@@ -2882,10 +2966,10 @@ export class LinkGroupNode extends DecoratorNode {
       a.setAttribute('data-icon-enabled', String(!!link.iconEnabled))
       a.setAttribute('data-icon', link.icon || '')
       a.style.borderRadius = itemRadius
-      a.style.background = this.__buttonColor
       a.style.color = this.__textColor
-      a.style.borderColor = this.__textColor
-      a.style.setProperty('--lg-hover-overlay', linkGroupHoverOverlay(this.__buttonColor))
+      a.style.borderColor = linkGroupBorderColor(this.__textColor)
+      a.style.setProperty('--lg-bg', this.__buttonColor)
+      a.style.setProperty('--lg-hover-bg', linkGroupHoverColor(this.__buttonColor, this.__textColor))
 
       const resolved = resolveLinkIcon(link)
       if (resolved) {
