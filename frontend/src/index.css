@@ -428,6 +428,33 @@ html {
   .blog-content ol li { font-size: 16px; line-height: 28px; }
 }
 
+/* Callout/toggle text should match the default paragraph size. Set explicitly
+   here (rather than relying on .blog-content p's flat override to coincidentally
+   catch their nested <p> tags) so it holds even if that selector changes, and
+   so intentional weight differences (e.g. the toggle label's bold) survive via
+   the inherit rule below instead of being clobbered back to 400. */
+.blog-content .callout-body,
+.blog-content .toggle-summary,
+.blog-content .toggle-body {
+  font-size: 18px;
+  line-height: 28.45px;
+}
+@media (min-width: 1024px) {
+  .blog-content .callout-body,
+  .blog-content .toggle-summary,
+  .blog-content .toggle-body {
+    font-size: 20px;
+    line-height: 33.2px;
+  }
+}
+.blog-content .callout-body p,
+.blog-content .toggle-summary p,
+.blog-content .toggle-body p {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+}
+
 .blog-content table.blog-table,
 .blog-content table.blog-table td,
 .blog-content table.blog-table th,
@@ -749,15 +776,24 @@ html {
 .blog-content figure.audio-player,
 .blog-content .file-attachment,
 .blog-content .toggle-summary,
-.blog-content .toggle-body {
+.blog-content .toggle-body,
+.blog-content .callout,
+.blog-content .callout-body {
   font-family: ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Header block — reset prose margins on nested paragraphs */
+/* Header block — reset prose margins on nested paragraphs. Also reset
+   font-size/weight/line-height, since .blog-content p (above) sets those
+   flat on every <p> and would otherwise stomp the inline font-size/weight
+   the header's own heading/subheading div carries per layout width. */
 .blog-content .header-heading p,
 .blog-content .header-subheading p {
   margin: 0;
   padding: 0;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
+  color: inherit;
 }
 
 /* Header block — mobile responsive overrides */
@@ -910,12 +946,19 @@ table.blog-table {
   transform: translateX(-50%);
 }
 /* Wrapped tables: undo legacy max-width / margin / transform rules above.
-   The wrapper div handles all layout; these constraints would prevent overflow. */
+   The wrapper div handles the breakout width; these constraints would prevent
+   overflow. Regular tables stay flush left in their (content-width) wrapper;
+   wide tables need margin:auto to center within their wider breakout wrapper
+   when the table's own pixel width is narrower than the wrapper. */
 .blog-content .blog-table-wrapper table.blog-table {
   max-width: none;
   margin-left: 0;
   margin-right: 0;
   transform: none;
+}
+.blog-content .blog-table-wrapper-wide table.blog-table {
+  margin-left: auto;
+  margin-right: auto;
 }
 [contenteditable] table.blog-table-regular {
   max-width: min(45rem, 100%);
@@ -1021,9 +1064,7 @@ table.blog-table th .editor-paragraph.is-cursor-para:has(> br:only-child)::befor
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  font-size: 1rem;
   font-weight: 600;
-  line-height: 1.625;
   color: #1f2937;
   cursor: pointer;
   list-style: none;
@@ -1058,8 +1099,6 @@ table.blog-table th .editor-paragraph.is-cursor-para:has(> br:only-child)::befor
 .blog-content .toggle > .toggle-body {
   padding: 0.75rem 1rem;
   border-top: 1px solid #f3f4f6;
-  font-size: 0.875rem;
-  line-height: 1.625;
   color: #374151;
 }
 /* The nested toggle editors give every paragraph a 'my-0' theme class (zero
