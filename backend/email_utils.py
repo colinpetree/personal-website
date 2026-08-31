@@ -1,7 +1,7 @@
 import requests
 
 
-def send_email(config, to_address, subject, body_text, sender_label, mailgun_api_key):
+def send_email(config, to_address, subject, body_text, sender_label, mailgun_api_key, reply_to=None):
     """Send an email using the SiteConfig Mailgun settings. Raises on failure.
 
     mailgun_api_key must be the decrypted key — callers must never assign the
@@ -9,15 +9,18 @@ def send_email(config, to_address, subject, body_text, sender_label, mailgun_api
     SQLAlchemy-tracked attribute and any later db.session.commit() in the same
     session would flush the plaintext back over the encrypted column."""
     from_name = f'{config.site_title} {sender_label}'
+    data = {
+        'from': f'{from_name} <{config.smtp_from_email}>',
+        'to': [to_address],
+        'subject': subject,
+        'text': body_text,
+    }
+    if reply_to:
+        data['h:Reply-To'] = reply_to
     resp = requests.post(
         f'https://api.mailgun.net/v3/{config.mailgun_domain}/messages',
         auth=('api', mailgun_api_key),
-        data={
-            'from': f'{from_name} <{config.smtp_from_email}>',
-            'to': [to_address],
-            'subject': subject,
-            'text': body_text,
-        },
+        data=data,
         timeout=10,
     )
     resp.raise_for_status()
