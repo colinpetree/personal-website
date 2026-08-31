@@ -31,6 +31,7 @@ export default function ContactPage() {
   const [form, setForm] = useState(INITIAL)
   const [status, setStatus] = useState(null) // 'sending' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState('')
+  const isFormFilled = Object.values(form).every(v => v.trim() !== '')
 
   function handleChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
@@ -107,8 +108,12 @@ export default function ContactPage() {
 
           <button
             type="submit"
-            disabled={status === 'sending'}
-            className="self-start rounded-md bg-gray-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition-colors"
+            disabled={!isFormFilled || status === 'sending'}
+            className={`self-start rounded-md border px-5 py-2.5 text-sm font-medium transition-colors disabled:opacity-50 ${
+              isFormFilled
+                ? 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700'
+                : 'bg-white border-gray-300 text-gray-400'
+            }`}
           >
             {status === 'sending' ? 'Sending…' : 'Send message'}
           </button>

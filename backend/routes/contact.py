@@ -28,11 +28,11 @@ def submit_contact():
     if '@' not in email:
         return jsonify({'error': 'Invalid email address.'}), 400
 
-    body = f"From: {name} <{email}>\n\n{message}"
+    body = f"From: {name} <{email}>\n\nSubject: {subject}\n\n{message}"
     full_subject = f"[Contact] {subject}"
 
     try:
-        send_email(config, config.forward_email, full_subject, body, 'Contact Form', decrypt(config.mailgun_api_key))
+        send_email(config, config.forward_email, full_subject, body, 'Contact Form', decrypt(config.mailgun_api_key), reply_to=f'{name} <{email}>')
     except Exception as e:
         return jsonify({'error': 'Failed to send message. Please try again later.'}), 500
 
