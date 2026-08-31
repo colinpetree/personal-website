@@ -1785,11 +1785,11 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, edito
                 <ContentEditable
                   onFocus={() => setNestedFocused(true)}
                   onBlur={() => setNestedFocused(false)}
-                  className="outline-none text-gray-800 leading-relaxed w-full"
+                  className="outline-none text-gray-800 leading-relaxed w-full text-[18px] lg:text-[20px]"
                 />
               }
               placeholder={
-                <div className="text-gray-400 pointer-events-none absolute top-1/2 -translate-y-1/2 left-0 select-none">
+                <div className="text-gray-400 pointer-events-none absolute top-1/2 -translate-y-1/2 left-0 select-none text-[18px] lg:text-[20px]">
                   Callout text...
                 </div>
               }
@@ -1956,7 +1956,7 @@ export class CalloutNode extends DecoratorNode {
 
     const body = document.createElement('div')
     body.className = 'callout-body not-prose'
-    body.style.cssText = 'flex:1;color:#1f2937;line-height:1.625;margin:0'
+    body.style.cssText = 'flex:1;color:#1f2937;margin:0'
     body.innerHTML = this.__html || ''
     wrap.appendChild(body)
 
@@ -3231,11 +3231,11 @@ function ToggleNodeComponent({ summaryHtml, contentHtml, nodeKey, editor }) {
                   <ContentEditable
                     onFocus={() => setSummaryFocused(true)}
                     onBlur={() => setSummaryFocused(false)}
-                    className="outline-none font-sans font-semibold text-gray-800 text-base w-full leading-relaxed"
+                    className="outline-none font-sans font-semibold text-gray-800 w-full leading-relaxed text-[18px] lg:text-[20px]"
                   />
                 }
                 placeholder={
-                  <div className="text-gray-400 pointer-events-none absolute top-0 left-0 select-none text-base font-sans font-semibold">
+                  <div className="text-gray-400 pointer-events-none absolute top-0 left-0 select-none font-sans font-semibold text-[18px] lg:text-[20px]">
                     Toggle title…
                   </div>
                 }
@@ -3277,11 +3277,11 @@ function ToggleNodeComponent({ summaryHtml, contentHtml, nodeKey, editor }) {
                   <ContentEditable
                     onFocus={() => setBodyFocused(true)}
                     onBlur={() => setBodyFocused(false)}
-                    className="outline-none font-sans text-gray-700 text-sm w-full leading-relaxed"
+                    className="outline-none font-sans text-gray-700 w-full leading-relaxed text-[18px] lg:text-[20px]"
                   />
                 }
                 placeholder={
-                  <div className="text-gray-400 pointer-events-none absolute top-3 left-4 select-none text-sm font-sans">
+                  <div className="text-gray-400 pointer-events-none absolute top-3 left-4 select-none font-sans text-[18px] lg:text-[20px]">
                     Toggle content…
                   </div>
                 }
@@ -4464,10 +4464,6 @@ export class HeaderNode extends DecoratorNode {
       inner.style.justifyContent = 'center'
       inner.style.padding = `40px ${this.__layout === 'regular' ? '80px' : '256px'}`
       inner.style.boxSizing = 'border-box'
-      if (this.__layout === 'regular') {
-        inner.style.marginLeft = '1.5rem'
-        inner.style.marginRight = '1.5rem'
-      }
 
       const headingColor = resolveTextColor(this.__textColorMode, this.__backgroundColor)
 
@@ -5257,6 +5253,10 @@ export class StyledTableCellNode extends TableCellNode {
     const out = super.exportDOM(editor)
     const el = out.element
     if (el && el.nodeType === 1) {
+      // Base TableCellNode.exportDOM hardcodes a black border inline —
+      // strip it so table.blog-table td's CSS var-based border (driven by
+      // the table's own borderColor setting) isn't shadowed by an inline style.
+      el.style.removeProperty('border')
       if (this.__textColor) {
         el.setAttribute('data-text-color', this.__textColor)
         el.style.color = this.__textColor
