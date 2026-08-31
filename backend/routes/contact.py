@@ -32,8 +32,7 @@ def submit_contact():
     full_subject = f"[Contact] {subject}"
 
     try:
-        config.mailgun_api_key = decrypt(config.mailgun_api_key)
-        send_email(config, config.forward_email, full_subject, body, 'Contact Form')
+        send_email(config, config.forward_email, full_subject, body, 'Contact Form', decrypt(config.mailgun_api_key))
     except Exception as e:
         return jsonify({'error': 'Failed to send message. Please try again later.'}), 500
 

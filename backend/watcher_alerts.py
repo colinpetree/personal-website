@@ -32,11 +32,10 @@ def send_watcher_alert(source, message):
             logger.warning('send_watcher_alert(%s): no SiteConfig/forward_email/Mailgun '
                             'configured — alert NOT sent. Message was: %s', source, message)
             return False
-        config.mailgun_api_key = decrypt(config.mailgun_api_key)
         subject = f'[Watcher Alert] {source}: gh/GitHub unreachable for 48h+'
         body = (f'{message}\n\nCheck `gh auth status` on {source} and '
                 f're-authenticate if the token expired or was revoked.')
-        send_email(config, config.forward_email, subject, body, 'Watcher Alert')
+        send_email(config, config.forward_email, subject, body, 'Watcher Alert', decrypt(config.mailgun_api_key))
         logger.info('send_watcher_alert(%s): alert email sent to %s.', source, config.forward_email)
         return True
     except Exception:

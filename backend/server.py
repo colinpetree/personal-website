@@ -289,8 +289,7 @@ def send_deploy_report(app):
             body = '\n'.join(lines)
 
             try:
-                config.mailgun_api_key = decrypt(config.mailgun_api_key)
-                send_email(config, config.forward_email, subject, body, 'Deploy Report')
+                send_email(config, config.forward_email, subject, body, 'Deploy Report', decrypt(config.mailgun_api_key))
             except Exception:
                 pass
     except Exception:

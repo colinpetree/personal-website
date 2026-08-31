@@ -95,8 +95,7 @@ def request_demo_access():
     body = f"{user.name} <{user.email}> is requesting access to the \"{demo_title}\" AI demo."
 
     try:
-        config.mailgun_api_key = decrypt(config.mailgun_api_key)
-        send_email(config, config.forward_email, 'AI Demo Access Request', body, 'AI Demo')
+        send_email(config, config.forward_email, 'AI Demo Access Request', body, 'AI Demo', decrypt(config.mailgun_api_key))
     except Exception:
         return jsonify({'error': 'Failed to send request. Please try again later.'}), 500
 
