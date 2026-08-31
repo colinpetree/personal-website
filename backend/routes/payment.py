@@ -203,13 +203,13 @@ def guest_portal_link():
                     return_url=f'{origin}/{config.payment_slug}',
                 )
                 if mail_configured(config):
-                    config.mailgun_api_key = decrypt(config.mailgun_api_key)
                     send_email(
                         config,
                         email,
                         f'Manage your {config.payment_page_name} subscription',
                         f'Manage or cancel your subscription here: {portal_session.url}',
                         'Billing',
+                        decrypt(config.mailgun_api_key),
                     )
         except Exception:
             # Never let the failure change the response shape (that would leak

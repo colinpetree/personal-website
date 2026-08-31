@@ -79,7 +79,7 @@ export default function ContactPage() {
 
       {status === 'success' ? (
         <div className="rounded-lg bg-green-50 border border-green-200 px-6 py-5">
-          <p className="text-green-800 font-medium">Message sent — thanks for reaching out!</p>
+          <p className="text-green-800 font-medium">Message sent. Thanks for reaching out!</p>
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">

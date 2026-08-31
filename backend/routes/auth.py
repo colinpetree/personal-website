@@ -164,7 +164,6 @@ def _send_magic_link_if_valid(app, email, next_url):
                 # lives; that's the Vite dev server.
                 link_url = f'http://localhost:5173/auth/magic?token={token}{next_param}'
 
-            config.mailgun_api_key = decrypt(config.mailgun_api_key)
             send_email(
                 config,
                 user.email,
@@ -173,6 +172,7 @@ def _send_magic_link_if_valid(app, email, next_url):
                 f'{link_url}\n\n'
                 f'This link expires in 15 minutes. If you did not request this, you can ignore this email.',
                 'Sign In',
+                decrypt(config.mailgun_api_key),
             )
         except Exception:
             # Silent by design — this runs after the response is already sent,

@@ -308,10 +308,8 @@ def test_email():
     if not to_address or '@' not in to_address:
         return jsonify({'error': 'A valid recipient email is required'}), 400
 
-    # Decrypt API key for sending
-    config.mailgun_api_key = decrypt(config.mailgun_api_key)
     try:
-        send_email(config, to_address, 'Test email from your website', 'This is a test email confirming your Mailgun settings are working.', 'Test Email')
+        send_email(config, to_address, 'Test email from your website', 'This is a test email confirming your Mailgun settings are working.', 'Test Email', decrypt(config.mailgun_api_key))
     except Exception:
         return jsonify({'error': 'Failed to send test email. Check your Mailgun settings.'}), 500
 

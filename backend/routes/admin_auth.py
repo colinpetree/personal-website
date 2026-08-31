@@ -211,7 +211,6 @@ def _send_reset_email_if_valid(app, email):
                 # lives; that's the Vite dev server.
                 reset_url = f'http://localhost:5173/admin/reset-password?token={token}'
 
-            config.mailgun_api_key = decrypt(config.mailgun_api_key)
             send_email(
                 config,
                 account.email,
@@ -220,6 +219,7 @@ def _send_reset_email_if_valid(app, email):
                 f'Reset your password: {reset_url}\n\n'
                 f'This link expires in 1 hour. If you did not request this, you can ignore this email.',
                 'Admin',
+                decrypt(config.mailgun_api_key),
             )
         except Exception:
             # Silent by design — this runs after the response is already sent,

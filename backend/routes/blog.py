@@ -297,8 +297,7 @@ def report_comment(slug, comment_id):
             f"View comment: {post_url}"
         )
         try:
-            config.mailgun_api_key = decrypt(config.mailgun_api_key)
-            send_email(config, config.forward_email, 'Website Comment Reported', body, 'Comment Reply')
+            send_email(config, config.forward_email, 'Website Comment Reported', body, 'Comment Reply', decrypt(config.mailgun_api_key))
         except Exception:
             pass
 
