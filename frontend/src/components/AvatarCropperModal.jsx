@@ -2,10 +2,15 @@ import { useState, useCallback } from 'react'
 import Cropper from 'react-easy-crop'
 import { getCroppedImageBlob } from '../utils/cropImage'
 
-// Shared circular crop/zoom step used before uploading an avatar — inserted
-// between file selection and the actual upload call, for both the public
-// user profile and the admin staff profile.
-export default function AvatarCropperModal({ imageSrc, onCancel, onCropped }) {
+// Shared crop/zoom step used before uploading an image — inserted between
+// file selection and the actual upload call. Originally built for the
+// circular avatar flow (public user profile, admin staff profile); the
+// site-icon (favicon) upload reuses it with cropShape="rect" and its own
+// title, since both need the same square-aspect crop/zoom UI, just a
+// different overlay mask and no upload-blob squashing surprise from
+// react-easy-crop's cropShape="round" (that prop only changes the preview
+// mask, not the actual cropped rectangle — see getCroppedImageBlob).
+export default function AvatarCropperModal({ imageSrc, onCancel, onCropped, cropShape = 'round', title = 'Adjust your photo' }) {
   const [crop, setCrop] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
@@ -33,7 +38,7 @@ export default function AvatarCropperModal({ imageSrc, onCancel, onCropped }) {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
       <div className="bg-white rounded-xl shadow-lg w-full max-w-sm flex flex-col overflow-hidden">
         <div className="px-5 pt-4 pb-3 border-b border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-900">Adjust your photo</h3>
+          <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
         </div>
 
         <div className="relative w-full h-72 bg-gray-900">
@@ -42,7 +47,7 @@ export default function AvatarCropperModal({ imageSrc, onCancel, onCropped }) {
             crop={crop}
             zoom={zoom}
             aspect={1}
-            cropShape="round"
+            cropShape={cropShape}
             showGrid={false}
             onCropChange={setCrop}
             onZoomChange={setZoom}

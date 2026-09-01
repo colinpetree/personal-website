@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, Card, EditableCard, Field, Input, Textarea } from '../../components/admin/AdminPage'
 import FileDropzone from '../../components/admin/FileDropzone'
+import AvatarCropperModal from '../../components/AvatarCropperModal'
 import HistoryModal from '../../components/admin/HistoryModal'
 import ReorderNavModal from '../../components/admin/ReorderNavModal'
 import Select from '../../components/ui/Select'
@@ -131,6 +132,7 @@ function AdminSettingsPageContent() {
   const { config, loading, save } = useAdminConfig()
   const isAdmin = isAtLeast(admin, 'administrator')
   const [faviconFile, setFaviconFile] = useState(null)
+  const [faviconCropSrc, setFaviconCropSrc] = useState(null)
   const [showHistory, setShowHistory] = useState(false)
   const [showReorderNav, setShowReorderNav] = useState(false)
   const [faviconUploading, setFaviconUploading] = useState(false)
@@ -160,6 +162,17 @@ function AdminSettingsPageContent() {
     }
   }
 
+  function closeFaviconCropper() {
+    if (faviconCropSrc) URL.revokeObjectURL(faviconCropSrc)
+    setFaviconCropSrc(null)
+  }
+
+  function handleFaviconCropped(blob) {
+    setFaviconFile(new File([blob], 'favicon.png', { type: 'image/png' }))
+    setFaviconSaved(false)
+    closeFaviconCropper()
+  }
+
   async function handleFaviconSave() {
     if (!faviconFile) return
     setFaviconUploading(true)
@@ -167,7 +180,7 @@ function AdminSettingsPageContent() {
     try {
       const fd = new FormData()
       fd.append('file', faviconFile)
-      const res = await fetch('/api/admin/upload', { method: 'POST', credentials: 'include', body: fd })
+      const res = await fetch('/api/admin/upload-favicon', { method: 'POST', credentials: 'include', body: fd })
       if (!res.ok) throw new Error('Upload failed')
       const { filename } = await res.json()
       await save({ favicon_filename: filename })
@@ -286,11 +299,20 @@ function AdminSettingsPageContent() {
           </div>
           <FileDropzone
             accept={{ 'image/png': [], 'image/jpeg': [], 'image/gif': [], 'image/webp': [] }}
-            onFile={f => { setFaviconFile(f); setFaviconSaved(false) }}
+            onFile={f => setFaviconCropSrc(URL.createObjectURL(f))}
             file={faviconFile}
             currentUrl={config?.favicon_filename ? `/api/uploads/${config.favicon_filename}` : null}
           />
           {faviconError && <p className="text-xs text-red-500">{faviconError}</p>}
+          {faviconCropSrc && (
+            <AvatarCropperModal
+              imageSrc={faviconCropSrc}
+              onCancel={closeFaviconCropper}
+              onCropped={handleFaviconCropped}
+              cropShape="rect"
+              title="Crop your site icon"
+            />
+          )}
         </Card>
 
         {/* Domain card */}

@@ -27,12 +27,9 @@ def optimize_image(input_path, uploads_dir, base_name):
     from PIL import Image
 
     img = Image.open(input_path)
-    # Flatten alpha to white for JPEG-based operations; keep alpha for WebP
-    if img.mode == 'RGBA':
-        bg = Image.new('RGB', img.size, (255, 255, 255))
-        bg.paste(img, mask=img.split()[3])
-        img = bg
-    elif img.mode not in ('RGB',):
+    if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+        img = img.convert('RGBA')
+    elif img.mode != 'RGB':
         img = img.convert('RGB')
 
     original_width = img.width
@@ -55,9 +52,14 @@ def optimize_image(input_path, uploads_dir, base_name):
     srcset_parts.append(f'/api/uploads/{webp_filename}')
     srcset = ', '.join(srcset_parts)
 
-    # LQIP: 32px wide blurred placeholder as base64 JPEG
+    # LQIP: 32px wide blurred placeholder as base64 JPEG (JPEG has no alpha,
+    # so flatten transparency to white for this thumbnail only)
     lqip_h = max(1, round(img.height * 32 / original_width))
     lqip_img = img.resize((32, lqip_h), Image.LANCZOS)
+    if lqip_img.mode == 'RGBA':
+        bg = Image.new('RGB', lqip_img.size, (255, 255, 255))
+        bg.paste(lqip_img, mask=lqip_img.split()[3])
+        lqip_img = bg
     buf = io.BytesIO()
     lqip_img.save(buf, 'JPEG', quality=20)
     lqip = f'data:image/jpeg;base64,{base64.b64encode(buf.getvalue()).decode()}'
@@ -78,6 +80,46 @@ def save_and_optimize_image(file, uploads_dir):
     file.save(tmp_path)
     try:
         return optimize_image(tmp_path, uploads_dir, base_name)
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
+def save_favicon(file, uploads_dir):
+    """Saves an uploaded favicon image as a WebP (for the <link rel="icon">
+    tag, which browsers prefer when present) and also overwrites a
+    fixed-name favicon.ico alongside it — served at the domain root for
+    browsers, crawlers, and tools that request /favicon.ico directly without
+    ever parsing the page's <link> tags.
+
+    Returns the WebP filename. Raises on unsupported/corrupt images — caller
+    is responsible for catching and returning an error response.
+    """
+    from PIL import Image
+
+    os.makedirs(uploads_dir, exist_ok=True)
+    base_name = uuid.uuid4().hex
+    ext = file.filename.rsplit('.', 1)[-1].lower()
+    tmp_path = os.path.join(uploads_dir, f'{base_name}_tmp.{ext}')
+    file.save(tmp_path)
+    try:
+        img = Image.open(tmp_path)
+        if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+            img = img.convert('RGBA')
+        elif img.mode != 'RGB':
+            img = img.convert('RGB')
+
+        webp_filename = f'{base_name}.webp'
+        img.save(os.path.join(uploads_dir, webp_filename), 'WEBP', quality=82)
+
+        # Standard multi-resolution ICO — browsers/OSes pick whichever size
+        # fits (tab icon, bookmark, taskbar, ...). Capped to the source
+        # image's own size so a smaller-than-60px upload doesn't upscale.
+        max_dim = min(img.width, img.height)
+        ico_sizes = [(s, s) for s in (16, 32, 48, 64) if s <= max_dim] or [(max_dim, max_dim)]
+        img.save(os.path.join(uploads_dir, 'favicon.ico'), format='ICO', sizes=ico_sizes)
+
+        return webp_filename
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

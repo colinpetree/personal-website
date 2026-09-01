@@ -33,7 +33,9 @@ export default defineConfig({
   ],
   server: {
     proxy: {
-      '/api': 'http://localhost:5000'
+      '/api': 'http://localhost:5000',
+      // Flask serves the fixed favicon.ico fallback (backend/routes/uploads.py)
+      '/favicon.ico': 'http://localhost:5000'
     }
   }
 })
