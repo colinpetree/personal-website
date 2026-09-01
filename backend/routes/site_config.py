@@ -81,6 +81,33 @@ def get_site_config():
         },
     }
 
+    # Per-page content (text/meta description/layout) is only exposed for
+    # pages that are actually enabled — a disabled page (nav_items[key]
+    # .enabled False) must be indistinguishable from one that doesn't exist
+    # at all, so its real content never reaches a client that hotlinks the
+    # page or calls this endpoint directly, even though the toggle only
+    # otherwise affects frontend routing. `home` is deliberately excluded
+    # from this gating: `home_enabled` only ever meant "show in nav" (see
+    # AdminHomePage.jsx), never "block the page", so home content always
+    # stays public.
+    page_content = {}
+    for key, text_field, meta_field, scroll_field, width_field in [
+        ('projects', 'projects_text', 'projects_meta_description', 'projects_scrollable_nav_enabled', 'projects_page_width'),
+        ('about', 'about_text', 'about_meta_description', 'about_scrollable_nav_enabled', 'about_page_width'),
+        ('blog', 'blog_text', 'blog_meta_description', None, None),
+        ('contact', 'contact_text', 'contact_meta_description', 'contact_scrollable_nav_enabled', 'contact_page_width'),
+        ('ai_demo', 'ai_demo_text', 'ai_demo_meta_description', 'ai_demo_scrollable_nav_enabled', 'ai_demo_page_width'),
+        ('payment', 'payment_text', 'payment_meta_description', 'payment_scrollable_nav_enabled', 'payment_page_width'),
+    ]:
+        if not nav_items[key]['enabled']:
+            continue
+        page_content[text_field] = getattr(config, text_field)
+        page_content[meta_field] = getattr(config, meta_field)
+        if scroll_field:
+            page_content[scroll_field] = getattr(config, scroll_field)
+        if width_field:
+            page_content[width_field] = getattr(config, width_field)
+
     # Only return public-safe fields — no secrets (Mailgun API key, Stripe keys, OAuth secrets)
     return jsonify({
         'site_title': config.site_title,
@@ -101,33 +128,12 @@ def get_site_config():
         },
         'users_enabled': config.users_enabled,
         'google_oauth_client_id': config.google_oauth_client_id,
-        # Page content fields needed by public pages
+        # home content is always public — see page_content comment above.
         'home_text': config.home_text,
-        'projects_text': config.projects_text,
-        'about_text': config.about_text,
-        'blog_text': config.blog_text,
-        'contact_text': config.contact_text,
-        'ai_demo_text': config.ai_demo_text,
-        'payment_text': config.payment_text,
         'home_meta_description': config.home_meta_description,
-        'projects_meta_description': config.projects_meta_description,
-        'about_meta_description': config.about_meta_description,
-        'blog_meta_description': config.blog_meta_description,
-        'contact_meta_description': config.contact_meta_description,
-        'ai_demo_meta_description': config.ai_demo_meta_description,
-        'payment_meta_description': config.payment_meta_description,
         'home_scrollable_nav_enabled': config.home_scrollable_nav_enabled,
-        'projects_scrollable_nav_enabled': config.projects_scrollable_nav_enabled,
-        'about_scrollable_nav_enabled': config.about_scrollable_nav_enabled,
-        'contact_scrollable_nav_enabled': config.contact_scrollable_nav_enabled,
-        'ai_demo_scrollable_nav_enabled': config.ai_demo_scrollable_nav_enabled,
-        'payment_scrollable_nav_enabled': config.payment_scrollable_nav_enabled,
         'home_page_width': config.home_page_width,
-        'projects_page_width': config.projects_page_width,
-        'about_page_width': config.about_page_width,
-        'contact_page_width': config.contact_page_width,
-        'ai_demo_page_width': config.ai_demo_page_width,
-        'payment_page_width': config.payment_page_width,
+        **page_content,
         'stripe_publishable_key': config.stripe_publishable_key,
         'payment_comments_enabled': config.payment_comments_enabled,
         'blog_comments_enabled': config.blog_comments_enabled,

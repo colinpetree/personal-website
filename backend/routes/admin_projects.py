@@ -1,6 +1,7 @@
+from datetime import datetime
 from flask import Blueprint, jsonify, request
 from extensions import db
-from models import Project
+from models import Project, SiteConfig
 from routes.admin_auth import admin_required, role_at_least
 from varnish_purge import ban_pattern
 
@@ -75,6 +76,20 @@ def update_project(project_id):
 def delete_project(project_id):
     project = Project.query.get_or_404(project_id)
     db.session.delete(project)
+
+    # get_content_version() fingerprints Project via a plain, unfiltered
+    # MAX(updated_at) — but removing a row only moves that MAX() if the
+    # deleted project happened to hold it. Deleting any OTHER project (which
+    # is the common case) leaves the fingerprint unchanged, so the Pi's
+    # content-watcher would skip the rebuild that's supposed to pull the
+    # now-deleted project off the prerendered /projects page. Unconditional
+    # here (unlike BlogPost's fix) since there's no status/visible filter
+    # for a deletion to fall out of in the first place — every delete needs
+    # this, not just ones matching some condition.
+    fingerprint_config = SiteConfig.query.first()
+    if fingerprint_config:
+        fingerprint_config.updated_at = datetime.utcnow()
+
     db.session.commit()
     ban_pattern('^/api/projects')
     return jsonify({'message': 'Project deleted'})

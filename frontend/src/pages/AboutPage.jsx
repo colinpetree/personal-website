@@ -1,8 +1,9 @@
 import { useRef } from 'react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { fetchSiteConfig } from '../lib/apiFetch'
-import { buildMeta, siteFallbackImage } from '../utils/meta'
+import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
+import NotFoundPage from './NotFoundPage'
 
 // Purely for meta() below — see HomePage.jsx for why this route needs its
 // own directly-awaited config fetch rather than reaching root's via
@@ -18,6 +19,7 @@ export async function clientLoader() {
 clientLoader.hydrate = true
 
 export function meta({ data }) {
+  if (!isNavEnabled(data, 'about')) return notFoundMeta(data)
   return buildMeta({
     title: data?.site_title ? `${data.about_page_name ?? 'About'} - ${data.site_title}` : undefined,
     description: data?.about_meta_description,
@@ -28,6 +30,8 @@ export function meta({ data }) {
 export default function AboutPage() {
   const { config } = useSiteConfig()
   const contentRef = useRef(null)
+
+  if (!isNavEnabled(config, 'about')) return <NotFoundPage />
 
   return (
     <main className={`mx-auto px-6 pt-10 pb-16 ${config?.about_page_width === 'narrow' ? 'max-w-[524px]' : 'max-w-3xl'}`}>

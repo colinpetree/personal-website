@@ -1,6 +1,6 @@
 import { Link } from 'react-router'
 import { fetchSiteConfig } from '../lib/apiFetch'
-import { buildMeta, siteFallbackImage } from '../utils/meta'
+import { notFoundMeta } from '../utils/meta'
 
 // Same pattern as HomePage.jsx (see its comments for the full rationale) —
 // gives this route its own og:image fallback without touching root.jsx's
@@ -24,19 +24,16 @@ export async function clientLoader() {
 clientLoader.hydrate = true
 
 export function meta({ data }) {
-  return buildMeta({
-    title: data?.site_title ? `Not found — ${data.site_title}` : 'Page not found',
-    image: siteFallbackImage(data),
-  })
+  return notFoundMeta(data)
 }
 
 export default function NotFoundPage() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center bg-white px-6">
+    <main className="h-[calc(100dvh-4rem-1px)] flex flex-col items-center justify-center bg-white px-6">
       <h1 className="text-6xl font-bold text-gray-900 mb-4">404</h1>
       <p className="text-xl text-gray-500 mb-8">Page not found.</p>
       <Link to="/" className="text-blue-600 hover:underline">
-        Go home
+        Back to home
       </Link>
     </main>
   )

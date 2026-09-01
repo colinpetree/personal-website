@@ -13,7 +13,7 @@ from functools import wraps
 from dateutil.relativedelta import relativedelta
 from anthropic import Anthropic
 import voyageai
-from flask import Blueprint, Response, current_app, jsonify, request, send_from_directory, stream_with_context
+from flask import Blueprint, Response, abort, current_app, jsonify, request, send_from_directory, stream_with_context
 from flask_login import current_user
 
 from extensions import db
@@ -65,12 +65,33 @@ def ai_demo_access_required(f):
     return decorated
 
 
+def _ai_demo_page_enabled():
+    config = SiteConfig.query.first()
+    return bool(config and config.ai_demo_enabled and current_app.config['ENABLE_AI_DEMOS'])
+
+
+def ai_demo_page_enabled_required(f):
+    # A disabled AI demo page must be indistinguishable from one that never
+    # existed — every route here 404s the same way once the admin has
+    # turned the page off, rather than staying reachable by direct API call
+    # (the frontend route already 404s too, see AIDemoPage.jsx and each
+    # ai-demos/*.jsx page's own nav-enabled check).
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not _ai_demo_page_enabled():
+            abort(404)
+        return f(*args, **kwargs)
+    return decorated
+
+
 @ai_demo_bp.route('/api/ai-demo/access-links')
+@ai_demo_page_enabled_required
 def list_access_links():
     return jsonify({l.demo_key: {'url': l.url, 'text': l.text} for l in AiDemoAccessLink.query.all()})
 
 
 @ai_demo_bp.route('/api/ai-demo/request-access', methods=['POST'])
+@ai_demo_page_enabled_required
 @user_required
 def request_demo_access():
     user = get_current_user()
@@ -233,6 +254,7 @@ def _assistant_content_for_replay(message):
 
 
 @ai_demo_bp.route('/api/ai-demo/conversation-basics/chat', methods=['POST'])
+@ai_demo_page_enabled_required
 @user_required
 @ai_demo_access_required
 def conversation_basics_chat():
@@ -275,6 +297,7 @@ def conversation_basics_chat():
 
 
 @ai_demo_bp.route('/api/ai-demo/tool-use/chat', methods=['POST'])
+@ai_demo_page_enabled_required
 @user_required
 @ai_demo_access_required
 def tool_use_chat():
@@ -370,6 +393,7 @@ WEB_SEARCH_MAX_TOKENS = 4096
 
 
 @ai_demo_bp.route('/api/ai-demo/web-search/chat', methods=['POST'])
+@ai_demo_page_enabled_required
 @user_required
 @ai_demo_access_required
 def web_search_chat():
@@ -438,6 +462,7 @@ def _run_mcp_tool(name, tool_input):
 
 
 @ai_demo_bp.route('/api/ai-demo/mcp/tools', methods=['GET'])
+@ai_demo_page_enabled_required
 @user_required
 @ai_demo_access_required
 def mcp_tools():
@@ -454,6 +479,7 @@ def mcp_tools():
 
 
 @ai_demo_bp.route('/api/ai-demo/mcp/chat', methods=['POST'])
+@ai_demo_page_enabled_required
 @user_required
 @ai_demo_access_required
 def mcp_chat():
@@ -569,6 +595,7 @@ RAG_SOURCE_PDF_FILENAME = 'deseq2-love-huber-anders-2014.pdf'
 
 
 @ai_demo_bp.route('/api/ai-demo/rag/source.pdf')
+@ai_demo_page_enabled_required
 @user_required
 @ai_demo_access_required
 def rag_source_pdf():
@@ -582,6 +609,7 @@ def rag_source_pdf():
 
 
 @ai_demo_bp.route('/api/ai-demo/rag/search', methods=['POST'])
+@ai_demo_page_enabled_required
 @user_required
 @ai_demo_access_required
 def rag_search():
@@ -851,6 +879,7 @@ def _grade_by_model(client, test_case, output):
 
 
 @ai_demo_bp.route('/api/ai-demo/prompt-evaluation/run', methods=['POST'])
+@ai_demo_page_enabled_required
 @user_required
 @ai_demo_access_required
 def prompt_evaluation_run():
@@ -1072,6 +1101,7 @@ def _grade_prompt_engineering_output(client, passage, output):
 
 
 @ai_demo_bp.route('/api/ai-demo/prompt-engineering/run', methods=['POST'])
+@ai_demo_page_enabled_required
 @user_required
 @ai_demo_access_required
 def prompt_engineering_run():
@@ -1158,6 +1188,7 @@ VISION_SYSTEM_PROMPT = (
 
 
 @ai_demo_bp.route('/api/ai-demo/vision/analyze', methods=['POST'])
+@ai_demo_page_enabled_required
 @user_required
 @ai_demo_access_required
 def vision_analyze():

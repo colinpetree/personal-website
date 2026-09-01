@@ -2,9 +2,10 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useLoaderData } from 'react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
-import { buildMeta, siteFallbackImage } from '../utils/meta'
+import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
 import CategoryFilterBar from '../components/CategoryFilterBar'
+import NotFoundPage from './NotFoundPage'
 
 function BlogListSkeleton() {
   return (
@@ -63,6 +64,7 @@ clientLoader.hydrate = true
 // apiFetch.js). Read the synchronous cache instead.
 export function meta() {
   const config = getCachedSiteConfig()
+  if (!isNavEnabled(config, 'blog')) return notFoundMeta(config)
   return buildMeta({
     title: config?.site_title ? `${config.blog_page_name ?? 'Blog'} - ${config.site_title}` : undefined,
     description: config?.blog_meta_description,
@@ -136,6 +138,8 @@ export default function BlogPage() {
     if (!iso) return ''
     return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   }
+
+  if (!isNavEnabled(config, 'blog')) return <NotFoundPage />
 
   return (
     <main className="max-w-3xl mx-auto px-6 pt-10 pb-16">

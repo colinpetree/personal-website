@@ -1,5 +1,5 @@
 from datetime import datetime
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, abort, jsonify, request, session
 from flask_login import current_user
 from extensions import db
 from models import AdminAccount, BlogCategory, BlogPost, Comment, SiteConfig, User
@@ -8,6 +8,20 @@ from crypto import decrypt
 blog_bp = Blueprint('blog', __name__)
 
 RESERVED_SLUGS = {'', 'blog', 'projects', 'about', 'contact', 'demo', 'payment', 'admin', 'api', 'search'}
+
+
+def _blog_enabled(config):
+    return bool(config and config.blog_enabled)
+
+
+def _require_blog_enabled():
+    # A disabled blog must be indistinguishable from one that never
+    # existed — every public blog endpoint 404s the same way a bad slug
+    # would, rather than returning real data to a direct API call once the
+    # admin has turned the page off (the frontend route already 404s too,
+    # see BlogPage.jsx/BlogPostPage.jsx's own nav-enabled check).
+    if not _blog_enabled(SiteConfig.query.first()):
+        abort(404)
 
 
 def _post_to_dict(post, include_content=False):
@@ -97,6 +111,7 @@ def _promote_scheduled():
 
 @blog_bp.route('/api/blog')
 def list_posts():
+    _require_blog_enabled()
     _promote_scheduled()
     page = request.args.get('page', 1, type=int)
     per_page = min(request.args.get('per_page', 10, type=int), 50)
@@ -128,6 +143,7 @@ def list_posts():
 @blog_bp.route('/api/blog/categories')
 def list_public_categories():
     """Categories that currently have at least one visible published post."""
+    _require_blog_enabled()
     now = datetime.utcnow()
     visible_posts = (
         BlogPost.query
@@ -147,6 +163,7 @@ def list_public_categories():
 
 @blog_bp.route('/api/blog/<slug>')
 def get_post(slug):
+    _require_blog_enabled()
     now = datetime.utcnow()
     post = BlogPost.query.filter_by(slug=slug, status='published').filter(
         (BlogPost.publish_date == None) | (BlogPost.publish_date <= now)
@@ -159,6 +176,7 @@ def get_adjacent_posts(slug):
     """Next (older) / previous (newer) post in publish-date order, optionally
     scoped to a category — mirrors list_posts' filtering/ordering so the
     result matches what the reader would see paging through /blog."""
+    _require_blog_enabled()
     _promote_scheduled()
     now = datetime.utcnow()
     current = BlogPost.query.filter_by(slug=slug, status='published').filter(
@@ -202,6 +220,7 @@ def _comments_enabled(config):
 
 @blog_bp.route('/api/blog/<slug>/comments')
 def list_comments(slug):
+    _require_blog_enabled()
     post = BlogPost.query.filter_by(slug=slug).first_or_404()
     config = SiteConfig.query.first()
     if not _comments_enabled(config):
@@ -218,6 +237,7 @@ def list_comments(slug):
 @blog_bp.route('/api/blog/author')
 def get_blog_author():
     """Returns the Owner account info for public blog attribution."""
+    _require_blog_enabled()
     owner = AdminAccount.query.filter_by(role='owner').first()
     if not owner:
         return jsonify({'name': None, 'avatar_filename': None})
@@ -229,6 +249,7 @@ def get_blog_author():
 
 @blog_bp.route('/api/blog/<slug>/comments', methods=['POST'])
 def post_comment(slug):
+    _require_blog_enabled()
     post = BlogPost.query.filter_by(slug=slug, status='published').first_or_404()
     config = SiteConfig.query.first()
 
@@ -266,6 +287,7 @@ def post_comment(slug):
 
 @blog_bp.route('/api/blog/<slug>/comments/<int:comment_id>/like', methods=['POST', 'DELETE'])
 def toggle_like(slug, comment_id):
+    _require_blog_enabled()
     post = BlogPost.query.filter_by(slug=slug).first_or_404()
     comment = Comment.query.filter_by(id=comment_id, post_id=post.id, is_deleted=False).first_or_404()
     if request.method == 'POST':
@@ -278,6 +300,7 @@ def toggle_like(slug, comment_id):
 
 @blog_bp.route('/api/blog/<slug>/comments/<int:comment_id>/report', methods=['POST'])
 def report_comment(slug, comment_id):
+    _require_blog_enabled()
     from email_utils import send_email
     post = BlogPost.query.filter_by(slug=slug).first_or_404()
     comment = Comment.query.filter_by(id=comment_id, post_id=post.id, is_deleted=False).first_or_404()

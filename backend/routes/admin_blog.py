@@ -178,6 +178,8 @@ def update_post(post_id):
                 return jsonify({'error': 'Category not found'}), 400
             post.category_id = category.id
 
+    original_status = post.status
+
     if 'status' in data and data['status'] in ('draft', 'scheduled', 'published'):
         post.status = data['status']
 
@@ -185,6 +187,25 @@ def update_post(post_id):
         post.publish_date = datetime.fromisoformat(data['publish_date']) if data['publish_date'] else None
 
     post.updated_at = datetime.utcnow()
+
+    # A post losing 'published' status (unpublish, or back to draft/
+    # scheduled) drops out of get_content_version()'s BlogPost filter
+    # (`WHERE status == 'published'`) the moment this commits — so the
+    # updated_at bump above never reaches the public fingerprint, and the
+    # Pi's content-watcher sees no change and skips the rebuild that's
+    # supposed to pull the now-unpublished page down. Publishing (or
+    # staying published) doesn't need this: that bump already lands inside
+    # the filter on its own. Piggybacking on SiteConfig's row (always
+    # exists, already one of the four fingerprinted tables) is the least
+    # invasive way to force the fingerprint to move for exactly this
+    # transition, without also triggering a rebuild for routine
+    # draft-to-draft edits the way removing the status filter entirely
+    # would.
+    if original_status == 'published' and post.status != 'published':
+        fingerprint_config = SiteConfig.query.first()
+        if fingerprint_config:
+            fingerprint_config.updated_at = datetime.utcnow()
+
     _log('Post', 'edited', post.title, subject_is_bold=True)
     db.session.commit()
     ban_pattern('^/api/blog')
@@ -195,8 +216,21 @@ def update_post(post_id):
 @role_at_least('editor')
 def delete_post(post_id):
     post = BlogPost.query.get_or_404(post_id)
+    was_published = post.status == 'published'
     _log('Post', 'deleted', post.title, subject_is_bold=True)
     db.session.delete(post)
+
+    # Same reasoning as update_post()'s unpublish branch: get_content_version()
+    # fingerprints BlogPost via MAX(updated_at) WHERE status == 'published',
+    # so deleting a row only moves that MAX() if the deleted post happened to
+    # hold it — deleting any OTHER published post leaves the fingerprint
+    # unchanged, and the Pi's content-watcher would skip the rebuild that's
+    # supposed to pull the now-deleted post's stale prerendered page down.
+    if was_published:
+        fingerprint_config = SiteConfig.query.first()
+        if fingerprint_config:
+            fingerprint_config.updated_at = datetime.utcnow()
+
     db.session.commit()
     ban_pattern('^/api/blog')
     return jsonify({'message': 'Post deleted'})

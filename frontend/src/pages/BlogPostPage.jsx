@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useLoaderData, useSearchParams, Link } from 'react-router'
-import { ArrowLeft, Heart, Reply, MoreHorizontal, ChevronDown, X } from 'lucide-react'
+import { Heart, Reply, MoreHorizontal, ChevronDown, X } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import GalleryLightbox from '../components/GalleryLightbox'
@@ -8,8 +8,9 @@ import SignInRequiredModal from '../components/SignInRequiredModal'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import BlogPostNav from '../components/BlogPostNav'
 import { setupSegmentLoopVideo } from '../utils/segmentLoopVideo'
-import { buildMeta, absoluteUploadUrl, siteFallbackImage } from '../utils/meta'
+import { buildMeta, absoluteUploadUrl, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import { apiUrl, fetchSiteConfig } from '../lib/apiFetch'
+import NotFoundPage from './NotFoundPage'
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -434,6 +435,17 @@ function cachePostData(key, result) {
 // any slug not in that prerender list — see clientLoader below for why
 // both are needed, not just loader). config is fetched alongside purely to
 // populate apiFetch.js's getCachedSiteConfig() cache in time for meta().
+//
+// Deliberately does NOT fetch comments — those are always loaded client-side
+// via the component's own effect below, never baked into a prerendered
+// snapshot. Moderating/deleting a comment doesn't touch its parent BlogPost
+// row (see content-update-triggers skill: Comment isn't one of the four
+// fingerprinted tables), so a comment baked in at build time could stay
+// stuck in the static HTML long after it was removed, with no rebuild ever
+// scheduled to fix it — unlike a stale post/page, which at least eventually
+// gets pulled by some other rebuild trigger. Fetching comments fresh on
+// every real visit sidesteps that staleness entirely rather than needing a
+// fifth fingerprinted table.
 async function fetchPostData(slug, categorySlug) {
   const key = postCacheKey(slug, categorySlug)
   const [postRes, config] = await Promise.all([
@@ -441,7 +453,7 @@ async function fetchPostData(slug, categorySlug) {
     fetchSiteConfig(),
   ])
   if (postRes.status === 404) {
-    const result = { notFound: true, post: null, comments: [], blogAuthor: null, next: null, previous: null, config }
+    const result = { notFound: true, post: null, blogAuthor: null, next: null, previous: null, config }
     cachePostData(key, result)
     return result
   }
@@ -449,16 +461,14 @@ async function fetchPostData(slug, categorySlug) {
   const post = await postRes.json()
 
   const adjacentUrl = `/api/blog/${slug}/adjacent${categorySlug ? `?category=${categorySlug}` : ''}`
-  const [commentsRes, authorRes, adjacentRes] = await Promise.all([
-    fetch(apiUrl(`/api/blog/${slug}/comments`)),
+  const [authorRes, adjacentRes] = await Promise.all([
     fetch(apiUrl('/api/blog/author')),
     fetch(apiUrl(adjacentUrl)),
   ])
-  const comments = commentsRes.ok ? (await commentsRes.json()).comments ?? [] : []
   const blogAuthor = authorRes.ok ? await authorRes.json() : null
   const adjacent = adjacentRes.ok ? await adjacentRes.json() : { next: null, previous: null }
 
-  const result = { notFound: false, post, comments, blogAuthor, next: adjacent.next, previous: adjacent.previous, config }
+  const result = { notFound: false, post, blogAuthor, next: adjacent.next, previous: adjacent.previous, config }
   cachePostData(key, result)
   return result
 }
@@ -497,8 +507,8 @@ export function meta({ params, location }) {
   const cached = _resolvedPostData.get(postCacheKey(params.slug, categorySlug))
   const config = cached?.config
   const post = cached?.post
-  if (!post) {
-    return buildMeta({ title: config?.site_title, image: siteFallbackImage(config) })
+  if (!post || !isNavEnabled(config, 'blog')) {
+    return notFoundMeta(config)
   }
   return buildMeta({
     title: post.title,
@@ -540,8 +550,8 @@ export default function BlogPostPage() {
   const categorySlug = searchParams.get('category')
   const { user: currentUser } = useUserAuth()
   const { config: siteConfig } = useSiteConfig()
-  const { notFound, post, comments: initialComments, blogAuthor, next, previous } = useLoaderData()
-  const [comments, setComments] = useState(initialComments)
+  const { notFound, post, blogAuthor, next, previous } = useLoaderData()
+  const [comments, setComments] = useState([])
   const [sort, setSort] = useState('Best')
   const [reportingComment, setReportingComment] = useState(null)
   const [likeDeltas, setLikeDeltas] = useState({})
@@ -553,22 +563,6 @@ export default function BlogPostPage() {
   const [lightboxIndex, setLightboxIndex] = useState(null)
   const articleRef = useRef(null)
 
-  // BlogPostPage is reused (not remounted) when navigating client-side
-  // between two different posts, since both match the same ':slug' route —
-  // useState(initialComments) above only seeds on the very first mount, so
-  // without this, clicking from one post to another left the previous
-  // post's comments (and any open report modal/lightbox) showing under the
-  // new post's title/content. Keyed on initialComments' identity, not slug,
-  // so it also correctly resyncs on any future revalidation that doesn't
-  // change the slug, not just a slug change specifically.
-  useEffect(() => {
-    setComments(initialComments)
-    setLikeDeltas({})
-    setReportingComment(null)
-    setLightboxImages([])
-    setLightboxIndex(null)
-  }, [initialComments])
-
   async function fetchComments() {
     const res = await fetch(`/api/blog/${slug}/comments`)
     if (res.ok) {
@@ -577,6 +571,46 @@ export default function BlogPostPage() {
       setLikeDeltas({})
     }
   }
+
+  // Comments are never part of `post`'s prerendered/loader data (see
+  // fetchPostData's comment above) — always fetched fresh here instead, on
+  // the very first mount and every time BlogPostPage is reused for a
+  // DIFFERENT post. BlogPostPage is reused (not remounted) when navigating
+  // client-side between two posts, since both match the same ':slug' route,
+  // so without this, clicking from one post to another would otherwise
+  // leave the previous post's comments (and any open report modal/
+  // lightbox) showing under the new post's title/content. Keyed on `post`'s
+  // identity (a fresh object per loader run), not `slug`, so it also
+  // correctly resyncs on any future revalidation that doesn't change the
+  // slug, not just a slug change specifically.
+  //
+  // Fetches inline with its own `cancelled` guard (same idiom as
+  // useAiDemoAccessLinks.js) rather than reusing fetchComments() above —
+  // this request isn't covered by react-router's own out-of-order-
+  // navigation handling the way `post`/loader data is, since it's a plain
+  // effect-driven fetch. Paging quickly between posts (e.g. BlogPostNav's
+  // next/previous links, same route, no remount) can leave an OLDER post's
+  // slower response resolving after a NEWER post's — without this guard,
+  // that stale response's `setComments()` would silently overwrite the
+  // current post's correct, already-loaded comments with the previous
+  // post's.
+  useEffect(() => {
+    setComments([])
+    setLikeDeltas({})
+    setReportingComment(null)
+    setLightboxImages([])
+    setLightboxIndex(null)
+    if (!post) return
+    let cancelled = false
+    fetch(`/api/blog/${slug}/comments`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (cancelled || !data) return
+        setComments(data.comments || [])
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [post])
 
   function handleLike(commentId, currentlyLiked) {
     const delta = currentlyLiked ? -1 : 1
@@ -671,14 +705,7 @@ export default function BlogPostPage() {
     return () => container.removeEventListener('click', onClick)
   }, [post?.content_html])
 
-  if (notFound) return (
-    <main className="max-w-3xl mx-auto px-6 pt-10 pb-16">
-      <h1 className="text-2xl font-bold text-gray-900 mb-4">Post not found</h1>
-      <Link to={`/${siteConfig?.nav?.find(p => p.key === 'blog')?.path ?? 'blog'}`} className="inline-flex items-center gap-1 text-blue-600 hover:underline">
-        <ArrowLeft size={14} strokeWidth={1.5} />Back to blog
-      </Link>
-    </main>
-  )
+  if (notFound || !isNavEnabled(siteConfig, 'blog')) return <NotFoundPage />
 
   const commentsVisible = !!(siteConfig?.users_enabled && siteConfig?.blog_comments_enabled)
   const sortedComments = sortComments(comments, sort)

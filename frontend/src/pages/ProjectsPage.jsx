@@ -2,9 +2,10 @@ import { useRef } from 'react'
 import { useLoaderData } from 'react-router'
 import { ExternalLink } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
-import { buildMeta, siteFallbackImage } from '../utils/meta'
+import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
+import NotFoundPage from './NotFoundPage'
 
 // fetchSiteConfig() runs alongside the project fetch purely to populate
 // getCachedSiteConfig()'s cache in time for meta() below (see its usage
@@ -54,6 +55,7 @@ function ProjectCardSkeleton() {
 // apiFetch.js). Read the synchronous cache instead.
 export function meta() {
   const config = getCachedSiteConfig()
+  if (!isNavEnabled(config, 'projects')) return notFoundMeta(config)
   return buildMeta({
     title: config?.site_title ? `${config.projects_page_name ?? 'Projects'} - ${config.site_title}` : undefined,
     description: config?.projects_meta_description,
@@ -77,6 +79,8 @@ export default function ProjectsPage() {
   const { config } = useSiteConfig()
   const { projects } = useLoaderData()
   const contentRef = useRef(null)
+
+  if (!isNavEnabled(config, 'projects')) return <NotFoundPage />
 
   return (
     <main className={`mx-auto px-6 pt-10 pb-16 ${config?.projects_page_width === 'narrow' ? 'max-w-[524px]' : 'max-w-4xl'}`}>

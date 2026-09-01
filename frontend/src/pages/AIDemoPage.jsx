@@ -2,9 +2,10 @@ import { useRef } from 'react'
 import { Link } from 'react-router'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { fetchSiteConfig } from '../lib/apiFetch'
-import { buildMeta, siteFallbackImage } from '../utils/meta'
+import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import { AI_DEMO_LIST } from '../lib/aiDemos'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
+import NotFoundPage from './NotFoundPage'
 
 const DEMO_DESCRIPTIONS = {
   'conversation-basics': 'Chat with Claude. Featuring a custom system prompt, temperature control, and streaming responses',
@@ -37,6 +38,7 @@ export function HydrateFallback() {
 }
 
 export function meta({ data }) {
+  if (!isNavEnabled(data, 'ai_demo')) return notFoundMeta(data)
   return buildMeta({
     title: data?.site_title ? `${data.ai_demo_page_name ?? 'AI'} - ${data.site_title}` : undefined,
     description: data?.ai_demo_meta_description,
@@ -47,6 +49,8 @@ export function meta({ data }) {
 export default function AIDemoPage() {
   const { config } = useSiteConfig()
   const contentRef = useRef(null)
+
+  if (!isNavEnabled(config, 'ai_demo')) return <NotFoundPage />
 
   return (
     <main className={`mx-auto px-6 pt-10 pb-16 ${config?.ai_demo_page_width === 'narrow' ? 'max-w-[524px]' : 'max-w-4xl'}`}>
