@@ -6,6 +6,7 @@ from extensions import db
 from models import BlogPost, Comment, User, AdminAccount, SiteEventLog, SiteConfig, BlogCategory
 from routes.admin_auth import admin_required, role_at_least
 from varnish_purge import ban_pattern
+from sanitize_html import sanitize_content_html
 
 
 def _log(area, action_type, subject, subject_is_bold=False):
@@ -153,7 +154,17 @@ def update_post(post_id):
 
     for field in ('content_html', 'excerpt', 'meta_description', 'scrollable_nav_enabled', 'thumbnail_filename', 'thumbnail_caption', 'thumbnail_width', 'thumbnail_height'):
         if field in data:
-            setattr(post, field, data[field])
+            value = data[field]
+            # Contributors are the lowest-trust writable role — sanitize their
+            # HTML so a malicious/compromised contributor account can't plant
+            # stored XSS. Editor/administrator/owner content is trusted as-is
+            # (same trust level as editing site config directly).
+            if field == 'content_html' and current_user.role == 'contributor':
+                try:
+                    value = sanitize_content_html(value)
+                except ValueError:
+                    return jsonify({'error': 'Invalid content_html'}), 400
+            setattr(post, field, value)
 
     if 'category_id' in data:
         category_id = data['category_id']

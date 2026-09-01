@@ -32,6 +32,12 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+// Mirrors CodeBlockNode.exportDOM()'s COPY_ICON/CHECK_ICON in
+// components/admin/editor/nodes.jsx — kept in sync manually since the two
+// live in different bundles (editor vs. public page).
+const CODE_COPY_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`
+const CODE_COPY_CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
+
 // ── Report Modal ───────────────────────────────────────────────────────────
 
 function ReportModal({ comment, slug, onClose }) {
@@ -640,6 +646,29 @@ export default function BlogPostPage() {
     const figures = articleRef.current.querySelectorAll('figure[data-segment-loop="true"]')
     const cleanups = Array.from(figures).map(setupSegmentLoopVideo).filter(Boolean)
     return () => cleanups.forEach(fn => fn())
+  }, [post?.content_html])
+
+  // Delegated click handler for code-block copy buttons — the editor's
+  // exportDOM() deliberately emits no inline onclick (blocked by the site's
+  // CSP script-src), so this is the only thing that makes '.code-block-copy'
+  // buttons in rendered post content functional.
+  useEffect(() => {
+    const container = articleRef.current
+    if (!container || !post?.content_html) return
+
+    function onClick(e) {
+      const btn = e.target.closest('.code-block-copy')
+      if (!btn || !container.contains(btn)) return
+      const codeEl = btn.closest('.code-block-wrapper')?.querySelector('.code-block')
+      if (!codeEl || !navigator.clipboard) return
+      navigator.clipboard.writeText(codeEl.textContent).then(() => {
+        btn.innerHTML = CODE_COPY_CHECK_ICON
+        setTimeout(() => { btn.innerHTML = CODE_COPY_ICON }, 1500)
+      }).catch(() => {})
+    }
+
+    container.addEventListener('click', onClick)
+    return () => container.removeEventListener('click', onClick)
   }, [post?.content_html])
 
   if (notFound) return (

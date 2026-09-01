@@ -431,8 +431,8 @@ fi
 # no-op past the first row in each table, but there's no reason to run it on
 # every upgrade. SiteConfig in particular must exist before the post-cutover
 # health check below (§7/§8), which polls /api/site-config. AdminAccount
-# always seeds as admin@example.com / admin — change this via the admin UI
-# immediately after first login.
+# always seeds as admin@example.com with a freshly random password, printed
+# once to the output below — save it from there.
 if [ "$DB_IS_FRESH" = "true" ]; then
     echo "==> Seeding initial Profile/SiteConfig/AdminAccount data"
     if [ -n "$DOMAIN" ]; then

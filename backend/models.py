@@ -136,6 +136,14 @@ class LoginAttempt(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
+class ContactAttempt(db.Model):
+    __tablename__ = 'contact_attempt'
+
+    id = db.Column(db.Integer, primary_key=True)
+    ip_address = db.Column(db.String(45), nullable=False)  # fits IPv6
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
 class PortalLinkRequest(db.Model):
     __tablename__ = 'portal_link_request'
 

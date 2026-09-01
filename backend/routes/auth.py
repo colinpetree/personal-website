@@ -54,7 +54,8 @@ def google_login():
     if not config.google_oauth_client_id:
         return jsonify({'error': 'Google OAuth not configured'}), 503
 
-    next_url = request.args.get('next', '/')
+    from routes.admin_auth import _safe_next_path
+    next_url = _safe_next_path(request.args.get('next', '/'))
     client_id = config.google_oauth_client_id
     redirect_uri = _redirect_uri(config)
 
@@ -85,7 +86,8 @@ def google_callback():
         padding = '=' * (-len(raw_state) % 4)
         state_data = json.loads(base64.urlsafe_b64decode(raw_state + padding))
         nonce = state_data.get('n')
-        next_url = state_data.get('nx', '/')
+        from routes.admin_auth import _safe_next_path
+        next_url = _safe_next_path(state_data.get('nx', '/'))
     except Exception:
         nonce = None
         next_url = '/'

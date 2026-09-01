@@ -35,3 +35,6 @@ backend/.build-venv-windows-test/
 
 # Claude Code
 .claude/settings.local.json
+
+# Local-only notes
+SECURITY_QA_CHECKLIST.md
