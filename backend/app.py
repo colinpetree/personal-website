@@ -1,5 +1,6 @@
 from flask import Flask
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 from extensions import db, login_manager
 from dotenv import load_dotenv
 import os
@@ -16,9 +17,26 @@ def create_app():
     # "SSL error: decryption failed" / "connection reset by peer" instead of
     # being transparently replaced.
     app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True, 'pool_recycle': 280}
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-change-in-production')
+    secret_key = os.getenv('SECRET_KEY')
+    is_production = os.getenv('FLASK_ENV') == 'production'
+    if not secret_key:
+        if is_production:
+            raise RuntimeError('SECRET_KEY environment variable must be set in production')
+        secret_key = 'dev-secret-change-in-production'
+    app.config['SECRET_KEY'] = secret_key
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_SECURE'] = is_production
+    if is_production:
+        # gunicorn only ever accepts connections from Varnish on 127.0.0.1
+        # (never exposed publicly — see deploy/scripts/bootstrap.sh's ufw
+        # rules), and nginx always overwrites X-Forwarded-For with the real
+        # client address before proxying in, so there's exactly one hop of
+        # forwarding to trust here. Without this, request.remote_addr is
+        # always the loopback address of whichever proxy connected to
+        # gunicorn — breaking anything keyed on the visitor's real IP (the
+        # login and contact-form rate limiters below).
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=0, x_port=0, x_prefix=0)
     # Deployment-time flag — lets forks of this project fully exclude the AI demo
     # feature (its own API keys/spend) without touching code. Not admin-toggleable;
     # ai_demo_enabled in SiteConfig is a separate runtime toggle for sites that have it.
@@ -29,7 +47,8 @@ def create_app():
     # then always returns 403, never a silent no-op).
     app.config['WATCHER_ALERT_SECRET'] = os.getenv('WATCHER_ALERT_SECRET', '')
 
-    CORS(app, supports_credentials=True)
+    frontend_origins = os.getenv('FRONTEND_ORIGIN', 'http://localhost:5173').split(',')
+    CORS(app, supports_credentials=True, origins=[o.strip() for o in frontend_origins if o.strip()])
     db.init_app(app)
     login_manager.init_app(app)
 

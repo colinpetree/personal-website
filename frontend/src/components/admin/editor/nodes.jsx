@@ -3643,7 +3643,10 @@ export class CodeBlockNode extends DecoratorNode {
     const btn = document.createElement('button')
     btn.className = 'code-block-copy'
     btn.setAttribute('aria-label', 'Copy code')
-    btn.setAttribute('onclick', `var p=this.closest('.code-block-wrapper').querySelector('.code-block');navigator.clipboard.writeText(p.textContent);var b=this;b.innerHTML='${CHECK_ICON}';setTimeout(function(){b.innerHTML='${COPY_ICON}'},1500)`)
+    // No inline onclick here — a page-level CSP (script-src, no 'unsafe-inline')
+    // blocks inline event-handler attributes. The public blog page instead
+    // wires this up via event delegation; see BlogPostPage.jsx's
+    // '.code-block-copy' click handler, which reads these same icon strings.
     btn.innerHTML = COPY_ICON
     wrapper.appendChild(btn)
 

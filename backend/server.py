@@ -24,8 +24,9 @@ Usage:
                                   # if any of the three already exist (safe to call
                                   # unconditionally — creates tables itself if
                                   # needed). AdminAccount always uses
-                                  # admin@example.com / admin — change this
-                                  # immediately after first login. Optionally reads
+                                  # admin@example.com with a freshly random
+                                  # password, printed once to stdout — save it
+                                  # from the install output. Optionally reads
                                   # SITE_DOMAIN from the environment to pre-fill
                                   # SiteConfig.domain.
     server --db-is-fresh         # prints "true"/"false": whether schema_migrations
@@ -138,7 +139,6 @@ def db_is_fresh(app):
 
 
 _DEFAULT_ADMIN_EMAIL = 'admin@example.com'
-_DEFAULT_ADMIN_PASSWORD = 'admin'
 
 
 def seed_initial_data(app):
@@ -149,11 +149,12 @@ def seed_initial_data(app):
     install (like --seed-known-migrations) is always a safe no-op past the
     first. Never overwrites or reads back existing rows.
 
-    AdminAccount always uses the same known default (admin@example.com /
-    admin) rather than a generated one-time password — the goal is a
-    first-install flow with zero manual steps between "run install.sh" and
-    "log in", and a self-service password-change flow already exists in the
-    admin UI for the user to secure the account immediately afterward."""
+    AdminAccount gets a freshly random one-time password (printed once here,
+    never stored anywhere else) rather than a static known default — a fixed
+    admin@example.com/admin credential would be live and guessable the moment
+    the box is reachable, for however long it takes the operator to notice
+    and change it. A self-service password-change flow already exists in the
+    admin UI for the user to secure the account immediately after first login."""
     from extensions import db
     from models import Profile, SiteConfig, AdminAccount
 
@@ -202,19 +203,21 @@ def seed_initial_data(app):
         db.session.commit()
 
         if not AdminAccount.query.first():
+            import secrets
+            initial_password = secrets.token_urlsafe(16)
             admin = AdminAccount(
                 full_name='Admin',
                 email=_DEFAULT_ADMIN_EMAIL,
                 role='owner',
             )
-            admin.set_password(_DEFAULT_ADMIN_PASSWORD)
+            admin.set_password(initial_password)
             db.session.add(admin)
             db.session.commit()
             print('')
             print('==========================================================================')
-            print(f' Admin account created — email: {_DEFAULT_ADMIN_EMAIL}  password: {_DEFAULT_ADMIN_PASSWORD}')
-            print(' These are default, publicly-known credentials. Log in and change the')
-            print(' password immediately via the admin profile menu.')
+            print(f' Admin account created — email: {_DEFAULT_ADMIN_EMAIL}  password: {initial_password}')
+            print(' This password is shown here ONCE and is not stored anywhere else — save it')
+            print(' now. Log in and change it via the admin profile menu when convenient.')
             print('==========================================================================')
         else:
             print('AdminAccount already exists — not creating another.')

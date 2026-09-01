@@ -1,9 +1,14 @@
+from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, request
-from models import SiteConfig
+from extensions import db
+from models import SiteConfig, ContactAttempt
 from crypto import decrypt
 from email_utils import send_email, mail_configured
 
 contact_bp = Blueprint('contact', __name__)
+
+MAX_ATTEMPTS_PER_IP = 5
+IP_WINDOW = timedelta(minutes=15)
 
 
 def _mail_configured(config):
@@ -15,6 +20,19 @@ def submit_contact():
     config = SiteConfig.query.first()
     if not _mail_configured(config):
         return jsonify({'error': 'Contact form is not available.'}), 503
+
+    ip = request.remote_addr or 'unknown'
+    window_start = datetime.utcnow() - IP_WINDOW
+    ContactAttempt.query.filter(ContactAttempt.created_at < window_start).delete()
+    recent_attempts = ContactAttempt.query.filter(
+        ContactAttempt.ip_address == ip,
+        ContactAttempt.created_at >= window_start,
+    ).count()
+    if recent_attempts >= MAX_ATTEMPTS_PER_IP:
+        db.session.commit()
+        return jsonify({'error': 'Too many messages sent. Please try again later.'}), 429
+    db.session.add(ContactAttempt(ip_address=ip))
+    db.session.commit()
 
     data = request.get_json(silent=True) or {}
     name = (data.get('name') or '').strip()
