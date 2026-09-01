@@ -8,7 +8,8 @@ import PaymentComments from '../components/PaymentComments'
 import SignInRequiredModal from '../components/SignInRequiredModal'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import { fetchSiteConfig } from '../lib/apiFetch'
-import { buildMeta, siteFallbackImage } from '../utils/meta'
+import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
+import NotFoundPage from './NotFoundPage'
 
 const PRESET_AMOUNTS = [3, 9, 15, 25]
 const MESSAGE_MAX_LEN = 500
@@ -34,6 +35,7 @@ export function HydrateFallback() {
 }
 
 export function meta({ data }) {
+  if (!isNavEnabled(data, 'payment')) return notFoundMeta(data)
   return buildMeta({
     title: data?.site_title ? `${data.payment_page_name ?? 'Payment'} - ${data.site_title}` : undefined,
     description: data?.payment_meta_description,
@@ -220,6 +222,8 @@ export default function PaymentPage() {
     mainEl.addEventListener('wheel', onWheel, { passive: false })
     return () => mainEl.removeEventListener('wheel', onWheel)
   }, [commentsEnabled, step])
+
+  if (!isNavEnabled(config, 'payment')) return <NotFoundPage />
 
   const paymentContent = (
     <>

@@ -8,6 +8,8 @@ import { useRequireAiDemoAccess } from '../../hooks/useRequireAiDemoAccess'
 import { useAiDemoAccessLinks } from '../../hooks/useAiDemoAccessLinks'
 import SignInRequiredModal from '../../components/SignInRequiredModal'
 import AccessRequiredModal from '../../components/AccessRequiredModal'
+import NotFoundPage from '../NotFoundPage'
+import { isNavEnabled, setRobotsNoindex, setNotFoundDocumentHead } from '../../utils/meta'
 
 const DEMO_KEY = 'rag'
 const DEMO_TITLE = 'RAG / hybrid search'
@@ -189,6 +191,16 @@ export default function RagPage() {
   const abortControllerRef = useRef(null)
 
   useEffect(() => {
+    if (!isNavEnabled(config, 'ai_demo')) {
+      setNotFoundDocumentHead(config)
+      // Cleared on unmount (client-side nav away), not just on the next
+      // render here — this tag is a raw DOM mutation outside React's own
+      // meta rendering, so nothing else in the app knows to remove it. Left
+      // in place, it would silently noindex whatever page the visitor lands
+      // on next, even a fully enabled one with no robots tag of its own.
+      return () => setRobotsNoindex(false)
+    }
+    setRobotsNoindex(false)
     if (config?.site_title) {
       document.title = `RAG / hybrid search - ${config.site_title}`
     }
@@ -302,6 +314,8 @@ export default function RagPage() {
       setError('Network error. Please try again.')
     }
   }
+
+  if (!isNavEnabled(config, 'ai_demo')) return <NotFoundPage />
 
   return (
     <div className="h-[calc(100dvh-4rem-1px)] flex flex-col lg:flex-row overflow-hidden relative">

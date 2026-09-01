@@ -9,6 +9,8 @@ import { useAiDemoAccessLinks } from '../../hooks/useAiDemoAccessLinks'
 import { Tooltip } from '../../components/ui/Tooltip'
 import SignInRequiredModal from '../../components/SignInRequiredModal'
 import AccessRequiredModal from '../../components/AccessRequiredModal'
+import NotFoundPage from '../NotFoundPage'
+import { isNavEnabled, setRobotsNoindex, setNotFoundDocumentHead } from '../../utils/meta'
 
 const DEMO_KEY = 'conversation-basics'
 const DEMO_TITLE = 'Conversation basics'
@@ -181,6 +183,16 @@ export default function ConversationBasicsPage() {
   const abortControllerRef = useRef(null)
 
   useEffect(() => {
+    if (!isNavEnabled(config, 'ai_demo')) {
+      setNotFoundDocumentHead(config)
+      // Cleared on unmount (client-side nav away), not just on the next
+      // render here — this tag is a raw DOM mutation outside React's own
+      // meta rendering, so nothing else in the app knows to remove it. Left
+      // in place, it would silently noindex whatever page the visitor lands
+      // on next, even a fully enabled one with no robots tag of its own.
+      return () => setRobotsNoindex(false)
+    }
+    setRobotsNoindex(false)
     if (config?.site_title) {
       document.title = `Conversation basics - ${config.site_title}`
     }
@@ -356,6 +368,8 @@ export default function ConversationBasicsPage() {
       setMessages(history)
     }
   }
+
+  if (!isNavEnabled(config, 'ai_demo')) return <NotFoundPage />
 
   // 4rem matches Navbar's h-16 content height, +1px for its border-b (the header
   // itself has no explicit height, so that border sits outside the 4rem).

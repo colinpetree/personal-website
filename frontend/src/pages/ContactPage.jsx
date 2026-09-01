@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { fetchSiteConfig } from '../lib/apiFetch'
-import { buildMeta, siteFallbackImage } from '../utils/meta'
+import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
+import NotFoundPage from './NotFoundPage'
 
 const INITIAL = { name: '', email: '', subject: '', message: '' }
 
@@ -18,6 +19,7 @@ export async function clientLoader() {
 clientLoader.hydrate = true
 
 export function meta({ data }) {
+  if (!isNavEnabled(data, 'contact')) return notFoundMeta(data)
   return buildMeta({
     title: data?.site_title ? `${data.contact_page_name ?? 'Contact'} - ${data.site_title}` : undefined,
     description: data?.contact_meta_description,
@@ -61,6 +63,8 @@ export default function ContactPage() {
       setErrorMsg('Network error. Please try again.')
     }
   }
+
+  if (!isNavEnabled(config, 'contact')) return <NotFoundPage />
 
   return (
     <main className={`mx-auto px-6 pt-10 pb-16 ${config?.contact_page_width === 'narrow' ? 'max-w-[524px]' : 'max-w-2xl'}`}>
