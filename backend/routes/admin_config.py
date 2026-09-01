@@ -9,7 +9,7 @@ from models import SiteConfig, SiteEventLog, DEFAULT_NAV_ORDER
 from crypto import encrypt, decrypt
 from routes.admin_auth import admin_required, role_at_least
 from email_utils import send_email, mail_configured
-from upload_utils import save_and_optimize_image, IMAGE_OPTIMIZE_EXTENSIONS, get_app_data_dir, get_uploads_dir
+from upload_utils import save_and_optimize_image, save_favicon, IMAGE_OPTIMIZE_EXTENSIONS, get_app_data_dir, get_uploads_dir
 from varnish_purge import purge_all_public
 
 admin_config_bp = Blueprint('admin_config', __name__)
@@ -20,6 +20,10 @@ ALLOWED_EXTENSIONS = {
     'mp3', 'wav', 'ogg', 'flac', 'm4a',
     'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip', 'csv',
 }
+
+# Matches the FileDropzone `accept` list on the Site icon field — no SVG,
+# since ICO generation needs a raster source.
+FAVICON_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
 # Fields that are stored encrypted; GET returns _set booleans, PUT encrypts if provided
 ENCRYPTED_FIELDS = ('mailgun_api_key', 'stripe_secret_key', 'stripe_webhook_secret', 'google_oauth_client_secret')
@@ -246,6 +250,31 @@ def upload_file():
         'mime_type': file.mimetype or '',
         'size': os.path.getsize(saved_path),
     })
+
+
+@admin_config_bp.route('/api/admin/upload-favicon', methods=['POST'])
+@admin_required
+def upload_favicon():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+    if not file.filename:
+        return jsonify({'error': 'No file selected'}), 400
+
+    ext = file.filename.rsplit('.', 1)[-1].lower() if '.' in file.filename else ''
+    if ext not in FAVICON_EXTENSIONS:
+        return jsonify({'error': 'File type not allowed.'}), 400
+
+    uploads_dir = get_uploads_dir()
+    os.makedirs(uploads_dir, exist_ok=True)
+
+    try:
+        filename = save_favicon(file, uploads_dir)
+    except Exception:
+        return jsonify({'error': 'Could not process image. The file may be corrupted or unsupported.'}), 400
+
+    return jsonify({'filename': filename})
 
 
 def _transcode_to_mp3(input_path, output_path):
