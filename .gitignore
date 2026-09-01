@@ -38,3 +38,4 @@ backend/.build-venv-windows-test/
 
 # Local-only notes
 SECURITY_QA_CHECKLIST.md
+.claude/skills/production-deploy-testing/
