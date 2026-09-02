@@ -7,6 +7,8 @@ import GalleryLightbox from '../components/GalleryLightbox'
 import SignInRequiredModal from '../components/SignInRequiredModal'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import BlogPostNav from '../components/BlogPostNav'
+import ShareButton from '../components/ShareButton'
+import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import { setupSegmentLoopVideo } from '../utils/segmentLoopVideo'
 import { buildMeta, absoluteUploadUrl, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import { apiUrl, fetchSiteConfig } from '../lib/apiFetch'
@@ -32,12 +34,6 @@ function sortComments(comments, sort) {
 function formatDate(iso) {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
-
-// Mirrors CodeBlockNode.exportDOM()'s COPY_ICON/CHECK_ICON in
-// components/admin/editor/nodes.jsx — kept in sync manually since the two
-// live in different bundles (editor vs. public page).
-const CODE_COPY_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`
-const CODE_COPY_CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
 
 // ── Report Modal ───────────────────────────────────────────────────────────
 
@@ -682,29 +678,6 @@ export default function BlogPostPage() {
     return () => cleanups.forEach(fn => fn())
   }, [post?.content_html])
 
-  // Delegated click handler for code-block copy buttons — the editor's
-  // exportDOM() deliberately emits no inline onclick (blocked by the site's
-  // CSP script-src), so this is the only thing that makes '.code-block-copy'
-  // buttons in rendered post content functional.
-  useEffect(() => {
-    const container = articleRef.current
-    if (!container || !post?.content_html) return
-
-    function onClick(e) {
-      const btn = e.target.closest('.code-block-copy')
-      if (!btn || !container.contains(btn)) return
-      const codeEl = btn.closest('.code-block-wrapper')?.querySelector('.code-block')
-      if (!codeEl || !navigator.clipboard) return
-      navigator.clipboard.writeText(codeEl.textContent).then(() => {
-        btn.innerHTML = CODE_COPY_CHECK_ICON
-        setTimeout(() => { btn.innerHTML = CODE_COPY_ICON }, 1500)
-      }).catch(() => {})
-    }
-
-    container.addEventListener('click', onClick)
-    return () => container.removeEventListener('click', onClick)
-  }, [post?.content_html])
-
   if (notFound || !isNavEnabled(siteConfig, 'blog')) return <NotFoundPage />
 
   const commentsVisible = !!(siteConfig?.users_enabled && siteConfig?.blog_comments_enabled)
@@ -741,7 +714,7 @@ export default function BlogPostPage() {
       <h1 className="text-[34px] lg:text-[42px] font-bold text-gray-900 mb-3 leading-[42.5px] lg:leading-[52.5px]">{post.title}</h1>
 
       {/* Author + date */}
-      <div className="flex items-center gap-2 mb-8">
+      <div className="flex items-center justify-between gap-2 mb-8">
         {blogAuthor ? (() => {
           const authorHref = siteConfig?.about_enabled ? `/${siteConfig.about_slug || 'about'}` : '/'
           const avatar = blogAuthor.avatar_filename ? (
@@ -771,6 +744,11 @@ export default function BlogPostPage() {
             })}
           </span>
         )}
+        <ShareButton
+          url={typeof window !== 'undefined' ? window.location.origin + `/${slug}` : ''}
+          title={post.title}
+          siteTitle={siteConfig?.site_title}
+        />
       </div>
 
       <article
@@ -783,6 +761,7 @@ export default function BlogPostPage() {
       {post.scrollable_nav_enabled && (
         <ScrollableHeaderNav containerRef={articleRef} contentKey={post.content_html} />
       )}
+      <CodeBlockCopyToast containerRef={articleRef} contentKey={post.content_html} />
 
       {lightboxIndex !== null && (
         <GalleryLightbox

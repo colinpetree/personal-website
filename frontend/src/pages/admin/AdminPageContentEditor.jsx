@@ -4,7 +4,7 @@ import { ArrowLeft, PanelRight, RectangleHorizontal, RectangleVertical } from 'l
 import RichTextEditor from '../../components/admin/editor'
 import { Field, Textarea, Toggle } from '../../components/admin/AdminPage'
 import { Tooltip } from '../../components/ui/Tooltip'
-import { useToast } from '../../components/admin/Toast'
+import { useToast } from '../../context/ToastContext'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { extractExcerpt } from '../../utils/extractExcerpt'
 

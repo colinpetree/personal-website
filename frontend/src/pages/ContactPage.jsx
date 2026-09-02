@@ -3,6 +3,7 @@ import { useSiteConfig } from '../hooks/useSiteConfig'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
+import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import NotFoundPage from './NotFoundPage'
 
 const INITIAL = { name: '', email: '', subject: '', message: '' }
@@ -79,6 +80,7 @@ export default function ContactPage() {
           {config.contact_scrollable_nav_enabled && (
             <ScrollableHeaderNav containerRef={contentRef} contentKey={config.contact_text} />
           )}
+          <CodeBlockCopyToast containerRef={contentRef} contentKey={config.contact_text} />
         </>
       )}
 

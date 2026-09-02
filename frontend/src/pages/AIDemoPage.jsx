@@ -5,6 +5,7 @@ import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import { AI_DEMO_LIST } from '../lib/aiDemos'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
+import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import NotFoundPage from './NotFoundPage'
 
 const DEMO_DESCRIPTIONS = {
@@ -65,6 +66,7 @@ export default function AIDemoPage() {
           {config.ai_demo_scrollable_nav_enabled && (
             <ScrollableHeaderNav containerRef={contentRef} contentKey={config.ai_demo_text} />
           )}
+          <CodeBlockCopyToast containerRef={contentRef} contentKey={config.ai_demo_text} />
         </>
       )}
 

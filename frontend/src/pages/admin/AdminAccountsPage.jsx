@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
-import { useToast } from '../../components/admin/Toast'
+import { useToast } from '../../context/ToastContext'
 import { PageShell } from '../../components/admin/AdminPage'
 import StaffProfileModal, { AvatarCircle, ROLE_BADGE, ROLE_LABELS, ROLE_DESCRIPTIONS } from '../../components/admin/StaffProfileModal'
 import RoleGuard, { adminOnlyFallback } from '../../components/admin/RoleGuard'

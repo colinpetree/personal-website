@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router'
 import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
-import { ToastProvider } from './Toast'
+import { ToastProvider } from '../../context/ToastContext'
 import StaffProfileModal, { AvatarCircle, ROLE_BADGE, ROLE_LABELS } from './StaffProfileModal'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
-import { useToast } from './Toast'
+import { useToast } from '../../context/ToastContext'
 import { Toggle } from './AdminPage'
 
 // Deployment-time flag — matches the one AdminLayout.jsx uses to hide the AI

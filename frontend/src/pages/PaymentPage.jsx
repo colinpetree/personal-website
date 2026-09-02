@@ -7,6 +7,7 @@ import { useUserAuth } from '../context/UserAuthContext'
 import PaymentComments from '../components/PaymentComments'
 import SignInRequiredModal from '../components/SignInRequiredModal'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
+import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import NotFoundPage from './NotFoundPage'
@@ -459,6 +460,7 @@ export default function PaymentPage() {
             {config.payment_scrollable_nav_enabled && (
               <ScrollableHeaderNav containerRef={contentRef} contentKey={config.payment_text} />
             )}
+            <CodeBlockCopyToast containerRef={contentRef} contentKey={config.payment_text} />
           </>
         )}
 
