@@ -3,6 +3,7 @@ import { useSiteConfig } from '../hooks/useSiteConfig'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage } from '../utils/meta'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
+import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 
 // Purely for meta() below — the page body still reads config from context
 // via useSiteConfig(), fed by root's own loader. This separate fetch exists
@@ -50,6 +51,7 @@ export default function HomePage() {
       {config.home_scrollable_nav_enabled && (
         <ScrollableHeaderNav containerRef={contentRef} contentKey={config.home_text} />
       )}
+      <CodeBlockCopyToast containerRef={contentRef} contentKey={config.home_text} />
     </main>
   )
 }

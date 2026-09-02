@@ -5,6 +5,7 @@ import { useSiteConfig } from '../hooks/useSiteConfig'
 import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
 import CategoryFilterBar from '../components/CategoryFilterBar'
+import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import NotFoundPage from './NotFoundPage'
 
 function BlogListSkeleton() {
@@ -91,6 +92,7 @@ export default function BlogPage() {
   const [page, setPage] = useState(1)
   const [activeCategory, setActiveCategory] = useState(null)
   const isFirstRender = useRef(true)
+  const contentRef = useRef(null)
 
   // Same fix as BlogPostPage.jsx: `data` is only seeded from useLoaderData()
   // on first mount via useState(initialData) — if this route's loader ever
@@ -145,10 +147,12 @@ export default function BlogPage() {
     <main className="max-w-3xl mx-auto px-6 pt-10 pb-16">
       {config?.blog_text && (
         <div
+          ref={contentRef}
           className="prose prose-gray max-w-none blog-content page-header-content font-serif mb-10"
           dangerouslySetInnerHTML={{ __html: config.blog_text }}
         />
       )}
+      <CodeBlockCopyToast containerRef={contentRef} contentKey={config?.blog_text} />
 
       {data?.categories?.length > 0 && (
         <CategoryFilterBar

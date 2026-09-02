@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { ArrowLeft, GripVertical, Pencil, Trash2, X, Check } from 'lucide-react'
 import { PageShell } from '../../components/admin/AdminPage'
 import RoleGuard from '../../components/admin/RoleGuard'
-import { useToast } from '../../components/admin/Toast'
+import { useToast } from '../../context/ToastContext'
 
 // Moves the item at `from` so it lands just before what is currently index
 // `to` (0..length, where `length` means "at the very end").

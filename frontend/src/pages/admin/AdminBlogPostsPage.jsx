@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router'
 import { ArrowLeft, ExternalLink, Pencil, X } from 'lucide-react'
 import { PageShell } from '../../components/admin/AdminPage'
-import { useToast } from '../../components/admin/Toast'
+import { useToast } from '../../context/ToastContext'
 import { useAdminAuth } from '../../context/AdminAuthContext'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']

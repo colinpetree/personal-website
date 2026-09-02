@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { X, MoreHorizontal, Eye, EyeOff, Upload } from 'lucide-react'
 import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
-import { useToast } from './Toast'
+import { useToast } from '../../context/ToastContext'
 import AvatarCropperModal from '../AvatarCropperModal'
 
 export const ROLE_LABELS = {

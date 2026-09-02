@@ -3,7 +3,7 @@ import { Link } from 'react-router'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, EditableCard, Field, Input, InputWithPrefix, Toggle } from '../../components/admin/AdminPage'
 import RoleGuard from '../../components/admin/RoleGuard'
-import { useToast } from '../../components/admin/Toast'
+import { useToast } from '../../context/ToastContext'
 import { AI_DEMO_LIST } from '../../lib/aiDemos'
 
 function DisplayValue({ value, fallback = '—' }) {

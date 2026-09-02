@@ -5,6 +5,7 @@ import { useSiteConfig } from '../hooks/useSiteConfig'
 import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
+import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import NotFoundPage from './NotFoundPage'
 
 // fetchSiteConfig() runs alongside the project fetch purely to populate
@@ -95,6 +96,7 @@ export default function ProjectsPage() {
           {config.projects_scrollable_nav_enabled && (
             <ScrollableHeaderNav containerRef={contentRef} contentKey={config.projects_text} />
           )}
+          <CodeBlockCopyToast containerRef={contentRef} contentKey={config.projects_text} />
         </>
       )}
 

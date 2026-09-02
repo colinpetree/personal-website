@@ -25,6 +25,7 @@ import emojiData from '@emoji-mart/data'
 import { handleUpload, handleUploadFull } from './upload'
 import { FloatingToolbarPlugin } from './plugins'
 import { Tooltip } from '../../ui/Tooltip'
+import { useToast } from '../../../context/ToastContext'
 import { SOCIAL_PLATFORMS, GENERIC_ICONS, resolveLinkIcon, getPlatformMonoSvg } from './socialIcons'
 
 // ─── ImageNodeComponent ───────────────────────────────────────────────────────
@@ -3388,6 +3389,7 @@ export function $createToggleNode() {
 function CodeBlockComponent({ code, showLineNumbers, nodeKey, editor }) {
   const [localCode, setLocalCode] = useState(code)
   const [copied, setCopied] = useState(false)
+  const { addToast } = useToast()
   const [textareaFocused, setTextareaFocused] = useState(false)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [isHovered, setIsHovered] = useState(false)
@@ -3422,9 +3424,11 @@ function CodeBlockComponent({ code, showLineNumbers, nodeKey, editor }) {
   }
 
   function handleCopy() {
-    navigator.clipboard.writeText(localCode)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    navigator.clipboard.writeText(localCode).then(() => {
+      setCopied(true)
+      addToast({ message: 'Code copied' })
+      setTimeout(() => setCopied(false), 1500)
+    }).catch(() => {})
   }
 
   function commitShowLineNumbers(val) {
