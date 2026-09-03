@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Link, useLoaderData } from 'react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import { useTrackPageView } from '../hooks/useTrackPageView'
 import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
 import CategoryFilterBar from '../components/CategoryFilterBar'
@@ -93,6 +94,8 @@ export default function BlogPage() {
   const [activeCategory, setActiveCategory] = useState(null)
   const isFirstRender = useRef(true)
   const contentRef = useRef(null)
+  const enabled = isNavEnabled(config, 'blog')
+  useTrackPageView('page', enabled ? 'blog' : null)
 
   // Same fix as BlogPostPage.jsx: `data` is only seeded from useLoaderData()
   // on first mount via useState(initialData) — if this route's loader ever
@@ -141,7 +144,7 @@ export default function BlogPage() {
     return new Date(iso).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
   }
 
-  if (!isNavEnabled(config, 'blog')) return <NotFoundPage />
+  if (!enabled) return <NotFoundPage />
 
   return (
     <main className="max-w-3xl mx-auto px-6 pt-10 pb-16">

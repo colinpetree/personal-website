@@ -14,6 +14,7 @@ RANGE_DAYS = {'7d': 7, '30d': 30, '3mo': 90, '6mo': 182, '1yr': 365}
 # key -> (enabled column, display-name column) on SiteConfig
 PAGE_CONFIG_FIELDS = {
     'home': ('home_enabled', 'home_page_name'),
+    'blog': ('blog_enabled', 'blog_page_name'),
     'about': ('about_enabled', 'about_page_name'),
     'projects': ('projects_enabled', 'projects_page_name'),
     'contact': ('contact_enabled', 'contact_page_name'),
