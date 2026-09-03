@@ -1,3 +1,19 @@
+/* Self-hosted webfonts (latin subset only) — see tailwind.config.js fontFamily
+   for how these back the font-sans/font-serif/font-mono utility classes. */
+@import '@fontsource/source-sans-3/latin-400.css';
+@import '@fontsource/source-sans-3/latin-500.css';
+@import '@fontsource/source-sans-3/latin-600.css';
+@import '@fontsource/source-sans-3/latin-700.css';
+@import '@fontsource/source-sans-3/latin-400-italic.css';
+@import '@fontsource/source-serif-4/latin-400.css';
+@import '@fontsource/source-serif-4/latin-500.css';
+@import '@fontsource/source-serif-4/latin-600.css';
+@import '@fontsource/source-serif-4/latin-700.css';
+@import '@fontsource/source-serif-4/latin-400-italic.css';
+@import '@fontsource/source-serif-4/latin-700-italic.css';
+@import '@fontsource/source-code-pro/latin-400.css';
+@import '@fontsource/source-code-pro/latin-700.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -22,7 +38,7 @@ html {
 
 /* Base styles for all code blocks (old standalone format + new wrapper format) */
 .blog-content pre.code-block {
-  font-family: ui-monospace, monospace;
+  font-family: 'Source Code Pro', ui-monospace, monospace;
   font-size: 0.875rem;
   line-height: 1.625;
   color: #1f2937;
@@ -50,7 +66,7 @@ html {
 .blog-content .code-block-gutter {
   user-select: none;
   text-align: right;
-  font-family: ui-monospace, monospace;
+  font-family: 'Source Code Pro', ui-monospace, monospace;
   font-size: 0.875rem;
   line-height: 1.625;
   color: #d1d5db;
@@ -116,7 +132,7 @@ html {
   padding: 4px 8px;
   border-radius: 4px;
   white-space: nowrap;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
   box-shadow: 0 1px 3px rgba(0,0,0,0.3);
 }
 .blog-content .code-block-copy::before {
@@ -275,7 +291,7 @@ html {
   text-align: center;
   margin-top: 0;
   padding: 0.5rem 1rem;
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
 }
 
 .blog-content hr {
@@ -415,9 +431,9 @@ html {
 }
 
 /* Responsive font sizes/weights/line-heights/margins for post body headings & paragraphs */
-.blog-content h1 { font-size: 32px; font-weight: 700; line-height: 38.5px; margin-top: 50px; margin-bottom: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
-.blog-content h2 { font-size: 30px; font-weight: 700; line-height: 34.5px; margin-top: 45px; margin-bottom: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
-.blog-content h3 { font-size: 24px; font-weight: 700; line-height: 29.25px; margin-top: 22px; margin-bottom: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
+.blog-content h1 { font-size: 32px; font-weight: 700; line-height: 38.5px; margin-top: 50px; margin-bottom: 0; font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif; }
+.blog-content h2 { font-size: 30px; font-weight: 700; line-height: 34.5px; margin-top: 45px; margin-bottom: 0; font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif; }
+.blog-content h3 { font-size: 24px; font-weight: 700; line-height: 29.25px; margin-top: 22px; margin-bottom: 0; font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif; }
 .blog-content p { font-size: 18px; font-weight: 400; line-height: 28.45px; margin-top: 21px; margin-bottom: 0; color: #111827; }
 
 .blog-content ul li,
@@ -484,16 +500,17 @@ html {
 /* Editor parity: match the public .blog-content font-size/weight/line-height/family for
    h1/h2/h3/p, ul li/ol li, and table paragraphs, so the editor preview matches the published
    page. Scoped to [contenteditable="true"] for specificity over the theme's Tailwind classes. */
-[contenteditable="true"] h1.editor-heading { font-size: 32px; font-weight: 700; line-height: 38.5px; font-family: ui-sans-serif, system-ui, sans-serif; }
-[contenteditable="true"] h2.editor-heading { font-size: 30px; font-weight: 700; line-height: 34.5px; font-family: ui-sans-serif, system-ui, sans-serif; }
-[contenteditable="true"] h3.editor-heading { font-size: 24px; font-weight: 700; line-height: 29.25px; font-family: ui-sans-serif, system-ui, sans-serif; }
+[contenteditable="true"] h1.editor-heading { font-size: 32px; font-weight: 700; line-height: 38.5px; font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif; }
+[contenteditable="true"] h2.editor-heading { font-size: 30px; font-weight: 700; line-height: 34.5px; font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif; }
+[contenteditable="true"] h3.editor-heading { font-size: 24px; font-weight: 700; line-height: 29.25px; font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif; }
 [contenteditable="true"] p.editor-paragraph { font-size: 18px; font-weight: 400; line-height: 28.45px; color: #111827; }
+[contenteditable="true"] blockquote.editor-quote { font-size: 18px; line-height: 28.45px; }
 
 [contenteditable="true"] ul li,
 [contenteditable="true"] ol li { font-size: 14px; line-height: 24px; }
 
 /* Table cells stay sans-serif and use the smaller table font size, same as .blog-content */
-[contenteditable="true"] table.blog-table { font-family: ui-sans-serif, system-ui, sans-serif; }
+[contenteditable="true"] table.blog-table { font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif; }
 [contenteditable="true"] table.blog-table p.editor-paragraph { font-size: 14px; line-height: 22.5px; }
 
 @media (min-width: 1024px) {
@@ -501,6 +518,7 @@ html {
   [contenteditable="true"] h2.editor-heading { font-size: 34px; line-height: 39px; }
   [contenteditable="true"] h3.editor-heading { font-size: 26px; line-height: 31.75px; }
   [contenteditable="true"] p.editor-paragraph { font-size: 20px; line-height: 33.2px; }
+  [contenteditable="true"] blockquote.editor-quote { font-size: 20px; line-height: 33.2px; }
 
   [contenteditable="true"] ul li,
   [contenteditable="true"] ol li { font-size: 16px; line-height: 28px; }
@@ -711,10 +729,16 @@ html {
   padding-right: 0;
   color: #4b5563;
   font-weight: normal;
+  font-size: 18px;
+  line-height: 28.45px;
   border-left-width: 0.25rem;
   border-left-color: #d1d5db;
   margin-top: 0.75rem;
   margin-bottom: 0.75rem;
+}
+
+@media (min-width: 1024px) {
+  .blog-content blockquote { font-size: 20px; line-height: 33.2px; }
 }
 
 .blog-content blockquote p::before,
@@ -742,7 +766,7 @@ html {
   background-color: #f3f4f6;
   border-radius: 0.25rem;
   padding: 0 0.25rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: 'Source Code Pro', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 0.875em;
 }
 .blog-content .callout-body a {
@@ -779,7 +803,7 @@ html {
 .blog-content .toggle-body,
 .blog-content .callout,
 .blog-content .callout-body {
-  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
 }
 
 /* Header block — reset prose margins on nested paragraphs. Also reset
