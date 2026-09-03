@@ -2787,7 +2787,7 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, nodeKey
             <button
               onClick={() => setEditingIndex(i)}
               style={{ borderRadius: itemRadius, borderColor: linkGroupBorderColor(textColor), color: link.text ? textColor : undefined, '--lg-bg': buttonColor, '--lg-hover-bg': linkGroupHoverColor(buttonColor, textColor), minHeight: '3.325rem', padding: '0.6rem 1.25rem' }}
-              className={`link-group-editor-item relative overflow-hidden w-full flex items-center border text-sm font-medium ${decoratorFontClass(fontFamily)}`}
+              className={`link-group-editor-item relative overflow-hidden w-full flex items-center border text-base font-medium ${decoratorFontClass(fontFamily)}`}
             >
               <span className="absolute z-10 left-[0.65rem] top-1/2 -translate-y-1/2 flex items-center">
                 <LinkGroupIconPreview link={link} />
