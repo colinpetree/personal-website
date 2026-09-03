@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta
 from flask import Blueprint, jsonify, request
 from extensions import db
-from models import SiteConfig, ContactAttempt
+from models import SiteConfig, ContactAttempt, ContactSubmission
 from crypto import decrypt
 from email_utils import send_email, mail_configured
+from routes.admin_auth import role_at_least
 
 contact_bp = Blueprint('contact', __name__)
 
@@ -46,6 +47,11 @@ def submit_contact():
     if '@' not in email:
         return jsonify({'error': 'Invalid email address.'}), 400
 
+    # Persisted before the send attempt so the submission is still on record
+    # even if the email itself fails to go out.
+    db.session.add(ContactSubmission(name=name, email=email, subject=subject, message=message))
+    db.session.commit()
+
     body = f"From: {name} <{email}>\n\nSubject: {subject}\n\n{message}"
     full_subject = f"[Contact] {subject}"
 
@@ -55,3 +61,35 @@ def submit_contact():
         return jsonify({'error': 'Failed to send message. Please try again later.'}), 500
 
     return jsonify({'message': 'Message sent successfully.'})
+
+
+@contact_bp.route('/api/admin/contact/submissions', methods=['GET'])
+@role_at_least('administrator')
+def contact_submissions():
+    try:
+        limit = min(max(int(request.args.get('limit', 20)), 1), 100)
+    except (TypeError, ValueError):
+        limit = 20
+    try:
+        offset = max(int(request.args.get('offset', 0)), 0)
+    except (TypeError, ValueError):
+        offset = 0
+
+    query = ContactSubmission.query.order_by(ContactSubmission.created_at.desc())
+    total = query.count()
+    rows = query.offset(offset).limit(limit).all()
+
+    return jsonify({
+        'submissions': [
+            {
+                'id': s.id,
+                'name': s.name,
+                'email': s.email,
+                'subject': s.subject,
+                'message': s.message,
+                'created_at': s.created_at.isoformat() + 'Z',
+            }
+            for s in rows
+        ],
+        'has_more': offset + len(rows) < total,
+    })

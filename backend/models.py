@@ -257,6 +257,34 @@ class Project(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class ProjectClick(db.Model):
+    __tablename__ = 'project_click'
+
+    # Just a raw click counter, on purpose — the link goes to an external
+    # site, so there's no way to know the click actually landed there, and
+    # unique-visitor dedup isn't meaningful for that (ProjectsPage's own
+    # page-view tracking already covers unique visitors to the /projects
+    # page itself).
+    id = db.Column(db.Integer, primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.Index('ix_project_click_project_created', 'project_id', 'created_at'),
+    )
+
+
+class ContactSubmission(db.Model):
+    __tablename__ = 'contact_submission'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    email = db.Column(db.String(255), nullable=False)
+    subject = db.Column(db.String(300), nullable=True)
+    message = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+
 class Payment(db.Model):
     __tablename__ = 'payment'
 

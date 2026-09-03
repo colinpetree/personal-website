@@ -13,6 +13,15 @@ import NotFoundPage from './NotFoundPage'
 // getCachedSiteConfig()'s cache in time for meta() below (see its usage
 // there for why) — its resolved value isn't otherwise part of this route's
 // own data (the component reads config from context, not this).
+function trackProjectClick(projectId) {
+  fetch('/api/analytics/track-project-click', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ project_id: projectId }),
+  }).catch(() => {})
+}
+
 async function fetchProjects() {
   const [projectsRes] = await Promise.all([
     fetch(apiUrl('/api/projects')),
@@ -126,6 +135,7 @@ export default function ProjectsPage() {
                     href={project.url}
                     target="_blank"
                     rel="noopener noreferrer"
+                    onClick={() => trackProjectClick(project.id)}
                     className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:underline"
                   >
                     View project<ExternalLink size={13} strokeWidth={1.5} />

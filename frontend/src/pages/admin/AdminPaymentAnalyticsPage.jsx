@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import RoleGuard, { adminOnlyFallback } from '../../components/admin/RoleGuard'
 import { PageShell, Card } from '../../components/admin/AdminPage'
 import AnalyticsChart from '../../components/admin/AnalyticsChart'
 import AnalyticsRangeSelector, { RANGE_LABELS } from '../../components/admin/AnalyticsRangeSelector'
-import { formatShortDate } from '../../utils/formatDate'
+import { formatShortDate, formatAdminDateTimeInTimezone } from '../../utils/formatDate'
+import { useAdminConfig } from '../../hooks/useAdminConfig'
 
 const PAGE_SIZE = 20
 
@@ -35,6 +36,7 @@ export default function AdminPaymentAnalyticsPage() {
 }
 
 function AdminPaymentAnalyticsPageContent() {
+  const { config } = useAdminConfig()
   const [range, setRange] = useState('7d')
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -45,6 +47,12 @@ function AdminPaymentAnalyticsPageContent() {
   const [txHasMore, setTxHasMore] = useState(false)
   const [txLoadingMore, setTxLoadingMore] = useState(false)
   const [txError, setTxError] = useState('')
+  const mountedRef = useRef(true)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -79,11 +87,12 @@ function AdminPaymentAnalyticsPageContent() {
     fetch(`/api/admin/payment/transactions?limit=${PAGE_SIZE}&offset=${transactions.length}`, { credentials: 'include' })
       .then(res => res.ok ? res.json() : Promise.reject())
       .then(result => {
+        if (!mountedRef.current) return
         setTransactions(prev => [...prev, ...result.transactions])
         setTxHasMore(result.has_more)
       })
-      .catch(() => setTxError('Could not load more transactions.'))
-      .finally(() => setTxLoadingMore(false))
+      .catch(() => { if (mountedRef.current) setTxError('Could not load more transactions.') })
+      .finally(() => { if (mountedRef.current) setTxLoadingMore(false) })
   }
 
   if (loading && !data) return <div className="p-8 text-gray-400">Loading…</div>
@@ -150,7 +159,7 @@ function AdminPaymentAnalyticsPageContent() {
                     <div className="min-w-0">
                       <p className="text-sm text-gray-900">{tx.donor_name}</p>
                       <p className="text-xs text-gray-400">
-                        {new Date(tx.created_at).toLocaleDateString()} · {tx.mode === 'subscription' ? 'Monthly' : 'One-time'}
+                        {formatAdminDateTimeInTimezone(tx.created_at, config?.timezone)} · {tx.mode === 'subscription' ? 'Monthly' : 'One-time'}
                       </p>
                       {tx.message && (
                         <p className="text-xs text-gray-500 mt-1 italic truncate">

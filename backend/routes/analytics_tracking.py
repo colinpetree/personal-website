@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from sqlalchemy.exc import IntegrityError
 from extensions import db
-from models import BlogPost, PageView, ShareEvent, SiteConfig
+from models import BlogPost, PageView, Project, ProjectClick, ShareEvent, SiteConfig
 from analytics_utils import check_rate_limit, compute_visitor_key, is_admin_session, is_bot_request
 
 analytics_tracking_bp = Blueprint('analytics_tracking', __name__)
@@ -75,4 +75,27 @@ def track_share():
         # treat as a normal success, the client shouldn't see or care that
         # it was a no-op dedup rather than a fresh insert.
         db.session.rollback()
+    return jsonify({'ok': True})
+
+
+@analytics_tracking_bp.route('/api/analytics/track-project-click', methods=['POST'])
+def track_project_click():
+    if is_admin_session() or is_bot_request():
+        return jsonify({'ok': True})
+
+    config = SiteConfig.query.first()
+    visitor_key = compute_visitor_key(config)
+    if check_rate_limit(visitor_key):
+        return jsonify({'error': 'Too many requests'}), 429
+
+    data = request.get_json(silent=True) or {}
+    project_id = data.get('project_id')
+
+    if not isinstance(project_id, int) or isinstance(project_id, bool):
+        return jsonify({'error': 'Unknown project_id'}), 400
+    if not Project.query.filter_by(id=project_id, visible=True).first():
+        return jsonify({'error': 'Unknown project_id'}), 400
+
+    db.session.add(ProjectClick(project_id=project_id))
+    db.session.commit()
     return jsonify({'ok': True})
