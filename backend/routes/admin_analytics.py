@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import datetime, time, timedelta
 from flask import Blueprint, current_app, jsonify, request
 from extensions import db
-from models import BlogPost, Comment, PageView, ShareEvent, SiteConfig
+from models import BlogPost, Comment, PageView, Payment, ShareEvent, SiteConfig
 from routes.admin_auth import role_at_least
 from routes.analytics_tracking import KNOWN_PAGE_KEYS
 from analytics_utils import local_date, local_today
@@ -322,3 +322,80 @@ def detail():
         result['shares'] = sum(result['shares_by_platform'].values())
 
     return jsonify(result)
+
+
+@admin_analytics_bp.route('/api/admin/analytics/payments')
+@role_at_least('administrator')
+def payments():
+    config = SiteConfig.query.first()
+    range_param = request.args.get('range', '7d')
+    if range_param not in RANGE_DAYS and range_param != 'all':
+        return jsonify({'error': 'Invalid range'}), 400
+    start, end = _date_range(range_param, config)
+    range_start_utc, range_end_utc = _range_bounds_utc(start, end)
+
+    rows = (
+        Payment.query
+        .filter(Payment.created_at >= range_start_utc, Payment.created_at <= range_end_utc)
+        .with_entities(Payment.created_at, Payment.amount)
+        .all()
+    )
+    daily_amount = defaultdict(float)
+    daily_count = defaultdict(int)
+    for created_at, amount in rows:
+        d = local_date(created_at, config)
+        if d < start or d > end:
+            continue
+        daily_amount[d] += amount
+        daily_count[d] += 1
+
+    series = []
+    total_amount = 0.0
+    total_count = 0
+    d = start
+    while d <= end:
+        amount = daily_amount.get(d, 0)
+        count = daily_count.get(d, 0)
+        series.append({'date': d.isoformat(), 'amount': round(amount, 2), 'count': count})
+        total_amount += amount
+        total_count += count
+        d += timedelta(days=1)
+
+    # All-time/this-month totals are independent of the selected chart
+    # range — they summarize the whole payments log, not just the window
+    # being charted. "This month" is bucketed against the site's configured
+    # local timezone (like the daily series above), not naive UTC — otherwise
+    # a payment made late in the local day near a month boundary can land in
+    # the wrong month here since Payment.created_at is stored in UTC.
+    all_time_total = db.session.query(db.func.coalesce(db.func.sum(Payment.amount), 0)).scalar()
+
+    today = local_today(config)
+    month_start = today.replace(day=1)
+    next_month_start = (
+        month_start.replace(year=month_start.year + 1, month=1)
+        if month_start.month == 12
+        else month_start.replace(month=month_start.month + 1)
+    )
+    month_end = next_month_start - timedelta(days=1)
+    month_start_utc, month_end_utc = _range_bounds_utc(month_start, month_end)
+    month_rows = (
+        Payment.query
+        .filter(Payment.created_at >= month_start_utc, Payment.created_at <= month_end_utc)
+        .with_entities(Payment.created_at, Payment.amount)
+        .all()
+    )
+    this_month_total = sum(
+        amount for created_at, amount in month_rows
+        if month_start <= local_date(created_at, config) <= month_end
+    )
+
+    return jsonify({
+        'range': range_param,
+        'start': start.isoformat(),
+        'end': end.isoformat(),
+        'series': series,
+        'total_amount': round(total_amount, 2),
+        'total_count': total_count,
+        'all_time_total': round(all_time_total, 2),
+        'this_month_total': round(this_month_total, 2),
+    })

@@ -6,8 +6,10 @@ import AvatarCropperModal from '../../components/AvatarCropperModal'
 import HistoryModal from '../../components/admin/HistoryModal'
 import ReorderNavModal from '../../components/admin/ReorderNavModal'
 import Select from '../../components/ui/Select'
+import DatePicker from '../../components/ui/DatePicker'
 import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
 import RoleGuard, { adminOnlyFallback } from '../../components/admin/RoleGuard'
+import { formatAdminDateLong } from '../../utils/formatDate'
 
 const TIMEZONES = [
   { name: 'Pacific/Pago_Pago', label: '(GMT -11:00) Midway Island, Samoa' },
@@ -333,17 +335,17 @@ function AdminSettingsPageContent() {
 
         {/* Analytics start date card */}
         <EditableCard
-          title="Analytics Start Date"
-          description="Every Analytics date range is clamped to not go earlier than this date — set it to your site's real launch date if analytics was added after launch."
+          title="Metrics Start Date"
+          description="Every Analytics date range is clamped to not go earlier than this date."
           savedValues={{ analytics_start_date: config?.analytics_start_date || '' }}
           onSave={values => save({ analytics_start_date: values.analytics_start_date })}
         >
           {({ editing, local, set }) => editing ? (
-            <Field label="Analytics Start Date">
-              <Input type="date" value={local.analytics_start_date} onChange={e => set('analytics_start_date', e.target.value)} />
+            <Field label="Metrics Start Date">
+              <DatePicker value={local.analytics_start_date} onChange={v => set('analytics_start_date', v)} />
             </Field>
           ) : (
-            <DisplayValue value={local.analytics_start_date} fallback="Not set" />
+            <DisplayValue value={formatAdminDateLong(local.analytics_start_date)} fallback="Not set" />
           )}
         </EditableCard>
 

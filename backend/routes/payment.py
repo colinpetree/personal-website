@@ -363,26 +363,27 @@ def payment_comments():
     })
 
 
-@payment_bp.route('/api/admin/payment/summary', methods=['GET'])
+@payment_bp.route('/api/admin/payment/transactions', methods=['GET'])
 @role_at_least('administrator')
-def payment_summary():
-    payments = Payment.query.order_by(Payment.created_at.desc()).all()
+def payment_transactions():
+    try:
+        limit = min(max(int(request.args.get('limit', 20)), 1), 100)
+    except (TypeError, ValueError):
+        limit = 20
+    try:
+        offset = max(int(request.args.get('offset', 0)), 0)
+    except (TypeError, ValueError):
+        offset = 0
 
-    total = sum(p.amount for p in payments)
-    now = datetime.utcnow()
-    this_month = sum(
-        p.amount for p in payments
-        if p.created_at.year == now.year and p.created_at.month == now.month
-    )
+    query = Payment.query.order_by(Payment.created_at.desc())
+    total = query.count()
+    rows = query.offset(offset).limit(limit).all()
 
-    recent = payments[:20]
-    user_ids = {p.user_id for p in recent if p.user_id}
+    user_ids = {p.user_id for p in rows if p.user_id}
     users = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()} if user_ids else {}
 
     return jsonify({
-        'total': total,
-        'this_month': this_month,
-        'recent': [
+        'transactions': [
             {
                 'id': p.id,
                 'donor_name': users[p.user_id].name if p.user_id in users else (p.display_name or p.email or 'Unknown'),
@@ -393,6 +394,7 @@ def payment_summary():
                 'comment_visible': p.comment_visible,
                 'created_at': p.created_at.isoformat(),
             }
-            for p in recent
+            for p in rows
         ],
+        'has_more': offset + len(rows) < total,
     })
