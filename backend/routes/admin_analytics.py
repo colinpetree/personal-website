@@ -123,8 +123,16 @@ def _series_and_totals(daily_views, daily_visitors, start, end):
 def _range_bounds_utc(start, end):
     """Loose UTC bounds for a simple COUNT(*) (comments/shares totals) —
     these aren't charted day-by-day, so exact per-row timezone bucketing
-    isn't needed, just the same generous padding used for page views."""
-    return datetime.combine(start, time.min), datetime.combine(end, time.max)
+    isn't needed, just the same generous one-day padding used for page views
+    (without it, a naive local-date-as-UTC-date window silently drops any
+    row whose local evening timestamp has already rolled into the next UTC
+    calendar day — confirmed by reproducing exactly that with a real share
+    logged at 6:40pm America/Los_Angeles, which landed at 01:40 UTC the next
+    day and fell outside the unpadded window entirely)."""
+    return (
+        datetime.combine(start - timedelta(days=1), time.min),
+        datetime.combine(end + timedelta(days=1), time.max),
+    )
 
 
 @admin_analytics_bp.route('/api/admin/analytics/overview')
@@ -135,7 +143,6 @@ def overview():
     if range_param not in RANGE_DAYS and range_param != 'all':
         return jsonify({'error': 'Invalid range'}), 400
     start, end = _date_range(range_param, config)
-    range_start_utc, range_end_utc = _range_bounds_utc(start, end)
 
     # Two PageView queries total (one per page_type), not one per page/post —
     # see _bucket_all_page_views' docstring.
@@ -172,6 +179,37 @@ def overview():
             'unique_visitors': total_unique,
         })
     pages.sort(key=lambda p: p['unique_visitors'], reverse=True)
+
+    # Blog posts collapse into one aggregate row on the site overview — the
+    # per-post breakdown lives on the dedicated /api/admin/analytics/blog
+    # endpoint instead. Reuses the same post_views_by_key/post_visitors_by_key
+    # already fetched above for the site-wide series, at no extra query cost.
+    blog_daily_views, blog_daily_visitors = _merge_daily((post_views_by_key, post_visitors_by_key))
+    _, blog_total_views, blog_total_unique = _series_and_totals(blog_daily_views, blog_daily_visitors, start, end)
+
+    return jsonify({
+        'range': range_param,
+        'start': start.isoformat(),
+        'end': end.isoformat(),
+        'series': series,
+        'pages': pages,
+        'blog_summary': {'views': blog_total_views, 'unique_visitors': blog_total_unique},
+    })
+
+
+@admin_analytics_bp.route('/api/admin/analytics/blog')
+@role_at_least('editor')
+def blog():
+    config = SiteConfig.query.first()
+    range_param = request.args.get('range', '7d')
+    if range_param not in RANGE_DAYS and range_param != 'all':
+        return jsonify({'error': 'Invalid range'}), 400
+    start, end = _date_range(range_param, config)
+    range_start_utc, range_end_utc = _range_bounds_utc(start, end)
+
+    post_views_by_key, post_visitors_by_key = _bucket_all_page_views('blog_post', start, end, config)
+    blog_daily_views, blog_daily_visitors = _merge_daily((post_views_by_key, post_visitors_by_key))
+    series, _, _ = _series_and_totals(blog_daily_views, blog_daily_visitors, start, end)
 
     published_posts = BlogPost.query.filter_by(status='published').all()
 
@@ -215,7 +253,6 @@ def overview():
         'start': start.isoformat(),
         'end': end.isoformat(),
         'series': series,
-        'pages': pages,
         'posts': posts,
     })
 

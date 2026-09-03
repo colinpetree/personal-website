@@ -41,7 +41,7 @@ function AdminAnalyticsDetailContent() {
 
   // Clears stale data the moment we're viewing a genuinely different entity
   // (not just a new range for the same one) — otherwise, since the route is
-  // shared (`analytics/:type/:key`), React Router can reuse this component
+  // shared (`metrics/:type/:key`), React Router can reuse this component
   // instance across two different entities without remounting it (e.g.
   // browser back/forward between two previously-viewed detail pages), and
   // the previous entity's title/chart/stats would stay on screen under the
@@ -67,12 +67,14 @@ function AdminAnalyticsDetailContent() {
   const metric = isPost ? 'views' : 'unique_visitors'
   const metricLabel = isPost ? 'Views' : 'Unique visitors'
   const rangeText = `${RANGE_LABELS[range]} · ${formatShortDate(data.start)} - ${formatShortDate(data.end)}`
+  const backTo = isPost ? '/admin/metrics/blog' : '/admin'
+  const backLabel = isPost ? 'Back to Blog Metrics' : 'Back to Site Metrics'
 
   return (
     <PageShell title={data.label} wide>
       <div className="flex flex-col gap-8">
-        <Link to="/admin" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 -mt-4 w-fit">
-          <ArrowLeft size={14} /> Back to Analytics
+        <Link to={backTo} className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 -mt-4 w-fit">
+          <ArrowLeft size={14} /> {backLabel}
         </Link>
 
         <div>
