@@ -24,7 +24,17 @@ function SocialIcon({ platformKey }) {
   )
 }
 
-export default function ShareButton({ url, title, siteTitle }) {
+function trackShare(postId, platform) {
+  if (!postId) return
+  fetch('/api/analytics/track-share', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ post_id: postId, platform }),
+  }).catch(() => {})
+}
+
+export default function ShareButton({ url, title, siteTitle, postId }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   const { addToast } = useToast()
@@ -40,6 +50,7 @@ export default function ShareButton({ url, title, siteTitle }) {
     try {
       await navigator.clipboard.writeText(url)
       addToast('Link copied')
+      trackShare(postId, 'copy_link')
     } catch {}
   }
 
@@ -48,9 +59,10 @@ export default function ShareButton({ url, title, siteTitle }) {
       ? `I thought you'd like this article from ${siteTitle}: ${title}`
       : `I thought you'd like this article: ${title}`
     window.location.href = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(`${intro}\n\n${url}`)}`
+    trackShare(postId, 'email')
   }
 
-  function handleSocial(href) {
+  function handleSocial(href, platform) {
     const width = 600
     const height = 500
     const rect = ref.current?.getBoundingClientRect()
@@ -60,6 +72,7 @@ export default function ShareButton({ url, title, siteTitle }) {
     const top = rect ? Math.round(window.screenY + rect.bottom + 8) : undefined
     const features = [`width=${width}`, `height=${height}`, ...(left !== undefined ? [`left=${left}`, `top=${top}`] : [])].join(',')
     window.open(href, '_blank', `noopener,noreferrer,${features}`)
+    trackShare(postId, platform)
   }
 
   const social = shareUrls(url, title)
@@ -67,10 +80,10 @@ export default function ShareButton({ url, title, siteTitle }) {
   const items = [
     { key: 'link', label: 'Copy link', icon: <Link size={18} />, onClick: handleCopyLink },
     { key: 'mail', label: 'Email link', icon: <Mail size={18} />, onClick: handleEmail },
-    { key: 'facebook', label: 'Share on Facebook', icon: <SocialIcon platformKey="facebook" />, onClick: () => handleSocial(social.facebook) },
-    { key: 'linkedin', label: 'Share on LinkedIn', icon: <SocialIcon platformKey="linkedin" />, onClick: () => handleSocial(social.linkedin) },
-    { key: 'x', label: 'Share on X', icon: <SocialIcon platformKey="x" />, onClick: () => handleSocial(social.x) },
-    { key: 'bluesky', label: 'Share on Bluesky', icon: <SocialIcon platformKey="bluesky" />, onClick: () => handleSocial(social.bluesky) },
+    { key: 'facebook', label: 'Share on Facebook', icon: <SocialIcon platformKey="facebook" />, onClick: () => handleSocial(social.facebook, 'facebook') },
+    { key: 'linkedin', label: 'Share on LinkedIn', icon: <SocialIcon platformKey="linkedin" />, onClick: () => handleSocial(social.linkedin, 'linkedin') },
+    { key: 'x', label: 'Share on X', icon: <SocialIcon platformKey="x" />, onClick: () => handleSocial(social.x, 'x') },
+    { key: 'bluesky', label: 'Share on Bluesky', icon: <SocialIcon platformKey="bluesky" />, onClick: () => handleSocial(social.bluesky, 'bluesky') },
   ]
 
   return (

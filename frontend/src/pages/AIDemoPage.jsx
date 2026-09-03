@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { Link } from 'react-router'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import { useTrackPageView } from '../hooks/useTrackPageView'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import { AI_DEMO_LIST } from '../lib/aiDemos'
@@ -50,8 +51,10 @@ export function meta({ data }) {
 export default function AIDemoPage() {
   const { config } = useSiteConfig()
   const contentRef = useRef(null)
+  const enabled = isNavEnabled(config, 'ai_demo')
+  useTrackPageView('page', enabled ? 'ai_demo' : null)
 
-  if (!isNavEnabled(config, 'ai_demo')) return <NotFoundPage />
+  if (!enabled) return <NotFoundPage />
 
   return (
     <main className={`mx-auto px-6 pt-10 pb-16 ${config?.ai_demo_page_width === 'narrow' ? 'max-w-[524px]' : 'max-w-4xl'}`}>

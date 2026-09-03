@@ -46,13 +46,15 @@ function buildNavGroups(navOrder) {
       label: 'System Settings',
       defaultCollapsed: true,
       items: [
-        { to: '/admin', label: 'Site Settings', end: true },
+        { to: '/admin/settings', label: 'Site Settings' },
         { to: '/admin/accounts', label: 'Staff Accounts' },
         { to: '/admin/users', label: 'Users' },
       ],
     },
   ]
 }
+
+const ANALYTICS_NAV_ITEM = { to: '/admin', label: 'Analytics', end: true }
 
 function getFilteredNavGroups(role, navOrder) {
   if (role === 'contributor') {
@@ -67,9 +69,13 @@ function getFilteredNavGroups(role, navOrder) {
   }
 
   const navGroups = buildNavGroups(navOrder)
+  // Analytics is editor+ (same threshold as its route's RoleGuard) — the
+  // Site Settings/Users entries inside "System Settings" are further
+  // restricted below for editors specifically.
+  const withAnalytics = [{ label: 'Analytics', items: [ANALYTICS_NAV_ITEM] }, ...navGroups]
 
   if (role === 'editor') {
-    return navGroups.map(group => {
+    return withAnalytics.map(group => {
       if (group.label === 'System Settings') {
         return {
           ...group,
@@ -80,7 +86,7 @@ function getFilteredNavGroups(role, navOrder) {
     })
   }
 
-  return navGroups
+  return withAnalytics
 }
 
 function NavGroup({ label, items, defaultCollapsed = false }) {

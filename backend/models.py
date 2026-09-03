@@ -101,6 +101,7 @@ class SiteConfig(db.Model):
     blog_comments_enabled = db.Column(db.Boolean, nullable=False, default=True)
     google_oauth_client_id = db.Column(db.Text, nullable=True)
     google_oauth_client_secret = db.Column(db.Text, nullable=True)  # stored encrypted
+    analytics_start_date = db.Column(db.Date, nullable=True)  # clamps the floor of every analytics date range
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -273,6 +274,50 @@ class Payment(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
     user = db.relationship('User', backref='payments')
+
+
+class PageView(db.Model):
+    __tablename__ = 'page_view'
+
+    id = db.Column(db.Integer, primary_key=True)
+    page_type = db.Column(db.String(20), nullable=False)   # 'page' | 'blog_post'
+    page_key = db.Column(db.String(100), nullable=False)   # e.g. 'home', or a blog post slug
+    visitor_key = db.Column(db.String(64), nullable=False, index=True)  # HMAC-SHA256 hex digest
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    __table_args__ = (
+        db.Index('ix_page_view_type_key_created', 'page_type', 'page_key', 'created_at'),
+    )
+
+
+class ShareEvent(db.Model):
+    __tablename__ = 'share_event'
+
+    id = db.Column(db.Integer, primary_key=True)
+    post_id = db.Column(db.Integer, db.ForeignKey('blog_post.id'), nullable=False)
+    platform = db.Column(db.String(20), nullable=False)  # copy_link/email/facebook/linkedin/x/bluesky
+    visitor_key = db.Column(db.String(64), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        # visitor_key already bakes in the local calendar day, so this
+        # constraint is naturally a same-day dedup, not a lifetime one.
+        db.UniqueConstraint('post_id', 'platform', 'visitor_key', name='uq_share_dedup'),
+    )
+
+
+class AnalyticsAttempt(db.Model):
+    __tablename__ = 'analytics_attempt'
+
+    id = db.Column(db.Integer, primary_key=True)
+    ip_address = db.Column(db.String(45), nullable=False)  # fits IPv6
+    visitor_key = db.Column(db.String(64), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.Index('ix_analytics_attempt_visitor_created', 'visitor_key', 'created_at'),
+        db.Index('ix_analytics_attempt_ip_created', 'ip_address', 'created_at'),
+    )
 
 
 class SiteEventLog(db.Model):

@@ -3,6 +3,7 @@ import { useParams, useLoaderData, useSearchParams, Link } from 'react-router'
 import { Heart, Reply, MoreHorizontal, ChevronDown, X } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import { useTrackPageView } from '../hooks/useTrackPageView'
 import GalleryLightbox from '../components/GalleryLightbox'
 import SignInRequiredModal from '../components/SignInRequiredModal'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
@@ -547,6 +548,8 @@ export default function BlogPostPage() {
   const { user: currentUser } = useUserAuth()
   const { config: siteConfig } = useSiteConfig()
   const { notFound, post, blogAuthor, next, previous } = useLoaderData()
+  const blogPageTrackable = !notFound && isNavEnabled(siteConfig, 'blog') && post
+  useTrackPageView('blog_post', blogPageTrackable ? post.slug : null)
   const [comments, setComments] = useState([])
   const [sort, setSort] = useState('Best')
   const [reportingComment, setReportingComment] = useState(null)
@@ -748,6 +751,7 @@ export default function BlogPostPage() {
           url={typeof window !== 'undefined' ? window.location.origin + `/${slug}` : ''}
           title={post.title}
           siteTitle={siteConfig?.site_title}
+          postId={post.id}
         />
       </div>
 

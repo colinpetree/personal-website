@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import { useLoaderData } from 'react-router'
 import { ExternalLink } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import { useTrackPageView } from '../hooks/useTrackPageView'
 import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
@@ -80,8 +81,10 @@ export default function ProjectsPage() {
   const { config } = useSiteConfig()
   const { projects } = useLoaderData()
   const contentRef = useRef(null)
+  const enabled = isNavEnabled(config, 'projects')
+  useTrackPageView('page', enabled ? 'projects' : null)
 
-  if (!isNavEnabled(config, 'projects')) return <NotFoundPage />
+  if (!enabled) return <NotFoundPage />
 
   return (
     <main className={`mx-auto px-6 pt-10 pb-16 ${config?.projects_page_width === 'narrow' ? 'max-w-[524px]' : 'max-w-4xl'}`}>
