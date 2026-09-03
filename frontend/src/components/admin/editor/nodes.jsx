@@ -1786,11 +1786,11 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, edito
                 <ContentEditable
                   onFocus={() => setNestedFocused(true)}
                   onBlur={() => setNestedFocused(false)}
-                  className="outline-none text-gray-800 leading-relaxed w-full text-[18px] lg:text-[20px]"
+                  className="outline-none font-sans text-gray-800 leading-relaxed w-full text-[18px] lg:text-[20px]"
                 />
               }
               placeholder={
-                <div className="text-gray-400 pointer-events-none absolute top-1/2 -translate-y-1/2 left-0 select-none text-[18px] lg:text-[20px]">
+                <div className="font-sans text-gray-400 pointer-events-none absolute top-1/2 -translate-y-1/2 left-0 select-none text-[18px] lg:text-[20px]">
                   Callout text...
                 </div>
               }

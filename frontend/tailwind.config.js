@@ -1,3 +1,5 @@
+import defaultTheme from 'tailwindcss/defaultTheme'
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: [
@@ -6,6 +8,11 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['"Source Sans 3"', ...defaultTheme.fontFamily.sans],
+        serif: ['"Source Serif 4"', ...defaultTheme.fontFamily.serif],
+        mono: ['"Source Code Pro"', ...defaultTheme.fontFamily.mono],
+      },
       keyframes: {
         'dot-pulse': {
           '0%, 100%': { transform: 'scale(0.6)', opacity: '0.5' },
