@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router'
-import { ArrowLeft, Calendar, ChevronRight, ExternalLink, PanelRight, Plus, Trash2, Upload, X } from 'lucide-react'
-import { DayPicker } from 'react-day-picker'
+import { ArrowLeft, ChevronRight, ExternalLink, PanelRight, Plus, Trash2, Upload, X } from 'lucide-react'
 import RichTextEditor from '../../components/admin/editor'
 import { Field, Input, InputWithPrefix, Textarea, Toggle } from '../../components/admin/AdminPage'
 import { Tooltip } from '../../components/ui/Tooltip'
 import FilterCombobox from '../../components/ui/FilterCombobox'
+import DatePicker from '../../components/ui/DatePicker'
 import { useToast } from '../../context/ToastContext'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import { useAdminAuth } from '../../context/AdminAuthContext'
@@ -88,105 +88,15 @@ function tzAbbr() {
 
 const TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/
 
-const DAY_PICKER_CLASSES = {
-  months: 'relative',
-  month_caption: 'flex justify-center items-center h-8 mb-2',
-  caption_label: 'text-sm font-semibold text-gray-800',
-  nav: 'absolute inset-x-0 top-0 flex justify-between',
-  button_previous: 'h-8 w-8 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 transition-colors',
-  button_next: 'h-8 w-8 flex items-center justify-center rounded text-gray-500 hover:bg-gray-100 transition-colors',
-  month_grid: 'w-full',
-  weekdays: 'flex',
-  weekday: 'flex-1 text-center text-xs font-medium text-gray-400 pb-2',
-  weeks: 'flex flex-col gap-0.5',
-  week: 'flex',
-  day: 'flex-1 flex justify-center',
-  day_button: [
-    'h-8 w-8 text-sm rounded transition-colors flex items-center justify-center cursor-pointer',
-    'text-gray-700 hover:bg-gray-100',
-    'data-[selected]:bg-gray-900 data-[selected]:text-white data-[selected]:hover:bg-gray-700',
-    'data-[today]:font-semibold data-[today]:text-gray-900',
-    'data-[outside]:text-gray-300 data-[outside]:hover:bg-transparent',
-    'data-[disabled]:text-gray-200 data-[disabled]:hover:bg-transparent',
-  ].join(' '),
-  selected: '',
-  today: '',
-  outside: '',
-  disabled: '',
-  hidden: 'invisible',
-  chevron: 'w-3.5 h-3.5 fill-gray-500',
-}
-
 function PublishDateField({ datePart, timePart, onDateChange, onTimeChange, onBlur }) {
   const tz = useMemo(tzAbbr, [])
-  const [calendarOpen, setCalendarOpen] = useState(false)
   const [timeError, setTimeError] = useState(false)
-  const containerRef = useRef(null)
-
-  useEffect(() => {
-    if (!calendarOpen) return
-    function handleOutside(e) {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setCalendarOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleOutside)
-    return () => document.removeEventListener('mousedown', handleOutside)
-  }, [calendarOpen])
-
-  const selectedDate = useMemo(() => {
-    if (!datePart || !/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return undefined
-    const [y, m, d] = datePart.split('-').map(Number)
-    return new Date(y, m - 1, d)
-  }, [datePart])
-
-  function handleDaySelect(date) {
-    if (date) {
-      const y = date.getFullYear()
-      const m = String(date.getMonth() + 1).padStart(2, '0')
-      const d = String(date.getDate()).padStart(2, '0')
-      const newDatePart = `${y}-${m}-${d}`
-      onDateChange(newDatePart)
-      setCalendarOpen(false)
-      onBlur(newDatePart)
-    } else {
-      setCalendarOpen(false)
-    }
-  }
 
   return (
     <div className="flex flex-col gap-1.5">
       <label className="text-sm font-medium text-gray-700">Publish date</label>
       <div className="flex gap-2">
-        <div className="relative flex-1" ref={containerRef}>
-          <input
-            type="text"
-            value={datePart}
-            onChange={e => onDateChange(e.target.value)}
-            onBlur={onBlur}
-            onClick={() => setCalendarOpen(true)}
-            placeholder="YYYY-MM-DD"
-            className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 w-full pr-8 focus:outline-none focus:ring-2 focus:ring-gray-400"
-          />
-          <button
-            type="button"
-            onClick={() => setCalendarOpen(v => !v)}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-          >
-            <Calendar size={13} />
-          </button>
-
-          {calendarOpen && (
-            <div className="absolute top-full left-0 z-50 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-[17rem]">
-              <DayPicker
-                mode="single"
-                selected={selectedDate}
-                onSelect={handleDaySelect}
-                classNames={DAY_PICKER_CLASSES}
-              />
-            </div>
-          )}
-        </div>
+        <DatePicker value={datePart} onChange={onDateChange} onBlur={onBlur} className="flex-1" />
 
         <div className="relative flex-1">
           <input

@@ -55,8 +55,9 @@ function buildNavGroups(navOrder) {
 }
 
 const METRICS_NAV_ITEMS = [
-  { to: '/admin', label: 'Site', end: true },
-  { to: '/admin/metrics/blog', label: 'Blog' },
+  { to: '/admin', label: 'Site Metrics', end: true },
+  { to: '/admin/metrics/blog', label: 'Blog Metrics' },
+  { to: '/admin/metrics/payments', label: 'Payment Metrics' },
 ]
 
 function getFilteredNavGroups(role, navOrder) {
@@ -83,6 +84,14 @@ function getFilteredNavGroups(role, navOrder) {
         return {
           ...group,
           items: group.items.filter(item => item.label !== 'Site Settings' && item.label !== 'Users'),
+        }
+      }
+      // Payments metrics require administrator (matches this route's own
+      // RoleGuard) — editors get the rest of the Metrics group only.
+      if (group.label === 'Metrics') {
+        return {
+          ...group,
+          items: group.items.filter(item => item.label !== 'Payment Metrics'),
         }
       }
       return group

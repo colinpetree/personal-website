@@ -9,6 +9,14 @@ export function formatAdminDate(isoDate) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+// "August 29, 2026" — full month name, for a plain "YYYY-MM-DD" date shown
+// on its own rather than alongside other short-form dates.
+export function formatAdminDateLong(isoDate) {
+  if (!isoDate) return ''
+  const d = new Date(`${isoDate}T00:00:00`)
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+}
+
 // "MM/DD/YYYY" — used alongside a range label (e.g. "Last 7 days") so a
 // reader can tell exactly which dates a set of numbers covers.
 export function formatShortDate(isoDate) {
