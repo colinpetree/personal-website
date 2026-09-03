@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import datetime, time, timedelta
 from flask import Blueprint, current_app, jsonify, request
 from extensions import db
-from models import BlogPost, Comment, PageView, Payment, ShareEvent, SiteConfig
+from models import BlogPost, Comment, ContactSubmission, PageView, Payment, Project, ProjectClick, ShareEvent, SiteConfig, User
 from routes.admin_auth import role_at_least
 from routes.analytics_tracking import KNOWN_PAGE_KEYS
 from analytics_utils import local_date, local_today
@@ -154,6 +154,7 @@ def overview():
         (post_views_by_key, post_visitors_by_key),
     )
     series, _, _ = _series_and_totals(site_views, site_visitors, start, end)
+    range_start_utc, range_end_utc = _range_bounds_utc(start, end)
 
     pages = []
     for key, (enabled_field, name_field) in PAGE_CONFIG_FIELDS.items():
@@ -172,12 +173,42 @@ def overview():
         _, total_views, total_unique = _series_and_totals(
             page_views_by_key.get(key, {}), page_visitors_by_key.get(key, {}), start, end
         )
-        pages.append({
+        page_entry = {
             'key': key,
             'label': getattr(config, name_field),
             'views': total_views,
             'unique_visitors': total_unique,
-        })
+        }
+        # A few page keys carry an extra domain-specific count alongside the
+        # usual views/unique-visitors — a quick "needs follow-up" signal
+        # right in the row, not a chartable engagement metric. Counted via
+        # exact per-row local_date() filtering (not just the loose padded
+        # UTC window) so a row just outside the selected local range isn't
+        # miscounted in.
+        if key == 'contact':
+            rows = ContactSubmission.query.filter(
+                ContactSubmission.created_at >= range_start_utc, ContactSubmission.created_at <= range_end_utc,
+            ).with_entities(ContactSubmission.created_at).all()
+            page_entry['submissions'] = sum(
+                1 for (created_at,) in rows if start <= local_date(created_at, config) <= end
+            )
+        elif key == 'ai_demo':
+            rows = User.query.filter(
+                User.ai_demo_access_requested_at.isnot(None),
+                User.ai_demo_access_requested_at >= range_start_utc,
+                User.ai_demo_access_requested_at <= range_end_utc,
+            ).with_entities(User.ai_demo_access_requested_at).all()
+            page_entry['requests'] = sum(
+                1 for (requested_at,) in rows if start <= local_date(requested_at, config) <= end
+            )
+        elif key == 'projects':
+            rows = ProjectClick.query.filter(
+                ProjectClick.created_at >= range_start_utc, ProjectClick.created_at <= range_end_utc,
+            ).with_entities(ProjectClick.created_at).all()
+            page_entry['clicks'] = sum(
+                1 for (created_at,) in rows if start <= local_date(created_at, config) <= end
+            )
+        pages.append(page_entry)
     pages.sort(key=lambda p: p['unique_visitors'], reverse=True)
 
     # Blog posts collapse into one aggregate row on the site overview — the
@@ -302,8 +333,9 @@ def detail():
         'unique_visitors': total_unique,
     }
 
+    range_start_utc, range_end_utc = _range_bounds_utc(start, end)
+
     if post:
-        range_start_utc, range_end_utc = _range_bounds_utc(start, end)
         result['publish_date'] = (post.publish_date or post.created_at).isoformat() + 'Z'
         result['comments'] = Comment.query.filter(
             Comment.post_id == post.id, Comment.is_deleted == False,
@@ -320,6 +352,30 @@ def detail():
         )
         result['shares_by_platform'] = {platform: count for platform, count in share_rows}
         result['shares'] = sum(result['shares_by_platform'].values())
+
+    if key == 'projects':
+        # A simple per-project click count, not a chart — clicks aren't
+        # bucketed by day anywhere, this is just "who's getting clicked."
+        # Exact per-row local_date() filtering (not just the loose padded
+        # UTC window) so this total agrees with overview()'s exact count
+        # for the same range.
+        click_rows = (
+            ProjectClick.query
+            .filter(ProjectClick.created_at >= range_start_utc, ProjectClick.created_at <= range_end_utc)
+            .with_entities(ProjectClick.project_id, ProjectClick.created_at)
+            .all()
+        )
+        clicks_by_project = defaultdict(int)
+        for project_id, created_at in click_rows:
+            if start <= local_date(created_at, config) <= end:
+                clicks_by_project[project_id] += 1
+        result['project_clicks'] = sorted(
+            (
+                {'id': p.id, 'title': p.title, 'clicks': clicks_by_project.get(p.id, 0)}
+                for p in Project.query.order_by(Project.order).all()
+            ),
+            key=lambda p: p['clicks'], reverse=True,
+        )
 
     return jsonify(result)
 
@@ -399,3 +455,4 @@ def payments():
         'all_time_total': round(all_time_total, 2),
         'this_month_total': round(this_month_total, 2),
     })
+

@@ -35,3 +35,18 @@ export function formatAdminDateTime(isoDatetime) {
     month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
   })
 }
+
+// Same as formatAdminDateTime, but rendered in the site's configured
+// timezone (SiteConfig.timezone) instead of the viewing browser's local
+// timezone — for record timestamps (contact submissions, AI demo access
+// requests) that should read the same way regardless of which admin, in
+// which timezone, is looking at them.
+export function formatAdminDateTimeInTimezone(isoDatetime, timezone) {
+  if (!isoDatetime) return ''
+  const d = new Date(isoDatetime)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString('en-US', {
+    timeZone: timezone || 'UTC',
+    month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit',
+  })
+}

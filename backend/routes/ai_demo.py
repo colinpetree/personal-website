@@ -17,10 +17,11 @@ from flask import Blueprint, Response, abort, current_app, jsonify, request, sen
 from flask_login import current_user
 
 from extensions import db
-from models import AiDemoAccessLink, SiteConfig
+from models import AiDemoAccessLink, SiteConfig, User
 from crypto import decrypt
 from email_utils import send_email, mail_configured
 from routes.auth import user_required, get_current_user
+from routes.admin_auth import role_at_least
 import mcp_runtime
 import rag_index
 
@@ -124,6 +125,37 @@ def request_demo_access():
     db.session.commit()
 
     return jsonify({'message': 'Request sent.'})
+
+
+@ai_demo_bp.route('/api/admin/ai-demo/access-requests')
+@role_at_least('administrator')
+def list_access_requests():
+    page = request.args.get('page', 1, type=int)
+    per_page = min(request.args.get('per_page', 20, type=int), 100)
+
+    pagination = (
+        User.query
+        .filter(User.ai_demo_access_requested_at.isnot(None))
+        .order_by(User.ai_demo_access_requested_at.desc())
+        .paginate(page=page, per_page=per_page, error_out=False)
+    )
+
+    return jsonify({
+        'requests': [
+            {
+                'id': u.id,
+                'name': u.name,
+                'email': u.email,
+                'avatar_url': u.display_avatar_url,
+                'requested_at': u.ai_demo_access_requested_at.isoformat() + 'Z',
+                'access_granted': u.ai_demo_access,
+            }
+            for u in pagination.items
+        ],
+        'total': pagination.total,
+        'page': page,
+        'pages': pagination.pages,
+    })
 
 MODEL = 'claude-sonnet-5'
 MCP_MODEL = 'claude-haiku-4-5-20251001'

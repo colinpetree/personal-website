@@ -392,7 +392,7 @@ def payment_transactions():
                 'mode': p.mode,
                 'message': p.message,
                 'comment_visible': p.comment_visible,
-                'created_at': p.created_at.isoformat(),
+                'created_at': p.created_at.isoformat() + 'Z',
             }
             for p in rows
         ],

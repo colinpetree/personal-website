@@ -72,6 +72,9 @@ function AdminAnalyticsPageContent() {
                   className="flex items-center gap-6 px-4 py-3 bg-white hover:bg-gray-50 transition-colors"
                 >
                   <p className="flex-1 min-w-0 text-sm font-medium text-gray-900 truncate">{page.label}</p>
+                  {page.key === 'contact' && <Stat value={page.submissions} label="Submissions" />}
+                  {page.key === 'ai_demo' && <Stat value={page.requests} label="Requests" />}
+                  {page.key === 'projects' && <Stat value={page.clicks} label="Clicks" />}
                   <Stat value={page.views} label="Views" />
                   <Stat value={page.unique_visitors} label="Unique visitors" />
                 </Link>
