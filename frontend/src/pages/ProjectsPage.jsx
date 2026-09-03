@@ -101,8 +101,9 @@ export default function ProjectsPage() {
         <>
           <div
             ref={contentRef}
-            className="prose prose-gray max-w-none blog-content page-header-content font-serif mb-12"
+            className={`prose prose-gray max-w-none blog-content page-header-content ${config?.projects_font_family === 'sans' ? 'font-sans' : 'font-serif'} mb-12`}
             data-page-width={config?.projects_page_width === 'narrow' ? 'narrow' : 'regular'}
+            data-font-family={config?.projects_font_family || 'default'}
             dangerouslySetInnerHTML={{ __html: config.projects_text }}
           />
           {config.projects_scrollable_nav_enabled && (

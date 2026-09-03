@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
+import { createContext, useContext, useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { createEditor, DecoratorNode, $getNodeByKey, $getRoot, $createParagraphNode, CLICK_COMMAND, KEY_DOWN_COMMAND, COMMAND_PRIORITY_LOW, COMMAND_PRIORITY_HIGH, COMMAND_PRIORITY_CRITICAL, $createNodeSelection, $setSelection } from 'lexical'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
@@ -20,6 +20,16 @@ function resolveTextColor(mode, bgHex) {
   if (mode === 'dark') return 'black'
   return getContrastColor(bgHex)
 }
+
+// Font Family editor setting ('default' | 'sans' | 'serif') — provided by
+// RichTextEditor around the whole composer tree. Decorator nodes below are
+// always sans-serif by default (see index.css's "Keep these elements
+// sans-serif" block for the public-page equivalent), so only 'serif' mode
+// needs to flip them; 'default' and 'sans' both render as font-sans.
+export const FontFamilyContext = createContext('default')
+function decoratorFontClass(fontFamily) {
+  return fontFamily === 'serif' ? 'font-serif' : 'font-sans'
+}
 import Picker from '@emoji-mart/react'
 import emojiData from '@emoji-mart/data'
 import { handleUpload, handleUploadFull } from './upload'
@@ -31,6 +41,7 @@ import { SOCIAL_PLATFORMS, GENERIC_ICONS, resolveLinkIcon, getPlatformMonoSvg } 
 // ─── ImageNodeComponent ───────────────────────────────────────────────────────
 
 function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, nodeKey, editor }) {
+  const fontFamily = useContext(FontFamilyContext)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
@@ -209,7 +220,7 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, node
             onBlur={() => setCaptionFocused(false)}
             onClick={e => e.stopPropagation()}
             placeholder="Type caption for image (optional)"
-            className="w-full font-sans text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
+            className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
           />
         </figcaption>
       </figure>
@@ -445,6 +456,7 @@ function formatDuration(seconds) {
 // ─── VideoNodeComponent ───────────────────────────────────────────────────────
 
 function VideoNodeComponent({ src, caption, width, loop, segmentLoop, nodeKey, editor }) {
+  const fontFamily = useContext(FontFamilyContext)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
@@ -563,7 +575,7 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, nodeKey, e
             onBlur={() => setCaptionFocused(false)}
             onClick={e => e.stopPropagation()}
             placeholder="Type caption for video (optional)"
-            className="w-full font-sans text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
+            className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
           />
         </figcaption>
       </figure>
@@ -743,6 +755,7 @@ export function $createVideoNode(src, caption = '') {
 // ─── AudioNodeComponent ───────────────────────────────────────────────────────
 
 function AudioNodeComponent({ src, filename, title, duration, thumbnailSrc, nodeKey, editor }) {
+  const fontFamily = useContext(FontFamilyContext)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [isHovered, setIsHovered] = useState(false)
   const containerRef = useRef(null)
@@ -803,7 +816,7 @@ function AudioNodeComponent({ src, filename, title, duration, thumbnailSrc, node
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium font-sans text-gray-700 truncate mt-0 mb-1">
+          <p className={`text-sm font-medium ${decoratorFontClass(fontFamily)} text-gray-700 truncate mt-0 mb-1`}>
             {displayName}
             {durationStr && <span className="ml-2 text-xs text-gray-400 font-normal">{durationStr}</span>}
           </p>
@@ -974,6 +987,7 @@ export function $createAudioNode(src, filename = '') {
 // ─── FileNodeComponent ────────────────────────────────────────────────────────
 
 function FileNodeComponent({ src, filename, mimeType, size, title, description, nodeKey, editor }) {
+  const fontFamily = useContext(FontFamilyContext)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [inputFocused, setInputFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
@@ -1041,7 +1055,7 @@ function FileNodeComponent({ src, filename, mimeType, size, title, description, 
       style={{ maxWidth: '740px' }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`my-4 mx-auto media-regular-preview flex items-start gap-3 p-3 bg-gray-50 border rounded-lg transition-all select-none font-sans ${
+      className={`my-4 mx-auto media-regular-preview flex items-start gap-3 p-3 bg-gray-50 border rounded-lg transition-all select-none ${decoratorFontClass(fontFamily)} ${
         showRing ? 'ring-2 ring-blue-500 border-transparent' : isHovered ? 'ring-1 ring-blue-300 border-transparent' : 'border-gray-200'
       }`}
     >
@@ -1232,6 +1246,7 @@ export function $createFileNode(src, filename = '', mimeType = '', size = 0) {
 // ─── GalleryNodeComponent ─────────────────────────────────────────────────────
 
 function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
+  const fontFamily = useContext(FontFamilyContext)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
@@ -1353,7 +1368,7 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
         onBlur={() => setCaptionFocused(false)}
         onClick={e => e.stopPropagation()}
         placeholder="Type caption for gallery (optional)"
-        className="w-full font-sans text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
+        className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
       />
     </div>
   )
@@ -1623,6 +1638,7 @@ const CALLOUT_COLOR_PRESETS = [
 ]
 
 function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, editor }) {
+  const fontFamily = useContext(FontFamilyContext)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [isHovered, setIsHovered] = useState(false)
   const [nestedFocused, setNestedFocused] = useState(false)
@@ -1786,11 +1802,11 @@ function CalloutNodeComponent({ emojiEnabled, emoji, color, html, nodeKey, edito
                 <ContentEditable
                   onFocus={() => setNestedFocused(true)}
                   onBlur={() => setNestedFocused(false)}
-                  className="outline-none font-sans text-gray-800 leading-relaxed w-full text-[18px] lg:text-[20px]"
+                  className={`outline-none ${decoratorFontClass(fontFamily)} text-gray-800 leading-relaxed w-full text-[18px] lg:text-[20px]`}
                 />
               }
               placeholder={
-                <div className="font-sans text-gray-400 pointer-events-none absolute top-1/2 -translate-y-1/2 left-0 select-none text-[18px] lg:text-[20px]">
+                <div className={`${decoratorFontClass(fontFamily)} text-gray-400 pointer-events-none absolute top-1/2 -translate-y-1/2 left-0 select-none text-[18px] lg:text-[20px]`}>
                   Callout text...
                 </div>
               }
@@ -1985,6 +2001,7 @@ export function $createCalloutNode() {
 // ─── ButtonNodeComponent ──────────────────────────────────────────────────────
 
 function ButtonNodeComponent({ label, href, align, buttonColor, textColorMode, nodeKey, editor }) {
+  const fontFamily = useContext(FontFamilyContext)
   const PANEL_W = 240
   const containerRef = useRef(null)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
@@ -2095,7 +2112,7 @@ function ButtonNodeComponent({ label, href, align, buttonColor, textColorMode, n
     >
       <a
         style={{ backgroundColor: buttonColor, color: resolvedTextColor }}
-        className="inline-block text-sm font-medium font-sans px-5 py-2 rounded-lg pointer-events-none select-none no-underline"
+        className={`inline-block text-sm font-medium ${decoratorFontClass(fontFamily)} px-5 py-2 rounded-lg pointer-events-none select-none no-underline`}
       >
         {localLabel || <span style={{ color: 'white' }}>Add button text</span>}
       </a>
@@ -2605,6 +2622,7 @@ function linkGroupBorderColor(textColor) {
 }
 
 function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, nodeKey, editor }) {
+  const fontFamily = useContext(FontFamilyContext)
   const containerRef = useRef(null)
   const toolbarRef = useRef(null)
   const textColorBtnRef = useRef(null)
@@ -2761,7 +2779,7 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, nodeKey
             <button
               onClick={() => setEditingIndex(i)}
               style={{ borderRadius: itemRadius, borderColor: linkGroupBorderColor(textColor), color: link.text ? textColor : undefined, '--lg-bg': buttonColor, '--lg-hover-bg': linkGroupHoverColor(buttonColor, textColor), minHeight: '3.325rem', padding: '0.6rem 1.25rem' }}
-              className="link-group-editor-item relative overflow-hidden w-full flex items-center border text-sm font-medium font-sans"
+              className={`link-group-editor-item relative overflow-hidden w-full flex items-center border text-sm font-medium ${decoratorFontClass(fontFamily)}`}
             >
               <span className="absolute z-10 left-[0.65rem] top-1/2 -translate-y-1/2 flex items-center">
                 <LinkGroupIconPreview link={link} />
@@ -3130,6 +3148,7 @@ function ToggleBodySyncPlugin({ parentEditor, nodeKey, initialHtml }) {
 // ─── ToggleNodeComponent ──────────────────────────────────────────────────────
 
 function ToggleNodeComponent({ summaryHtml, contentHtml, nodeKey, editor }) {
+  const fontFamily = useContext(FontFamilyContext)
   const containerRef = useRef(null)
   const summaryContainerRef = useRef(null)
   const bodyContainerRef = useRef(null)
@@ -3232,11 +3251,11 @@ function ToggleNodeComponent({ summaryHtml, contentHtml, nodeKey, editor }) {
                   <ContentEditable
                     onFocus={() => setSummaryFocused(true)}
                     onBlur={() => setSummaryFocused(false)}
-                    className="outline-none font-sans font-semibold text-gray-800 w-full leading-relaxed text-[18px] lg:text-[20px]"
+                    className={`outline-none ${decoratorFontClass(fontFamily)} font-semibold text-gray-800 w-full leading-relaxed text-[18px] lg:text-[20px]`}
                   />
                 }
                 placeholder={
-                  <div className="text-gray-400 pointer-events-none absolute top-0 left-0 select-none font-sans font-semibold text-[18px] lg:text-[20px]">
+                  <div className={`text-gray-400 pointer-events-none absolute top-0 left-0 select-none ${decoratorFontClass(fontFamily)} font-semibold text-[18px] lg:text-[20px]`}>
                     Toggle title…
                   </div>
                 }
@@ -3278,11 +3297,11 @@ function ToggleNodeComponent({ summaryHtml, contentHtml, nodeKey, editor }) {
                   <ContentEditable
                     onFocus={() => setBodyFocused(true)}
                     onBlur={() => setBodyFocused(false)}
-                    className="outline-none font-sans text-gray-700 w-full leading-relaxed text-[18px] lg:text-[20px]"
+                    className={`outline-none ${decoratorFontClass(fontFamily)} text-gray-700 w-full leading-relaxed text-[18px] lg:text-[20px]`}
                   />
                 }
                 placeholder={
-                  <div className="text-gray-400 pointer-events-none absolute top-3 left-4 select-none font-sans text-[18px] lg:text-[20px]">
+                  <div className={`text-gray-400 pointer-events-none absolute top-3 left-4 select-none ${decoratorFontClass(fontFamily)} text-[18px] lg:text-[20px]`}>
                     Toggle content…
                   </div>
                 }
@@ -3731,6 +3750,7 @@ const HEADER_NESTED_THEME = {
 }
 
 function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, flipLayout, backgroundType, textColorMode, buttonTextColorMode, nodeKey, editor }) {
+  const fontFamily = useContext(FontFamilyContext)
   const PANEL_WIDTH = 280
   const containerRef = useRef(null)
   const headingContainerRef = useRef(null)
@@ -3860,11 +3880,11 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                 onFocus={() => setHeadingFocused(true)}
                 onBlur={() => setHeadingFocused(false)}
                 style={{ color: resolvedTextColor }}
-                className={`bg-transparent ${headingTextClass} font-bold font-sans outline-none w-full`}
+                className={`bg-transparent ${headingTextClass} font-bold ${decoratorFontClass(fontFamily)} outline-none w-full`}
               />
             }
             placeholder={
-              <div style={{ color: resolvedTextColor, opacity: 0.5 }} className={`pointer-events-none absolute top-0 left-0 right-0 ${headingTextClass} font-bold font-sans select-none ${textAlignClass}`}>Heading</div>
+              <div style={{ color: resolvedTextColor, opacity: 0.5 }} className={`pointer-events-none absolute top-0 left-0 right-0 ${headingTextClass} font-bold ${decoratorFontClass(fontFamily)} select-none ${textAlignClass}`}>Heading</div>
             }
             ErrorBoundary={LexicalErrorBoundary}
           />
@@ -3901,11 +3921,11 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                 onFocus={() => setSubheadingFocused(true)}
                 onBlur={() => setSubheadingFocused(false)}
                 style={{ color: resolvedTextColor, opacity: 0.8 }}
-                className={`bg-transparent ${subTextClass} font-sans outline-none w-full`}
+                className={`bg-transparent ${subTextClass} ${decoratorFontClass(fontFamily)} outline-none w-full`}
               />
             }
             placeholder={
-              <div style={{ color: resolvedTextColor, opacity: 0.4 }} className={`pointer-events-none absolute top-0 left-0 right-0 ${subTextClass} font-sans select-none ${textAlignClass}`}>Subheading</div>
+              <div style={{ color: resolvedTextColor, opacity: 0.4 }} className={`pointer-events-none absolute top-0 left-0 right-0 ${subTextClass} ${decoratorFontClass(fontFamily)} select-none ${textAlignClass}`}>Subheading</div>
             }
             ErrorBoundary={LexicalErrorBoundary}
           />
@@ -3935,7 +3955,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
       {buttonEnabled && (
         <div className={`mt-2 ${textAlignClass}`}>
           <span
-            className={`inline-block px-5 py-2 rounded-lg ${btnTextClass} font-medium font-sans pointer-events-none select-none`}
+            className={`inline-block px-5 py-2 rounded-lg ${btnTextClass} font-medium ${decoratorFontClass(fontFamily)} pointer-events-none select-none`}
             style={{ background: buttonColor, color: resolvedButtonTextColor }}
           >
             {localButtonText || <span style={{ color: resolvedButtonTextColor }}>Add button text</span>}
@@ -4546,6 +4566,7 @@ export function $createHeaderNode() {
 // ─── YouTubeNodeComponent ─────────────────────────────────────────────────────
 
 function YouTubeNodeComponent({ videoId, caption, nodeKey, editor }) {
+  const fontFamily = useContext(FontFamilyContext)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
@@ -4622,7 +4643,7 @@ function YouTubeNodeComponent({ videoId, caption, nodeKey, editor }) {
           onBlur={() => setCaptionFocused(false)}
           onClick={e => e.stopPropagation()}
           placeholder="Type caption (optional)"
-          className="w-full font-sans text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
+          className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
         />
       </figcaption>
     </figure>
@@ -4724,6 +4745,7 @@ export function $createYouTubeNode(videoId, caption = '') {
 // ─── VimeoNodeComponent ───────────────────────────────────────────────────────
 
 function VimeoNodeComponent({ videoId, caption, nodeKey, editor }) {
+  const fontFamily = useContext(FontFamilyContext)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
@@ -4800,7 +4822,7 @@ function VimeoNodeComponent({ videoId, caption, nodeKey, editor }) {
           onBlur={() => setCaptionFocused(false)}
           onClick={e => e.stopPropagation()}
           placeholder="Type caption (optional)"
-          className="w-full font-sans text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
+          className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
         />
       </figcaption>
     </figure>
@@ -4902,6 +4924,7 @@ export function $createVimeoNode(videoId, caption = '') {
 // ─── SpotifyNodeComponent ─────────────────────────────────────────────────────
 
 function SpotifyNodeComponent({ embedPath, caption, nodeKey, editor }) {
+  const fontFamily = useContext(FontFamilyContext)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
@@ -4979,7 +5002,7 @@ function SpotifyNodeComponent({ embedPath, caption, nodeKey, editor }) {
           onBlur={() => setCaptionFocused(false)}
           onClick={e => e.stopPropagation()}
           placeholder="Type caption (optional)"
-          className="w-full font-sans text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text"
+          className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
         />
       </figcaption>
     </figure>

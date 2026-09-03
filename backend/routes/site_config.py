@@ -91,13 +91,13 @@ def get_site_config():
     # AdminHomePage.jsx), never "block the page", so home content always
     # stays public.
     page_content = {}
-    for key, text_field, meta_field, scroll_field, width_field in [
-        ('projects', 'projects_text', 'projects_meta_description', 'projects_scrollable_nav_enabled', 'projects_page_width'),
-        ('about', 'about_text', 'about_meta_description', 'about_scrollable_nav_enabled', 'about_page_width'),
-        ('blog', 'blog_text', 'blog_meta_description', None, None),
-        ('contact', 'contact_text', 'contact_meta_description', 'contact_scrollable_nav_enabled', 'contact_page_width'),
-        ('ai_demo', 'ai_demo_text', 'ai_demo_meta_description', 'ai_demo_scrollable_nav_enabled', 'ai_demo_page_width'),
-        ('payment', 'payment_text', 'payment_meta_description', 'payment_scrollable_nav_enabled', 'payment_page_width'),
+    for key, text_field, meta_field, scroll_field, width_field, font_field in [
+        ('projects', 'projects_text', 'projects_meta_description', 'projects_scrollable_nav_enabled', 'projects_page_width', 'projects_font_family'),
+        ('about', 'about_text', 'about_meta_description', 'about_scrollable_nav_enabled', 'about_page_width', 'about_font_family'),
+        ('blog', 'blog_text', 'blog_meta_description', None, None, 'blog_font_family'),
+        ('contact', 'contact_text', 'contact_meta_description', 'contact_scrollable_nav_enabled', 'contact_page_width', 'contact_font_family'),
+        ('ai_demo', 'ai_demo_text', 'ai_demo_meta_description', 'ai_demo_scrollable_nav_enabled', 'ai_demo_page_width', 'ai_demo_font_family'),
+        ('payment', 'payment_text', 'payment_meta_description', 'payment_scrollable_nav_enabled', 'payment_page_width', 'payment_font_family'),
     ]:
         if not nav_items[key]['enabled']:
             continue
@@ -107,6 +107,7 @@ def get_site_config():
             page_content[scroll_field] = getattr(config, scroll_field)
         if width_field:
             page_content[width_field] = getattr(config, width_field)
+        page_content[font_field] = getattr(config, font_field)
 
     # Only return public-safe fields — no secrets (Mailgun API key, Stripe keys, OAuth secrets)
     return jsonify({
@@ -133,6 +134,7 @@ def get_site_config():
         'home_meta_description': config.home_meta_description,
         'home_scrollable_nav_enabled': config.home_scrollable_nav_enabled,
         'home_page_width': config.home_page_width,
+        'home_font_family': config.home_font_family,
         **page_content,
         'stripe_publishable_key': config.stripe_publishable_key,
         'payment_comments_enabled': config.payment_comments_enabled,

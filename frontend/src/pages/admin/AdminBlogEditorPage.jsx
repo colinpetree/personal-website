@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router'
-import { ArrowLeft, ChevronRight, ExternalLink, PanelRight, Plus, Trash2, Upload, X } from 'lucide-react'
+import { ArrowLeft, ChevronRight, ExternalLink, PanelRight, Plus, Trash2, Upload, X, Type, BookA, BookType } from 'lucide-react'
 import RichTextEditor from '../../components/admin/editor'
 import { Field, Input, InputWithPrefix, Textarea, Toggle } from '../../components/admin/AdminPage'
 import { Tooltip } from '../../components/ui/Tooltip'
@@ -12,6 +12,9 @@ import { useAdminAuth } from '../../context/AdminAuthContext'
 import { extractExcerpt } from '../../utils/extractExcerpt'
 
 const AUTOSAVE_DELAY = 2000
+
+const fontFamilyButtonGroup = 'flex self-start gap-0.5 bg-gray-100 rounded-lg p-0.5'
+const fontFamilyButton = (active) => `p-1.5 rounded-md transition-colors ${active ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -359,6 +362,7 @@ export default function AdminBlogEditorPage() {
   const [excerpt, setExcerpt] = useState('')
   const [metaDescription, setMetaDescription] = useState('')
   const [scrollableNavEnabled, setScrollableNavEnabled] = useState(false)
+  const [fontFamily, setFontFamily] = useState('default')
   // These are used by the sidebar AND the publish dialog
   const [publishDatePart, setPublishDatePart] = useState('')
   const [publishTimePart, setPublishTimePart] = useState('')
@@ -392,6 +396,7 @@ export default function AdminBlogEditorPage() {
         excerptEdited.current = !!(data.excerpt && data.excerpt !== extractExcerpt(data.content_html || ''))
         setMetaDescription(data.meta_description || '')
         setScrollableNavEnabled(!!data.scrollable_nav_enabled)
+        setFontFamily(data.font_family || 'default')
         const dtStr = data.publish_date ? data.publish_date.slice(0, 16) : ''
         setPublishDatePart(dtStr ? dtStr.slice(0, 10) : '')
         setPublishTimePart(dtStr ? dtStr.slice(11, 16) : '')
@@ -514,6 +519,7 @@ export default function AdminBlogEditorPage() {
       excerpt,
       meta_description: metaDescription,
       scrollable_nav_enabled: scrollableNavEnabled,
+      font_family: fontFamily,
       publish_date: combineDate(dp),
       thumbnail_filename: thumbnailFilename || null,
       thumbnail_caption: thumbnailCaption || null,
@@ -570,6 +576,7 @@ export default function AdminBlogEditorPage() {
         excerpt,
         meta_description: metaDescription,
         scrollable_nav_enabled: scrollableNavEnabled,
+        font_family: fontFamily,
         thumbnail_filename: thumbnailFilename || null,
         thumbnail_caption: thumbnailCaption || null,
         thumbnail_width: thumbnailWidth || null,
@@ -619,6 +626,7 @@ export default function AdminBlogEditorPage() {
         excerpt,
         meta_description: metaDescription,
         scrollable_nav_enabled: scrollableNavEnabled,
+        font_family: fontFamily,
         publish_date: combineDate(),
         thumbnail_filename: thumbnailFilename || null,
         thumbnail_caption: thumbnailCaption || null,
@@ -863,6 +871,7 @@ export default function AdminBlogEditorPage() {
             initialHtml={contentHtml}
             onChange={handleContentChange}
             placeholder=""
+            fontFamily={fontFamily}
           />
           <div style={{ height: '33vh' }} onClick={() => {
             editorRef.current?.focusAtEnd()
@@ -943,6 +952,38 @@ export default function AdminBlogEditorPage() {
               placeholder="No category"
               className="w-full"
             />
+          </Field>
+
+          <Field label="Font family">
+            <div className={fontFamilyButtonGroup}>
+              <Tooltip content="Default">
+                <button
+                  type="button"
+                  className={fontFamilyButton(fontFamily === 'default')}
+                  onClick={() => { setFontFamily('default'); markDirty(); handleSidebarSave(undefined, { font_family: 'default' }) }}
+                >
+                  <Type size={15} />
+                </button>
+              </Tooltip>
+              <Tooltip content="Sans-serif">
+                <button
+                  type="button"
+                  className={fontFamilyButton(fontFamily === 'sans')}
+                  onClick={() => { setFontFamily('sans'); markDirty(); handleSidebarSave(undefined, { font_family: 'sans' }) }}
+                >
+                  <BookA size={15} />
+                </button>
+              </Tooltip>
+              <Tooltip content="Serif">
+                <button
+                  type="button"
+                  className={fontFamilyButton(fontFamily === 'serif')}
+                  onClick={() => { setFontFamily('serif'); markDirty(); handleSidebarSave(undefined, { font_family: 'serif' }) }}
+                >
+                  <BookType size={15} />
+                </button>
+              </Tooltip>
+            </div>
           </Field>
 
           <Toggle

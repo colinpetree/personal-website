@@ -757,7 +757,8 @@ export default function BlogPostPage() {
 
       <article
         ref={articleRef}
-        className="prose prose-xl prose-gray max-w-none mb-16 blog-content font-serif"
+        className={`prose prose-xl prose-gray max-w-none mb-16 blog-content ${post.font_family === 'sans' ? 'font-sans' : 'font-serif'}`}
+        data-font-family={post.font_family || 'default'}
         dangerouslySetInnerHTML={{ __html: post.content_html || '' }}
         onClick={handleArticleClick}
       />

@@ -90,7 +90,7 @@ export function buildMeta({ title, description, image, type = 'website', noindex
 // <head>, even though the frontend route only 404s once React hydrates.
 export function notFoundMeta(config) {
   return buildMeta({
-    title: config?.site_title ? `Not found — ${config.site_title}` : 'Page not found',
+    title: config?.site_title ? `Not found - ${config.site_title}` : 'Page not found',
     image: siteFallbackImage(config),
     noindex: true,
   })

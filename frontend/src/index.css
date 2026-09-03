@@ -513,6 +513,22 @@ html {
 [contenteditable="true"] table.blog-table { font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif; }
 [contenteditable="true"] table.blog-table p.editor-paragraph { font-size: 14px; line-height: 22.5px; }
 
+/* Font Family editor setting, 'serif' mode — h1/h2/h3 and the table are
+   hard-coded sans-serif above regardless of the ambient font (see the
+   comment there), so this is the only place that needs to win them back to
+   serif; 'sans' mode needs no override since they're already sans, and
+   'default' renders no data-font-family="serif" match at all. The
+   equivalent decorator-node elements (captions, buttons, callouts, etc.)
+   are handled in nodes.jsx via FontFamilyContext instead of CSS, since
+   they're inline Tailwind classes on live React components, not exported
+   static markup. */
+[contenteditable="true"][data-font-family="serif"] h1.editor-heading,
+[contenteditable="true"][data-font-family="serif"] h2.editor-heading,
+[contenteditable="true"][data-font-family="serif"] h3.editor-heading,
+[contenteditable="true"][data-font-family="serif"] table.blog-table {
+  font-family: 'Source Serif 4', ui-serif, Georgia, Cambria, "Times New Roman", Times, serif !important;
+}
+
 @media (min-width: 1024px) {
   [contenteditable="true"] h1.editor-heading { font-size: 38px; line-height: 45.5px; }
   [contenteditable="true"] h2.editor-heading { font-size: 34px; line-height: 39px; }
@@ -804,6 +820,33 @@ html {
 .blog-content .callout,
 .blog-content .callout-body {
   font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Font Family editor setting, 'serif' mode — every element above (plus
+   headings and figcaption) is hard-coded sans-serif regardless of the
+   ambient body font, so 'serif' mode must explicitly win them back. 'sans'
+   mode needs no override here: it's applied by swapping the page wrapper's
+   own font-serif -> font-sans class (see HomePage.jsx etc.), which already
+   makes every ambient/inheriting element (p, blockquote, lists, links)
+   sans — the elements below are already sans by default and stay that way.
+   'default' renders no data-font-family="serif" match, so nothing changes. */
+.blog-content[data-font-family="serif"] h1,
+.blog-content[data-font-family="serif"] h2,
+.blog-content[data-font-family="serif"] h3,
+.blog-content[data-font-family="serif"] table.blog-table,
+.blog-content[data-font-family="serif"] .btn,
+.blog-content[data-font-family="serif"] .link-group-item,
+.blog-content[data-font-family="serif"] .header-btn,
+.blog-content[data-font-family="serif"] .header-heading,
+.blog-content[data-font-family="serif"] .header-subheading,
+.blog-content[data-font-family="serif"] figure.audio-player,
+.blog-content[data-font-family="serif"] .file-attachment,
+.blog-content[data-font-family="serif"] .toggle-summary,
+.blog-content[data-font-family="serif"] .toggle-body,
+.blog-content[data-font-family="serif"] .callout,
+.blog-content[data-font-family="serif"] .callout-body,
+.blog-content[data-font-family="serif"] figcaption {
+  font-family: 'Source Serif 4', ui-serif, Georgia, Cambria, "Times New Roman", Times, serif !important;
 }
 
 /* Header block — reset prose margins on nested paragraphs. Also reset

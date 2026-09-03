@@ -151,7 +151,8 @@ export default function BlogPage() {
       {config?.blog_text && (
         <div
           ref={contentRef}
-          className="prose prose-gray max-w-none blog-content page-header-content font-serif mb-10"
+          className={`prose prose-gray max-w-none blog-content page-header-content ${config?.blog_font_family === 'sans' ? 'font-sans' : 'font-serif'} mb-10`}
+          data-font-family={config?.blog_font_family || 'default'}
           dangerouslySetInnerHTML={{ __html: config.blog_text }}
         />
       )}

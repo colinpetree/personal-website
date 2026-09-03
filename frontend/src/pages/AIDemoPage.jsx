@@ -62,8 +62,9 @@ export default function AIDemoPage() {
         <>
           <div
             ref={contentRef}
-            className="prose prose-gray max-w-none blog-content page-header-content font-serif mb-8"
+            className={`prose prose-gray max-w-none blog-content page-header-content ${config?.ai_demo_font_family === 'sans' ? 'font-sans' : 'font-serif'} mb-8`}
             data-page-width={config?.ai_demo_page_width === 'narrow' ? 'narrow' : 'regular'}
+            data-font-family={config?.ai_demo_font_family || 'default'}
             dangerouslySetInnerHTML={{ __html: config.ai_demo_text }}
           />
           {config.ai_demo_scrollable_nav_enabled && (

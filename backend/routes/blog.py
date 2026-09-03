@@ -33,6 +33,7 @@ def _post_to_dict(post, include_content=False):
         'excerpt': post.excerpt,
         'meta_description': post.meta_description,
         'scrollable_nav_enabled': post.scrollable_nav_enabled,
+        'font_family': post.font_family,
         'status': post.status,
         'publish_date': post.publish_date.isoformat() if post.publish_date else None,
         'thumbnail_filename': post.thumbnail_filename,

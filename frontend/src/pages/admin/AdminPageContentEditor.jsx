@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router'
-import { ArrowLeft, PanelRight, RectangleHorizontal, RectangleVertical } from 'lucide-react'
+import { ArrowLeft, PanelRight, RectangleHorizontal, RectangleVertical, Type, BookA, BookType } from 'lucide-react'
 import RichTextEditor from '../../components/admin/editor'
 import { Field, Textarea, Toggle } from '../../components/admin/AdminPage'
 import { Tooltip } from '../../components/ui/Tooltip'
@@ -17,7 +17,7 @@ function countWords(html) {
 const widthButtonGroup = 'flex self-start gap-0.5 bg-gray-100 rounded-lg p-0.5'
 const widthButton = (active) => `p-1.5 rounded-md transition-colors ${active ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
 
-export default function AdminPageContentEditor({ pageTitle, backTo, contentField, metaField, navField, widthField }) {
+export default function AdminPageContentEditor({ pageTitle, backTo, contentField, metaField, navField, widthField, fontFamilyField }) {
   const { config, loading, save } = useAdminConfig()
   const { addToast } = useToast()
 
@@ -25,6 +25,7 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
   const [metaDescription, setMetaDescription] = useState('')
   const [navEnabled, setNavEnabled] = useState(false)
   const [pageWidth, setPageWidth] = useState('regular')
+  const [fontFamily, setFontFamily] = useState('default')
   const [isDirty, setIsDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [panelOpen, setPanelOpen] = useState(true)
@@ -46,9 +47,10 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
     setMetaDescription(savedMeta)
     setNavEnabled(!!config[navField])
     setPageWidth(widthField ? (config[widthField] || 'regular') : 'regular')
+    setFontFamily(fontFamilyField ? (config[fontFamilyField] || 'default') : 'default')
     metaEdited.current = !!(savedMeta && savedMeta !== extractExcerpt(html))
     setLoaded(true)
-  }, [loading, loaded, config, contentField, metaField, navField, widthField])
+  }, [loading, loaded, config, contentField, metaField, navField, widthField, fontFamilyField])
 
   function handleContentChange(html) {
     setContentHtml(html)
@@ -72,6 +74,7 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
         [metaField]: metaDescription,
         [navField]: navEnabled,
         ...(widthField ? { [widthField]: pageWidth } : {}),
+        ...(fontFamilyField ? { [fontFamilyField]: fontFamily } : {}),
       })
       setIsDirty(false)
       addToast({ message: `${pageTitle} content saved` })
@@ -125,6 +128,7 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
             placeholder=""
             firstBlockH1
             narrowPreview={pageWidth === 'narrow'}
+            fontFamily={fontFamily}
           />
           <div style={{ height: '33vh' }} onClick={() => editorRef.current?.focusAtEnd()} />
         </div>
@@ -170,6 +174,40 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
                       onClick={() => { setPageWidth('narrow'); setIsDirty(true) }}
                     >
                       <RectangleVertical size={15} />
+                    </button>
+                  </Tooltip>
+                </div>
+              </Field>
+            )}
+
+            {fontFamilyField && (
+              <Field label="Font family">
+                <div className={widthButtonGroup}>
+                  <Tooltip content="Default">
+                    <button
+                      type="button"
+                      className={widthButton(fontFamily === 'default')}
+                      onClick={() => { setFontFamily('default'); setIsDirty(true) }}
+                    >
+                      <Type size={15} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Sans-serif">
+                    <button
+                      type="button"
+                      className={widthButton(fontFamily === 'sans')}
+                      onClick={() => { setFontFamily('sans'); setIsDirty(true) }}
+                    >
+                      <BookA size={15} />
+                    </button>
+                  </Tooltip>
+                  <Tooltip content="Serif">
+                    <button
+                      type="button"
+                      className={widthButton(fontFamily === 'serif')}
+                      onClick={() => { setFontFamily('serif'); setIsDirty(true) }}
+                    >
+                      <BookType size={15} />
                     </button>
                   </Tooltip>
                 </div>
