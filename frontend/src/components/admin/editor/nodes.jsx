@@ -12,13 +12,21 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { TableNode, TableCellNode } from '@lexical/table'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, Maximize2, Columns2, RectangleVertical, RectangleHorizontal, StretchHorizontal, Link, Link2, Link2Off, X, Music, FileText, Plus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, GripVertical } from 'lucide-react'
+import { AlignLeft, AlignCenter, Maximize2, Columns2, RectangleVertical, RectangleHorizontal, StretchHorizontal, Fullscreen, Link, Link2, Link2Off, X, Music, FileText, Plus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, GripVertical } from 'lucide-react'
 import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
 
 function resolveTextColor(mode, bgHex) {
   if (mode === 'light') return 'white'
   if (mode === 'dark') return 'black'
   return getContrastColor(bgHex)
+}
+
+// Lexical exports an empty rich-text field as markup like '<p><br></p>' rather than ''
+function isBlankHtml(html) {
+  if (!html) return true
+  const tmp = document.createElement('div')
+  tmp.innerHTML = html
+  return !tmp.textContent.trim()
 }
 
 // Font Family editor setting ('default' | 'sans' | 'serif') — provided by
@@ -3749,7 +3757,7 @@ const HEADER_NESTED_THEME = {
   paragraph: 'my-0',
 }
 
-function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, flipLayout, backgroundType, textColorMode, buttonTextColorMode, nodeKey, editor }) {
+function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, flipLayout, backgroundType, textColorMode, buttonTextColorMode, shadowOverlay, nodeKey, editor }) {
   const fontFamily = useContext(FontFamilyContext)
   const PANEL_WIDTH = 280
   const containerRef = useRef(null)
@@ -3826,10 +3834,11 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
       const rect = containerRef.current?.getBoundingClientRect()
       if (!rect) return
       const offsets = {
-        regular: { rightShift: 140, overlap: 220 },
-        wide:    { rightShift: -40, overlap: 320 },
-        full:    { rightShift: -160, overlap: 380 },
-        split:   { rightShift: -160, overlap: 380 },
+        regular:    { rightShift: 140, overlap: 220 },
+        wide:       { rightShift: -40, overlap: 320 },
+        full:       { rightShift: -160, overlap: 380 },
+        split:      { rightShift: -160, overlap: 380 },
+        fullscreen: { rightShift: -160, overlap: 380 },
       }
       const { rightShift, overlap } = offsets[layout] || offsets.regular
       let left = rect.right + window.scrollX - PANEL_WIDTH + rightShift
@@ -3843,16 +3852,39 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
     return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
   }, [showPanel, layout])
 
-  const outerClass = (layout === 'full' || layout === 'split') ? 'w-full' : layout === 'wide' ? 'max-w-7xl mx-auto' : 'max-w-3xl mx-auto header-regular-preview'
-  const sideMargin = (layout === 'full' || layout === 'split') ? '' : 'mx-6'
+  const isFullish = layout === 'full' || layout === 'split' || layout === 'fullscreen'
+  const outerClass = isFullish ? 'w-full' : layout === 'wide' ? 'max-w-7xl mx-auto' : 'max-w-3xl mx-auto header-regular-preview'
+  const sideMargin = isFullish ? '' : 'mx-6'
   const textAlignClass   = textAlign === 'center' ? 'text-center' : 'text-left'
-  const minHeightClass   = layout === 'split' ? 'md:min-h-[600px]' : layout === 'full' ? 'md:min-h-[551px]' : layout === 'wide' ? 'md:min-h-[447px]' : 'md:min-h-[347px]'
-  const headingTextClass = (layout === 'full' || layout === 'split') ? 'text-[28px] md:text-6xl' : layout === 'wide' ? 'text-[28px] md:text-5xl' : 'text-[28px] md:text-4xl'
-  const subTextClass     = (layout === 'full' || layout === 'split') ? 'text-base md:text-2xl' : layout === 'wide' ? 'text-base md:text-[22px]' : 'text-base md:text-xl'
-  const btnTextClass     = (layout === 'full' || layout === 'split') ? 'text-lg' : 'text-base'
+  // Unconditional (no md: prefix) so the editor's mobile preview matches exportDOM's
+  // public HTML, which sets this same min-height as an inline style at every width —
+  // previously the editor used a smaller mobile-only floor, so the header collapsed
+  // shorter in the editor's mobile preview than it actually renders once published.
+  const minHeightClass   = layout === 'fullscreen' ? 'min-h-screen' : layout === 'split' ? 'min-h-[600px]' : layout === 'full' ? 'min-h-[551px]' : layout === 'wide' ? 'min-h-[447px]' : 'min-h-[347px]'
+  // Fullscreen ramps up across breakpoints (biggest at 2xl), rather than jumping straight
+  // to its max size at md like the other layouts. leading-tight/snug (unitless, so they
+  // scale correctly across every size above) keep wrapped lines tight instead of
+  // inheriting the ambient prose line-height, which reads as an oversized gap at these
+  // large heading/subheading font sizes.
+  const headingTextClass = (layout === 'fullscreen' ? 'text-[28px] md:text-6xl xl:text-[66px] 2xl:text-7xl' : isFullish ? 'text-[28px] md:text-6xl' : layout === 'wide' ? 'text-[28px] md:text-5xl' : 'text-[28px] md:text-4xl') + ' leading-tight'
+  const subTextClass     = (layout === 'fullscreen' ? 'text-base md:text-2xl xl:text-[27px] 2xl:text-3xl' : isFullish ? 'text-base md:text-2xl' : layout === 'wide' ? 'text-base md:text-[22px]' : 'text-base md:text-xl') + ' leading-snug'
+  const btnTextClass     = layout === 'fullscreen' ? 'text-xl' : isFullish ? 'text-lg' : 'text-base'
+  // Wide/full/fullscreen ramp side padding up gradually across breakpoints instead of
+  // jumping straight from the mobile value to the full 256px at md, which otherwise
+  // squeezes the heading into a narrow column on in-between (tablet/small laptop) widths.
+  // Steps match index.css's public media queries exactly (no sm: step — the public CSS
+  // has no breakpoint between the flat mobile value and md, so an sm: step here would
+  // only apply in the editor and not on the published page).
+  const paddingClass = layout === 'regular'
+    ? 'px-8 md:px-20'
+    : 'px-8 md:px-14 lg:px-24 xl:px-40 2xl:px-64'
 
-  const bgStyle = layout !== 'split' && backgroundType === 'image' && headerImage
-    ? { backgroundImage: `url(/api/uploads/${headerImage})`, backgroundSize: '100% auto', backgroundRepeat: 'no-repeat', backgroundPosition: 'center center' }
+  const hasBgImage = layout !== 'split' && backgroundType === 'image' && headerImage
+  // background-size: cover is set via the .header-bg-image CSS class (index.css) rather
+  // than inline, so the image always crops to fill the box at every width. backgroundColor
+  // is a fallback in case the image is still loading or fails.
+  const bgStyle = hasBgImage
+    ? { backgroundColor, backgroundImage: `url(/api/uploads/${headerImage})`, backgroundRepeat: 'no-repeat', backgroundPosition: 'center center' }
     : { background: backgroundColor }
 
   const resolvedTextColor = resolveTextColor(textColorMode, backgroundColor)
@@ -3995,14 +4027,17 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             className={`${sideMargin} ${minHeightClass} flex flex-col ${flipLayout ? 'md:flex-row-reverse' : 'md:flex-row'} ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
           >
             {/* Image side */}
+            {/* h-[240px] (not min-h) below md so the <img>'s height:100% has a definite
+                height to resolve against — min-height alone doesn't establish one, which
+                left the image at its auto/intrinsic height with a gap below it on mobile. */}
             <div
-              className={`w-full md:w-1/2 min-h-[240px] md:min-h-0 bg-white flex items-center justify-center overflow-hidden relative group ${!headerImage ? 'cursor-pointer' : ''}`}
+              className={`w-full md:w-1/2 h-[240px] md:h-auto bg-white flex items-center justify-center overflow-hidden relative group ${!headerImage ? 'cursor-pointer' : ''}`}
               onClick={!headerImage ? () => splitImageInputRef.current?.click() : undefined}
             >
               {headerImage ? (
                 <img
                   src={`/api/uploads/${headerImage}`}
-                  className="w-full h-full object-contain"
+                  className="w-full h-full object-cover"
                   alt=""
                   draggable={false}
                 />
@@ -4011,6 +4046,10 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                   <ImageIcon size={40} strokeWidth={1.5} className="text-gray-300" />
                   <span className="text-sm text-gray-400">Click to upload image</span>
                 </div>
+              )}
+              {/* Split shows the shadow overlay on the image side, not the text side */}
+              {headerImage && shadowOverlay && (
+                <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />
               )}
               {/* Upload / delete buttons — only shown when image exists, visible on hover */}
               {headerImage && (
@@ -4036,8 +4075,11 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             </div>
 
             {/* Text side */}
+            {/* min-h-[240px] matches the image side's own fixed mobile height (above) so
+                neither side collapses shorter than the other; md:min-h-0 lets desktop's
+                flex row stretch it to match the image side's height as before. */}
             <div
-              className={`w-full md:w-1/2 flex flex-col justify-center gap-3 pl-8 pr-8 py-6 md:pl-24 md:pr-12 md:py-10`}
+              className={`w-full md:w-1/2 min-h-[240px] md:min-h-0 flex flex-col justify-center gap-3 pl-8 pr-8 py-6 md:pl-24 md:pr-12 md:py-10`}
               style={{ background: backgroundColor }}
             >
               {textContent}
@@ -4047,9 +4089,14 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
           <div
             ref={containerRef}
             style={bgStyle}
-            className={`${sideMargin} ${minHeightClass} ${layout === 'regular' ? 'px-8 md:px-20' : 'px-8 md:px-64'} py-6 md:py-10 flex flex-col justify-center gap-3 ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+            className={`${shadowOverlay ? 'relative' : ''} ${hasBgImage ? 'header-bg-image' : ''} ${sideMargin} ${minHeightClass} ${paddingClass} py-6 md:py-10 flex flex-col justify-center gap-3 ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
           >
-            {textContent}
+            {shadowOverlay ? (
+              <>
+                <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />
+                <div className="relative flex flex-col gap-3">{textContent}</div>
+              </>
+            ) : textContent}
           </div>
         )}
       </div>
@@ -4096,6 +4143,14 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                   onClick={() => commitField('setLayout', 'split')}
                 >
                   <Columns2 size={15} />
+                </button>
+              </Tooltip>
+              <Tooltip content="Full screen">
+                <button
+                  className={`p-1.5 rounded-md transition-colors ${layout === 'fullscreen' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  onClick={() => commitField('setLayout', 'fullscreen')}
+                >
+                  <Fullscreen size={15} />
                 </button>
               </Tooltip>
             </div>
@@ -4152,6 +4207,17 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
               onImageDelete={() => { commitField('setHeaderImage', null); commitField('setBackgroundType', 'color') }}
               onOpenChange={setBgPickerOpen}
             />
+          </div>
+
+          {/* Shadow overlay */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-gray-500">Shadow Overlay</span>
+            <div
+              onClick={() => commitField('setShadowOverlay', !shadowOverlay)}
+              className={`relative w-7 h-4 rounded-full cursor-pointer transition-colors ${shadowOverlay ? 'bg-blue-500' : 'bg-gray-300'}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${shadowOverlay ? 'translate-x-3' : ''}`} />
+            </div>
           </div>
 
           {/* Text color */}
@@ -4259,7 +4325,7 @@ export class HeaderNode extends DecoratorNode {
   static getType() { return 'header' }
 
   static clone(node) {
-    return new HeaderNode(node.__layout, node.__textAlign, node.__heading, node.__subheading, node.__backgroundColor, node.__buttonEnabled, node.__buttonText, node.__buttonUrl, node.__buttonColor, node.__headerImage, node.__flipLayout, node.__backgroundType, node.__textColorMode, node.__buttonTextColorMode, node.__key)
+    return new HeaderNode(node.__layout, node.__textAlign, node.__heading, node.__subheading, node.__backgroundColor, node.__buttonEnabled, node.__buttonText, node.__buttonUrl, node.__buttonColor, node.__headerImage, node.__flipLayout, node.__backgroundType, node.__textColorMode, node.__buttonTextColorMode, node.__shadowOverlay, node.__key)
   }
 
   static importJSON(data) {
@@ -4278,6 +4344,7 @@ export class HeaderNode extends DecoratorNode {
       data.backgroundType || 'color',
       data.textColorMode || 'auto',
       data.buttonTextColorMode || 'auto',
+      data.shadowOverlay || false,
     )
   }
 
@@ -4298,6 +4365,7 @@ export class HeaderNode extends DecoratorNode {
       backgroundType: this.__backgroundType,
       textColorMode: this.__textColorMode,
       buttonTextColorMode: this.__buttonTextColorMode,
+      shadowOverlay: this.__shadowOverlay,
     }
   }
 
@@ -4307,7 +4375,8 @@ export class HeaderNode extends DecoratorNode {
         if (!node.classList?.contains('header-regular') &&
             !node.classList?.contains('header-wide') &&
             !node.classList?.contains('header-full') &&
-            !node.classList?.contains('header-split')) return null
+            !node.classList?.contains('header-split') &&
+            !node.classList?.contains('header-fullscreen')) return null
         return {
           conversion: (domNode) => {
             const layout = domNode.getAttribute('data-layout') || 'regular'
@@ -4328,7 +4397,8 @@ export class HeaderNode extends DecoratorNode {
             const backgroundType = domNode.getAttribute('data-background-type') || 'color'
             const textColorMode = domNode.getAttribute('data-text-color-mode') || 'auto'
             const buttonTextColorMode = domNode.getAttribute('data-button-text-color-mode') || 'auto'
-            return { node: new HeaderNode(layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, flipLayout, backgroundType, textColorMode, buttonTextColorMode) }
+            const shadowOverlay = domNode.getAttribute('data-shadow-overlay') === 'true'
+            return { node: new HeaderNode(layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, flipLayout, backgroundType, textColorMode, buttonTextColorMode, shadowOverlay) }
           },
           priority: 2,
         }
@@ -4336,7 +4406,7 @@ export class HeaderNode extends DecoratorNode {
     }
   }
 
-  constructor(layout = 'regular', textAlign = 'left', heading = '', subheading = '', backgroundColor = '#000000', buttonEnabled = false, buttonText = '', buttonUrl = '', buttonColor = '#ffffff', headerImage = null, flipLayout = false, backgroundType = 'color', textColorMode = 'auto', buttonTextColorMode = 'auto', key) {
+  constructor(layout = 'regular', textAlign = 'left', heading = '', subheading = '', backgroundColor = '#000000', buttonEnabled = false, buttonText = '', buttonUrl = '', buttonColor = '#ffffff', headerImage = null, flipLayout = false, backgroundType = 'color', textColorMode = 'auto', buttonTextColorMode = 'auto', shadowOverlay = false, key) {
     super(key)
     this.__layout = layout
     this.__textAlign = textAlign
@@ -4352,6 +4422,7 @@ export class HeaderNode extends DecoratorNode {
     this.__backgroundType = backgroundType
     this.__textColorMode = textColorMode
     this.__buttonTextColorMode = buttonTextColorMode
+    this.__shadowOverlay = shadowOverlay
   }
 
   createDOM() {
@@ -4377,12 +4448,15 @@ export class HeaderNode extends DecoratorNode {
   setBackgroundType(val) { this.getWritable().__backgroundType = val }
   setTextColorMode(val) { this.getWritable().__textColorMode = val }
   setButtonTextColorMode(val) { this.getWritable().__buttonTextColorMode = val }
+  setShadowOverlay(val) { this.getWritable().__shadowOverlay = val }
 
   exportDOM() {
-    const heights      = { regular: '347px', wide: '447px', full: '551px', split: '600px' }
-    const headingSizes = { regular: '36px',  wide: '48px',  full: '60px',  split: '60px' }
-    const subSizes     = { regular: '20px',  wide: '22px',  full: '24px',  split: '24px' }
-    const btnSizes     = { regular: '16px',  wide: '16px',  full: '18px',  split: '18px' }
+    const heights      = { regular: '347px', wide: '447px', full: '551px', split: '600px', fullscreen: '100vh' }
+    // Fullscreen's base (below xl) matches full width's size — the CSS media queries in
+    // index.css (min-width: 1280px/1536px) ramp it up further at xl and 2xl.
+    const headingSizes = { regular: '36px',  wide: '48px',  full: '60px',  split: '60px',  fullscreen: '60px' }
+    const subSizes     = { regular: '20px',  wide: '22px',  full: '24px',  split: '24px',  fullscreen: '24px' }
+    const btnSizes     = { regular: '16px',  wide: '16px',  full: '18px',  split: '18px',  fullscreen: '20px' }
 
     const header = document.createElement('header')
     header.className = `header-${this.__layout}`
@@ -4398,6 +4472,7 @@ export class HeaderNode extends DecoratorNode {
     header.setAttribute('data-background-type', this.__backgroundType)
     header.setAttribute('data-text-color-mode', this.__textColorMode)
     header.setAttribute('data-button-text-color-mode', this.__buttonTextColorMode)
+    header.setAttribute('data-shadow-overlay', String(this.__shadowOverlay))
 
     if (this.__layout === 'split') {
       header.style.display = 'flex'
@@ -4417,8 +4492,20 @@ export class HeaderNode extends DecoratorNode {
         img.src = `/api/uploads/${this.__headerImage}`
         img.style.width = '100%'
         img.style.height = '100%'
-        img.style.objectFit = 'contain'
+        img.style.objectFit = 'cover'
         imgSide.appendChild(img)
+
+        // Split shows the shadow overlay on the image side, not the text side
+        if (this.__shadowOverlay) {
+          imgSide.style.position = 'relative'
+          const overlay = document.createElement('div')
+          overlay.style.position = 'absolute'
+          overlay.style.inset = '0'
+          overlay.style.background = '#000000'
+          overlay.style.opacity = '0.35'
+          overlay.style.pointerEvents = 'none'
+          imgSide.appendChild(overlay)
+        }
       }
 
       const textSide = document.createElement('div')
@@ -4431,22 +4518,28 @@ export class HeaderNode extends DecoratorNode {
       textSide.style.padding = '40px 48px 40px 96px'
       textSide.style.textAlign = this.__textAlign || 'left'
 
+      const textContentWrap = textSide
+
       const headingColor = resolveTextColor(this.__textColorMode, this.__backgroundColor)
 
       const headingEl = document.createElement('div')
       headingEl.className = 'header-heading'
       headingEl.style.fontSize = headingSizes.split
+      headingEl.style.lineHeight = '1.25'
       headingEl.style.fontWeight = 'bold'
       headingEl.style.color = headingColor
       headingEl.innerHTML = this.__heading
-      textSide.appendChild(headingEl)
+      textContentWrap.appendChild(headingEl)
 
-      const subEl = document.createElement('div')
-      subEl.className = 'header-subheading'
-      subEl.style.fontSize = subSizes.split
-      subEl.style.color = headingColor === 'white' ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)'
-      subEl.innerHTML = this.__subheading
-      textSide.appendChild(subEl)
+      if (!isBlankHtml(this.__subheading)) {
+        const subEl = document.createElement('div')
+        subEl.className = 'header-subheading'
+        subEl.style.fontSize = subSizes.split
+        subEl.style.lineHeight = '1.375'
+        subEl.style.color = headingColor === 'white' ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)'
+        subEl.innerHTML = this.__subheading
+        textContentWrap.appendChild(subEl)
+      }
 
       if (this.__buttonEnabled) {
         const btnWrap = document.createElement('div')
@@ -4465,14 +4558,18 @@ export class HeaderNode extends DecoratorNode {
         a.style.fontWeight = '500'
         a.style.textDecoration = 'none'
         btnWrap.appendChild(a)
-        textSide.appendChild(btnWrap)
+        textContentWrap.appendChild(btnWrap)
       }
 
       header.appendChild(imgSide)
       header.appendChild(textSide)
     } else {
-      const bgStyle = this.__backgroundType === 'image' && this.__headerImage
-        ? { backgroundImage: `url(/api/uploads/${this.__headerImage})`, backgroundSize: '100% auto', backgroundRepeat: 'no-repeat', backgroundPosition: 'center center' }
+      const hasBgImage = this.__backgroundType === 'image' && this.__headerImage
+      // background-size: cover is set via the .header-bg-image CSS class (index.css) rather
+      // than inline, so the image always crops to fill the box at every width. backgroundColor
+      // is a fallback in case the image is still loading or fails.
+      const bgStyle = hasBgImage
+        ? { backgroundColor: this.__backgroundColor, backgroundImage: `url(/api/uploads/${this.__headerImage})`, backgroundRepeat: 'no-repeat', backgroundPosition: 'center center' }
         : { background: this.__backgroundColor }
 
       if (this.__layout === 'regular') {
@@ -4482,7 +4579,7 @@ export class HeaderNode extends DecoratorNode {
       }
 
       const inner = document.createElement('div')
-      inner.className = 'header-inner'
+      inner.className = hasBgImage ? 'header-inner header-bg-image' : 'header-inner'
       Object.assign(inner.style, bgStyle)
       inner.style.minHeight = heights[this.__layout] || '347px'
       inner.style.textAlign = this.__textAlign || 'left'
@@ -4492,22 +4589,43 @@ export class HeaderNode extends DecoratorNode {
       inner.style.padding = `40px ${this.__layout === 'regular' ? '80px' : '256px'}`
       inner.style.boxSizing = 'border-box'
 
+      let innerContentWrap = inner
+      if (this.__shadowOverlay) {
+        inner.style.position = 'relative'
+
+        const overlay = document.createElement('div')
+        overlay.style.position = 'absolute'
+        overlay.style.inset = '0'
+        overlay.style.background = '#000000'
+        overlay.style.opacity = '0.35'
+        overlay.style.pointerEvents = 'none'
+        inner.appendChild(overlay)
+
+        innerContentWrap = document.createElement('div')
+        innerContentWrap.style.position = 'relative'
+        inner.appendChild(innerContentWrap)
+      }
+
       const headingColor = resolveTextColor(this.__textColorMode, this.__backgroundColor)
 
       const headingEl = document.createElement('div')
       headingEl.className = 'header-heading'
       headingEl.style.fontSize = headingSizes[this.__layout] || '36px'
+      headingEl.style.lineHeight = '1.25'
       headingEl.style.fontWeight = 'bold'
       headingEl.style.color = headingColor
       headingEl.innerHTML = this.__heading
-      inner.appendChild(headingEl)
+      innerContentWrap.appendChild(headingEl)
 
-      const subEl = document.createElement('div')
-      subEl.className = 'header-subheading'
-      subEl.style.fontSize = subSizes[this.__layout] || '20px'
-      subEl.style.color = headingColor === 'white' ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)'
-      subEl.innerHTML = this.__subheading
-      inner.appendChild(subEl)
+      if (!isBlankHtml(this.__subheading)) {
+        const subEl = document.createElement('div')
+        subEl.className = 'header-subheading'
+        subEl.style.fontSize = subSizes[this.__layout] || '20px'
+        subEl.style.lineHeight = '1.375'
+        subEl.style.color = headingColor === 'white' ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)'
+        subEl.innerHTML = this.__subheading
+        innerContentWrap.appendChild(subEl)
+      }
 
       if (this.__buttonEnabled) {
         const btnWrap = document.createElement('div')
@@ -4526,7 +4644,7 @@ export class HeaderNode extends DecoratorNode {
         a.style.fontWeight = '500'
         a.style.textDecoration = 'none'
         btnWrap.appendChild(a)
-        inner.appendChild(btnWrap)
+        innerContentWrap.appendChild(btnWrap)
       }
 
       header.appendChild(inner)
@@ -4552,6 +4670,7 @@ export class HeaderNode extends DecoratorNode {
         backgroundType={this.__backgroundType}
         textColorMode={this.__textColorMode}
         buttonTextColorMode={this.__buttonTextColorMode}
+        shadowOverlay={this.__shadowOverlay}
         nodeKey={this.getKey()}
         editor={editor}
       />

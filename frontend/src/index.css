@@ -790,10 +790,18 @@ html {
   text-decoration: underline;
 }
 
-/* Header block — break wide/full/split out of the max-w-3xl page container */
+/* Header block — background image always crops to fill the box (never shrinks and
+   letterboxes) at any width. Unscoped (not .blog-content-prefixed) so it applies in the
+   admin editor preview too, which shares this stylesheet. */
+.header-bg-image {
+  background-size: cover;
+}
+
+/* Header block — break wide/full/split/fullscreen out of the max-w-3xl page container */
 .blog-content header.header-wide,
 .blog-content header.header-full,
-.blog-content header.header-split {
+.blog-content header.header-split,
+.blog-content header.header-fullscreen {
   width: 100vw !important;
   margin-left: calc(50% - 50vw) !important;
   position: relative;
@@ -863,6 +871,60 @@ html {
   color: inherit;
 }
 
+/* Header block — fullscreen layout heading/subheading ramp up across breakpoints
+   (biggest at 2xl) instead of jumping straight to their max size at md. Matches the
+   editor's `md:text-6xl xl:text-[66px] 2xl:text-7xl` / `md:text-2xl xl:text-[27px]
+   2xl:text-3xl`. exportDOM's base inline size (60px/24px) covers md–lg. !important
+   needed since exportDOM sets that base size as an inline style; the 2xl rule comes
+   after the xl rule so it wins at 2xl+ where both match. */
+@media (min-width: 1280px) {
+  .blog-content header.header-fullscreen .header-heading {
+    font-size: 66px !important;
+  }
+  .blog-content header.header-fullscreen .header-subheading {
+    font-size: 27px !important;
+  }
+}
+@media (min-width: 1536px) {
+  .blog-content header.header-fullscreen .header-heading {
+    font-size: 72px !important;
+  }
+  .blog-content header.header-fullscreen .header-subheading {
+    font-size: 30px !important;
+  }
+}
+
+/* Header block — wide/full/fullscreen side padding ramps down in steps below the
+   2xl breakpoint (where the JS-set inline 256px value applies) instead of jumping
+   straight to the mobile override at 768px, so the heading isn't squeezed into a
+   narrow column on in-between (tablet/small laptop) widths. Mirrors the editor's
+   `px-8 md:px-14 lg:px-24 xl:px-40 2xl:px-64` scale. Must come before the mobile
+   override block below so its narrower, more specific query wins at <=768px. */
+@media (max-width: 1535px) {
+  .blog-content header.header-wide .header-inner,
+  .blog-content header.header-full .header-inner,
+  .blog-content header.header-fullscreen .header-inner {
+    padding-left: 160px !important;
+    padding-right: 160px !important;
+  }
+}
+@media (max-width: 1279px) {
+  .blog-content header.header-wide .header-inner,
+  .blog-content header.header-full .header-inner,
+  .blog-content header.header-fullscreen .header-inner {
+    padding-left: 96px !important;
+    padding-right: 96px !important;
+  }
+}
+@media (max-width: 1023px) {
+  .blog-content header.header-wide .header-inner,
+  .blog-content header.header-full .header-inner,
+  .blog-content header.header-fullscreen .header-inner {
+    padding-left: 56px !important;
+    padding-right: 56px !important;
+  }
+}
+
 /* Header block — mobile responsive overrides */
 @media (max-width: 768px) {
   .blog-content header.header-regular .header-inner {
@@ -876,6 +938,9 @@ html {
   .blog-content header.header-full .header-inner {
     padding: 24px 32px !important;
   }
+  .blog-content header.header-fullscreen .header-inner {
+    padding: 24px 32px !important;
+  }
   .blog-content header.header-split {
     flex-direction: column !important;
   }
@@ -883,11 +948,15 @@ html {
   .blog-content header.header-split .header-split-text {
     width: 100% !important;
   }
+  /* height (not min-height): the split image's <img> uses height:100%, which needs a
+     definite height on this parent to resolve against — min-height alone doesn't count
+     as definite, so the image fell back to its auto/intrinsic height, leaving a gap. */
   .blog-content header.header-split .header-split-image {
-    min-height: 240px;
+    height: 240px !important;
   }
   .blog-content header.header-split .header-split-text {
     padding: 24px 32px !important;
+    min-height: 240px !important;
   }
   .blog-content .header-heading {
     font-size: 28px !important;
