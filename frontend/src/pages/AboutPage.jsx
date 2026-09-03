@@ -43,8 +43,9 @@ export default function AboutPage() {
         <>
           <div
             ref={contentRef}
-            className="prose prose-gray max-w-none blog-content page-header-content font-serif"
+            className={`prose prose-gray max-w-none blog-content page-header-content ${config?.about_font_family === 'sans' ? 'font-sans' : 'font-serif'}`}
             data-page-width={config?.about_page_width === 'narrow' ? 'narrow' : 'regular'}
+            data-font-family={config?.about_font_family || 'default'}
             dangerouslySetInnerHTML={{ __html: config.about_text }}
           />
           {config.about_scrollable_nav_enabled && (

@@ -75,8 +75,9 @@ export default function ContactPage() {
         <>
           <div
             ref={contentRef}
-            className="prose prose-gray max-w-none blog-content page-header-content font-serif mb-8"
+            className={`prose prose-gray max-w-none blog-content page-header-content ${config?.contact_font_family === 'sans' ? 'font-sans' : 'font-serif'} mb-8`}
             data-page-width={config?.contact_page_width === 'narrow' ? 'narrow' : 'regular'}
+            data-font-family={config?.contact_font_family || 'default'}
             dangerouslySetInnerHTML={{ __html: config.contact_text }}
           />
           {config.contact_scrollable_nav_enabled && (

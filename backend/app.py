@@ -155,6 +155,18 @@ def _migrate_schema():
                     f"ALTER TABLE site_config ADD COLUMN {column} VARCHAR(20) NOT NULL DEFAULT 'regular'"
                 ))
 
+        for section in ('home', 'blog', 'projects', 'about', 'contact', 'ai_demo', 'payment'):
+            column = f'{section}_font_family'
+            if column not in config_columns:
+                conn.execute(text(
+                    f"ALTER TABLE site_config ADD COLUMN {column} VARCHAR(10) NOT NULL DEFAULT 'default'"
+                ))
+
+        if 'font_family' not in blog_post_columns:
+            conn.execute(text(
+                "ALTER TABLE blog_post ADD COLUMN font_family VARCHAR(10) NOT NULL DEFAULT 'default'"
+            ))
+
         if 'analytics_start_date' not in config_columns:
             conn.execute(text('ALTER TABLE site_config ADD COLUMN analytics_start_date DATE'))
             # Defaults to "today" for existing rows so every range clamps to

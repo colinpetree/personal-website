@@ -456,8 +456,9 @@ export default function PaymentPage() {
           <>
             <div
               ref={contentRef}
-              className="prose prose-gray max-w-none blog-content page-header-content font-serif mb-8"
+              className={`prose prose-gray max-w-none blog-content page-header-content ${config?.payment_font_family === 'sans' ? 'font-sans' : 'font-serif'} mb-8`}
               data-page-width={config?.payment_page_width === 'narrow' ? 'narrow' : 'regular'}
+              data-font-family={config?.payment_font_family || 'default'}
               dangerouslySetInnerHTML={{ __html: config.payment_text }}
             />
             {config.payment_scrollable_nav_enabled && (

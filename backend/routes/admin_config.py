@@ -53,11 +53,13 @@ def _config_to_dict(config):
         'home_meta_description': config.home_meta_description,
         'home_scrollable_nav_enabled': config.home_scrollable_nav_enabled,
         'home_page_width': config.home_page_width,
+        'home_font_family': config.home_font_family,
         'blog_enabled': config.blog_enabled,
         'blog_page_name': config.blog_page_name,
         'blog_slug': config.blog_slug,
         'blog_text': config.blog_text,
         'blog_meta_description': config.blog_meta_description,
+        'blog_font_family': config.blog_font_family,
         'projects_enabled': config.projects_enabled,
         'projects_page_name': config.projects_page_name,
         'projects_text': config.projects_text,
@@ -65,6 +67,7 @@ def _config_to_dict(config):
         'projects_scrollable_nav_enabled': config.projects_scrollable_nav_enabled,
         'projects_slug': config.projects_slug,
         'projects_page_width': config.projects_page_width,
+        'projects_font_family': config.projects_font_family,
         'about_enabled': config.about_enabled,
         'about_page_name': config.about_page_name,
         'about_text': config.about_text,
@@ -72,6 +75,7 @@ def _config_to_dict(config):
         'about_scrollable_nav_enabled': config.about_scrollable_nav_enabled,
         'about_slug': config.about_slug,
         'about_page_width': config.about_page_width,
+        'about_font_family': config.about_font_family,
         'contact_enabled': config.contact_enabled,
         'contact_page_name': config.contact_page_name,
         'contact_slug': config.contact_slug,
@@ -79,6 +83,7 @@ def _config_to_dict(config):
         'contact_meta_description': config.contact_meta_description,
         'contact_scrollable_nav_enabled': config.contact_scrollable_nav_enabled,
         'contact_page_width': config.contact_page_width,
+        'contact_font_family': config.contact_font_family,
         'mailgun_api_key_set': bool(config.mailgun_api_key),
         'mailgun_domain': config.mailgun_domain,
         'smtp_from_email': config.smtp_from_email,
@@ -90,6 +95,7 @@ def _config_to_dict(config):
         'payment_meta_description': config.payment_meta_description,
         'payment_scrollable_nav_enabled': config.payment_scrollable_nav_enabled,
         'payment_page_width': config.payment_page_width,
+        'payment_font_family': config.payment_font_family,
         'payment_comments_enabled': config.payment_comments_enabled,
         'stripe_publishable_key': config.stripe_publishable_key,
         'stripe_secret_key_set': bool(config.stripe_secret_key),
@@ -107,6 +113,7 @@ def _config_to_dict(config):
         result['ai_demo_meta_description'] = config.ai_demo_meta_description
         result['ai_demo_scrollable_nav_enabled'] = config.ai_demo_scrollable_nav_enabled
         result['ai_demo_page_width'] = config.ai_demo_page_width
+        result['ai_demo_font_family'] = config.ai_demo_font_family
     return result
 
 
@@ -148,17 +155,17 @@ def update_admin_config():
     plain_fields = [
         'site_title', 'site_description', 'domain', 'favicon_filename', 'timezone', 'users_enabled',
         'google_oauth_client_id',
-        'home_enabled', 'home_page_name', 'home_text', 'home_meta_description', 'home_scrollable_nav_enabled', 'home_page_width',
-        'blog_enabled', 'blog_page_name', 'blog_slug', 'blog_text', 'blog_meta_description', 'blog_comments_enabled',
-        'projects_enabled', 'projects_page_name', 'projects_text', 'projects_meta_description', 'projects_scrollable_nav_enabled', 'projects_slug', 'projects_page_width',
-        'about_enabled', 'about_page_name', 'about_text', 'about_meta_description', 'about_scrollable_nav_enabled', 'about_slug', 'about_page_width',
-        'contact_enabled', 'contact_page_name', 'contact_slug', 'contact_text', 'contact_meta_description', 'contact_scrollable_nav_enabled', 'contact_page_width',
+        'home_enabled', 'home_page_name', 'home_text', 'home_meta_description', 'home_scrollable_nav_enabled', 'home_page_width', 'home_font_family',
+        'blog_enabled', 'blog_page_name', 'blog_slug', 'blog_text', 'blog_meta_description', 'blog_comments_enabled', 'blog_font_family',
+        'projects_enabled', 'projects_page_name', 'projects_text', 'projects_meta_description', 'projects_scrollable_nav_enabled', 'projects_slug', 'projects_page_width', 'projects_font_family',
+        'about_enabled', 'about_page_name', 'about_text', 'about_meta_description', 'about_scrollable_nav_enabled', 'about_slug', 'about_page_width', 'about_font_family',
+        'contact_enabled', 'contact_page_name', 'contact_slug', 'contact_text', 'contact_meta_description', 'contact_scrollable_nav_enabled', 'contact_page_width', 'contact_font_family',
         'mailgun_domain', 'smtp_from_email', 'forward_email',
         'payment_enabled', 'payment_page_name', 'stripe_publishable_key', 'payment_slug', 'payment_comments_enabled',
-        'payment_text', 'payment_meta_description', 'payment_scrollable_nav_enabled', 'payment_page_width',
+        'payment_text', 'payment_meta_description', 'payment_scrollable_nav_enabled', 'payment_page_width', 'payment_font_family',
     ]
     if current_app.config['ENABLE_AI_DEMOS']:
-        plain_fields += ['ai_demo_enabled', 'ai_demo_page_name', 'ai_demo_slug', 'ai_demo_text', 'ai_demo_meta_description', 'ai_demo_scrollable_nav_enabled', 'ai_demo_page_width']
+        plain_fields += ['ai_demo_enabled', 'ai_demo_page_name', 'ai_demo_slug', 'ai_demo_text', 'ai_demo_meta_description', 'ai_demo_scrollable_nav_enabled', 'ai_demo_page_width', 'ai_demo_font_family']
     for field in plain_fields:
         if field in data:
             setattr(config, field, data[field])

@@ -49,8 +49,9 @@ export default function HomePage() {
     <main className={`min-h-screen bg-white mx-auto px-6 pt-10 pb-16 ${config.home_page_width === 'narrow' ? 'max-w-[524px]' : 'max-w-3xl'}`}>
       <div
         ref={contentRef}
-        className="prose prose-gray max-w-none blog-content page-header-content font-serif"
+        className={`prose prose-gray max-w-none blog-content page-header-content ${config.home_font_family === 'sans' ? 'font-sans' : 'font-serif'}`}
         data-page-width={config.home_page_width === 'narrow' ? 'narrow' : 'regular'}
+        data-font-family={config.home_font_family || 'default'}
         dangerouslySetInnerHTML={{ __html: config.home_text }}
       />
       {config.home_scrollable_nav_enabled && (
