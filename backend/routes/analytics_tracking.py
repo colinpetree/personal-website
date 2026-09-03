@@ -6,7 +6,7 @@ from analytics_utils import check_rate_limit, compute_visitor_key, is_admin_sess
 
 analytics_tracking_bp = Blueprint('analytics_tracking', __name__)
 
-KNOWN_PAGE_KEYS = {'home', 'about', 'projects', 'contact', 'ai_demo', 'payment'}
+KNOWN_PAGE_KEYS = {'home', 'blog', 'about', 'projects', 'contact', 'ai_demo', 'payment'}
 KNOWN_SHARE_PLATFORMS = {'copy_link', 'email', 'facebook', 'linkedin', 'x', 'bluesky'}
 
 
