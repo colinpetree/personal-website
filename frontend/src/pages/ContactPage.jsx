@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import { useTrackPageView } from '../hooks/useTrackPageView'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
@@ -35,6 +36,7 @@ export default function ContactPage() {
   const [status, setStatus] = useState(null) // 'sending' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState('')
   const isFormFilled = Object.values(form).every(v => v.trim() !== '')
+  useTrackPageView('page', isNavEnabled(config, 'contact') ? 'contact' : null)
 
   function handleChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))

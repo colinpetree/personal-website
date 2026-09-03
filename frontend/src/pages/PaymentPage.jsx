@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router'
 import { loadStripe } from '@stripe/stripe-js'
 import { EmbeddedCheckoutProvider, EmbeddedCheckout } from '@stripe/react-stripe-js'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import { useTrackPageView } from '../hooks/useTrackPageView'
 import { useUserAuth } from '../context/UserAuthContext'
 import PaymentComments from '../components/PaymentComments'
 import SignInRequiredModal from '../components/SignInRequiredModal'
@@ -223,6 +224,8 @@ export default function PaymentPage() {
     mainEl.addEventListener('wheel', onWheel, { passive: false })
     return () => mainEl.removeEventListener('wheel', onWheel)
   }, [commentsEnabled, step])
+
+  useTrackPageView('page', isNavEnabled(config, 'payment') ? 'payment' : null)
 
   if (!isNavEnabled(config, 'payment')) return <NotFoundPage />
 

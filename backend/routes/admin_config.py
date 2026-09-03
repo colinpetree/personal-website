@@ -3,6 +3,7 @@ import json
 import uuid
 import shutil
 import subprocess
+from datetime import datetime
 from flask import Blueprint, jsonify, request, current_app
 from flask_login import current_user
 from models import SiteConfig, SiteEventLog, DEFAULT_NAV_ORDER
@@ -94,6 +95,7 @@ def _config_to_dict(config):
         'stripe_secret_key_set': bool(config.stripe_secret_key),
         'stripe_webhook_secret_set': bool(config.stripe_webhook_secret),
         'blog_comments_enabled': config.blog_comments_enabled,
+        'analytics_start_date': config.analytics_start_date.isoformat() if config.analytics_start_date else None,
     }
     # AI demo settings are only exposed to the admin UI when this deployment
     # has the feature built in — see app.config['ENABLE_AI_DEMOS'].
@@ -127,6 +129,7 @@ ADMIN_ONLY_FIELDS = {
     'mailgun_api_key', 'mailgun_domain',
     'smtp_from_email', 'forward_email',
     'stripe_publishable_key', 'stripe_secret_key', 'stripe_webhook_secret',
+    'analytics_start_date',
 }
 
 @admin_config_bp.route('/api/admin/site-config', methods=['PUT'])
@@ -171,6 +174,20 @@ def update_admin_config():
             return jsonify({'error': 'Invalid nav_order'}), 400
         config.nav_order = json.dumps(nav_order)
 
+    # Analytics start date — validated/parsed separately since it's a Date,
+    # not a plain string field.
+    if 'analytics_start_date' in data:
+        raw = data['analytics_start_date']
+        if raw:
+            if not isinstance(raw, str):
+                return jsonify({'error': 'Invalid analytics_start_date'}), 400
+            try:
+                config.analytics_start_date = datetime.strptime(raw, '%Y-%m-%d').date()
+            except ValueError:
+                return jsonify({'error': 'Invalid analytics_start_date'}), 400
+        else:
+            config.analytics_start_date = None
+
     # Encrypted fields — only update if a non-empty value is provided
     if data.get('mailgun_api_key'):
         config.mailgun_api_key = encrypt(data['mailgun_api_key'])
@@ -188,7 +205,7 @@ def update_admin_config():
             f.write(data['domain'])
 
     # Log the settings change
-    changed_keys = [k for k in data if k in plain_fields or k in ('nav_order', 'mailgun_api_key', 'stripe_secret_key', 'stripe_webhook_secret', 'google_oauth_client_secret')]
+    changed_keys = [k for k in data if k in plain_fields or k in ('nav_order', 'mailgun_api_key', 'stripe_secret_key', 'stripe_webhook_secret', 'google_oauth_client_secret', 'analytics_start_date')]
     if changed_keys:
         subject = 'Site (' + ', '.join(changed_keys) + ')'
         entry = SiteEventLog(

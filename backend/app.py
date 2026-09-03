@@ -70,6 +70,8 @@ def create_app():
     from routes.admin_history import admin_history_bp
     from routes.payment import payment_bp
     from routes.search import search_bp
+    from routes.analytics_tracking import analytics_tracking_bp
+    from routes.admin_analytics import admin_analytics_bp
     app.register_blueprint(profile_bp)
     app.register_blueprint(site_config_bp)
     app.register_blueprint(projects_bp)
@@ -88,6 +90,8 @@ def create_app():
     app.register_blueprint(admin_history_bp)
     app.register_blueprint(payment_bp)
     app.register_blueprint(search_bp)
+    app.register_blueprint(analytics_tracking_bp)
+    app.register_blueprint(admin_analytics_bp)
 
     if app.config['ENABLE_AI_DEMOS']:
         from routes.ai_demo import ai_demo_bp
@@ -150,6 +154,38 @@ def _migrate_schema():
                 conn.execute(text(
                     f"ALTER TABLE site_config ADD COLUMN {column} VARCHAR(20) NOT NULL DEFAULT 'regular'"
                 ))
+
+        if 'analytics_start_date' not in config_columns:
+            conn.execute(text('ALTER TABLE site_config ADD COLUMN analytics_start_date DATE'))
+            # Defaults to "today" for existing rows so every range clamps to
+            # the day this feature was deployed, rather than to NULL (which
+            # would leave ranges unclamped and could span dates with no data).
+            conn.execute(text(
+                'UPDATE site_config SET analytics_start_date = CURRENT_DATE WHERE analytics_start_date IS NULL'
+            ))
+
+        attempt_columns = {c['name'] for c in inspector.get_columns('analytics_attempt')}
+        if 'visitor_key' not in attempt_columns:
+            # No NOT NULL here even though the model declares one — these
+            # rows are always stale within ~60s under normal operation
+            # (check_rate_limit() sweeps them), so there's nothing meaningful
+            # to backfill, and a NOT NULL ADD COLUMN would fail outright on
+            # any row already in the table.
+            conn.execute(text('ALTER TABLE analytics_attempt ADD COLUMN visitor_key VARCHAR(64)'))
+
+        # db.create_all() only adds indexes when it creates the table itself
+        # — since analytics_attempt already existed before these were added
+        # to the model, they need the same explicit additive treatment as a
+        # column would.
+        attempt_indexes = {i['name'] for i in inspector.get_indexes('analytics_attempt')}
+        if 'ix_analytics_attempt_visitor_created' not in attempt_indexes:
+            conn.execute(text(
+                'CREATE INDEX ix_analytics_attempt_visitor_created ON analytics_attempt (visitor_key, created_at)'
+            ))
+        if 'ix_analytics_attempt_ip_created' not in attempt_indexes:
+            conn.execute(text(
+                'CREATE INDEX ix_analytics_attempt_ip_created ON analytics_attempt (ip_address, created_at)'
+            ))
 
 
 if __name__ == '__main__':

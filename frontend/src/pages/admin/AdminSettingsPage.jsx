@@ -331,6 +331,22 @@ function AdminSettingsPageContent() {
           )}
         </EditableCard>
 
+        {/* Analytics start date card */}
+        <EditableCard
+          title="Analytics Start Date"
+          description="Every Analytics date range is clamped to not go earlier than this date — set it to your site's real launch date if analytics was added after launch."
+          savedValues={{ analytics_start_date: config?.analytics_start_date || '' }}
+          onSave={values => save({ analytics_start_date: values.analytics_start_date })}
+        >
+          {({ editing, local, set }) => editing ? (
+            <Field label="Analytics Start Date">
+              <Input type="date" value={local.analytics_start_date} onChange={e => set('analytics_start_date', e.target.value)} />
+            </Field>
+          ) : (
+            <DisplayValue value={local.analytics_start_date} fallback="Not set" />
+          )}
+        </EditableCard>
+
         {/* Mailgun Settings card */}
         {isAdmin && <EditableCard
           title="Mailgun Settings"

@@ -98,9 +98,9 @@ export function EditableCard({ title, description, savedValues, onSave, children
   )
 }
 
-export function PageShell({ title, children }) {
+export function PageShell({ title, children, wide = false }) {
   return (
-    <div className="max-w-2xl mx-auto px-8 py-10">
+    <div className={`mx-auto px-8 py-10 ${wide ? 'max-w-5xl' : 'max-w-2xl'}`}>
       <h1 className="text-2xl font-bold text-gray-900 mb-8">{title}</h1>
       {children}
     </div>

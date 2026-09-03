@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import { useTrackPageView } from '../hooks/useTrackPageView'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage } from '../utils/meta'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
@@ -31,6 +32,10 @@ export function meta({ data }) {
 export default function HomePage() {
   const { config } = useSiteConfig()
   const contentRef = useRef(null)
+  // home_text presence is the page's own "has content" gate — home_enabled
+  // only controls whether it shows in the nav, not whether it's public (see
+  // site_config.py's get_site_config), so it's tracked whenever it renders.
+  useTrackPageView('page', config?.home_text ? 'home' : null)
 
   if (!config?.home_text) {
     return (

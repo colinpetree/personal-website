@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import { useTrackPageView } from '../hooks/useTrackPageView'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
@@ -31,8 +32,10 @@ export function meta({ data }) {
 export default function AboutPage() {
   const { config } = useSiteConfig()
   const contentRef = useRef(null)
+  const enabled = isNavEnabled(config, 'about')
+  useTrackPageView('page', enabled ? 'about' : null)
 
-  if (!isNavEnabled(config, 'about')) return <NotFoundPage />
+  if (!enabled) return <NotFoundPage />
 
   return (
     <main className={`mx-auto px-6 pt-10 pb-16 ${config?.about_page_width === 'narrow' ? 'max-w-[524px]' : 'max-w-3xl'}`}>

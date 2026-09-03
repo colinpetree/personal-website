@@ -109,7 +109,9 @@ export default (async () => {
     // through to the public :slug catch-all instead. Confirmed broken via
     // an actual logged-in browser session before this fix.
     route('admin', './components/admin/AdminLayout.jsx', [
-      index('./pages/admin/AdminSettingsPage.jsx'),
+      index('./pages/admin/AdminAnalyticsPage.jsx'),
+      route('settings', './pages/admin/AdminSettingsPage.jsx'),
+      route('analytics/:type/:key', './pages/admin/AdminAnalyticsDetail.jsx'),
       route('users', './pages/admin/AdminUsersPage.jsx'),
       route('home', './pages/admin/AdminHomePage.jsx'),
       route('home/edit', './pages/admin/AdminHomeEditRoute.jsx'),
