@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Mail, X } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
@@ -35,7 +36,7 @@ export default function SignInRequiredModal({ onClose, title = 'Sign in required
   const [error, setError] = useState('')
 
   if (!config?.users_enabled) {
-    return (
+    return createPortal(
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
         <div
           className="relative bg-white rounded-xl shadow-lg w-full max-w-sm px-6 pt-10 pb-6 text-center"
@@ -47,7 +48,8 @@ export default function SignInRequiredModal({ onClose, title = 'Sign in required
           <h2 className="text-lg font-semibold text-gray-900 mb-2">Sign-in unavailable</h2>
           <p className="text-sm text-gray-500">Sign-in is currently disabled on this site.</p>
         </div>
-      </div>
+      </div>,
+      document.body
     )
   }
 
@@ -66,7 +68,7 @@ export default function SignInRequiredModal({ onClose, title = 'Sign in required
     }
   }
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
         className="relative bg-white rounded-xl shadow-lg w-full max-w-sm px-6 pt-10 pb-6 text-center"
@@ -130,6 +132,7 @@ export default function SignInRequiredModal({ onClose, title = 'Sign in required
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

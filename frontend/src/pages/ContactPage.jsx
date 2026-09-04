@@ -5,6 +5,8 @@ import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
+import HeaderImageLqip from '../components/HeaderImageLqip'
+import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 import NotFoundPage from './NotFoundPage'
 
 const INITIAL = { name: '', email: '', subject: '', message: '' }
@@ -84,6 +86,8 @@ export default function ContactPage() {
             <ScrollableHeaderNav containerRef={contentRef} contentKey={config.contact_text} />
           )}
           <CodeBlockCopyToast containerRef={contentRef} contentKey={config.contact_text} />
+          <HeaderImageLqip containerRef={contentRef} contentKey={config.contact_text} />
+          <FullscreenHeaderNav containerRef={contentRef} contentKey={config.contact_text} />
         </>
       )}
 

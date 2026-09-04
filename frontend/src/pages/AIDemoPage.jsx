@@ -7,6 +7,8 @@ import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../uti
 import { AI_DEMO_LIST } from '../lib/aiDemos'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
+import HeaderImageLqip from '../components/HeaderImageLqip'
+import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 import NotFoundPage from './NotFoundPage'
 
 const DEMO_DESCRIPTIONS = {
@@ -71,6 +73,8 @@ export default function AIDemoPage() {
             <ScrollableHeaderNav containerRef={contentRef} contentKey={config.ai_demo_text} />
           )}
           <CodeBlockCopyToast containerRef={contentRef} contentKey={config.ai_demo_text} />
+          <HeaderImageLqip containerRef={contentRef} contentKey={config.ai_demo_text} />
+          <FullscreenHeaderNav containerRef={contentRef} contentKey={config.ai_demo_text} />
         </>
       )}
 

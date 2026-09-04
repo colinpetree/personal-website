@@ -40,7 +40,7 @@ function decoratorFontClass(fontFamily) {
 }
 import Picker from '@emoji-mart/react'
 import emojiData from '@emoji-mart/data'
-import { handleUpload, handleUploadFull } from './upload'
+import { handleUploadFull } from './upload'
 import { FloatingToolbarPlugin } from './plugins'
 import { Tooltip } from '../../ui/Tooltip'
 import { useToast } from '../../../context/ToastContext'
@@ -4010,8 +4010,9 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
           e.target.value = ''
           if (!file) return
           try {
-            const filename = await handleUpload(file)
+            const { filename, lqip } = await handleUploadFull(file)
             commitField('setHeaderImage', filename)
+            commitField('setHeaderImageLqip', lqip || '')
           } catch {}
         }}
       />
@@ -4064,7 +4065,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                   </button>
                   <button
                     type="button"
-                    onMouseDown={e => { e.preventDefault(); e.stopPropagation(); commitField('setHeaderImage', null) }}
+                    onMouseDown={e => { e.preventDefault(); e.stopPropagation(); commitField('setHeaderImage', null); commitField('setHeaderImageLqip', '') }}
                     className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
                     aria-label="Delete image"
                   >
@@ -4202,9 +4203,9 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
               imageFilename={headerImage}
               imageActive={backgroundType === 'image'}
               imageHidden={layout === 'split'}
-              onImageUpload={filename => { commitField('setHeaderImage', filename); commitField('setBackgroundType', 'image') }}
+              onImageUpload={(filename, lqip) => { commitField('setHeaderImage', filename); commitField('setHeaderImageLqip', lqip || ''); commitField('setBackgroundType', 'image') }}
               onImageSelect={() => commitField('setBackgroundType', 'image')}
-              onImageDelete={() => { commitField('setHeaderImage', null); commitField('setBackgroundType', 'color') }}
+              onImageDelete={() => { commitField('setHeaderImage', null); commitField('setHeaderImageLqip', ''); commitField('setBackgroundType', 'color') }}
               onOpenChange={setBgPickerOpen}
             />
           </div>
@@ -4325,7 +4326,7 @@ export class HeaderNode extends DecoratorNode {
   static getType() { return 'header' }
 
   static clone(node) {
-    return new HeaderNode(node.__layout, node.__textAlign, node.__heading, node.__subheading, node.__backgroundColor, node.__buttonEnabled, node.__buttonText, node.__buttonUrl, node.__buttonColor, node.__headerImage, node.__flipLayout, node.__backgroundType, node.__textColorMode, node.__buttonTextColorMode, node.__shadowOverlay, node.__key)
+    return new HeaderNode(node.__layout, node.__textAlign, node.__heading, node.__subheading, node.__backgroundColor, node.__buttonEnabled, node.__buttonText, node.__buttonUrl, node.__buttonColor, node.__headerImage, node.__headerImageLqip, node.__flipLayout, node.__backgroundType, node.__textColorMode, node.__buttonTextColorMode, node.__shadowOverlay, node.__key)
   }
 
   static importJSON(data) {
@@ -4340,6 +4341,7 @@ export class HeaderNode extends DecoratorNode {
       data.buttonUrl || '',
       data.buttonColor || '#3b82f6',
       data.headerImage || null,
+      data.headerImageLqip || '',
       data.flipLayout || false,
       data.backgroundType || 'color',
       data.textColorMode || 'auto',
@@ -4361,6 +4363,7 @@ export class HeaderNode extends DecoratorNode {
       buttonUrl: this.__buttonUrl,
       buttonColor: this.__buttonColor,
       headerImage: this.__headerImage,
+      headerImageLqip: this.__headerImageLqip,
       flipLayout: this.__flipLayout,
       backgroundType: this.__backgroundType,
       textColorMode: this.__textColorMode,
@@ -4393,12 +4396,13 @@ export class HeaderNode extends DecoratorNode {
             const buttonColor = domNode.getAttribute('data-button-color') || '#ffffff'
             const textAlign = domNode.getAttribute('data-text-align') || 'left'
             const headerImage = domNode.getAttribute('data-header-image') || null
+            const headerImageLqip = domNode.getAttribute('data-header-image-lqip') || ''
             const flipLayout = domNode.getAttribute('data-flip-layout') === 'true'
             const backgroundType = domNode.getAttribute('data-background-type') || 'color'
             const textColorMode = domNode.getAttribute('data-text-color-mode') || 'auto'
             const buttonTextColorMode = domNode.getAttribute('data-button-text-color-mode') || 'auto'
             const shadowOverlay = domNode.getAttribute('data-shadow-overlay') === 'true'
-            return { node: new HeaderNode(layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, flipLayout, backgroundType, textColorMode, buttonTextColorMode, shadowOverlay) }
+            return { node: new HeaderNode(layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, headerImageLqip, flipLayout, backgroundType, textColorMode, buttonTextColorMode, shadowOverlay) }
           },
           priority: 2,
         }
@@ -4406,7 +4410,7 @@ export class HeaderNode extends DecoratorNode {
     }
   }
 
-  constructor(layout = 'regular', textAlign = 'left', heading = '', subheading = '', backgroundColor = '#000000', buttonEnabled = false, buttonText = '', buttonUrl = '', buttonColor = '#ffffff', headerImage = null, flipLayout = false, backgroundType = 'color', textColorMode = 'auto', buttonTextColorMode = 'auto', shadowOverlay = false, key) {
+  constructor(layout = 'regular', textAlign = 'left', heading = '', subheading = '', backgroundColor = '#000000', buttonEnabled = false, buttonText = '', buttonUrl = '', buttonColor = '#ffffff', headerImage = null, headerImageLqip = '', flipLayout = false, backgroundType = 'color', textColorMode = 'auto', buttonTextColorMode = 'auto', shadowOverlay = false, key) {
     super(key)
     this.__layout = layout
     this.__textAlign = textAlign
@@ -4418,6 +4422,7 @@ export class HeaderNode extends DecoratorNode {
     this.__buttonUrl = buttonUrl
     this.__buttonColor = buttonColor
     this.__headerImage = headerImage
+    this.__headerImageLqip = headerImageLqip
     this.__flipLayout = flipLayout
     this.__backgroundType = backgroundType
     this.__textColorMode = textColorMode
@@ -4444,6 +4449,7 @@ export class HeaderNode extends DecoratorNode {
   setButtonUrl(val) { this.getWritable().__buttonUrl = val }
   setButtonColor(val) { this.getWritable().__buttonColor = val }
   setHeaderImage(val) { this.getWritable().__headerImage = val }
+  setHeaderImageLqip(val) { this.getWritable().__headerImageLqip = val }
   setFlipLayout(val) { this.getWritable().__flipLayout = val }
   setBackgroundType(val) { this.getWritable().__backgroundType = val }
   setTextColorMode(val) { this.getWritable().__textColorMode = val }
@@ -4467,6 +4473,7 @@ export class HeaderNode extends DecoratorNode {
     header.setAttribute('data-button-color', this.__buttonColor)
     header.setAttribute('data-text-align', this.__textAlign)
     if (this.__headerImage) header.setAttribute('data-header-image', this.__headerImage)
+    if (this.__headerImageLqip) header.setAttribute('data-header-image-lqip', this.__headerImageLqip)
     header.setAttribute('data-flip-layout', String(this.__flipLayout))
     header.setAttribute('data-background-color', this.__backgroundColor)
     header.setAttribute('data-background-type', this.__backgroundType)

@@ -797,6 +797,19 @@ html {
   background-size: cover;
 }
 
+/* Navbar.jsx: momentarily kills every transition inside the navbar (itself
+   and every descendant — nav links, search/hamburger buttons, the site
+   title) right when a page's transparent/solid state is first determined,
+   so landing on a new page snaps straight to the right colors instead of
+   visibly crossfading from the previous page's. Toggled via direct DOM
+   writes, not a Tailwind/React class, so the disable is guaranteed to land
+   in the same paint as the color change — see the comment above where it's
+   applied. */
+.navbar-no-transition,
+.navbar-no-transition * {
+  transition: none !important;
+}
+
 /* Header block — break wide/full/split/fullscreen out of the max-w-3xl page container */
 .blog-content header.header-wide,
 .blog-content header.header-full,
@@ -805,6 +818,14 @@ html {
   width: 100vw !important;
   margin-left: calc(50% - 50vw) !important;
   position: relative;
+}
+
+/* A leading fullscreen header (see useFullscreenHeaderNav, which overlays
+   Navbar transparently on top of it for this exact case) should own the
+   entire viewport, not just the width — cancel out the page-header-content
+   pages' shared `pt-10` (2.5rem) top padding so there's no gap above it. */
+.page-header-content > header.header-fullscreen:first-child {
+  margin-top: -2.5rem;
 }
 
 /* Wide inner: center and cap at 80rem within the full-width breakout */

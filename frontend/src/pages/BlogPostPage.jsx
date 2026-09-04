@@ -10,6 +10,7 @@ import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import BlogPostNav from '../components/BlogPostNav'
 import ShareButton from '../components/ShareButton'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
+import HeaderImageLqip from '../components/HeaderImageLqip'
 import { setupSegmentLoopVideo } from '../utils/segmentLoopVideo'
 import { buildMeta, absoluteUploadUrl, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import { apiUrl, fetchSiteConfig } from '../lib/apiFetch'
@@ -767,6 +768,7 @@ export default function BlogPostPage() {
         <ScrollableHeaderNav containerRef={articleRef} contentKey={post.content_html} />
       )}
       <CodeBlockCopyToast containerRef={articleRef} contentKey={post.content_html} />
+      <HeaderImageLqip containerRef={articleRef} contentKey={post.content_html} />
 
       {lightboxIndex !== null && (
         <GalleryLightbox

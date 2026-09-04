@@ -1,19 +1,30 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { Link, useLocation } from 'react-router'
 import { Search } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import { useNavOverlay } from '../context/NavOverlayContext'
 import SignInRequiredModal from './SignInRequiredModal'
 import SearchModal from './SearchModal'
 
-function SearchButton({ className = '' }) {
+// Shared by every nav-link-shaped control (desktop nav links, Sign in) so
+// the hover chip and the transparent/solid text colors stay in sync in one
+// place instead of being repeated at each call site.
+function navItemClass(active, transparent) {
+  const color = transparent
+    ? (active ? 'text-white' : 'text-white/75 hover:text-white')
+    : (active ? 'text-gray-900' : 'text-gray-500 hover:text-gray-900')
+  return `text-sm font-medium rounded-md px-3 py-1.5 transition-colors hover:bg-gray-400/20 ${color}`
+}
+
+function SearchButton({ className = '', transparent = false }) {
   const [showSearchModal, setShowSearchModal] = useState(false)
   return (
     <>
       <button
         onClick={() => setShowSearchModal(true)}
         aria-label="Search"
-        className={`text-gray-500 hover:text-gray-900 transition-colors ${className}`}
+        className={`rounded-full p-2 transition-colors hover:bg-gray-400/20 ${transparent ? 'text-white/75 hover:text-white' : 'text-gray-500 hover:text-gray-900'} ${className}`}
       >
         <Search size={18} />
       </button>
@@ -27,9 +38,78 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [showSignInModal, setShowSignInModal] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const [borderVisible, setBorderVisible] = useState(true)
   const userMenuRef = useRef(null)
+  const headerRef = useRef(null)
+  const justNavigatedRef = useRef(true)
   const location = useLocation()
   const { user, logout } = useUserAuth()
+  const { overlay } = useNavOverlay() ?? {}
+  const transparent = !!overlay && !scrolled
+
+  // Fullscreen-header pages (see useFullscreenHeaderNav) want the navbar to
+  // overlay transparently on top of the header — white text, no background
+  // — so the header gets the whole viewport for its cinematic effect, then
+  // flip to the normal solid navbar as soon as the user scrolls even a
+  // little. A plain boolean threshold (not a scroll-linked drag) — the
+  // color/background transition is handled by `transition-colors` in the
+  // className below, not by JS.
+  useEffect(() => {
+    if (!overlay) { setScrolled(false); return }
+    function onScroll() { setScrolled(window.scrollY > 10) }
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [overlay])
+
+  // `overlay` flips whenever the route changes (a new page mounts/unmounts
+  // its FullscreenHeaderNav), and each time it does, the header's (and its
+  // nav links'/buttons') colors should snap straight to the new page's
+  // top-of-page state instead of visibly crossfading from the previous
+  // page's — there's nothing to transition FROM, it's a different page.
+  // `.navbar-no-transition *` (index.css) kills every transition in the
+  // subtree; toggling it via direct DOM writes in a layout effect (not
+  // React state) makes the disable land in the very same paint as the
+  // color change — a state-driven version of this raced the paint (still
+  // showed a ~100ms fade) because the state update needed its own extra
+  // render before the class actually landed in the DOM. The forced reflow
+  // (`offsetHeight` read) is required so the browser commits the
+  // "transitions off" style before re-enabling them on the next frame —
+  // without it the two writes can get batched into one style
+  // recalculation and the disable never visibly takes effect.
+  useLayoutEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    el.classList.add('navbar-no-transition')
+    void el.offsetHeight
+    const raf = requestAnimationFrame(() => el.classList.remove('navbar-no-transition'))
+    // Also snap the border straight to its correct state here, before
+    // paint — see the effect below for why the border's reveal (but not
+    // its hide) is otherwise delayed to match the background's fade.
+    // Landing on a page is not a "reveal", there's nothing to delay for.
+    justNavigatedRef.current = true
+    setBorderVisible(!transparent)
+    return () => cancelAnimationFrame(raf)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlay])
+
+  // The border has no in-between visual state the way a color fade does —
+  // it's either there or not — so animating it in sync with the
+  // background's 300ms fade reads as lagging behind (a hairline's alpha
+  // ramp is far less perceptible than a full-bleed fill's identical ramp).
+  // Snapping it instantly fixes that for the disappear direction, but for
+  // the appear direction it then shows an empty outline that visibly waits
+  // for the background fill to catch up to it. So: disappear instantly
+  // (matches the background starting to fade out), but delay the
+  // appearance until the background's own fade has finished, so the two
+  // resolve together instead of the border finishing first.
+  useEffect(() => {
+    if (justNavigatedRef.current) { justNavigatedRef.current = false; return }
+    if (transparent) { setBorderVisible(false); return }
+    const timer = setTimeout(() => setBorderVisible(true), 300)
+    return () => clearTimeout(timer)
+  }, [transparent])
 
   // Close mobile menu on navigation
   useEffect(() => { setMenuOpen(false); setUserMenuOpen(false) }, [location.pathname])
@@ -63,11 +143,21 @@ export default function Navbar() {
   const usersEnabled = config?.users_enabled ?? false
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
+    <header
+      ref={headerRef}
+      className={`z-50 border-b transition-[background-color] duration-300 ${
+        overlay ? 'fixed top-0 left-0 right-0' : 'sticky top-0'
+      } ${transparent ? 'bg-transparent' : 'bg-white'} ${borderVisible ? 'border-gray-200' : 'border-transparent'}`}
+    >
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Site title / logo */}
         {config ? (
-          <Link to="/" className="text-lg font-semibold text-gray-900 hover:text-gray-700 transition-colors">
+          <Link
+            to="/"
+            className={`text-lg font-semibold transition-colors ${
+              transparent ? 'text-white hover:text-white/80' : 'text-gray-900 hover:text-gray-700'
+            }`}
+          >
             {siteTitle}
           </Link>
         ) : (
@@ -75,7 +165,7 @@ export default function Navbar() {
         )}
 
         {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-6">
+        <nav className="hidden md:flex items-center gap-1">
           {!config && (
             <>
               <div className="w-12 h-4 bg-gray-100 rounded animate-pulse" />
@@ -87,11 +177,7 @@ export default function Navbar() {
             <Link
               key={link.key}
               to={link.path}
-              className={`text-sm font-medium transition-colors ${
-                location.pathname === link.path
-                  ? 'text-gray-900'
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
+              className={navItemClass(location.pathname === link.path, transparent)}
             >
               {link.name}
             </Link>
@@ -100,8 +186,8 @@ export default function Navbar() {
           {usersEnabled ? (
             user ? (
               <>
-                <SearchButton />
-                <div className="relative" ref={userMenuRef}>
+                <SearchButton transparent={transparent} />
+                <div className="relative ml-2" ref={userMenuRef}>
                   <button
                     onClick={() => setUserMenuOpen(o => !o)}
                     className="flex items-center gap-2 focus:outline-none"
@@ -130,23 +216,23 @@ export default function Navbar() {
               <>
                 <button
                   onClick={() => setShowSignInModal(true)}
-                  className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors"
+                  className={navItemClass(false, transparent)}
                 >
                   Sign in
                 </button>
-                <SearchButton />
+                <SearchButton transparent={transparent} />
               </>
             )
           ) : (
-            <SearchButton />
+            <SearchButton transparent={transparent} />
           )}
         </nav>
 
         {/* Mobile hamburger */}
-        <div className="md:hidden flex items-center">
-          <SearchButton className="p-2" />
+        <div className="md:hidden flex items-center gap-1">
+          <SearchButton transparent={transparent} />
           <button
-            className="p-2 text-gray-500 hover:text-gray-900"
+            className={`rounded-full p-2 transition-colors hover:bg-gray-400/20 ${transparent ? 'text-white/75 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
             onClick={() => setMenuOpen(o => !o)}
             aria-label="Toggle menu"
           >
