@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router'
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 
 export default function SearchModal({ onClose }) {
   const navigate = useNavigate()
@@ -24,7 +25,7 @@ export default function SearchModal({ onClose }) {
     onClose()
   }
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-start justify-center z-50 p-4 pt-24"
       onClick={onClose}
@@ -33,6 +34,9 @@ export default function SearchModal({ onClose }) {
         className="relative bg-white rounded-xl shadow-lg w-full max-w-lg px-6 py-6"
         onClick={e => e.stopPropagation()}
       >
+        <button onClick={onClose} aria-label="Close" className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+          <X size={18} />
+        </button>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Search</h2>
         <form onSubmit={handleSubmit} className="flex rounded-lg shadow-md">
           <input
@@ -56,6 +60,7 @@ export default function SearchModal({ onClose }) {
           </button>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

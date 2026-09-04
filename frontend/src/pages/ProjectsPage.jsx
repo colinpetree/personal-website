@@ -7,6 +7,8 @@ import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../uti
 import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
+import HeaderImageLqip from '../components/HeaderImageLqip'
+import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 import NotFoundPage from './NotFoundPage'
 
 // fetchSiteConfig() runs alongside the project fetch purely to populate
@@ -110,6 +112,8 @@ export default function ProjectsPage() {
             <ScrollableHeaderNav containerRef={contentRef} contentKey={config.projects_text} />
           )}
           <CodeBlockCopyToast containerRef={contentRef} contentKey={config.projects_text} />
+          <HeaderImageLqip containerRef={contentRef} contentKey={config.projects_text} />
+          <FullscreenHeaderNav containerRef={contentRef} contentKey={config.projects_text} />
         </>
       )}
 

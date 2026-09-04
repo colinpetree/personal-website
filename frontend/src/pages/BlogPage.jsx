@@ -7,6 +7,8 @@ import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../uti
 import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
 import CategoryFilterBar from '../components/CategoryFilterBar'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
+import HeaderImageLqip from '../components/HeaderImageLqip'
+import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 import NotFoundPage from './NotFoundPage'
 
 function BlogListSkeleton() {
@@ -157,6 +159,8 @@ export default function BlogPage() {
         />
       )}
       <CodeBlockCopyToast containerRef={contentRef} contentKey={config?.blog_text} />
+      <HeaderImageLqip containerRef={contentRef} contentKey={config?.blog_text} />
+      <FullscreenHeaderNav containerRef={contentRef} contentKey={config?.blog_text} />
 
       {data?.categories?.length > 0 && (
         <CategoryFilterBar

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Image as ImageIcon, Upload, Trash2 } from 'lucide-react'
-import { handleUpload } from '../admin/editor/upload'
+import { handleUploadFull } from '../admin/editor/upload'
 
 function hexToHsv(hex) {
   const r = parseInt(hex.slice(1, 3), 16) / 255
@@ -391,8 +391,8 @@ export function ColorSwatchMenu({
   async function doImageUpload(file) {
     if (!file) return
     try {
-      const filename = await handleUpload(file)
-      onImageUpload?.(filename)
+      const { filename, lqip } = await handleUploadFull(file)
+      onImageUpload?.(filename, lqip)
       setSwatchesOpen(false)
       setImgMgmtOpen(false)
     } catch {}

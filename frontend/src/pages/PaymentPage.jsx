@@ -9,6 +9,8 @@ import PaymentComments from '../components/PaymentComments'
 import SignInRequiredModal from '../components/SignInRequiredModal'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
+import HeaderImageLqip from '../components/HeaderImageLqip'
+import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import NotFoundPage from './NotFoundPage'
@@ -465,6 +467,8 @@ export default function PaymentPage() {
               <ScrollableHeaderNav containerRef={contentRef} contentKey={config.payment_text} />
             )}
             <CodeBlockCopyToast containerRef={contentRef} contentKey={config.payment_text} />
+            <HeaderImageLqip containerRef={contentRef} contentKey={config.payment_text} />
+            <FullscreenHeaderNav containerRef={contentRef} contentKey={config.payment_text} />
           </>
         )}
 

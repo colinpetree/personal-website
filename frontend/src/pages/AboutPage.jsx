@@ -5,6 +5,8 @@ import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
+import HeaderImageLqip from '../components/HeaderImageLqip'
+import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 import NotFoundPage from './NotFoundPage'
 
 // Purely for meta() below — see HomePage.jsx for why this route needs its
@@ -52,6 +54,8 @@ export default function AboutPage() {
             <ScrollableHeaderNav containerRef={contentRef} contentKey={config.about_text} />
           )}
           <CodeBlockCopyToast containerRef={contentRef} contentKey={config.about_text} />
+          <HeaderImageLqip containerRef={contentRef} contentKey={config.about_text} />
+          <FullscreenHeaderNav containerRef={contentRef} contentKey={config.about_text} />
         </>
       ) : (
         <p className="text-gray-400">About page not configured.</p>
