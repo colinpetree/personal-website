@@ -704,6 +704,24 @@ export class VideoNode extends DecoratorNode {
   exportDOM() {
     if (!this.__src) return { element: null }
     const video = document.createElement('video')
+    // The `muted` PROPERTY (not the exported attribute — that's set below,
+    // only for the autoplay/loop case, to keep the exported HTML identical
+    // to before) is forced true before src is ever assigned, on EVERY video
+    // this method creates, including the controls (non-autoplay) case. This
+    // element is only ever used to build an HTML string via outerHTML and is
+    // never attached to the visible DOM — but exportDOM() runs on every
+    // editor.update() (Lexical regenerates content_html for autosave on
+    // every keystroke/click), so a detached, momentarily-created
+    // <video autoplay> can still start its native decode/audio pipeline
+    // before a later setAttribute call reaches 'muted'. Confirmed live via
+    // Chrome's Media panel: dozens of real native player instances were
+    // created purely from this export path during ordinary panel
+    // interaction, none of them ever visible in the DOM, each with its own
+    // brief window of real audio output. Setting the muted property first,
+    // before the element has a src at all, removes that window entirely —
+    // harmless for the controls case too, since muting a property (not the
+    // attribute) doesn't change the serialized HTML this method returns.
+    video.muted = true
     video.setAttribute('src', this.__src)
     if (this.__loop) {
       video.setAttribute('autoplay', '')
@@ -3757,7 +3775,50 @@ const HEADER_NESTED_THEME = {
   paragraph: 'my-0',
 }
 
-function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, flipLayout, backgroundType, textColorMode, buttonTextColorMode, shadowOverlay, nodeKey, editor }) {
+// The header's background video is mounted here imperatively, completely
+// outside JSX/React's own reconciliation of the <video> element, and its
+// mount effect depends ONLY on `src` — not on any of HeaderNodeComponent's
+// many other props (shadowOverlay, textColorMode, buttonText, ...) — so it's
+// created once per distinct file and left alone across unrelated panel
+// re-renders. `muted` (property + attribute) is set before the element is
+// attached to the DOM and before `.play()` is called, so there's no window
+// where the browser could treat this as unmuted-audio autoplay.
+//
+// (The real source of the audio bug this whole file's history briefly
+// chased through several dead ends — duplicate players, leaked instances,
+// refcounting, watchdogs — turned out to live entirely in exportDOM(),
+// not here: see the `video.muted = true` comment on VideoNode.exportDOM()
+// above. This component's simple mount-once/clean-up-once behavior was
+// correct the whole time.)
+const SPLIT_HEADER_VIDEO_STYLE = { margin: 0 }
+
+function HeaderBgVideo({ src, className, style }) {
+  const anchorRef = useRef(null)
+  useEffect(() => {
+    const anchor = anchorRef.current
+    if (!anchor || !src) return
+    const video = document.createElement('video')
+    video.muted = true
+    video.setAttribute('muted', '')
+    video.loop = true
+    video.playsInline = true
+    video.setAttribute('playsinline', '')
+    if (className) video.className = className
+    if (style) Object.assign(video.style, style)
+    video.src = `/api/uploads/${src}`
+    anchor.parentNode.insertBefore(video, anchor.nextSibling)
+    video.play().catch(() => {})
+    return () => {
+      video.pause()
+      video.removeAttribute('src')
+      video.load()
+      video.remove()
+    }
+  }, [src, className]) // eslint-disable-line react-hooks/exhaustive-deps -- style is a plain object literal at call sites; intentionally excluded so this never re-runs for unrelated re-renders
+  return <span ref={anchorRef} style={{ display: 'none' }} />
+}
+
+function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, headerVideo, flipLayout, backgroundType, textColorMode, buttonTextColorMode, shadowOverlay, nodeKey, editor }) {
   const fontFamily = useContext(FontFamilyContext)
   const PANEL_WIDTH = 280
   const containerRef = useRef(null)
@@ -3880,6 +3941,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
     : 'px-8 md:px-14 lg:px-24 xl:px-40 2xl:px-64'
 
   const hasBgImage = layout !== 'split' && backgroundType === 'image' && headerImage
+  const hasBgVideo = layout !== 'split' && backgroundType === 'video' && headerVideo
   // background-size: cover is set via the .header-bg-image CSS class (index.css) rather
   // than inline, so the image always crops to fill the box at every width. backgroundColor
   // is a fallback in case the image is still loading or fails.
@@ -3999,20 +4061,33 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
 
   return (
     <>
-      {/* Hidden file input for split image upload */}
+      {/* Hidden file input for split image/video upload */}
       <input
         ref={splitImageInputRef}
         type="file"
-        accept="image/*"
+        accept="image/*,video/*"
         className="hidden"
         onChange={async e => {
           const file = e.target.files?.[0]
           e.target.value = ''
           if (!file) return
           try {
-            const { filename, lqip } = await handleUploadFull(file)
-            commitField('setHeaderImage', filename)
-            commitField('setHeaderImageLqip', lqip || '')
+            // file.type isn't always reliably populated by the browser/OS for
+            // every video container, so fall back to the file extension —
+            // matching backend/routes/admin_config.py's own ALLOWED_EXTENSIONS
+            // video set — before assuming "not a video" defaults to image.
+            const isVideo = file.type.startsWith('video/') ||
+              /\.(mp4|webm|ogv|mov|avi)$/i.test(file.name)
+            if (isVideo) {
+              const { filename } = await handleUploadFull(file)
+              commitField('setHeaderVideo', filename)
+              commitField('setBackgroundType', 'video')
+            } else {
+              const { filename, lqip } = await handleUploadFull(file)
+              commitField('setHeaderImage', filename)
+              commitField('setHeaderImageLqip', lqip || '')
+              commitField('setBackgroundType', 'image')
+            }
           } catch {}
         }}
       />
@@ -4027,53 +4102,68 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             ref={containerRef}
             className={`${sideMargin} ${minHeightClass} flex flex-col ${flipLayout ? 'md:flex-row-reverse' : 'md:flex-row'} ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
           >
-            {/* Image side */}
-            {/* h-[240px] (not min-h) below md so the <img>'s height:100% has a definite
+            {/* Image/video side */}
+            {/* h-[240px] (not min-h) below md so the media's height:100% has a definite
                 height to resolve against — min-height alone doesn't establish one, which
-                left the image at its auto/intrinsic height with a gap below it on mobile. */}
-            <div
-              className={`w-full md:w-1/2 h-[240px] md:h-auto bg-white flex items-center justify-center overflow-hidden relative group ${!headerImage ? 'cursor-pointer' : ''}`}
-              onClick={!headerImage ? () => splitImageInputRef.current?.click() : undefined}
-            >
-              {headerImage ? (
-                <img
-                  src={`/api/uploads/${headerImage}`}
-                  className="w-full h-full object-cover"
-                  alt=""
-                  draggable={false}
-                />
-              ) : (
-                <div className="flex flex-col items-center gap-2 border-2 border-dashed border-gray-200 rounded-lg px-10 py-8 pointer-events-none">
-                  <ImageIcon size={40} strokeWidth={1.5} className="text-gray-300" />
-                  <span className="text-sm text-gray-400">Click to upload image</span>
+                left the media at its auto/intrinsic height with a gap below it on mobile. */}
+            {(() => {
+              const splitHasVideo = backgroundType === 'video' && headerVideo
+              const splitMedia = splitHasVideo ? headerVideo : headerImage
+              return (
+                <div
+                  className={`w-full md:w-1/2 h-[240px] md:h-auto bg-white flex items-center justify-center overflow-hidden relative group ${!splitMedia ? 'cursor-pointer' : ''}`}
+                  onClick={!splitMedia ? () => splitImageInputRef.current?.click() : undefined}
+                >
+                  {splitHasVideo ? (
+                    // Inline margin:0 beats @tailwindcss/typography's ".prose video"
+                    // 2em top/bottom margin — without it the video sits 32px below
+                    // the box's top edge, clipped by the box's own overflow:hidden.
+                    <HeaderBgVideo src={headerVideo} className="w-full h-full object-cover" style={SPLIT_HEADER_VIDEO_STYLE} />
+                  ) : headerImage ? (
+                    <img
+                      src={`/api/uploads/${headerImage}`}
+                      className="w-full h-full object-cover"
+                      alt=""
+                      draggable={false}
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 border-2 border-dashed border-gray-200 rounded-lg px-10 py-8 pointer-events-none">
+                      <ImageIcon size={40} strokeWidth={1.5} className="text-gray-300" />
+                      <span className="text-sm text-gray-400">Click to upload image or video</span>
+                    </div>
+                  )}
+                  {/* Split shows the shadow overlay on the image/video side, not the text side */}
+                  {splitMedia && shadowOverlay && (
+                    <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />
+                  )}
+                  {/* Upload / delete buttons — only shown when media exists, visible on hover */}
+                  {splitMedia && (
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white border border-gray-200 rounded-lg shadow-sm p-1">
+                      <button
+                        type="button"
+                        onMouseDown={e => { e.preventDefault(); e.stopPropagation(); splitImageInputRef.current?.click() }}
+                        className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition-colors"
+                        aria-label="Upload image or video"
+                      >
+                        <Upload size={12} className="text-gray-500" />
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={e => {
+                          e.preventDefault(); e.stopPropagation()
+                          commitField('setHeaderImage', null); commitField('setHeaderImageLqip', '')
+                          commitField('setHeaderVideo', null); commitField('setBackgroundType', 'color')
+                        }}
+                        className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
+                        aria-label="Delete media"
+                      >
+                        <Trash2 size={12} className="text-red-400" />
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
-              {/* Split shows the shadow overlay on the image side, not the text side */}
-              {headerImage && shadowOverlay && (
-                <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />
-              )}
-              {/* Upload / delete buttons — only shown when image exists, visible on hover */}
-              {headerImage && (
-                <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white border border-gray-200 rounded-lg shadow-sm p-1">
-                  <button
-                    type="button"
-                    onMouseDown={e => { e.preventDefault(); e.stopPropagation(); splitImageInputRef.current?.click() }}
-                    className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition-colors"
-                    aria-label="Upload image"
-                  >
-                    <Upload size={12} className="text-gray-500" />
-                  </button>
-                  <button
-                    type="button"
-                    onMouseDown={e => { e.preventDefault(); e.stopPropagation(); commitField('setHeaderImage', null); commitField('setHeaderImageLqip', '') }}
-                    className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
-                    aria-label="Delete image"
-                  >
-                    <Trash2 size={12} className="text-red-400" />
-                  </button>
-                </div>
-              )}
-            </div>
+              )
+            })()}
 
             {/* Text side */}
             {/* min-h-[240px] matches the image side's own fixed mobile height (above) so
@@ -4090,11 +4180,14 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
           <div
             ref={containerRef}
             style={bgStyle}
-            className={`${shadowOverlay ? 'relative' : ''} ${hasBgImage ? 'header-bg-image' : ''} ${sideMargin} ${minHeightClass} ${paddingClass} py-6 md:py-10 flex flex-col justify-center gap-3 ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+            className={`${shadowOverlay || hasBgVideo ? 'relative overflow-hidden' : ''} ${hasBgImage ? 'header-bg-image' : ''} ${sideMargin} ${minHeightClass} ${paddingClass} py-6 md:py-10 flex flex-col justify-center gap-3 ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
           >
-            {shadowOverlay ? (
+            {hasBgVideo && (
+              <HeaderBgVideo src={headerVideo} className="header-bg-video" />
+            )}
+            {shadowOverlay || hasBgVideo ? (
               <>
-                <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />
+                {shadowOverlay && <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />}
                 <div className="relative flex flex-col gap-3">{textContent}</div>
               </>
             ) : textContent}
@@ -4200,12 +4293,19 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
               value={backgroundColor}
               onChange={val => { commitField('setBackgroundColor', val); commitField('setBackgroundType', 'color') }}
               presets={['#000000', '#f3f4f6']}
+              presetLabels={['Black', 'Gray']}
               imageFilename={headerImage}
               imageActive={backgroundType === 'image'}
               imageHidden={layout === 'split'}
               onImageUpload={(filename, lqip) => { commitField('setHeaderImage', filename); commitField('setHeaderImageLqip', lqip || ''); commitField('setBackgroundType', 'image') }}
               onImageSelect={() => commitField('setBackgroundType', 'image')}
               onImageDelete={() => { commitField('setHeaderImage', null); commitField('setHeaderImageLqip', ''); commitField('setBackgroundType', 'color') }}
+              videoFilename={headerVideo}
+              videoActive={backgroundType === 'video'}
+              videoHidden={layout === 'split'}
+              onVideoUpload={filename => { commitField('setHeaderVideo', filename); commitField('setBackgroundType', 'video') }}
+              onVideoSelect={() => commitField('setBackgroundType', 'video')}
+              onVideoDelete={() => { commitField('setHeaderVideo', null); commitField('setBackgroundType', 'color') }}
               onOpenChange={setBgPickerOpen}
             />
           </div>
@@ -4326,7 +4426,7 @@ export class HeaderNode extends DecoratorNode {
   static getType() { return 'header' }
 
   static clone(node) {
-    return new HeaderNode(node.__layout, node.__textAlign, node.__heading, node.__subheading, node.__backgroundColor, node.__buttonEnabled, node.__buttonText, node.__buttonUrl, node.__buttonColor, node.__headerImage, node.__headerImageLqip, node.__flipLayout, node.__backgroundType, node.__textColorMode, node.__buttonTextColorMode, node.__shadowOverlay, node.__key)
+    return new HeaderNode(node.__layout, node.__textAlign, node.__heading, node.__subheading, node.__backgroundColor, node.__buttonEnabled, node.__buttonText, node.__buttonUrl, node.__buttonColor, node.__headerImage, node.__headerImageLqip, node.__flipLayout, node.__backgroundType, node.__textColorMode, node.__buttonTextColorMode, node.__shadowOverlay, node.__headerVideo, node.__key)
   }
 
   static importJSON(data) {
@@ -4347,6 +4447,7 @@ export class HeaderNode extends DecoratorNode {
       data.textColorMode || 'auto',
       data.buttonTextColorMode || 'auto',
       data.shadowOverlay || false,
+      data.headerVideo || null,
     )
   }
 
@@ -4369,6 +4470,7 @@ export class HeaderNode extends DecoratorNode {
       textColorMode: this.__textColorMode,
       buttonTextColorMode: this.__buttonTextColorMode,
       shadowOverlay: this.__shadowOverlay,
+      headerVideo: this.__headerVideo,
     }
   }
 
@@ -4402,7 +4504,8 @@ export class HeaderNode extends DecoratorNode {
             const textColorMode = domNode.getAttribute('data-text-color-mode') || 'auto'
             const buttonTextColorMode = domNode.getAttribute('data-button-text-color-mode') || 'auto'
             const shadowOverlay = domNode.getAttribute('data-shadow-overlay') === 'true'
-            return { node: new HeaderNode(layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, headerImageLqip, flipLayout, backgroundType, textColorMode, buttonTextColorMode, shadowOverlay) }
+            const headerVideo = domNode.getAttribute('data-header-video') || null
+            return { node: new HeaderNode(layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, headerImageLqip, flipLayout, backgroundType, textColorMode, buttonTextColorMode, shadowOverlay, headerVideo) }
           },
           priority: 2,
         }
@@ -4410,7 +4513,7 @@ export class HeaderNode extends DecoratorNode {
     }
   }
 
-  constructor(layout = 'regular', textAlign = 'left', heading = '', subheading = '', backgroundColor = '#000000', buttonEnabled = false, buttonText = '', buttonUrl = '', buttonColor = '#ffffff', headerImage = null, headerImageLqip = '', flipLayout = false, backgroundType = 'color', textColorMode = 'auto', buttonTextColorMode = 'auto', shadowOverlay = false, key) {
+  constructor(layout = 'regular', textAlign = 'left', heading = '', subheading = '', backgroundColor = '#000000', buttonEnabled = false, buttonText = '', buttonUrl = '', buttonColor = '#ffffff', headerImage = null, headerImageLqip = '', flipLayout = false, backgroundType = 'color', textColorMode = 'auto', buttonTextColorMode = 'auto', shadowOverlay = false, headerVideo = null, key) {
     super(key)
     this.__layout = layout
     this.__textAlign = textAlign
@@ -4428,6 +4531,7 @@ export class HeaderNode extends DecoratorNode {
     this.__textColorMode = textColorMode
     this.__buttonTextColorMode = buttonTextColorMode
     this.__shadowOverlay = shadowOverlay
+    this.__headerVideo = headerVideo
   }
 
   createDOM() {
@@ -4455,6 +4559,7 @@ export class HeaderNode extends DecoratorNode {
   setTextColorMode(val) { this.getWritable().__textColorMode = val }
   setButtonTextColorMode(val) { this.getWritable().__buttonTextColorMode = val }
   setShadowOverlay(val) { this.getWritable().__shadowOverlay = val }
+  setHeaderVideo(val) { this.getWritable().__headerVideo = val }
 
   exportDOM() {
     const heights      = { regular: '347px', wide: '447px', full: '551px', split: '600px', fullscreen: '100vh' }
@@ -4474,6 +4579,7 @@ export class HeaderNode extends DecoratorNode {
     header.setAttribute('data-text-align', this.__textAlign)
     if (this.__headerImage) header.setAttribute('data-header-image', this.__headerImage)
     if (this.__headerImageLqip) header.setAttribute('data-header-image-lqip', this.__headerImageLqip)
+    if (this.__headerVideo) header.setAttribute('data-header-video', this.__headerVideo)
     header.setAttribute('data-flip-layout', String(this.__flipLayout))
     header.setAttribute('data-background-color', this.__backgroundColor)
     header.setAttribute('data-background-type', this.__backgroundType)
@@ -4494,15 +4600,41 @@ export class HeaderNode extends DecoratorNode {
       imgSide.style.alignItems = 'center'
       imgSide.style.justifyContent = 'center'
       imgSide.style.overflow = 'hidden'
-      if (this.__headerImage) {
-        const img = document.createElement('img')
-        img.src = `/api/uploads/${this.__headerImage}`
-        img.style.width = '100%'
-        img.style.height = '100%'
-        img.style.objectFit = 'cover'
-        imgSide.appendChild(img)
+      const splitHasVideo = this.__backgroundType === 'video' && this.__headerVideo
+      if (splitHasVideo || this.__headerImage) {
+        if (splitHasVideo) {
+          const video = document.createElement('video')
+          // muted property forced before src is assigned — see the matching
+          // comment in VideoNode.exportDOM() above for why: this element is
+          // detached (only used to build an HTML string) but still starts a
+          // real native decode/audio pipeline the instant autoplay+src are
+          // both present, which exportDOM() re-triggers on every editor
+          // update, not just on save.
+          video.muted = true
+          video.setAttribute('src', `/api/uploads/${this.__headerVideo}`)
+          video.setAttribute('autoplay', '')
+          video.setAttribute('muted', '')
+          video.setAttribute('loop', '')
+          video.setAttribute('playsinline', '')
+          video.style.width = '100%'
+          video.style.height = '100%'
+          video.style.objectFit = 'cover'
+          // Inline margin:0 beats @tailwindcss/typography's ".prose video" 2em
+          // top/bottom margin (see .header-bg-video's comment in index.css for
+          // the same issue on the other layouts) — without it the video sits
+          // 32px below the box's top edge, clipped by imgSide's overflow:hidden.
+          video.style.margin = '0'
+          imgSide.appendChild(video)
+        } else {
+          const img = document.createElement('img')
+          img.src = `/api/uploads/${this.__headerImage}`
+          img.style.width = '100%'
+          img.style.height = '100%'
+          img.style.objectFit = 'cover'
+          imgSide.appendChild(img)
+        }
 
-        // Split shows the shadow overlay on the image side, not the text side
+        // Split shows the shadow overlay on the image/video side, not the text side
         if (this.__shadowOverlay) {
           imgSide.style.position = 'relative'
           const overlay = document.createElement('div')
@@ -4572,6 +4704,7 @@ export class HeaderNode extends DecoratorNode {
       header.appendChild(textSide)
     } else {
       const hasBgImage = this.__backgroundType === 'image' && this.__headerImage
+      const hasBgVideo = this.__backgroundType === 'video' && this.__headerVideo
       // background-size: cover is set via the .header-bg-image CSS class (index.css) rather
       // than inline, so the image always crops to fill the box at every width. backgroundColor
       // is a fallback in case the image is still loading or fails.
@@ -4596,17 +4729,38 @@ export class HeaderNode extends DecoratorNode {
       inner.style.padding = `40px ${this.__layout === 'regular' ? '80px' : '256px'}`
       inner.style.boxSizing = 'border-box'
 
+      if (hasBgVideo) {
+        inner.style.position = 'relative'
+        inner.style.overflow = 'hidden'
+        const video = document.createElement('video')
+        // muted property forced before src is assigned — see the matching
+        // comment in VideoNode.exportDOM() for why.
+        video.muted = true
+        video.setAttribute('src', `/api/uploads/${this.__headerVideo}`)
+        video.setAttribute('autoplay', '')
+        video.setAttribute('muted', '')
+        video.setAttribute('loop', '')
+        video.setAttribute('playsinline', '')
+        video.className = 'header-bg-video'
+        inner.appendChild(video)
+      }
+
+      // Content (and the shadow overlay, if enabled) must sit in a positioned wrapper so
+      // it paints above the background video — an absolutely-positioned video otherwise
+      // paints on top of plain in-flow content regardless of DOM order.
       let innerContentWrap = inner
-      if (this.__shadowOverlay) {
+      if (this.__shadowOverlay || hasBgVideo) {
         inner.style.position = 'relative'
 
-        const overlay = document.createElement('div')
-        overlay.style.position = 'absolute'
-        overlay.style.inset = '0'
-        overlay.style.background = '#000000'
-        overlay.style.opacity = '0.35'
-        overlay.style.pointerEvents = 'none'
-        inner.appendChild(overlay)
+        if (this.__shadowOverlay) {
+          const overlay = document.createElement('div')
+          overlay.style.position = 'absolute'
+          overlay.style.inset = '0'
+          overlay.style.background = '#000000'
+          overlay.style.opacity = '0.35'
+          overlay.style.pointerEvents = 'none'
+          inner.appendChild(overlay)
+        }
 
         innerContentWrap = document.createElement('div')
         innerContentWrap.style.position = 'relative'
@@ -4673,6 +4827,7 @@ export class HeaderNode extends DecoratorNode {
         buttonUrl={this.__buttonUrl}
         buttonColor={this.__buttonColor}
         headerImage={this.__headerImage}
+        headerVideo={this.__headerVideo}
         flipLayout={this.__flipLayout}
         backgroundType={this.__backgroundType}
         textColorMode={this.__textColorMode}

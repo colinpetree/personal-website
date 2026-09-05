@@ -797,6 +797,22 @@ html {
   background-size: cover;
 }
 
+/* Header block — background video always crops to fill the box (never letterboxes),
+   matching .header-bg-image's cover behavior. Absolutely positioned within the
+   (relatively positioned) header-inner/split-image container it's rendered inside.
+   margin:0 !important overrides @tailwindcss/typography's ".prose video" margin
+   (2em top/bottom) — without it the video sat 32px below its inset:0 top, leaving
+   a gap of the black header background above it and clipping 32px off the bottom
+   against header-inner's overflow:hidden, i.e. a "letterboxed" look at both edges. */
+.header-bg-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  margin: 0 !important;
+}
+
 /* Navbar.jsx: momentarily kills every transition inside the navbar (itself
    and every descendant — nav links, search/hamburger buttons, the site
    title) right when a page's transparent/solid state is first determined,
