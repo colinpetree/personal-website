@@ -84,7 +84,12 @@ else
     echo "==> Prerendering against $PRERENDER_BASE_URL"
 fi
 
-npm run build
+# The Pi has ~900MB RAM; V8 auto-scales its default old-space heap ceiling
+# down from detected physical memory, capping around ~460MB here regardless
+# of the ~1.8GB swap already configured and mostly unused — the build was
+# dying at that self-imposed ceiling, not an actual physical memory limit.
+# Raising it explicitly lets V8 spill into swap instead of aborting early.
+NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=2048" npm run build
 
 # ---- Backend ------------------------------------------------------------
 echo "==> Building backend (PyInstaller onedir)"
