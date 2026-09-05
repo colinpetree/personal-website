@@ -185,11 +185,21 @@ cp "$REPO_DIR"/backend/migrations/*.sql "$RELEASE_DIR/migrations/" 2>/dev/null |
 mkdir -p "$RELEASE_DIR/deploy/systemd" "$RELEASE_DIR/deploy/nginx" "$RELEASE_DIR/deploy/varnish"
 cp "$REPO_DIR/deploy/systemd/personal-website.service" "$RELEASE_DIR/deploy/systemd/"
 cp "$REPO_DIR/deploy/systemd/personal-website-updater.service" "$RELEASE_DIR/deploy/systemd/"
+cp "$REPO_DIR/deploy/systemd/personal-website-backup.service" "$RELEASE_DIR/deploy/systemd/"
+cp "$REPO_DIR/deploy/systemd/personal-website-backup.timer" "$RELEASE_DIR/deploy/systemd/"
+cp "$REPO_DIR/deploy/systemd/personal-website-healthwatch.service" "$RELEASE_DIR/deploy/systemd/"
+cp "$REPO_DIR/deploy/systemd/personal-website-healthwatch.timer" "$RELEASE_DIR/deploy/systemd/"
+cp "$REPO_DIR/deploy/systemd/personal-website-media-cleanup.service" "$RELEASE_DIR/deploy/systemd/"
+cp "$REPO_DIR/deploy/systemd/personal-website-media-cleanup.timer" "$RELEASE_DIR/deploy/systemd/"
 cp "$REPO_DIR/deploy/nginx/personal-website.conf" "$RELEASE_DIR/deploy/nginx/"
 cp "$REPO_DIR/deploy/varnish/default.vcl" "$RELEASE_DIR/deploy/varnish/"
 cp "$REPO_DIR/deploy/scripts/install.sh" "$RELEASE_DIR/deploy/"
 cp "$REPO_DIR/deploy/scripts/rollback.sh" "$RELEASE_DIR/deploy/"
 cp "$REPO_DIR/deploy/scripts/update-watch.sh" "$RELEASE_DIR/deploy/"
+cp "$REPO_DIR/deploy/scripts/backup.sh" "$RELEASE_DIR/deploy/"
+cp "$REPO_DIR/deploy/scripts/setup-backup-ssh.sh" "$RELEASE_DIR/deploy/"
+cp "$REPO_DIR/deploy/scripts/health-watch.sh" "$RELEASE_DIR/deploy/"
+cp "$REPO_DIR/deploy/scripts/media-cleanup.sh" "$RELEASE_DIR/deploy/"
 if [ "${VITE_ENABLE_AI_DEMOS:-}" = "false" ]; then
     # Template builds (publish-release.sh --no-target) already exclude the AI
     # demo pages from the frontend bundle via this same flag — this defaults
