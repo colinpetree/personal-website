@@ -1,0 +1,14 @@
+[Unit]
+Description=Personal Website crash-loop/disk/certbot health check
+
+[Service]
+Type=oneshot
+User=personalweb
+Group=personalweb
+WorkingDirectory=/opt/personal-website
+# Every check here is local (systemctl/df/openssl) except the alert email
+# itself, which is bounded by email_utils.py's own 10s request timeout —
+# 120s is generous headroom, just enough to also cover starting the backend
+# binary, not a sign this is expected to ever run long.
+TimeoutStartSec=120
+ExecStart=/bin/bash /opt/personal-website/current/deploy/health-watch.sh

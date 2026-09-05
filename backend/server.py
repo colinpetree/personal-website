@@ -63,6 +63,17 @@ Usage:
                                   # 1 = not sent) — the caller uses that to decide
                                   # whether to stop retrying, so a silently-assumed
                                   # success here would defeat the whole feature.
+    server --cleanup-orphan-media [--dry-run]
+                                  # deletes uploaded files no longer referenced by
+                                  # any post/page/avatar/favicon, on a grace-period
+                                  # mark-and-sweep (see orphan_cleanup.py). Run
+                                  # daily by deploy/scripts/media-cleanup.sh. Prints
+                                  # a summary; --dry-run reports what it WOULD do
+                                  # without touching disk/state. Sends a watcher
+                                  # alert (source=media-cleanup) and exits non-zero
+                                  # on an unexpected failure or if the circuit
+                                  # breaker (ORPHAN_MEDIA_MAX_PER_RUN) aborts the
+                                  # run — otherwise always exits 0.
 """
 import os
 import sys
@@ -381,6 +392,34 @@ def main():
         sys.exit(0 if sent else 1)   # exit code, not a bare `return` — update-watch.sh
                                        # branches on this to decide whether the outage
                                        # was actually alerted or needs retrying
+
+    if '--cleanup-orphan-media' in sys.argv:
+        dry_run = '--dry-run' in sys.argv
+        from orphan_cleanup import run_orphan_cleanup
+        from watcher_alerts import send_watcher_alert
+        with app.app_context():
+            try:
+                result = run_orphan_cleanup(dry_run=dry_run)
+            except Exception as exc:
+                print(f'ERROR: orphan media cleanup failed: {exc}')
+                send_watcher_alert('media-cleanup', f'Orphan media cleanup failed with an unexpected error: {exc}')
+                sys.exit(1)
+
+            if result['aborted']:
+                message = (f"Refused to run — would have touched "
+                           f"{result['would_flag'] + result['would_delete']} files "
+                           f"(flag {result['would_flag']}, delete {result['would_delete']}), exceeding the "
+                           f"ORPHAN_MEDIA_MAX_PER_RUN cap of {result['cap']}.")
+                print(f'ABORTED: {message}')
+                send_watcher_alert('media-cleanup', message)
+                sys.exit(1)
+
+            prefix = '[dry-run] ' if dry_run else ''
+            print(f"{prefix}Flagged ({len(result['flagged'])}): {result['flagged']}")
+            print(f"{prefix}Deleted ({len(result['deleted'])}): {result['deleted']}")
+            print(f"{prefix}Cleared/re-referenced ({len(result['cleared'])}): {result['cleared']}")
+            print(f"{prefix}Pruned stale state ({len(result['pruned'])}): {result['pruned']}")
+        return
 
     run_migrations(app)
     _run_gunicorn(app)

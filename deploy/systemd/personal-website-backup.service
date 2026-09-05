@@ -1,0 +1,17 @@
+[Unit]
+Description=Personal Website nightly Postgres + data-dir backup
+After=network-online.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+User=personalweb
+Group=personalweb
+WorkingDirectory=/opt/personal-website
+# systemd's default TimeoutStartSec (90s) would otherwise SIGKILL this mid-
+# pg_dump/rsync on a real database over a home-broadband link to the Pi,
+# silently, with no alert ever sent — the script's own per-step `timeout`
+# wrapping (see backup.sh) is the real bound; this is just generous headroom
+# above the sum of those so systemd is never the one that kills it first.
+TimeoutStartSec=7200
+ExecStart=/bin/bash /opt/personal-website/current/deploy/backup.sh

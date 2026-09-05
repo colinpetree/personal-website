@@ -324,6 +324,24 @@ _install_config varnish "$WORKDIR/default.vcl" "/etc/varnish/default.vcl"
 _install_config updater "$RELEASE_DIR/deploy/systemd/personal-website-updater.service" \
     "/etc/systemd/system/personal-website-updater.service"
 
+# Backup + health-monitoring timers — no templating needed (no
+# __BACKEND_PORT__/__DOMAIN__ placeholders), same hash-diff-safe install as
+# the updater unit above. Config (BACKUP_REMOTE_HOST etc.) lives in
+# $DATA_DIR/.env, not these unit files, so a later env-only tweak never shows
+# up as a "CHANGED" diff here.
+_install_config backup-service "$RELEASE_DIR/deploy/systemd/personal-website-backup.service" \
+    "/etc/systemd/system/personal-website-backup.service"
+_install_config backup-timer "$RELEASE_DIR/deploy/systemd/personal-website-backup.timer" \
+    "/etc/systemd/system/personal-website-backup.timer"
+_install_config healthwatch-service "$RELEASE_DIR/deploy/systemd/personal-website-healthwatch.service" \
+    "/etc/systemd/system/personal-website-healthwatch.service"
+_install_config healthwatch-timer "$RELEASE_DIR/deploy/systemd/personal-website-healthwatch.timer" \
+    "/etc/systemd/system/personal-website-healthwatch.timer"
+_install_config media-cleanup-service "$RELEASE_DIR/deploy/systemd/personal-website-media-cleanup.service" \
+    "/etc/systemd/system/personal-website-media-cleanup.service"
+_install_config media-cleanup-timer "$RELEASE_DIR/deploy/systemd/personal-website-media-cleanup.timer" \
+    "/etc/systemd/system/personal-website-media-cleanup.timer"
+
 systemctl daemon-reload
 
 # Reload nginx/Varnish unconditionally on every run, not just first install —
@@ -357,6 +375,16 @@ fi
 
 if [ "$FIRST_INSTALL" = true ]; then
     systemctl enable personal-website
+
+    # Needs no configuration to be useful (reads .env, defaults everything
+    # else) — safe to enable unconditionally, unlike the backup timer below.
+    systemctl enable --now personal-website-healthwatch.timer
+
+    # Same reasoning — zero-config, safe-by-default (grace period + circuit
+    # breaker, see deploy/BACKUP.md), unlike the backup timer's offsite
+    # destination requirement.
+    systemctl enable --now personal-website-media-cleanup.timer
+
     echo ""
     echo "=========================================================================="
     echo " First install — remaining manual steps (deploy plan §12):"
@@ -376,6 +404,21 @@ if [ "$FIRST_INSTALL" = true ]; then
     echo "      UPDATE_WATCH_RELEASES_REPO in"
     echo "      /etc/systemd/system/personal-website-updater.service, then run"
     echo "      systemctl enable --now personal-website-updater"
+    echo "   6. Nightly backups are NOT enabled yet (need an offsite destination"
+    echo "      configured first): run deploy/scripts/setup-backup-ssh.sh, set"
+    echo "      BACKUP_REMOTE_HOST/BACKUP_REMOTE_USER/BACKUP_REMOTE_PATH in"
+    echo "      $DATA_DIR/.env, then run"
+    echo "      systemctl enable --now personal-website-backup.timer"
+    echo "      See deploy/BACKUP.md for full setup and restore instructions."
+    echo "   7. Crash-loop/disk/certificate-expiry monitoring IS already enabled"
+    echo "      (personal-website-healthwatch.timer) — no action needed unless"
+    echo "      you want to tune BACKUP_DISK_ALERT_PERCENT/CERT_ALERT_DAYS in"
+    echo "      $DATA_DIR/.env."
+    echo "   8. Orphan media cleanup IS already enabled"
+    echo "      (personal-website-media-cleanup.timer) — deletes uploaded files no"
+    echo "      longer referenced anywhere, after a grace period. No action needed"
+    echo "      unless you want to tune ORPHAN_MEDIA_GRACE_DAYS/ORPHAN_MEDIA_MAX_PER_RUN"
+    echo "      in $DATA_DIR/.env. See deploy/BACKUP.md."
     echo "=========================================================================="
 fi
 

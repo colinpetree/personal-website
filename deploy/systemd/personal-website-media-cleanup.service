@@ -1,0 +1,18 @@
+[Unit]
+Description=Personal Website orphan media cleanup (deletes unreferenced uploads)
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+User=personalweb
+Group=personalweb
+WorkingDirectory=/opt/personal-website
+# This IS the real, enforced bound on the whole run — media-cleanup.sh
+# deliberately has no bash-level `timeout` wrapper of its own (see that
+# script's header comment for why: it would only reach an intermediate
+# wrapper process, not the actual work, on a hang). systemd's cgroup-based
+# kill on timeout reaches everything in this unit, not just a shell-level
+# direct child, so this is the mechanism actually relied on if a run hangs.
+TimeoutStartSec=900
+ExecStart=/bin/bash /opt/personal-website/current/deploy/media-cleanup.sh

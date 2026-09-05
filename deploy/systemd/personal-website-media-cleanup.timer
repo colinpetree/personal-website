@@ -1,0 +1,13 @@
+[Unit]
+Description=Run personal-website-media-cleanup daily
+
+[Timer]
+# One hour after personal-website-backup.timer's 03:00 — so each day's
+# backup always captures the uploads directory before that day's cleanup
+# runs (see deploy/BACKUP.md's safety-net reasoning).
+OnCalendar=*-*-* 04:00:00
+RandomizedDelaySec=600
+Persistent=true
+
+[Install]
+WantedBy=timers.target
