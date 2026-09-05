@@ -21,6 +21,23 @@ function resolveTextColor(mode, bgHex) {
   return getContrastColor(bgHex)
 }
 
+// Wraps $generateHtmlFromNodes to restore the real `autoplay` attribute on
+// exported background videos. VideoNode/HeaderNode.exportDOM() never set a
+// real `autoplay` attribute on their (live-document-owned) detached <video>
+// elements — only a harmless `data-export-autoplay` marker — because
+// `autoplay` + `src` together on such an element is what causes Chrome/
+// Firefox/Brave to start a real, audible native player purely from calling
+// exportDOM() (which runs on every editor.update(), i.e. every keystroke or
+// panel click). Swapping the marker for the real attribute here, on the
+// plain string returned by $generateHtmlFromNodes, happens after
+// `.outerHTML` has already been read — so no live <video> element ever
+// carries `autoplay` at all. Use this everywhere $generateHtmlFromNodes is
+// called instead of calling it directly.
+export function generateSafeHtmlFromNodes(editor, selection) {
+  const html = $generateHtmlFromNodes(editor, selection)
+  return html.replace(/\s*data-export-autoplay=""/g, ' autoplay=""')
+}
+
 // Lexical exports an empty rich-text field as markup like '<p><br></p>' rather than ''
 function isBlankHtml(html) {
   if (!html) return true
@@ -704,27 +721,29 @@ export class VideoNode extends DecoratorNode {
   exportDOM() {
     if (!this.__src) return { element: null }
     const video = document.createElement('video')
-    // The `muted` PROPERTY (not the exported attribute — that's set below,
-    // only for the autoplay/loop case, to keep the exported HTML identical
-    // to before) is forced true before src is ever assigned, on EVERY video
-    // this method creates, including the controls (non-autoplay) case. This
-    // element is only ever used to build an HTML string via outerHTML and is
-    // never attached to the visible DOM — but exportDOM() runs on every
+    // This element is only ever used to build an HTML string via outerHTML
+    // and is never attached to the visible DOM — but it's still owned by the
+    // live, fully-active page document, and exportDOM() runs on every
     // editor.update() (Lexical regenerates content_html for autosave on
-    // every keystroke/click), so a detached, momentarily-created
-    // <video autoplay> can still start its native decode/audio pipeline
-    // before a later setAttribute call reaches 'muted'. Confirmed live via
-    // Chrome's Media panel: dozens of real native player instances were
-    // created purely from this export path during ordinary panel
-    // interaction, none of them ever visible in the DOM, each with its own
-    // brief window of real audio output. Setting the muted property first,
-    // before the element has a src at all, removes that window entirely —
-    // harmless for the controls case too, since muting a property (not the
-    // attribute) doesn't change the serialized HTML this method returns.
+    // every keystroke/click). Browsers don't require an element to be
+    // connected under <body> to start decoding — only for its ownerDocument
+    // to be the active document — so a real `autoplay` attribute here would
+    // start a genuine, audio-capable native player every single time this
+    // runs, regardless of `muted` timing (confirmed live via Chrome's Media
+    // panel: dozens of real player instances were created purely from this
+    // export path during ordinary panel interaction). The `muted`
+    // property/attribute below is still set for good measure, but the actual
+    // fix is that the real `autoplay` attribute is NEVER set on this live
+    // element — see `data-export-autoplay` below and
+    // `generateSafeHtmlFromNodes()`, which swaps it back in as a plain
+    // string after `.outerHTML` has already been read, so no live element
+    // ever carries `autoplay` + `src` at the same time.
     video.muted = true
+    video.defaultMuted = true
+    video.volume = 0
     video.setAttribute('src', this.__src)
     if (this.__loop) {
-      video.setAttribute('autoplay', '')
+      video.setAttribute('data-export-autoplay', '')
       video.setAttribute('muted', '')
       video.setAttribute('loop', '')
       video.setAttribute('playsinline', '')
@@ -1615,7 +1634,7 @@ function CalloutBodySyncPlugin({ parentEditor, nodeKey, initialHtml }) {
   useEffect(() => {
     return nestedEditor.registerUpdateListener(() => {
       nestedEditor.read(() => {
-        const html = $generateHtmlFromNodes(nestedEditor, null)
+        const html = generateSafeHtmlFromNodes(nestedEditor, null)
         parentEditor.update(() => {
           const node = $getNodeByKey(nodeKey)
           if (node instanceof CalloutNode) node.getWritable().__html = html
@@ -3083,7 +3102,7 @@ function ToggleSummarySyncPlugin({ parentEditor, nodeKey, initialHtml }) {
   useEffect(() => {
     return nestedEditor.registerUpdateListener(() => {
       nestedEditor.read(() => {
-        const html = $generateHtmlFromNodes(nestedEditor, null)
+        const html = generateSafeHtmlFromNodes(nestedEditor, null)
         parentEditor.update(() => {
           const node = $getNodeByKey(nodeKey)
           if (node instanceof ToggleNode) node.getWritable().__summaryHtml = html
@@ -3138,7 +3157,7 @@ function ToggleBodySyncPlugin({ parentEditor, nodeKey, initialHtml }) {
   useEffect(() => {
     return nestedEditor.registerUpdateListener(() => {
       nestedEditor.read(() => {
-        const html = $generateHtmlFromNodes(nestedEditor, null)
+        const html = generateSafeHtmlFromNodes(nestedEditor, null)
         parentEditor.update(() => {
           const node = $getNodeByKey(nodeKey)
           if (node instanceof ToggleNode) node.getWritable().__contentHtml = html
@@ -3742,7 +3761,7 @@ function HeaderFieldSyncPlugin({ parentEditor, nodeKey, setterName, initialHtml,
   useEffect(() => {
     return nestedEditor.registerUpdateListener(() => {
       nestedEditor.read(() => {
-        const html = $generateHtmlFromNodes(nestedEditor, null)
+        const html = generateSafeHtmlFromNodes(nestedEditor, null)
         parentEditor.update(() => {
           const node = $getNodeByKey(nodeKey)
           if (!node) return
@@ -3787,9 +3806,11 @@ const HEADER_NESTED_THEME = {
 // (The real source of the audio bug this whole file's history briefly
 // chased through several dead ends — duplicate players, leaked instances,
 // refcounting, watchdogs — turned out to live entirely in exportDOM(),
-// not here: see the `video.muted = true` comment on VideoNode.exportDOM()
-// above. This component's simple mount-once/clean-up-once behavior was
-// correct the whole time.)
+// not here: those methods never set a real `autoplay` attribute on their
+// live-document-owned elements at all — see the comment on
+// VideoNode.exportDOM() above and generateSafeHtmlFromNodes(). This
+// component's simple mount-once/clean-up-once behavior was correct the
+// whole time.)
 const SPLIT_HEADER_VIDEO_STYLE = { margin: 0 }
 
 function HeaderBgVideo({ src, className, style }) {
@@ -3799,6 +3820,8 @@ function HeaderBgVideo({ src, className, style }) {
     if (!anchor || !src) return
     const video = document.createElement('video')
     video.muted = true
+    video.defaultMuted = true
+    video.volume = 0
     video.setAttribute('muted', '')
     video.loop = true
     video.playsInline = true
@@ -4604,15 +4627,18 @@ export class HeaderNode extends DecoratorNode {
       if (splitHasVideo || this.__headerImage) {
         if (splitHasVideo) {
           const video = document.createElement('video')
-          // muted property forced before src is assigned — see the matching
-          // comment in VideoNode.exportDOM() above for why: this element is
-          // detached (only used to build an HTML string) but still starts a
-          // real native decode/audio pipeline the instant autoplay+src are
-          // both present, which exportDOM() re-triggers on every editor
-          // update, not just on save.
+          // See the matching comment in VideoNode.exportDOM() above: this
+          // element is detached (only used to build an HTML string) but is
+          // still owned by the live document, so a real `autoplay` attribute
+          // would start a genuine audio-capable player on every editor
+          // update, not just on save. The real `autoplay` attribute is never
+          // set here — `generateSafeHtmlFromNodes()` swaps the
+          // `data-export-autoplay` marker back in as a string afterward.
           video.muted = true
+          video.defaultMuted = true
+          video.volume = 0
           video.setAttribute('src', `/api/uploads/${this.__headerVideo}`)
-          video.setAttribute('autoplay', '')
+          video.setAttribute('data-export-autoplay', '')
           video.setAttribute('muted', '')
           video.setAttribute('loop', '')
           video.setAttribute('playsinline', '')
@@ -4733,11 +4759,13 @@ export class HeaderNode extends DecoratorNode {
         inner.style.position = 'relative'
         inner.style.overflow = 'hidden'
         const video = document.createElement('video')
-        // muted property forced before src is assigned — see the matching
-        // comment in VideoNode.exportDOM() for why.
+        // See the matching comment in VideoNode.exportDOM() for why the real
+        // `autoplay` attribute is never set on this live element.
         video.muted = true
+        video.defaultMuted = true
+        video.volume = 0
         video.setAttribute('src', `/api/uploads/${this.__headerVideo}`)
-        video.setAttribute('autoplay', '')
+        video.setAttribute('data-export-autoplay', '')
         video.setAttribute('muted', '')
         video.setAttribute('loop', '')
         video.setAttribute('playsinline', '')
