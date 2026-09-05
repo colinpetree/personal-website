@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Image as ImageIcon, Upload, Trash2 } from 'lucide-react'
+import { Image as ImageIcon, Video as VideoIcon, Upload, Trash2 } from 'lucide-react'
 import { handleUploadFull } from '../admin/editor/upload'
+import { Tooltip } from './Tooltip'
 
 function hexToHsv(hex) {
   const r = parseInt(hex.slice(1, 3), 16) / 255
@@ -298,12 +299,19 @@ export function ColorSwatchMenu({
   value = '#000000',
   onChange,
   presets = [],
+  presetLabels = [],
   imageFilename = null,
   imageActive = false,
   imageHidden = false,
   onImageUpload,
   onImageSelect,
   onImageDelete,
+  videoFilename = null,
+  videoActive = false,
+  videoHidden = false,
+  onVideoUpload,
+  onVideoSelect,
+  onVideoDelete,
   onOpenChange,
   initialOpen = false,
   anchorEl = null,
@@ -315,47 +323,55 @@ export function ColorSwatchMenu({
   const [swatchesOpen, setSwatchesOpen] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
   const [imgMgmtOpen, setImgMgmtOpen] = useState(false)
+  const [vidMgmtOpen, setVidMgmtOpen] = useState(false)
   const [pickerColor, setPickerColor] = useState(initialCustom)
   const [swatchPos, setSwatchPos] = useState({ top: 0, centerX: 0 })
   const [pickerPos, setPickerPos] = useState({ top: 0, centerX: 0 })
   const [imgMgmtPos, setImgMgmtPos] = useState({ top: 0, centerX: 0 })
+  const [vidMgmtPos, setVidMgmtPos] = useState({ top: 0, centerX: 0 })
 
   const triggerRef = useRef(null)
   const rainbowRef = useRef(null)
   const imageSwatchRef = useRef(null)
+  const videoSwatchRef = useRef(null)
   const fileInputRef = useRef(null)
   const replaceFileInputRef = useRef(null)
+  const videoFileInputRef = useRef(null)
+  const videoReplaceFileInputRef = useRef(null)
   const swatchPopoverRef = useRef(null)
   const pickerPopoverRef = useRef(null)
   const imgMgmtPopoverRef = useRef(null)
+  const vidMgmtPopoverRef = useRef(null)
   const prevOpenRef = useRef(false)
 
   useEffect(() => {
-    const open = swatchesOpen || pickerOpen || imgMgmtOpen
+    const open = swatchesOpen || pickerOpen || imgMgmtOpen || vidMgmtOpen
     if (open !== prevOpenRef.current) {
       prevOpenRef.current = open
       onOpenChange?.(open)
     }
-  }, [swatchesOpen, pickerOpen, imgMgmtOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [swatchesOpen, pickerOpen, imgMgmtOpen, vidMgmtOpen]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { if (initialOpen) openSwatches() }, []) // eslint-disable-line
 
   useEffect(() => {
-    if (!swatchesOpen && !pickerOpen && !imgMgmtOpen) return
+    if (!swatchesOpen && !pickerOpen && !imgMgmtOpen && !vidMgmtOpen) return
     function handle(e) {
       const inSwatch = swatchPopoverRef.current?.contains(e.target)
       const inPicker = pickerPopoverRef.current?.contains(e.target)
       const inImgMgmt = imgMgmtPopoverRef.current?.contains(e.target)
+      const inVidMgmt = vidMgmtPopoverRef.current?.contains(e.target)
       const inTrigger = triggerRef.current?.contains(e.target)
-      if (!inSwatch && !inPicker && !inImgMgmt && !inTrigger) {
+      if (!inSwatch && !inPicker && !inImgMgmt && !inVidMgmt && !inTrigger) {
         setSwatchesOpen(false)
         setPickerOpen(false)
         setImgMgmtOpen(false)
+        setVidMgmtOpen(false)
       }
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
-  }, [swatchesOpen, pickerOpen, imgMgmtOpen])
+  }, [swatchesOpen, pickerOpen, imgMgmtOpen, vidMgmtOpen])
 
   function openSwatches() {
     const el = anchorEl || triggerRef.current
@@ -398,6 +414,16 @@ export function ColorSwatchMenu({
     } catch {}
   }
 
+  async function doVideoUpload(file) {
+    if (!file) return
+    try {
+      const { filename } = await handleUploadFull(file)
+      onVideoUpload?.(filename)
+      setSwatchesOpen(false)
+      setVidMgmtOpen(false)
+    } catch {}
+  }
+
   function handleImageSwatch() {
     if (!imageFilename) {
       fileInputRef.current?.click()
@@ -406,6 +432,20 @@ export function ColorSwatchMenu({
       if (rect) setImgMgmtPos({ top: rect.top - 6, centerX: rect.left + rect.width / 2 })
       onImageSelect?.()
       setImgMgmtOpen(v => !v)
+      setVidMgmtOpen(false)
+      setPickerOpen(false)
+    }
+  }
+
+  function handleVideoSwatch() {
+    if (!videoFilename) {
+      videoFileInputRef.current?.click()
+    } else {
+      const rect = videoSwatchRef.current?.getBoundingClientRect()
+      if (rect) setVidMgmtPos({ top: rect.top - 6, centerX: rect.left + rect.width / 2 })
+      onVideoSelect?.()
+      setVidMgmtOpen(v => !v)
+      setImgMgmtOpen(false)
       setPickerOpen(false)
     }
   }
@@ -413,9 +453,12 @@ export function ColorSwatchMenu({
   const safe = isValidHex(value) ? value : '#000000'
   const isCustomColor = !presets.map(p => p.toLowerCase()).includes(safe.toLowerCase())
   const showImageSwatch = !!onImageUpload && !imageHidden
+  const showVideoSwatch = !!onVideoUpload && !videoHidden
 
   const triggerStyle = imageActive && imageFilename
     ? { backgroundImage: `url(/api/uploads/${imageFilename})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    : videoActive && videoFilename
+    ? { background: '#000000' }
     : { background: safe }
 
   return (
@@ -439,16 +482,40 @@ export function ColorSwatchMenu({
           />
         </>
       )}
+      {showVideoSwatch && (
+        <>
+          <input
+            ref={videoFileInputRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={e => { doVideoUpload(e.target.files?.[0]); e.target.value = '' }}
+          />
+          <input
+            ref={videoReplaceFileInputRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={e => { doVideoUpload(e.target.files?.[0]); e.target.value = '' }}
+          />
+        </>
+      )}
 
       {!anchorEl && (
         <button
           ref={triggerRef}
           type="button"
-          onMouseDown={e => { e.preventDefault(); swatchesOpen ? (setSwatchesOpen(false), setPickerOpen(false), setImgMgmtOpen(false)) : openSwatches() }}
+          onMouseDown={e => { e.preventDefault(); swatchesOpen ? (setSwatchesOpen(false), setPickerOpen(false), setImgMgmtOpen(false), setVidMgmtOpen(false)) : openSwatches() }}
           className="w-5 h-5 rounded-full border-2 border-white shadow ring-1 ring-gray-300 shrink-0 overflow-hidden"
           style={triggerStyle}
           aria-label="Choose color"
-        />
+        >
+          {videoActive && videoFilename && (
+            <div className="w-full h-full flex items-center justify-center bg-gray-800">
+              <VideoIcon size={10} className="text-white" />
+            </div>
+          )}
+        </button>
       )}
 
       {/* Swatch preset popover */}
@@ -462,42 +529,65 @@ export function ColorSwatchMenu({
           <div className="flex gap-1.5">
             {/* Image swatch — leftmost */}
             {showImageSwatch && (
-              <button
-                ref={imageSwatchRef}
-                type="button"
-                onMouseDown={e => { e.preventDefault(); handleImageSwatch() }}
-                className="w-6 h-6 rounded-full border-2 shadow-sm transition-transform hover:scale-110 shrink-0 flex items-center justify-center overflow-hidden bg-gray-100"
-                style={{ borderColor: imageActive ? '#3b82f6' : '#e5e7eb' }}
-                aria-label="Background image"
-              >
-                {imageFilename
-                  ? <img src={`/api/uploads/${imageFilename}`} className="w-full h-full object-cover" alt="" />
-                  : <ImageIcon size={12} className="text-gray-400" />
-                }
-              </button>
+              <Tooltip content="Image">
+                <button
+                  ref={imageSwatchRef}
+                  type="button"
+                  onMouseDown={e => { e.preventDefault(); handleImageSwatch() }}
+                  className="w-6 h-6 rounded-full border-2 shadow-sm transition-transform hover:scale-110 shrink-0 flex items-center justify-center overflow-hidden bg-gray-100"
+                  style={{ borderColor: imageActive ? '#3b82f6' : '#e5e7eb' }}
+                  aria-label="Background image"
+                >
+                  {imageFilename
+                    ? <img src={`/api/uploads/${imageFilename}`} className="w-full h-full object-cover" alt="" />
+                    : <ImageIcon size={12} className="text-gray-400" />
+                  }
+                </button>
+              </Tooltip>
             )}
-            {presets.map(p => (
-              <button
-                key={p}
-                type="button"
-                onMouseDown={e => { e.preventDefault(); handlePreset(p) }}
-                className="w-6 h-6 rounded-full border-2 shadow-sm transition-transform hover:scale-110 shrink-0"
-                style={{
-                  background: p,
-                  borderColor: !imageActive && safe.toLowerCase() === p.toLowerCase() ? '#3b82f6' : '#e5e7eb',
-                }}
-                aria-label={p}
-              />
+            {/* Video swatch */}
+            {showVideoSwatch && (
+              <Tooltip content="Video">
+                <button
+                  ref={videoSwatchRef}
+                  type="button"
+                  onMouseDown={e => { e.preventDefault(); handleVideoSwatch() }}
+                  className="w-6 h-6 rounded-full border-2 shadow-sm transition-transform hover:scale-110 shrink-0 flex items-center justify-center overflow-hidden bg-gray-100"
+                  style={{ borderColor: videoActive ? '#3b82f6' : '#e5e7eb' }}
+                  aria-label="Background video"
+                >
+                  {videoFilename
+                    ? <div className="w-full h-full flex items-center justify-center bg-gray-800"><VideoIcon size={12} className="text-white" /></div>
+                    : <VideoIcon size={12} className="text-gray-400" />
+                  }
+                </button>
+              </Tooltip>
+            )}
+            {presets.map((p, i) => (
+              <Tooltip key={p} content={presetLabels[i]}>
+                <button
+                  type="button"
+                  onMouseDown={e => { e.preventDefault(); handlePreset(p) }}
+                  className="w-6 h-6 rounded-full border-2 shadow-sm transition-transform hover:scale-110 shrink-0"
+                  style={{
+                    background: p,
+                    borderColor: !imageActive && !videoActive && safe.toLowerCase() === p.toLowerCase() ? '#3b82f6' : '#e5e7eb',
+                  }}
+                  aria-label={presetLabels[i] || p}
+                />
+              </Tooltip>
             ))}
             {/* Rainbow swatch */}
-            <button
-              ref={rainbowRef}
-              type="button"
-              onMouseDown={e => { e.preventDefault(); pickerOpen ? setPickerOpen(false) : (openPicker(), onChange(pickerColor)) }}
-              className="w-6 h-6 rounded-full border-2 shadow-sm transition-transform hover:scale-110 shrink-0"
-              style={{ background: RAINBOW, borderColor: (!imageActive && (pickerOpen || isCustomColor)) ? '#3b82f6' : '#e5e7eb' }}
-              aria-label="Custom color"
-            />
+            <Tooltip content="Color">
+              <button
+                ref={rainbowRef}
+                type="button"
+                onMouseDown={e => { e.preventDefault(); pickerOpen ? setPickerOpen(false) : (openPicker(), onChange(pickerColor)) }}
+                className="w-6 h-6 rounded-full border-2 shadow-sm transition-transform hover:scale-110 shrink-0"
+                style={{ background: RAINBOW, borderColor: (!imageActive && !videoActive && (pickerOpen || isCustomColor)) ? '#3b82f6' : '#e5e7eb' }}
+                aria-label="Custom color"
+              />
+            </Tooltip>
           </div>
         </div>,
         document.body
@@ -525,22 +615,60 @@ export function ColorSwatchMenu({
           onMouseDown={e => e.stopPropagation()}
         >
           <div className="flex gap-1.5">
-            <button
-              type="button"
-              onMouseDown={e => { e.preventDefault(); replaceFileInputRef.current?.click() }}
-              className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition-colors"
-              aria-label="Replace image"
-            >
-              <Upload size={12} className="text-gray-500" />
-            </button>
-            <button
-              type="button"
-              onMouseDown={e => { e.preventDefault(); onImageDelete?.(); setImgMgmtOpen(false); setSwatchesOpen(false) }}
-              className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
-              aria-label="Delete image"
-            >
-              <Trash2 size={12} className="text-red-400" />
-            </button>
+            <Tooltip content="Upload Image">
+              <button
+                type="button"
+                onMouseDown={e => { e.preventDefault(); replaceFileInputRef.current?.click() }}
+                className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition-colors"
+                aria-label="Replace image"
+              >
+                <Upload size={12} className="text-gray-500" />
+              </button>
+            </Tooltip>
+            <Tooltip content="Delete Image">
+              <button
+                type="button"
+                onMouseDown={e => { e.preventDefault(); onImageDelete?.(); setImgMgmtOpen(false); setSwatchesOpen(false) }}
+                className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
+                aria-label="Delete image"
+              >
+                <Trash2 size={12} className="text-red-400" />
+              </button>
+            </Tooltip>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Video management popover */}
+      {vidMgmtOpen && createPortal(
+        <div
+          ref={vidMgmtPopoverRef}
+          style={{ position: 'fixed', top: vidMgmtPos.top, left: vidMgmtPos.centerX, transform: 'translateX(-50%) translateY(-100%)', zIndex: 100000 }}
+          className="bg-white rounded-xl shadow-2xl border border-gray-200 p-2.5"
+          onMouseDown={e => e.stopPropagation()}
+        >
+          <div className="flex gap-1.5">
+            <Tooltip content="Upload Video">
+              <button
+                type="button"
+                onMouseDown={e => { e.preventDefault(); videoReplaceFileInputRef.current?.click() }}
+                className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition-colors"
+                aria-label="Replace video"
+              >
+                <Upload size={12} className="text-gray-500" />
+              </button>
+            </Tooltip>
+            <Tooltip content="Delete Video">
+              <button
+                type="button"
+                onMouseDown={e => { e.preventDefault(); onVideoDelete?.(); setVidMgmtOpen(false); setSwatchesOpen(false) }}
+                className="w-6 h-6 rounded-md border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
+                aria-label="Delete video"
+              >
+                <Trash2 size={12} className="text-red-400" />
+              </button>
+            </Tooltip>
           </div>
         </div>,
         document.body

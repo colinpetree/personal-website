@@ -1,0 +1,203 @@
+diff --git a/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.dev.js b/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.dev.js
+index ad99868..80c341d 100644
+--- a/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.dev.js
++++ b/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.dev.js
+@@ -58,23 +58,10 @@ const useLayoutEffectImpl = lexical.CAN_USE_DOM ? react.useLayoutEffect : react.
+  */
+ 
+ function useDecorators(editor, ErrorBoundary) {
+-  const [decorators, setDecorators] = react.useState(() => editor.getDecorators());
+-
+-  // Subscribe to changes
+-  useLayoutEffectImpl(() => {
+-    return editor.registerDecoratorListener(nextDecorators => {
+-      reactDom.flushSync(() => {
+-        setDecorators(nextDecorators);
+-      });
+-    });
+-  }, [editor]);
+-  react.useEffect(() => {
+-    // If the content editable mounts before the subscription is added, then
+-    // nothing will be rendered on initial pass. We can get around that by
+-    // ensuring that we set the value.
+-    // eslint-disable-next-line react-hooks/set-state-in-effect
+-    setDecorators(editor.getDecorators());
+-  }, [editor]);
++  // PATCHED (see /patches/@lexical+react+0.45.0.patch) — see the .mjs
++  // sibling of this file for the full rationale. Backports the
++  // useSyncExternalStore-based fix Lexical shipped upstream in 0.49.0.
++  const decorators = react.useSyncExternalStore(cb => editor.registerDecoratorListener(cb), () => editor.getDecorators(), () => editor.getDecorators());
+ 
+   // Return decorators defined as React Portals
+   return react.useMemo(() => {
+diff --git a/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.dev.mjs b/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.dev.mjs
+index 81c8c4d..7f3af58 100644
+--- a/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.dev.mjs
++++ b/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.dev.mjs
+@@ -10,8 +10,8 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
+ import { useLexicalEditable } from '@lexical/react/useLexicalEditable';
+ import { LexicalBuilder } from '@lexical/extension';
+ import { ReactProviderExtension } from '@lexical/react/ReactProviderExtension';
+-import { useLayoutEffect, useEffect, useState, useMemo, Suspense } from 'react';
+-import { flushSync, createPortal } from 'react-dom';
++import { useLayoutEffect, useEffect, useState, useMemo, useSyncExternalStore, Suspense } from 'react';
++import { createPortal } from 'react-dom';
+ import { CAN_USE_DOM } from 'lexical';
+ import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
+ import { $canShowPlaceholderCurry } from '@lexical/text';
+@@ -56,23 +56,11 @@ const useLayoutEffectImpl = CAN_USE_DOM ? useLayoutEffect : useEffect;
+  */
+ 
+ function useDecorators(editor, ErrorBoundary) {
+-  const [decorators, setDecorators] = useState(() => editor.getDecorators());
+-
+-  // Subscribe to changes
+-  useLayoutEffectImpl(() => {
+-    return editor.registerDecoratorListener(nextDecorators => {
+-      flushSync(() => {
+-        setDecorators(nextDecorators);
+-      });
+-    });
+-  }, [editor]);
+-  useEffect(() => {
+-    // If the content editable mounts before the subscription is added, then
+-    // nothing will be rendered on initial pass. We can get around that by
+-    // ensuring that we set the value.
+-    // eslint-disable-next-line react-hooks/set-state-in-effect
+-    setDecorators(editor.getDecorators());
+-  }, [editor]);
++  // PATCHED (see /patches/@lexical+react+0.45.0.patch) — see LexicalRichTextPlugin.dev.mjs
++  // for the full rationale. Backports the useSyncExternalStore-based fix
++  // Lexical shipped upstream in 0.49.0, in place of 0.45.0's flushSync-in-a-
++  // listener implementation.
++  const decorators = useSyncExternalStore(cb => editor.registerDecoratorListener(cb), () => editor.getDecorators(), () => editor.getDecorators());
+ 
+   // Return decorators defined as React Portals
+   return useMemo(() => {
+diff --git a/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.prod.js b/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.prod.js
+index d7b4754..439105c 100644
+--- a/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.prod.js
++++ b/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.prod.js
+@@ -6,4 +6,4 @@
+  *
+  */
+ 
+-"use strict";var e=require("@lexical/react/LexicalComposerContext"),r=require("@lexical/react/useLexicalEditable"),t=require("@lexical/extension"),n=require("@lexical/react/ReactProviderExtension"),o=require("react"),i=require("react-dom"),a=require("lexical"),c=require("react/jsx-runtime"),l=require("@lexical/text"),s=require("@lexical/utils"),u=require("@lexical/dragon"),x=require("@lexical/plain-text");function d(e,...r){const t=new URL("https://lexical.dev/docs/error"),n=new URLSearchParams;n.append("code",e);for(const e of r)n.append("v",e);throw t.search=n.toString(),Error(`Minified Lexical error #${e}; visit ${t.toString()} for the full message or use the non-minified dev environment for full errors and additional helpful warnings.`)}const f=a.CAN_USE_DOM?o.useLayoutEffect:o.useEffect;function g({editor:e,ErrorBoundary:r}){return function(e,r){const[t,n]=o.useState(()=>e.getDecorators());return f(()=>e.registerDecoratorListener(e=>{i.flushSync(()=>{n(e)})}),[e]),o.useEffect(()=>{n(e.getDecorators())},[e]),o.useMemo(()=>{const n=[],a=Object.keys(t);for(let l=0;l<a.length;l++){const s=a[l],u=c.jsx(r,{onError:r=>e._onError(r),children:c.jsx(o.Suspense,{fallback:null,children:t[s]})}),x=e.getElementByKey(s);null!==x&&n.push(i.createPortal(u,x,s))}return n},[r,t,e])}(e,r)}function E({editor:e,ErrorBoundary:r}){return function(e){const r=t.LexicalBuilder.maybeFromEditor(e);if(r&&r.hasExtensionByName(n.ReactProviderExtension.name)){for(const e of["@lexical/plain-text","@lexical/rich-text"])r.hasExtensionByName(e)&&d(320,e);return!0}return!1}(e)?null:c.jsx(g,{editor:e,ErrorBoundary:r})}function m(e){return e.getEditorState().read(l.$canShowPlaceholderCurry(e.isComposing()))}function p({content:t}){const[n]=e.useLexicalComposerContext(),i=function(e){const[r,t]=o.useState(()=>m(e));return f(()=>{function r(){const r=m(e);t(r)}return r(),s.mergeRegister(e.registerUpdateListener(()=>{r()}),e.registerEditableListener(()=>{r()}))},[e]),r}(n),a=r.useLexicalEditable();return i?"function"==typeof t?t(a):t:null}exports.PlainTextPlugin=function({contentEditable:r,placeholder:t=null,ErrorBoundary:n}){const[o]=e.useLexicalComposerContext();return function(e){f(()=>s.mergeRegister(x.registerPlainText(e),u.registerDragonSupport(e)),[e])}(o),c.jsxs(c.Fragment,{children:[r,c.jsx(p,{content:t}),c.jsx(E,{editor:o,ErrorBoundary:n})]})};
++"use strict";var e=require("@lexical/react/LexicalComposerContext"),r=require("@lexical/react/useLexicalEditable"),t=require("@lexical/extension"),n=require("@lexical/react/ReactProviderExtension"),o=require("react"),i=require("react-dom"),a=require("lexical"),c=require("react/jsx-runtime"),l=require("@lexical/text"),s=require("@lexical/utils"),u=require("@lexical/dragon"),x=require("@lexical/plain-text");function d(e,...r){const t=new URL("https://lexical.dev/docs/error"),n=new URLSearchParams;n.append("code",e);for(const e of r)n.append("v",e);throw t.search=n.toString(),Error(`Minified Lexical error #${e}; visit ${t.toString()} for the full message or use the non-minified dev environment for full errors and additional helpful warnings.`)}const f=a.CAN_USE_DOM?o.useLayoutEffect:o.useEffect;function g({editor:e,ErrorBoundary:r}){return function(e,r){const t=o.useSyncExternalStore(n=>e.registerDecoratorListener(n),()=>e.getDecorators(),()=>e.getDecorators());return o.useMemo(()=>{const n=[],a=Object.keys(t);for(let l=0;l<a.length;l++){const s=a[l],u=c.jsx(r,{onError:r=>e._onError(r),children:c.jsx(o.Suspense,{fallback:null,children:t[s]})}),x=e.getElementByKey(s);null!==x&&n.push(i.createPortal(u,x,s))}return n},[r,t,e])}(e,r)}function E({editor:e,ErrorBoundary:r}){return function(e){const r=t.LexicalBuilder.maybeFromEditor(e);if(r&&r.hasExtensionByName(n.ReactProviderExtension.name)){for(const e of["@lexical/plain-text","@lexical/rich-text"])r.hasExtensionByName(e)&&d(320,e);return!0}return!1}(e)?null:c.jsx(g,{editor:e,ErrorBoundary:r})}function m(e){return e.getEditorState().read(l.$canShowPlaceholderCurry(e.isComposing()))}function p({content:t}){const[n]=e.useLexicalComposerContext(),i=function(e){const[r,t]=o.useState(()=>m(e));return f(()=>{function r(){const r=m(e);t(r)}return r(),s.mergeRegister(e.registerUpdateListener(()=>{r()}),e.registerEditableListener(()=>{r()}))},[e]),r}(n),a=r.useLexicalEditable();return i?"function"==typeof t?t(a):t:null}exports.PlainTextPlugin=function({contentEditable:r,placeholder:t=null,ErrorBoundary:n}){const[o]=e.useLexicalComposerContext();return function(e){f(()=>s.mergeRegister(x.registerPlainText(e),u.registerDragonSupport(e)),[e])}(o),c.jsxs(c.Fragment,{children:[r,c.jsx(p,{content:t}),c.jsx(E,{editor:o,ErrorBoundary:n})]})};
+diff --git a/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.prod.mjs b/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.prod.mjs
+index 6b13299..58519fb 100644
+--- a/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.prod.mjs
++++ b/node_modules/@lexical/react/dist/LexicalPlainTextPlugin.prod.mjs
+@@ -6,4 +6,4 @@
+  *
+  */
+ 
+-import{useLexicalComposerContext as r}from"@lexical/react/LexicalComposerContext";import{useLexicalEditable as e}from"@lexical/react/useLexicalEditable";import{LexicalBuilder as t}from"@lexical/extension";import{ReactProviderExtension as o}from"@lexical/react/ReactProviderExtension";import{useLayoutEffect as n,useEffect as i,useState as c,useMemo as l,Suspense as a}from"react";import{flushSync as s,createPortal as u}from"react-dom";import{CAN_USE_DOM as f}from"lexical";import{jsx as m,jsxs as d,Fragment as p}from"react/jsx-runtime";import{$canShowPlaceholderCurry as x}from"@lexical/text";import{mergeRegister as E}from"@lexical/utils";import{registerDragonSupport as h}from"@lexical/dragon";import{registerPlainText as g}from"@lexical/plain-text";function y(r,...e){const t=new URL("https://lexical.dev/docs/error"),o=new URLSearchParams;o.append("code",r);for(const r of e)o.append("v",r);throw t.search=o.toString(),Error(`Minified Lexical error #${r}; visit ${t.toString()} for the full message or use the non-minified dev environment for full errors and additional helpful warnings.`)}const B=f?n:i;function L({editor:r,ErrorBoundary:e}){return function(r,e){const[t,o]=c(()=>r.getDecorators());return B(()=>r.registerDecoratorListener(r=>{s(()=>{o(r)})}),[r]),i(()=>{o(r.getDecorators())},[r]),l(()=>{const o=[],n=Object.keys(t);for(let i=0;i<n.length;i++){const c=n[i],l=m(e,{onError:e=>r._onError(e),children:m(a,{fallback:null,children:t[c]})}),s=r.getElementByKey(c);null!==s&&o.push(u(l,s,c))}return o},[e,t,r])}(r,e)}function b({editor:r,ErrorBoundary:e}){return function(r){const e=t.maybeFromEditor(r);if(e&&e.hasExtensionByName(o.name)){for(const r of["@lexical/plain-text","@lexical/rich-text"])e.hasExtensionByName(r)&&y(320,r);return!0}return!1}(r)?null:m(L,{editor:r,ErrorBoundary:e})}function v(r){return r.getEditorState().read(x(r.isComposing()))}function w({contentEditable:e,placeholder:t=null,ErrorBoundary:o}){const[n]=r();return function(r){B(()=>E(g(r),h(r)),[r])}(n),d(p,{children:[e,m(S,{content:t}),m(b,{editor:n,ErrorBoundary:o})]})}function S({content:t}){const[o]=r(),n=function(r){const[e,t]=c(()=>v(r));return B(()=>{function e(){const e=v(r);t(e)}return e(),E(r.registerUpdateListener(()=>{e()}),r.registerEditableListener(()=>{e()}))},[r]),e}(o),i=e();return n?"function"==typeof t?t(i):t:null}export{w as PlainTextPlugin};
++import{useLexicalComposerContext as r}from"@lexical/react/LexicalComposerContext";import{useLexicalEditable as e}from"@lexical/react/useLexicalEditable";import{LexicalBuilder as t}from"@lexical/extension";import{ReactProviderExtension as o}from"@lexical/react/ReactProviderExtension";import{useLayoutEffect as n,useEffect as i,useState as c,useMemo as l,useSyncExternalStore as Z,Suspense as a}from"react";import{createPortal as u}from"react-dom";import{CAN_USE_DOM as f}from"lexical";import{jsx as m,jsxs as d,Fragment as p}from"react/jsx-runtime";import{$canShowPlaceholderCurry as x}from"@lexical/text";import{mergeRegister as E}from"@lexical/utils";import{registerDragonSupport as h}from"@lexical/dragon";import{registerPlainText as g}from"@lexical/plain-text";function y(r,...e){const t=new URL("https://lexical.dev/docs/error"),o=new URLSearchParams;o.append("code",r);for(const r of e)o.append("v",r);throw t.search=o.toString(),Error(`Minified Lexical error #${r}; visit ${t.toString()} for the full message or use the non-minified dev environment for full errors and additional helpful warnings.`)}const B=f?n:i;function L({editor:r,ErrorBoundary:e}){return function(r,e){const t=Z(c=>r.registerDecoratorListener(c),()=>r.getDecorators(),()=>r.getDecorators());return l(()=>{const o=[],n=Object.keys(t);for(let i=0;i<n.length;i++){const c=n[i],l=m(e,{onError:e=>r._onError(e),children:m(a,{fallback:null,children:t[c]})}),s=r.getElementByKey(c);null!==s&&o.push(u(l,s,c))}return o},[e,t,r])}(r,e)}function b({editor:r,ErrorBoundary:e}){return function(r){const e=t.maybeFromEditor(r);if(e&&e.hasExtensionByName(o.name)){for(const r of["@lexical/plain-text","@lexical/rich-text"])e.hasExtensionByName(r)&&y(320,r);return!0}return!1}(r)?null:m(L,{editor:r,ErrorBoundary:e})}function v(r){return r.getEditorState().read(x(r.isComposing()))}function w({contentEditable:e,placeholder:t=null,ErrorBoundary:o}){const[n]=r();return function(r){B(()=>E(g(r),h(r)),[r])}(n),d(p,{children:[e,m(S,{content:t}),m(b,{editor:n,ErrorBoundary:o})]})}function S({content:t}){const[o]=r(),n=function(r){const[e,t]=c(()=>v(r));return B(()=>{function e(){const e=v(r);t(e)}return e(),E(r.registerUpdateListener(()=>{e()}),r.registerEditableListener(()=>{e()}))},[r]),e}(o),i=e();return n?"function"==typeof t?t(i):t:null}export{w as PlainTextPlugin};
+diff --git a/node_modules/@lexical/react/dist/LexicalRichTextPlugin.dev.js b/node_modules/@lexical/react/dist/LexicalRichTextPlugin.dev.js
+index 8a61031..53d3ac5 100644
+--- a/node_modules/@lexical/react/dist/LexicalRichTextPlugin.dev.js
++++ b/node_modules/@lexical/react/dist/LexicalRichTextPlugin.dev.js
+@@ -58,23 +58,10 @@ const useLayoutEffectImpl = lexical.CAN_USE_DOM ? react.useLayoutEffect : react.
+  */
+ 
+ function useDecorators(editor, ErrorBoundary) {
+-  const [decorators, setDecorators] = react.useState(() => editor.getDecorators());
+-
+-  // Subscribe to changes
+-  useLayoutEffectImpl(() => {
+-    return editor.registerDecoratorListener(nextDecorators => {
+-      reactDom.flushSync(() => {
+-        setDecorators(nextDecorators);
+-      });
+-    });
+-  }, [editor]);
+-  react.useEffect(() => {
+-    // If the content editable mounts before the subscription is added, then
+-    // nothing will be rendered on initial pass. We can get around that by
+-    // ensuring that we set the value.
+-    // eslint-disable-next-line react-hooks/set-state-in-effect
+-    setDecorators(editor.getDecorators());
+-  }, [editor]);
++  // PATCHED (see /patches/@lexical+react+0.45.0.patch) — see the .mjs
++  // sibling of this file for the full rationale. Backports the
++  // useSyncExternalStore-based fix Lexical shipped upstream in 0.49.0.
++  const decorators = react.useSyncExternalStore(cb => editor.registerDecoratorListener(cb), () => editor.getDecorators(), () => editor.getDecorators());
+ 
+   // Return decorators defined as React Portals
+   return react.useMemo(() => {
+diff --git a/node_modules/@lexical/react/dist/LexicalRichTextPlugin.dev.mjs b/node_modules/@lexical/react/dist/LexicalRichTextPlugin.dev.mjs
+index f1b25c3..b658e6d 100644
+--- a/node_modules/@lexical/react/dist/LexicalRichTextPlugin.dev.mjs
++++ b/node_modules/@lexical/react/dist/LexicalRichTextPlugin.dev.mjs
+@@ -10,8 +10,8 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
+ import { useLexicalEditable } from '@lexical/react/useLexicalEditable';
+ import { LexicalBuilder } from '@lexical/extension';
+ import { ReactProviderExtension } from '@lexical/react/ReactProviderExtension';
+-import { useLayoutEffect, useEffect, useState, useMemo, Suspense } from 'react';
+-import { flushSync, createPortal } from 'react-dom';
++import { useLayoutEffect, useEffect, useState, useMemo, useSyncExternalStore, Suspense } from 'react';
++import { createPortal } from 'react-dom';
+ import { CAN_USE_DOM } from 'lexical';
+ import { jsx, jsxs, Fragment } from 'react/jsx-runtime';
+ import { $canShowPlaceholderCurry } from '@lexical/text';
+@@ -56,23 +56,22 @@ const useLayoutEffectImpl = CAN_USE_DOM ? useLayoutEffect : useEffect;
+  */
+ 
+ function useDecorators(editor, ErrorBoundary) {
+-  const [decorators, setDecorators] = useState(() => editor.getDecorators());
+-
+-  // Subscribe to changes
+-  useLayoutEffectImpl(() => {
+-    return editor.registerDecoratorListener(nextDecorators => {
+-      flushSync(() => {
+-        setDecorators(nextDecorators);
+-      });
+-    });
+-  }, [editor]);
+-  useEffect(() => {
+-    // If the content editable mounts before the subscription is added, then
+-    // nothing will be rendered on initial pass. We can get around that by
+-    // ensuring that we set the value.
+-    // eslint-disable-next-line react-hooks/set-state-in-effect
+-    setDecorators(editor.getDecorators());
+-  }, [editor]);
++  // PATCHED (see /patches/@lexical+react+0.45.0.patch): upstream 0.45.0 used
++  // useState + a registerDecoratorListener callback that called flushSync()
++  // synchronously, which — when that listener fires while React is already
++  // mid-render/commit (a routine occurrence with Lexical's editor.update()
++  // triggered from event handlers) — logs "flushSync was called from inside
++  // a lifecycle method" and can leave React's batching in an inconsistent
++  // state across rapid updates, causing decorator portals (e.g. an
++  // autoplaying <video> in a custom DecoratorNode) to be torn down and
++  // recreated far more often than the actual decorator map changes. Lexical
++  // fixed this upstream in 0.49.0 (recreate decorator portals correctly) by
++  // rewriting this hook around useSyncExternalStore, which is the correct,
++  // tear-free primitive for subscribing to external mutable state. This is
++  // that fix, backported without pulling in the full 0.45->0.50 upgrade
++  // (which crosses several unrelated breaking changes, incl. a node-class
++  // protocol rewrite).
++  const decorators = useSyncExternalStore(cb => editor.registerDecoratorListener(cb), () => editor.getDecorators(), () => editor.getDecorators());
+ 
+   // Return decorators defined as React Portals
+   return useMemo(() => {
+diff --git a/node_modules/@lexical/react/dist/LexicalRichTextPlugin.prod.js b/node_modules/@lexical/react/dist/LexicalRichTextPlugin.prod.js
+index 3e81640..bbfefb7 100644
+--- a/node_modules/@lexical/react/dist/LexicalRichTextPlugin.prod.js
++++ b/node_modules/@lexical/react/dist/LexicalRichTextPlugin.prod.js
+@@ -6,4 +6,4 @@
+  *
+  */
+ 
+-"use strict";var e=require("@lexical/react/LexicalComposerContext"),r=require("@lexical/react/useLexicalEditable"),t=require("@lexical/extension"),n=require("@lexical/react/ReactProviderExtension"),o=require("react"),i=require("react-dom"),c=require("lexical"),a=require("react/jsx-runtime"),s=require("@lexical/text"),l=require("@lexical/utils"),u=require("@lexical/dragon"),x=require("@lexical/rich-text");function d(e,...r){const t=new URL("https://lexical.dev/docs/error"),n=new URLSearchParams;n.append("code",e);for(const e of r)n.append("v",e);throw t.search=n.toString(),Error(`Minified Lexical error #${e}; visit ${t.toString()} for the full message or use the non-minified dev environment for full errors and additional helpful warnings.`)}const f=c.CAN_USE_DOM?o.useLayoutEffect:o.useEffect;function g({editor:e,ErrorBoundary:r}){return function(e,r){const[t,n]=o.useState(()=>e.getDecorators());return f(()=>e.registerDecoratorListener(e=>{i.flushSync(()=>{n(e)})}),[e]),o.useEffect(()=>{n(e.getDecorators())},[e]),o.useMemo(()=>{const n=[],c=Object.keys(t);for(let s=0;s<c.length;s++){const l=c[s],u=a.jsx(r,{onError:r=>e._onError(r),children:a.jsx(o.Suspense,{fallback:null,children:t[l]})}),x=e.getElementByKey(l);null!==x&&n.push(i.createPortal(u,x,l))}return n},[r,t,e])}(e,r)}function E({editor:e,ErrorBoundary:r}){return function(e){const r=t.LexicalBuilder.maybeFromEditor(e);if(r&&r.hasExtensionByName(n.ReactProviderExtension.name)){for(const e of["@lexical/plain-text","@lexical/rich-text"])r.hasExtensionByName(e)&&d(320,e);return!0}return!1}(e)?null:a.jsx(g,{editor:e,ErrorBoundary:r})}function h(e){return e.getEditorState().read(s.$canShowPlaceholderCurry(e.isComposing()))}function m({content:t}){const[n]=e.useLexicalComposerContext(),i=function(e){const[r,t]=o.useState(()=>h(e));return f(()=>{function r(){const r=h(e);t(r)}return r(),l.mergeRegister(e.registerUpdateListener(()=>{r()}),e.registerEditableListener(()=>{r()}))},[e]),r}(n),c=r.useLexicalEditable();return i?"function"==typeof t?t(c):t:null}exports.RichTextPlugin=function({contentEditable:r,placeholder:t=null,ErrorBoundary:n}){const[o]=e.useLexicalComposerContext();return function(e){f(()=>l.mergeRegister(x.registerRichText(e),u.registerDragonSupport(e)),[e])}(o),a.jsxs(a.Fragment,{children:[r,a.jsx(m,{content:t}),a.jsx(E,{editor:o,ErrorBoundary:n})]})};
++"use strict";var e=require("@lexical/react/LexicalComposerContext"),r=require("@lexical/react/useLexicalEditable"),t=require("@lexical/extension"),n=require("@lexical/react/ReactProviderExtension"),o=require("react"),i=require("react-dom"),c=require("lexical"),a=require("react/jsx-runtime"),s=require("@lexical/text"),l=require("@lexical/utils"),u=require("@lexical/dragon"),x=require("@lexical/rich-text");function d(e,...r){const t=new URL("https://lexical.dev/docs/error"),n=new URLSearchParams;n.append("code",e);for(const e of r)n.append("v",e);throw t.search=n.toString(),Error(`Minified Lexical error #${e}; visit ${t.toString()} for the full message or use the non-minified dev environment for full errors and additional helpful warnings.`)}const f=c.CAN_USE_DOM?o.useLayoutEffect:o.useEffect;function g({editor:e,ErrorBoundary:r}){return function(e,r){const t=o.useSyncExternalStore(n=>e.registerDecoratorListener(n),()=>e.getDecorators(),()=>e.getDecorators());return o.useMemo(()=>{const n=[],c=Object.keys(t);for(let s=0;s<c.length;s++){const l=c[s],u=a.jsx(r,{onError:r=>e._onError(r),children:a.jsx(o.Suspense,{fallback:null,children:t[l]})}),x=e.getElementByKey(l);null!==x&&n.push(i.createPortal(u,x,l))}return n},[r,t,e])}(e,r)}function E({editor:e,ErrorBoundary:r}){return function(e){const r=t.LexicalBuilder.maybeFromEditor(e);if(r&&r.hasExtensionByName(n.ReactProviderExtension.name)){for(const e of["@lexical/plain-text","@lexical/rich-text"])r.hasExtensionByName(e)&&d(320,e);return!0}return!1}(e)?null:a.jsx(g,{editor:e,ErrorBoundary:r})}function h(e){return e.getEditorState().read(s.$canShowPlaceholderCurry(e.isComposing()))}function m({content:t}){const[n]=e.useLexicalComposerContext(),i=function(e){const[r,t]=o.useState(()=>h(e));return f(()=>{function r(){const r=h(e);t(r)}return r(),l.mergeRegister(e.registerUpdateListener(()=>{r()}),e.registerEditableListener(()=>{r()}))},[e]),r}(n),c=r.useLexicalEditable();return i?"function"==typeof t?t(c):t:null}exports.RichTextPlugin=function({contentEditable:r,placeholder:t=null,ErrorBoundary:n}){const[o]=e.useLexicalComposerContext();return function(e){f(()=>l.mergeRegister(x.registerRichText(e),u.registerDragonSupport(e)),[e])}(o),a.jsxs(a.Fragment,{children:[r,a.jsx(m,{content:t}),a.jsx(E,{editor:o,ErrorBoundary:n})]})};
+diff --git a/node_modules/@lexical/react/dist/LexicalRichTextPlugin.prod.mjs b/node_modules/@lexical/react/dist/LexicalRichTextPlugin.prod.mjs
+index c5eae9a..4ef8815 100644
+--- a/node_modules/@lexical/react/dist/LexicalRichTextPlugin.prod.mjs
++++ b/node_modules/@lexical/react/dist/LexicalRichTextPlugin.prod.mjs
+@@ -6,4 +6,4 @@
+  *
+  */
+ 
+-import{useLexicalComposerContext as r}from"@lexical/react/LexicalComposerContext";import{useLexicalEditable as e}from"@lexical/react/useLexicalEditable";import{LexicalBuilder as t}from"@lexical/extension";import{ReactProviderExtension as o}from"@lexical/react/ReactProviderExtension";import{useLayoutEffect as n,useEffect as i,useState as c,useMemo as l,Suspense as a}from"react";import{flushSync as s,createPortal as u}from"react-dom";import{CAN_USE_DOM as f}from"lexical";import{jsx as m,jsxs as d,Fragment as p}from"react/jsx-runtime";import{$canShowPlaceholderCurry as x}from"@lexical/text";import{mergeRegister as h}from"@lexical/utils";import{registerDragonSupport as E}from"@lexical/dragon";import{registerRichText as g}from"@lexical/rich-text";function y(r,...e){const t=new URL("https://lexical.dev/docs/error"),o=new URLSearchParams;o.append("code",r);for(const r of e)o.append("v",r);throw t.search=o.toString(),Error(`Minified Lexical error #${r}; visit ${t.toString()} for the full message or use the non-minified dev environment for full errors and additional helpful warnings.`)}const B=f?n:i;function L({editor:r,ErrorBoundary:e}){return function(r,e){const[t,o]=c(()=>r.getDecorators());return B(()=>r.registerDecoratorListener(r=>{s(()=>{o(r)})}),[r]),i(()=>{o(r.getDecorators())},[r]),l(()=>{const o=[],n=Object.keys(t);for(let i=0;i<n.length;i++){const c=n[i],l=m(e,{onError:e=>r._onError(e),children:m(a,{fallback:null,children:t[c]})}),s=r.getElementByKey(c);null!==s&&o.push(u(l,s,c))}return o},[e,t,r])}(r,e)}function b({editor:r,ErrorBoundary:e}){return function(r){const e=t.maybeFromEditor(r);if(e&&e.hasExtensionByName(o.name)){for(const r of["@lexical/plain-text","@lexical/rich-text"])e.hasExtensionByName(r)&&y(320,r);return!0}return!1}(r)?null:m(L,{editor:r,ErrorBoundary:e})}function v(r){return r.getEditorState().read(x(r.isComposing()))}function w({contentEditable:e,placeholder:t=null,ErrorBoundary:o}){const[n]=r();return function(r){B(()=>h(g(r),E(r)),[r])}(n),d(p,{children:[e,m(S,{content:t}),m(b,{editor:n,ErrorBoundary:o})]})}function S({content:t}){const[o]=r(),n=function(r){const[e,t]=c(()=>v(r));return B(()=>{function e(){const e=v(r);t(e)}return e(),h(r.registerUpdateListener(()=>{e()}),r.registerEditableListener(()=>{e()}))},[r]),e}(o),i=e();return n?"function"==typeof t?t(i):t:null}export{w as RichTextPlugin};
++import{useLexicalComposerContext as r}from"@lexical/react/LexicalComposerContext";import{useLexicalEditable as e}from"@lexical/react/useLexicalEditable";import{LexicalBuilder as t}from"@lexical/extension";import{ReactProviderExtension as o}from"@lexical/react/ReactProviderExtension";import{useLayoutEffect as n,useEffect as i,useState as c,useMemo as l,useSyncExternalStore as Z,Suspense as a}from"react";import{createPortal as u}from"react-dom";import{CAN_USE_DOM as f}from"lexical";import{jsx as m,jsxs as d,Fragment as p}from"react/jsx-runtime";import{$canShowPlaceholderCurry as x}from"@lexical/text";import{mergeRegister as h}from"@lexical/utils";import{registerDragonSupport as E}from"@lexical/dragon";import{registerRichText as g}from"@lexical/rich-text";function y(r,...e){const t=new URL("https://lexical.dev/docs/error"),o=new URLSearchParams;o.append("code",r);for(const r of e)o.append("v",r);throw t.search=o.toString(),Error(`Minified Lexical error #${r}; visit ${t.toString()} for the full message or use the non-minified dev environment for full errors and additional helpful warnings.`)}const B=f?n:i;function L({editor:r,ErrorBoundary:e}){return function(r,e){const t=Z(c=>r.registerDecoratorListener(c),()=>r.getDecorators(),()=>r.getDecorators());return l(()=>{const o=[],n=Object.keys(t);for(let i=0;i<n.length;i++){const c=n[i],l=m(e,{onError:e=>r._onError(e),children:m(a,{fallback:null,children:t[c]})}),s=r.getElementByKey(c);null!==s&&o.push(u(l,s,c))}return o},[e,t,r])}(r,e)}function b({editor:r,ErrorBoundary:e}){return function(r){const e=t.maybeFromEditor(r);if(e&&e.hasExtensionByName(o.name)){for(const r of["@lexical/plain-text","@lexical/rich-text"])e.hasExtensionByName(r)&&y(320,r);return!0}return!1}(r)?null:m(L,{editor:r,ErrorBoundary:e})}function v(r){return r.getEditorState().read(x(r.isComposing()))}function w({contentEditable:e,placeholder:t=null,ErrorBoundary:o}){const[n]=r();return function(r){B(()=>h(g(r),E(r)),[r])}(n),d(p,{children:[e,m(S,{content:t}),m(b,{editor:n,ErrorBoundary:o})]})}function S({content:t}){const[o]=r(),n=function(r){const[e,t]=c(()=>v(r));return B(()=>{function e(){const e=v(r);t(e)}return e(),h(r.registerUpdateListener(()=>{e()}),r.registerEditableListener(()=>{e()}))},[r]),e}(o),i=e();return n?"function"==typeof t?t(i):t:null}export{w as RichTextPlugin};
