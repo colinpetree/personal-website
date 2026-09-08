@@ -12,8 +12,8 @@ import AccessRequiredModal from '../../components/AccessRequiredModal'
 import NotFoundPage from '../NotFoundPage'
 import { isNavEnabled, setRobotsNoindex, setNotFoundDocumentHead } from '../../utils/meta'
 
-const DEMO_KEY = 'conversation-basics'
-const DEMO_TITLE = 'Conversation basics'
+const DEMO_KEY = 'conversation'
+const DEMO_TITLE = 'Conversation'
 
 const SYSTEM_PROMPT_PRESETS = [
   {
@@ -194,7 +194,7 @@ export default function ConversationBasicsPage() {
     }
     setRobotsNoindex(false)
     if (config?.site_title) {
-      document.title = `Conversation basics - ${config.site_title}`
+      document.title = `Conversation - ${config.site_title}`
     }
   }, [config])
 
@@ -329,7 +329,7 @@ export default function ConversationBasicsPage() {
     abortControllerRef.current = controller
 
     try {
-      const res = await fetch('/api/ai-demo/conversation-basics/chat', {
+      const res = await fetch('/api/ai-demo/conversation/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -516,9 +516,9 @@ export default function ConversationBasicsPage() {
         </button>
         <Link to={`/${config?.ai_demo_slug ?? 'demo'}`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ChevronLeft size={16} />
-          Back to AI Implementations
+          Back to {config?.nav?.find(n => n.key === 'ai_demo')?.name || 'AI Demos'}
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-2">Conversation basics</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-2">Conversation</h1>
         <p className="text-gray-500 text-sm mb-6">
           Streaming chat with a custom system prompt and temperature control.
         </p>

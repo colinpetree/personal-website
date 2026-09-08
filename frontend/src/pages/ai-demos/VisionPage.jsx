@@ -11,8 +11,8 @@ import AccessRequiredModal from '../../components/AccessRequiredModal'
 import NotFoundPage from '../NotFoundPage'
 import { isNavEnabled, setRobotsNoindex, setNotFoundDocumentHead } from '../../utils/meta'
 
-const DEMO_KEY = 'vision'
-const DEMO_TITLE = 'Vision'
+const DEMO_KEY = 'image-processing'
+const DEMO_TITLE = 'Image processing'
 
 const ALLOWED_MEDIA_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -161,7 +161,7 @@ export default function VisionPage() {
     }
     setRobotsNoindex(false)
     if (config?.site_title) {
-      document.title = `Vision - ${config.site_title}`
+      document.title = `Image processing - ${config.site_title}`
     }
   }, [config])
 
@@ -250,7 +250,7 @@ export default function VisionPage() {
       })
       const base64Data = dataUrl.slice(dataUrl.indexOf(',') + 1)
 
-      const res = await fetch('/api/ai-demo/vision/analyze', {
+      const res = await fetch('/api/ai-demo/image-processing/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -423,21 +423,17 @@ export default function VisionPage() {
         </button>
         <Link to={`/${config?.ai_demo_slug ?? 'demo'}`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ChevronLeft size={16} />
-          Back to AI Implementations
+          Back to {config?.nav?.find(n => n.key === 'ai_demo')?.name || 'AI Demos'}
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-2">Vision</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-2">Image processing</h1>
         <p className="text-gray-500 text-sm mb-6">
-          Upload an image and see Claude analyze it directly.
+          Upload an image and see the AI assistant analyze it directly.
         </p>
 
         <div className="flex flex-col gap-3 text-sm text-gray-600">
           <p>
             The image is sent to Claude as part of a single request alongside a general-purpose analysis prompt,
-            then the response from Claude is streamed back and displayed on the page.
-          </p>
-          <p>
-            Your image is analyzed in memory for this one request only. It's never written to disk or stored
-            anywhere on the server.
+            then the response is streamed back and displayed on the page.
           </p>
         </div>
       </div>

@@ -13,7 +13,7 @@ import NotFoundPage from '../NotFoundPage'
 import { isNavEnabled, setRobotsNoindex, setNotFoundDocumentHead } from '../../utils/meta'
 
 const DEMO_KEY = 'mcp'
-const DEMO_TITLE = 'MCP'
+const DEMO_TITLE = 'Model Context Protocol (MCP)'
 
 // Minimal markdown -> React renderer (headings, bold/italic/inline code, lists,
 // paragraphs) — enough to render Claude's typical formatting without a new dependency.
@@ -230,7 +230,7 @@ export default function McpPage() {
     }
     setRobotsNoindex(false)
     if (config?.site_title) {
-      document.title = `MCP - ${config.site_title}`
+      document.title = `Model Context Protocol (MCP) - ${config.site_title}`
     }
   }, [config])
 
@@ -593,16 +593,11 @@ export default function McpPage() {
         </button>
         <Link to={`/${config?.ai_demo_slug ?? 'demo'}`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ChevronLeft size={16} />
-          Back to AI Implementations
+          Back to {config?.nav?.find(n => n.key === 'ai_demo')?.name || 'AI Demos'}
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-2">MCP</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-2">Model Context Protocol (MCP)</h1>
         <p className="text-gray-500 text-sm mb-3">
-          Ask about this site's real GitHub history via a live external MCP server.
-        </p>
-        <p className="text-gray-500 text-sm mb-4">
-          These tools aren't defined in this app's code, and they're not even hosted by this app -
-          they're served by GitHub's own remote MCP server, connected to this project's real
-          repository, read-only.
+          Ask about this site's real GitHub history and Claude will access the information using the live external GitHub MCP server.
         </p>
 
         {repo && (

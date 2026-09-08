@@ -1,10 +1,10 @@
 export const AI_DEMO_LIST = [
-  { key: 'conversation-basics', title: 'Conversation basics' },
+  { key: 'conversation', title: 'Conversation' },
   { key: 'tool-use', title: 'Tool use' },
   { key: 'web-search', title: 'Web search' },
-  { key: 'mcp', title: 'MCP' },
-  { key: 'prompt-evaluation', title: 'Prompt evaluation' },
-  { key: 'prompt-engineering', title: 'Prompt engineering' },
-  { key: 'rag', title: 'RAG / hybrid search' },
-  { key: 'vision', title: 'Vision' },
+  { key: 'mcp', title: 'Model Context Protocol (MCP)' },
+  { key: 'data-evaluations', title: 'Data evaluations' },
+  { key: 'prompt-refinement', title: 'Prompt refinement' },
+  { key: 'rag', title: 'Retrieval Augmented Generation (RAG)' },
+  { key: 'image-processing', title: 'Image processing' },
 ]
