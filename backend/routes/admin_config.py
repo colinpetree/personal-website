@@ -154,7 +154,6 @@ def update_admin_config():
     # Plain fields — update if present in payload
     plain_fields = [
         'site_title', 'site_description', 'domain', 'favicon_filename', 'timezone', 'users_enabled',
-        'google_oauth_client_id',
         'home_enabled', 'home_page_name', 'home_text', 'home_meta_description', 'home_scrollable_nav_enabled', 'home_page_width', 'home_font_family',
         'blog_enabled', 'blog_page_name', 'blog_slug', 'blog_text', 'blog_meta_description', 'blog_comments_enabled', 'blog_font_family',
         'projects_enabled', 'projects_page_name', 'projects_text', 'projects_meta_description', 'projects_scrollable_nav_enabled', 'projects_slug', 'projects_page_width', 'projects_font_family',
@@ -195,6 +194,13 @@ def update_admin_config():
         else:
             config.analytics_start_date = None
 
+    # Google OAuth client ID — a stray leading/trailing space (easy to pick up
+    # via copy-paste from Google Cloud Console) makes Google reject it outright
+    # with a cryptic "Error 401: invalid_client", so strip it here rather than
+    # storing it verbatim.
+    if 'google_oauth_client_id' in data:
+        config.google_oauth_client_id = (data['google_oauth_client_id'] or '').strip()
+
     # Encrypted fields — only update if a non-empty value is provided
     if data.get('mailgun_api_key'):
         config.mailgun_api_key = encrypt(data['mailgun_api_key'])
@@ -203,7 +209,7 @@ def update_admin_config():
     if data.get('stripe_webhook_secret'):
         config.stripe_webhook_secret = encrypt(data['stripe_webhook_secret'])
     if data.get('google_oauth_client_secret'):
-        config.google_oauth_client_secret = encrypt(data['google_oauth_client_secret'])
+        config.google_oauth_client_secret = encrypt(data['google_oauth_client_secret'].strip())
 
     # Write domain to certbot_domain.txt when set
     if 'domain' in data and data['domain']:
@@ -212,7 +218,7 @@ def update_admin_config():
             f.write(data['domain'])
 
     # Log the settings change
-    changed_keys = [k for k in data if k in plain_fields or k in ('nav_order', 'mailgun_api_key', 'stripe_secret_key', 'stripe_webhook_secret', 'google_oauth_client_secret', 'analytics_start_date')]
+    changed_keys = [k for k in data if k in plain_fields or k in ('nav_order', 'mailgun_api_key', 'stripe_secret_key', 'stripe_webhook_secret', 'google_oauth_client_id', 'google_oauth_client_secret', 'analytics_start_date')]
     if changed_keys:
         subject = 'Site (' + ', '.join(changed_keys) + ')'
         entry = SiteEventLog(
