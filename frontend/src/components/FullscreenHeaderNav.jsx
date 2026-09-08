@@ -8,7 +8,7 @@ import { useFullscreenHeaderNav } from '../hooks/useFullscreenHeaderNav'
 // HeaderNode gets to use the whole viewport (see useFullscreenHeaderNav) and
 // shows a scroll-down hint when there's more page below the header.
 export default function FullscreenHeaderNav({ containerRef, contentKey }) {
-  const isFullscreenHeader = useFullscreenHeaderNav(containerRef, contentKey)
+  const { isFullscreenHeader } = useFullscreenHeaderNav(containerRef, contentKey)
   return isFullscreenHeader ? <ScrollDownIndicator containerRef={containerRef} /> : null
 }
 
