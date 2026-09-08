@@ -94,6 +94,26 @@ const INLINE_SCRIPT_RE = /<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/gi
 const STREAM_ENQUEUE_RE = /^window\.__reactRouterContext\.streamController\.enqueue\("(?:[^"\\]|\\.)*"\);$/
 const STREAM_CLOSE_RE = /^window\.__reactRouterContext\.streamController\.close\(\);$/
 
+// React DOM's own Suspense "complete boundary" reveal script — emitted by
+// renderToPipeableStream whenever a Suspense boundary in the tree resolves
+// after the initial render pass. React Router's <ServerRouter> always wraps
+// its single-fetch loader-data transfer (the enqueue()/close() calls above)
+// in a <Suspense>, and reading that data is inherently async, so this script
+// accompanies them on every prerendered page. Its function body is a fixed
+// string baked into react-dom's own source (react-dom/cjs/react-dom-server.
+// node.development.js: `completeBoundaryFunction`/`completeBoundaryScript1Full`)
+// — not attacker-influenced content — so it's trusted the same way the other
+// patterns here are. React sends the full function definition once per page
+// and bare `$RC("id","id")` calls for any additional boundaries.
+const COMPLETE_BOUNDARY_FUNCTION = 'function $RC(a,b){a=document.getElementById(a);b=document.getElementById(b);b.parentNode.removeChild(b);if(a){a=a.previousSibling;var f=a.parentNode,c=a.nextSibling,e=0;do{if(c&&8===c.nodeType){var d=c.data;if("/$"===d)if(0===e)break;else e--;else"$"!==d&&"$?"!==d&&"$!"!==d||e++}d=c.nextSibling;f.removeChild(c);c=d}while(c);for(;b.firstChild;)f.insertBefore(b.firstChild,c);a.data="$";a._reactRetry&&a._reactRetry()}}'
+// Boundary/segment IDs are React-internal, e.g. "B:0"/"S:1a" — a bounded
+// charset rather than a wildcard, same reasoning as ROUTE_ENTRY above.
+const BOUNDARY_ID = '[A-Za-z0-9_:-]+'
+const COMPLETE_BOUNDARY_CALL_RE = new RegExp(`^\\$RC\\("${BOUNDARY_ID}","${BOUNDARY_ID}"\\)$`)
+const COMPLETE_BOUNDARY_FULL_RE = new RegExp(
+  `^${COMPLETE_BOUNDARY_FUNCTION.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')};\\$RC\\("${BOUNDARY_ID}","${BOUNDARY_ID}"\\)$`
+)
+
 const CONTEXT_PREFIX = 'window.__reactRouterContext = '
 const CONTEXT_SUFFIX = ';window.__reactRouterContext.stream = new ReadableStream({start(controller){window.__reactRouterContext.streamController = controller;}}).pipeThrough(new TextEncoderStream());'
 
@@ -129,7 +149,9 @@ function isFrameworkScript(content) {
     isContextBootstrap(trimmed) ||
     MODULE_REGISTRATION_RE.test(trimmed) ||
     STREAM_ENQUEUE_RE.test(trimmed) ||
-    STREAM_CLOSE_RE.test(trimmed)
+    STREAM_CLOSE_RE.test(trimmed) ||
+    COMPLETE_BOUNDARY_CALL_RE.test(trimmed) ||
+    COMPLETE_BOUNDARY_FULL_RE.test(trimmed)
   )
 }
 
