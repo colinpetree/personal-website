@@ -81,6 +81,19 @@ function slugify(text) {
     .replace(/^-+|-+$/g, '')
 }
 
+// Builds a "YYYY-MM-DDTHH:MM" string from the browser's local wall-clock
+// time — matching the convention used everywhere else in this file for
+// publish_date (naive strings interpreted as local time on both write and
+// read). new Date().toISOString() must NOT be used here: it returns UTC,
+// and slicing off the "Z" leaves a UTC reading that gets silently
+// re-interpreted as local time when displayed, shifting "publish now" by
+// the local UTC offset.
+function localNowString() {
+  const d = new Date()
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 function tzAbbr() {
   return (
     Intl.DateTimeFormat('en-US', { timeZoneName: 'short' })
@@ -567,7 +580,7 @@ export default function AdminBlogEditorPage() {
     slugEdited.current = true
     setPublishSaving(true)
     const isScheduled = publishChoice === 'later'
-    const publishDate = isScheduled ? combineDateFromDialog() : new Date().toISOString().slice(0, 16)
+    const publishDate = isScheduled ? combineDateFromDialog() : localNowString()
     try {
       const data = await save({
         status: isScheduled ? 'scheduled' : 'published',
