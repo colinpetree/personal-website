@@ -3,6 +3,7 @@ import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { EditableCard, Field, Input, Toggle } from '../../components/admin/AdminPage'
 import UserProfileModal from '../../components/admin/UserProfileModal'
 import RoleGuard, { adminOnlyFallback } from '../../components/admin/RoleGuard'
+import { Tooltip } from '../../components/ui/Tooltip'
 
 function RedirectUriBox({ uri }) {
   const [copied, setCopied] = useState(false)
@@ -176,6 +177,16 @@ function AdminUsersPageContent() {
                   <span className="text-xs text-gray-400 hidden sm:block">
                     Joined {new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
+                  <Tooltip content={user.last_login_at
+                    ? `Last signed in ${new Date(user.last_login_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                    : 'Account created but never signed in - email not yet verified'}
+                  >
+                    <span className={`inline-flex items-center leading-none text-xs font-medium px-2.5 py-1.5 rounded-full ${
+                      user.last_login_at ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
+                    }`}>
+                      <span className="translate-y-px">{user.last_login_at ? 'Verified' : 'Unverified'}</span>
+                    </span>
+                  </Tooltip>
                   {!user.can_comment && (
                     <span className="inline-flex items-center leading-none text-xs font-medium px-2.5 py-1.5 rounded-full bg-red-50 text-red-600">
                       <span className="translate-y-px">Blocked</span>

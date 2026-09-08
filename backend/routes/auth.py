@@ -126,6 +126,7 @@ def google_callback():
     if not user:
         user = User(google_id=google_id, email=email, name=name, avatar_url=avatar_url)
         db.session.add(user)
+    user.last_login_at = datetime.utcnow()
     db.session.commit()
 
     # A fresh Google sign-in always wins over a stale admin session in the same
@@ -220,6 +221,7 @@ def magic_link_verify():
 
     user.login_token_hash = None
     user.login_token_expires = None
+    user.last_login_at = datetime.utcnow()
     db.session.commit()
 
     # A fresh magic-link sign-in always wins over a stale admin session in the

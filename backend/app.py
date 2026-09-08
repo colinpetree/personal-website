@@ -135,6 +135,8 @@ def _migrate_schema():
             conn.execute(text(
                 'ALTER TABLE "user" ADD COLUMN ai_demo_access_requested_at TIMESTAMP'
             ))
+        if 'last_login_at' not in user_columns:
+            conn.execute(text('ALTER TABLE "user" ADD COLUMN last_login_at TIMESTAMP'))
 
         blog_post_columns = {c['name'] for c in inspector.get_columns('blog_post')}
         if 'category_id' not in blog_post_columns:
