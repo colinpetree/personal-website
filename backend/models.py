@@ -211,6 +211,12 @@ class User(db.Model):
     ai_demo_access = db.Column(db.Boolean, nullable=False, default=False)
     ai_demo_access_requested_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    # Set on every successful Google OAuth or magic-link sign-in (never on mere
+    # row creation) — doubles as an email-verification signal, since either
+    # method proves control of the address. NULL means the account was
+    # created (e.g. someone typed this email into the magic-link form) but
+    # never actually completed a sign-in.
+    last_login_at = db.Column(db.DateTime, nullable=True)
 
     comments = db.relationship('Comment', backref='user', lazy='dynamic')
 

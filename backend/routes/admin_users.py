@@ -33,6 +33,7 @@ def _user_dict(u, comment_count):
         'can_comment': u.can_comment,
         'ai_demo_access': u.ai_demo_access,
         'created_at': u.created_at.isoformat() + 'Z',
+        'last_login_at': (u.last_login_at.isoformat() + 'Z') if u.last_login_at else None,
         'comment_count': comment_count,
     }
 
@@ -123,7 +124,7 @@ def export_users():
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(['ID', 'Name', 'Email', 'Title', 'Can Comment', 'AI Demo Access', 'Comments', 'Joined'])
+    writer.writerow(['ID', 'Name', 'Email', 'Title', 'Verified', 'Can Comment', 'AI Demo Access', 'Comments', 'Joined', 'Last Signed In'])
     for u in users:
         count = Comment.query.filter_by(user_id=u.id, is_deleted=False).count()
         writer.writerow([
@@ -131,10 +132,12 @@ def export_users():
             u.name,
             u.email,
             u.title or '',
+            'Verified' if u.last_login_at else 'Unverified',
             'Yes' if u.can_comment else 'No',
             'Yes' if u.ai_demo_access else 'No',
             count,
             u.created_at.strftime('%Y-%m-%d'),
+            u.last_login_at.strftime('%Y-%m-%d') if u.last_login_at else '',
         ])
 
     output.seek(0)
