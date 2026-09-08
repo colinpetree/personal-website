@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import stripe
 from flask import Blueprint, jsonify, request, current_app
+from flask_login import current_user
 from extensions import db
 from models import SiteConfig, Payment, User, PortalLinkRequest
 from crypto import decrypt
@@ -31,7 +32,14 @@ def create_checkout_session():
     if not _payments_ready(config):
         return jsonify({'error': 'Payments are not available.'}), 503
 
-    user = get_current_user()
+    # Admin session takes priority, matching post_comment()'s and me()'s
+    # precedence — if both a stale public-User session and an admin session
+    # are present in the same browser, staff are attributed as themselves.
+    admin = current_user if current_user.is_authenticated else None
+    # A staff member paying while only signed into /admin has no User row to
+    # attribute to — fall back to their admin identity below so the payment
+    # log doesn't show them as Anonymous.
+    user = None if admin else get_current_user()
     data = request.get_json(silent=True) or {}
 
     mode = data.get('mode')
@@ -47,8 +55,14 @@ def create_checkout_session():
         return jsonify({'error': f'Amount must be between ${MIN_AMOUNT} and ${MAX_AMOUNT}.'}), 400
 
     message = (data.get('message') or '').strip()[:MESSAGE_MAX_LEN] or None
-    # display_name only means anything for guests — signed-in users are identified via User.name.
-    display_name = (data.get('display_name') or '').strip()[:DISPLAY_NAME_MAX_LEN] or None if not user else None
+    # display_name only means anything for guests — signed-in users are identified via User.name,
+    # and signed-in admins via their own full_name below.
+    if user:
+        display_name = None
+    elif admin:
+        display_name = (admin.full_name or '').strip()[:DISPLAY_NAME_MAX_LEN] or None
+    else:
+        display_name = (data.get('display_name') or '').strip()[:DISPLAY_NAME_MAX_LEN] or None
 
     price_data = {
         'currency': 'usd',
@@ -84,9 +98,15 @@ def create_checkout_session():
     if user:
         session_params['customer_email'] = user.email
         session_params['client_reference_id'] = str(user.id)
-    elif mode == 'payment':
+    elif admin:
+        session_params['customer_email'] = admin.email
+
+    if not user and not admin and mode == 'payment':
         # customer_creation is only settable in payment/setup mode — subscription
-        # mode always creates a Customer on its own.
+        # mode always creates a Customer on its own. Skipped for admins, same as
+        # for signed-in users, to keep customer_email paired the same known-good
+        # way it already is for the user path (customer_email + client_reference_id,
+        # no customer_creation).
         session_params['customer_creation'] = 'if_required'
     if metadata:
         session_params['metadata'] = metadata
