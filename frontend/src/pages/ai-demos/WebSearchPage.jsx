@@ -547,7 +547,7 @@ export default function WebSearchPage() {
                 type="text"
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                placeholder="e.g. What was the score of latest MLB game?"
+                placeholder="e.g. What was the score of the latest MLB game?"
                 className="flex-1 bg-transparent text-[15px] text-gray-900 placeholder-gray-400 focus:outline-none"
               />
               <button
@@ -579,18 +579,18 @@ export default function WebSearchPage() {
         </button>
         <Link to={`/${config?.ai_demo_slug ?? 'demo'}`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ChevronLeft size={16} />
-          Back to AI Implementations
+          Back to {config?.nav?.find(n => n.key === 'ai_demo')?.name || 'AI Demos'}
         </Link>
         <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-2">Web search</h1>
         <p className="text-gray-500 text-sm mb-6">
-          Ask a question and see Claude search the web for an answer.
+          Ask a question about something current and see Claude search the web for an answer.
         </p>
 
         <div className="flex flex-col gap-3 text-sm text-gray-600">
           <p>
-            Claude has access to Anthropic's own server-side <code className="bg-gray-100 rounded px-1 py-0.5 text-xs">web_search</code> tool.
-             The search itself runs on Anthropic's infrastructure, not this app's backend. Claude decides on its own
-            whether a question needs a search, and can search up to 5 times per turn.
+            This is using Anthropic's own server-side <code className="bg-gray-100 rounded px-1 py-0.5 text-xs">web_search</code> tool.
+             The search itself runs on Anthropic's infrastructure and Claude decides on its own
+            whether a question needs a search, and can search up to 5 times per message.
           </p>
         </div>
       </div>

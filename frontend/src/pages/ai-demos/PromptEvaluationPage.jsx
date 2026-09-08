@@ -11,8 +11,8 @@ import AccessRequiredModal from '../../components/AccessRequiredModal'
 import NotFoundPage from '../NotFoundPage'
 import { isNavEnabled, setRobotsNoindex, setNotFoundDocumentHead } from '../../utils/meta'
 
-const DEMO_KEY = 'prompt-evaluation'
-const DEMO_TITLE = 'Prompt evaluation'
+const DEMO_KEY = 'data-evaluations'
+const DEMO_TITLE = 'Data evaluations'
 
 const FORMAT_LABELS = { json: 'JSON', python: 'Python', regex: 'Regex' }
 
@@ -42,7 +42,7 @@ function VariantMenu({ value, onChange, disabled }) {
         type="button"
         onClick={() => setOpen(o => !o)}
         disabled={disabled}
-        className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-900 bg-white hover:bg-gray-50 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-gray-400"
+        className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-900 bg-white hover:bg-gray-50 disabled:opacity-40 focus:outline-none focus:border-gray-400"
       >
         {selected.label}
         <ChevronDown size={14} className="text-gray-400" />
@@ -176,7 +176,7 @@ export default function PromptEvaluationPage() {
     }
     setRobotsNoindex(false)
     if (config?.site_title) {
-      document.title = `Prompt evaluation - ${config.site_title}`
+      document.title = `Data evaluations - ${config.site_title}`
     }
   }, [config])
 
@@ -202,7 +202,7 @@ export default function PromptEvaluationPage() {
     abortControllerRef.current = controller
 
     try {
-      const res = await fetch('/api/ai-demo/prompt-evaluation/run', {
+      const res = await fetch('/api/ai-demo/data-evaluations/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -322,7 +322,7 @@ export default function PromptEvaluationPage() {
               type="button"
               onClick={handleRun}
               disabled={user && running}
-              className="inline-flex items-center gap-2 rounded-full bg-gray-900 text-white text-sm font-medium px-4 py-2 hover:bg-gray-700 disabled:opacity-40 transition-colors"
+              className="inline-flex items-center gap-2 rounded-full bg-blue-600 text-white text-sm font-medium px-4 py-2 hover:bg-blue-700 disabled:opacity-40 transition-colors"
             >
               <Play size={14} />
               {running ? 'Running...' : testCases.length > 0 ? 'Run again' : 'Run evaluation'}
@@ -371,21 +371,25 @@ export default function PromptEvaluationPage() {
         </button>
         <Link to={`/${config?.ai_demo_slug ?? 'demo'}`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ChevronLeft size={16} />
-          Back to AI Implementations
+          Back to {config?.nav?.find(n => n.key === 'ai_demo')?.name || 'AI Demos'}
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-2">Prompt evaluation</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-2">Data evaluations</h1>
+        <p className="text-gray-500 text-sm mb-3">
+          Run an evaluation pipeline that judges and scores qualitative results based on specific criteria. In this demo, the result data being evaluated is generated from specific task prompts.
+        </p>
         <p className="text-gray-500 text-sm mb-6">
-          Run a fixed prompt against a dataset of test cases and watch it get scored two different ways.
+          This method is useful for extracting quantitative values from qualitative data.
         </p>
 
         <div className="flex flex-col gap-3 text-sm text-gray-600">
+          <p><strong className="text-gray-800">Prompt Tasks</strong></p>
           <p>
-            Each test case asks for output in a specific format (JSON, Python, or a regex). The same prompt runs
-            against all 3 test cases at once.
+            Each task asks for output in a specific format (JSON, Python, or a regex). The same evaluation prompt runs
+            against the results of all 3 tasks at once.
           </p>
           <p>
             <strong className="text-gray-800">Syntax score</strong> is a deterministic check. Output is parsed 
-            to check for valid JSON, Python, or a regex syntax. No model involved.
+            to check for valid language syntax.
           </p>
           <p>
             <strong className="text-gray-800">Model score</strong> is an LLM judge, asked to list strengths and

@@ -12,7 +12,7 @@ import NotFoundPage from '../NotFoundPage'
 import { isNavEnabled, setRobotsNoindex, setNotFoundDocumentHead } from '../../utils/meta'
 
 const DEMO_KEY = 'rag'
-const DEMO_TITLE = 'RAG / hybrid search'
+const DEMO_TITLE = 'Retrieval Augmented Generation (RAG)'
 
 // Minimal markdown -> React renderer (headings, bold/italic/inline code, lists,
 // paragraphs) — enough to render Claude's typical formatting without a new dependency.
@@ -202,7 +202,7 @@ export default function RagPage() {
     }
     setRobotsNoindex(false)
     if (config?.site_title) {
-      document.title = `RAG / hybrid search - ${config.site_title}`
+      document.title = `Retrieval Augmented Generation (RAG) - ${config.site_title}`
     }
   }, [config])
 
@@ -443,24 +443,31 @@ export default function RagPage() {
         </button>
         <Link to={`/${config?.ai_demo_slug ?? 'demo'}`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ChevronLeft size={16} />
-          Back to AI Implementations
+          Back to {config?.nav?.find(n => n.key === 'ai_demo')?.name || 'AI Demos'}
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-2">RAG / hybrid search</h1>
-        <p className="text-gray-500 text-sm mb-6">
-          Search a fixed sample document with three retrieval methods, then see an answer grounded in the results.
+        <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-2">Retrieval Augmented Generation (RAG)</h1>
+        <p className="text-gray-500 text-sm mb-3">
+          Search a sample document with three retrieval methods.
         </p>
 
-        <div className="flex flex-col gap-3 text-sm text-gray-600">
+        <p className="text-gray-500 text-sm mb-3">
+          The document and query are both sent to Voyage AI to generate embeddings, which are used in the semantic matching for the Vector search.
+        </p>
+
+        <div className="flex flex-col gap-3 text-sm text-gray-500 mb-6">
+          <p>
+            The Hybrid typically returns the best results because it is a combination of keyword matches and meaning.
+          </p>
           <p>
             <strong className="text-gray-800">Vector</strong> search embeds the query and each document section, then ranks by
-            semantic similarity. It matches meaning even without shared words.
+            semantic similarity. Matching meaning even without shared words.
           </p>
           <p>
             <strong className="text-gray-800">Keyword (BM25)</strong> search ranks by exact term overlap, weighted by how
             distinctive and dense those terms are in a section.
           </p>
           <p>
-            <strong className="text-gray-800">Hybrid</strong> combines both rankings via reciprocal rank fusion. The final
+            <strong className="text-gray-800">Hybrid</strong> combines both rankings using reciprocal rank fusion. The final
             answer below is generated only from the hybrid results.
           </p>
         </div>

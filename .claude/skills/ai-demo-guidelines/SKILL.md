@@ -39,7 +39,7 @@ Use this guide when adding a new card to the `/demo` page or modifying an existi
 This determines the entire route shape. Get this wrong and either the loop never terminates correctly or the UI shows events out of order.
 
 ### No tools — plain streaming
-`conversation-basics`: `mimetype='text/plain'`, `client.messages.stream(...)`, yield `stream.text_stream` chunks directly to the response.
+`conversation`: `mimetype='text/plain'`, `client.messages.stream(...)`, yield `stream.text_stream` chunks directly to the response.
 
 ### Client-executed tools — loop + NDJSON
 `tool-use`, `mcp`: `mimetype='application/x-ndjson'`, events `text_delta` / `tool_call` / `tool_result` / `done` / `error`, one JSON object per line.

@@ -11,8 +11,8 @@ import AccessRequiredModal from '../../components/AccessRequiredModal'
 import NotFoundPage from '../NotFoundPage'
 import { isNavEnabled, setRobotsNoindex, setNotFoundDocumentHead } from '../../utils/meta'
 
-const DEMO_KEY = 'prompt-engineering'
-const DEMO_TITLE = 'Prompt engineering'
+const DEMO_KEY = 'prompt-refinement'
+const DEMO_TITLE = 'Prompt refinement'
 
 // Fixed, read-only passages - the point of this demo is comparing prompts, not passages, so these
 // aren't editable. Keep in sync with PROMPT_ENGINEERING_PASSAGES in backend/routes/ai_demo.py.
@@ -87,7 +87,7 @@ function PassageMenu({ value, onChange, disabled }) {
         type="button"
         onClick={() => setOpen(o => !o)}
         disabled={disabled}
-        className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-900 bg-white hover:bg-gray-50 disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-gray-400"
+        className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-900 bg-white hover:bg-gray-50 disabled:opacity-40 focus:outline-none focus:border-gray-400"
       >
         {selected.label}
         <ChevronDown size={14} className="text-gray-400" />
@@ -123,7 +123,7 @@ const DEFAULT_REFINED_PROMPT = (
   '4. Respond with the JSON array. Do not provide any other text or commentary'
 )
 
-const VARIANT_LABELS = { naive: 'Naive prompt', refined: 'Refined prompt' }
+const VARIANT_LABELS = { naive: 'Simple prompt', refined: 'Refined prompt' }
 
 function scoreClasses(score) {
   if (score >= 8) return 'border-green-200 bg-green-50 text-green-700'
@@ -227,7 +227,7 @@ export default function PromptEngineeringPage() {
     }
     setRobotsNoindex(false)
     if (config?.site_title) {
-      document.title = `Prompt engineering - ${config.site_title}`
+      document.title = `Prompt refinement - ${config.site_title}`
     }
   }, [config])
 
@@ -252,7 +252,7 @@ export default function PromptEngineeringPage() {
     abortControllerRef.current = controller
 
     try {
-      const res = await fetch('/api/ai-demo/prompt-engineering/run', {
+      const res = await fetch('/api/ai-demo/prompt-refinement/run', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -377,7 +377,7 @@ export default function PromptEngineeringPage() {
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                 <label className="text-xs font-semibold uppercase tracking-wide text-gray-400" htmlFor="naive-prompt-input">
-                  Naive prompt
+                  Simple prompt
                 </label>
                 <textarea
                   id="naive-prompt-input"
@@ -385,7 +385,7 @@ export default function PromptEngineeringPage() {
                   onChange={e => setNaivePrompt(e.target.value)}
                   disabled={running}
                   rows={5}
-                  className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm font-mono text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-60"
+                  className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm font-mono text-gray-800 bg-white focus:outline-none focus:border-gray-400 disabled:opacity-60"
                 />
               </div>
               <div className="flex-1 min-w-0 flex flex-col gap-1.5">
@@ -398,7 +398,7 @@ export default function PromptEngineeringPage() {
                   onChange={e => setRefinedPrompt(e.target.value)}
                   disabled={running}
                   rows={5}
-                  className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm font-mono text-gray-800 bg-white focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:opacity-60"
+                  className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm font-mono text-gray-800 bg-white focus:outline-none focus:border-gray-400 disabled:opacity-60"
                 />
               </div>
             </div>
@@ -407,7 +407,7 @@ export default function PromptEngineeringPage() {
                 type="button"
                 onClick={handleRun}
                 disabled={user && running}
-                className="inline-flex items-center gap-2 rounded-full bg-gray-900 text-white text-sm font-medium px-4 py-2 hover:bg-gray-700 disabled:opacity-40 transition-colors"
+                className="inline-flex items-center gap-2 rounded-full bg-blue-600 text-white text-sm font-medium px-4 py-2 hover:bg-blue-700 disabled:opacity-40 transition-colors"
               >
                 <Play size={14} />
                 {running ? 'Running...' : summary ? 'Run again' : 'Run comparison'}
@@ -419,17 +419,17 @@ export default function PromptEngineeringPage() {
 
           {!hasRun && !running && !error && (
             <p className="text-sm text-gray-400">
-              Trigger a run to see the same passage go through a naive prompt and a refined prompt, each graded by an LLM judge.
+              Trigger a run to see the same passage go through a simple prompt and a refined prompt, each graded by an LLM judge.
             </p>
           )}
 
           {summary && (
             <div className={`rounded-xl border px-4 py-3 flex items-center justify-between ${scoreClasses(summary.refined_score)}`}>
               <span className="text-sm font-medium">
-                Naive {summary.naive_score}/10 &middot; Refined {summary.refined_score}/10
+                Simple {summary.naive_score}/10 &middot; Refined {summary.refined_score}/10
               </span>
               <span className="text-sm font-semibold">
-                {delta > 0 ? `Refined scored ${delta} point${delta === 1 ? '' : 's'} higher` : delta < 0 ? `Naive scored ${-delta} point${-delta === 1 ? '' : 's'} higher` : 'Tied score'}
+                {delta > 0 ? `Refined scored ${delta} point${delta === 1 ? '' : 's'} higher` : delta < 0 ? `Simple scored ${-delta} point${-delta === 1 ? '' : 's'} higher` : 'Tied score'}
               </span>
             </div>
           )}
@@ -461,34 +461,15 @@ export default function PromptEngineeringPage() {
         </button>
         <Link to={`/${config?.ai_demo_slug ?? 'demo'}`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ChevronLeft size={16} />
-          Back to AI Implementations
+          Back to {config?.nav?.find(n => n.key === 'ai_demo')?.name || 'AI Demos'}
         </Link>
-        <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-2">Prompt engineering</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-2">Prompt refinement</h1>
         <p className="text-gray-500 text-sm mb-6">
-          The same task, run through two different prompts, graded by the same judge.
+          The same task, run through two different prompts, graded by the same judge. 
         </p>
-
-        <div className="flex flex-col gap-3 text-sm text-gray-600">
-          <p>
-            Both prompts ask Claude to extract topics from the passage into a JSON array of strings. The
-            <strong className="text-gray-800"> naive prompt</strong> is deliberately bare - it leaves judgment
-            calls (how specific to be, whether to infer unstated concepts, avoiding duplicates) entirely implicit.
-            The <strong className="text-gray-800">refined prompt</strong> spells out explicit steps instead. Edit
-            either one to see how the output and its score change.
-          </p>
-          <p>
-            The passage is fixed and read-only - pick one of three from the dropdown - since the
-            point of this demo is comparing prompts, not passages. Write <code className="text-xs bg-gray-100 rounded px-1 py-0.5">{'{passage}'}</code> anywhere
-            in a prompt box to control exactly where the selected passage gets inserted (the refined prompt
-            does this by default); if you leave it out, the passage is simply appended to the end.
-          </p>
-          <p>
-            This mirrors the <Link to={`/${config?.ai_demo_slug ?? 'demo'}/prompt-evaluation`} className="underline hover:text-gray-800">Prompt evaluation</Link> demo's
-            grading pipeline - an LLM judge scores output 1-10 against a fixed rubric, after listing strengths
-            and weaknesses. Here the test case is held fixed and the prompt is what changes, instead of the other
-            way around.
-          </p>
-        </div>
+        <p className="text-gray-600 text-sm mb-6">
+          This method allows for side-by-side comparisons of prompt outputs to iterate through prompt versions until a desired level of performance is reached.
+        </p>
       </div>
     </div>
   )

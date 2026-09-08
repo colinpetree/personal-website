@@ -12,14 +12,14 @@ import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 import NotFoundPage from './NotFoundPage'
 
 const DEMO_DESCRIPTIONS = {
-  'conversation-basics': 'Chat with Claude. Featuring a custom system prompt, temperature control, and streaming responses',
-  'tool-use': 'Watch Claude call a defined tool mid-conversation and use its result.',
-  'web-search': "Ask a question and watch Claude use Anthropic's own live web search tool to answer it.",
-  'mcp': "Ask about this site's real GitHub history via a live external MCP server.",
-  'prompt-evaluation': 'Run a prompt against a test-case dataset and watch it get scored.',
-  'prompt-engineering': 'Compare a naive prompt against a refined one, side by side, scored by the same judge.',
-  'rag': 'Search a sample document set with vector, keyword, and hybrid retrieval.',
-  'vision': 'Upload an image and see Claude analyze it in detail.',
+  'conversation': 'Basic back-and-forth conversation with an AI assistant. Set a system prompt for curated responses.',
+  'tool-use': 'Conversation with added tools that the AI assistant will use when necessary.',
+  'web-search': "The AI assistant will search the web for current information when needed.",
+  'mcp': "Expanding the AI assistant's access to data and capabilities through an external system integration.",
+  'data-evaluations': 'Quantifying qualitative results with an AI judge and scoring system for easy comparisons.',
+  'prompt-refinement': 'Compare a simple prompt against a refined one, side by side, scored by the same judge.',
+  'rag': 'Search a sample document using vector, keyword, and hybrid retrieval.',
+  'image-processing': 'Upload an image and see the AI assistant analyze it in detail.',
 }
 
 const DEMOS = AI_DEMO_LIST.map(demo => ({

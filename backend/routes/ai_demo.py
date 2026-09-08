@@ -28,14 +28,14 @@ import rag_index
 ai_demo_bp = Blueprint('ai_demo', __name__)
 
 DEMO_TITLES = {
-    'conversation-basics': 'Conversation basics',
+    'conversation': 'Conversation basics',
     'tool-use': 'Tool use',
     'web-search': 'Web search',
     'mcp': 'MCP',
-    'prompt-evaluation': 'Prompt evaluation',
-    'prompt-engineering': 'Prompt engineering',
+    'data-evaluations': 'Data evaluations',
+    'prompt-refinement': 'Prompt refinement',
     'rag': 'RAG / hybrid search',
-    'vision': 'Vision',
+    'image-processing': 'Image processing',
 }
 
 
@@ -285,11 +285,11 @@ def _assistant_content_for_replay(message):
     return blocks
 
 
-@ai_demo_bp.route('/api/ai-demo/conversation-basics/chat', methods=['POST'])
+@ai_demo_bp.route('/api/ai-demo/conversation/chat', methods=['POST'])
 @ai_demo_page_enabled_required
 @user_required
 @ai_demo_access_required
-def conversation_basics_chat():
+def conversation_chat():
     client = _client()
     if not client:
         return jsonify({'error': 'AI demos are not configured on this server.'}), 503
@@ -910,11 +910,11 @@ def _grade_by_model(client, test_case, output):
     return _coerce_grading(parsed)
 
 
-@ai_demo_bp.route('/api/ai-demo/prompt-evaluation/run', methods=['POST'])
+@ai_demo_bp.route('/api/ai-demo/data-evaluations/run', methods=['POST'])
 @ai_demo_page_enabled_required
 @user_required
 @ai_demo_access_required
-def prompt_evaluation_run():
+def data_evaluations_run():
     client = _client()
     if not client:
         return jsonify({'error': 'AI demos are not configured on this server.'}), 503
@@ -1132,11 +1132,11 @@ def _grade_prompt_engineering_output(client, passage, output):
     return _coerce_grading(parsed)
 
 
-@ai_demo_bp.route('/api/ai-demo/prompt-engineering/run', methods=['POST'])
+@ai_demo_bp.route('/api/ai-demo/prompt-refinement/run', methods=['POST'])
 @ai_demo_page_enabled_required
 @user_required
 @ai_demo_access_required
-def prompt_engineering_run():
+def prompt_refinement_run():
     client = _client()
     if not client:
         return jsonify({'error': 'AI demos are not configured on this server.'}), 503
@@ -1219,11 +1219,11 @@ VISION_SYSTEM_PROMPT = (
 )
 
 
-@ai_demo_bp.route('/api/ai-demo/vision/analyze', methods=['POST'])
+@ai_demo_bp.route('/api/ai-demo/image-processing/analyze', methods=['POST'])
 @ai_demo_page_enabled_required
 @user_required
 @ai_demo_access_required
-def vision_analyze():
+def image_processing_analyze():
     client = _client()
     if not client:
         return jsonify({'error': 'AI demos are not configured on this server.'}), 503

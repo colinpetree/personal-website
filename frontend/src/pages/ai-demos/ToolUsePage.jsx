@@ -565,11 +565,11 @@ export default function ToolUsePage() {
         </button>
         <Link to={`/${config?.ai_demo_slug ?? 'demo'}`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ChevronLeft size={16} />
-          Back to AI Implementations
+          Back to {config?.nav?.find(n => n.key === 'ai_demo')?.name || 'AI Demos'}
         </Link>
         <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-2">Tool use</h1>
         <p className="text-gray-500 text-sm mb-6">
-          Watch Claude call a defined tool mid-conversation and use its result.
+          A conversation where the AI assistant can call defined tools and use the results when necessary.
         </p>
 
         <div className="flex flex-col gap-3">

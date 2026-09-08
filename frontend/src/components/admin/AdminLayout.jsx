@@ -220,7 +220,7 @@ export default function AdminLayout() {
       {/* Sidebar */}
       {!isEditorPage && <aside className="w-52 shrink-0 bg-gray-900 flex flex-col relative">
         <div className="px-5 py-5 border-b border-gray-700 shrink-0">
-          <span className="text-white font-semibold text-sm">Admin Panel</span>
+          <span className="text-white font-semibold text-sm">Site Admin</span>
         </div>
 
         <nav className="flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto" style={{ paddingBottom: '6rem' }}>
