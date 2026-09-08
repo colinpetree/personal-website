@@ -18,7 +18,7 @@ function shareUrls(url, title) {
 function SocialIcon({ platformKey }) {
   return (
     <span
-      className="w-[18px] h-[18px] flex items-center justify-center shrink-0 text-current"
+      className="w-[18px] h-[18px] flex items-center justify-center shrink-0 text-current [&>svg]:w-full [&>svg]:h-full"
       dangerouslySetInnerHTML={{ __html: getPlatformMonoSvg(platformKey) }}
     />
   )
