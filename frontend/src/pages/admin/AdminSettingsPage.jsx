@@ -320,7 +320,7 @@ function AdminSettingsPageContent() {
         {/* Domain card */}
         <EditableCard
           title="Custom Domain"
-          description="Used for SSL certificate issuance."
+          description="Used for links and automatic SSL certificate issuance."
           savedValues={{ domain: config?.domain || '' }}
           onSave={values => save({ domain: values.domain })}
         >
