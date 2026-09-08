@@ -41,7 +41,10 @@ const CSP_STATIC_DIRECTIVES = [
   "default-src 'self'",
   "frame-src https://js.stripe.com https://www.youtube.com https://player.vimeo.com https://open.spotify.com",
   "connect-src 'self' https://api.stripe.com",
-  "img-src 'self' data: https:",
+  // blob: is required for the image-cropper flow (AvatarCropperModal),
+  // which crops a locally-selected file via a URL.createObjectURL() blob
+  // URL before upload.
+  "img-src 'self' data: blob: https:",
   "media-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "base-uri 'self'",
