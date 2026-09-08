@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { Mail, X } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
+import { isValidEmail } from '../utils/isValidEmail'
 
 function GoogleIcon() {
   return (
@@ -34,6 +35,15 @@ export default function SignInRequiredModal({ onClose, title = 'Sign in required
   const [email, setEmail] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const [emailInvalid, setEmailInvalid] = useState(false)
+
+  function handleEmailChange(e) {
+    setEmail(e.target.value)
+    // Same rule as ContactPage: the invalid-email error and its red border
+    // clear together, only when the email field itself is edited.
+    setEmailInvalid(false)
+    setError('')
+  }
 
   if (!config?.users_enabled) {
     return createPortal(
@@ -56,6 +66,13 @@ export default function SignInRequiredModal({ onClose, title = 'Sign in required
   async function handleSendLink(e) {
     e.preventDefault()
     if (!email.trim() || sending) return
+
+    if (!isValidEmail(email.trim())) {
+      setEmailInvalid(true)
+      setError('Please enter a valid email address.')
+      return
+    }
+
     setSending(true)
     setError('')
     try {
@@ -96,28 +113,32 @@ export default function SignInRequiredModal({ onClose, title = 'Sign in required
         )}
 
         {mode === 'email' && (
-          <form onSubmit={handleSendLink}>
-            <h2 className="text-lg font-semibold text-gray-900 mb-2">Sign in with email</h2>
-            <p className="text-sm text-gray-500">We'll email you a link to sign in</p>
-            <p className="text-sm text-gray-500 mb-4">no password needed</p>
+          <form onSubmit={handleSendLink} noValidate>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Sign in with email</h2>
             <input
               type="email"
               required
               autoFocus
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={handleEmailChange}
               placeholder="you@example.com"
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className={`w-full rounded-md border px-3 py-2 text-sm mb-3 focus:outline-none ${
+                emailInvalid ? 'border-red-400 focus:border-red-500' : 'border-gray-300 focus:border-gray-400'
+              }`}
             />
             {error && <p className="text-sm text-red-600 mb-3">{error}</p>}
             <button
               type="submit"
               disabled={sending || !email.trim()}
-              className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700 disabled:opacity-50 transition-colors mb-3"
+              className={`w-full rounded-md border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 mb-3 ${
+                email.trim()
+                  ? 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700'
+                  : 'bg-white border-gray-300 text-gray-400'
+              }`}
             >
               {sending ? 'Sending…' : 'Send sign-in link'}
             </button>
-            <button type="button" onClick={() => { setMode('choice'); setError('') }} className="text-sm text-gray-500 hover:text-gray-700">
+            <button type="button" onClick={() => { setMode('choice'); setError(''); setEmailInvalid(false) }} className="text-sm text-gray-500 hover:text-gray-700">
               Back
             </button>
           </form>
@@ -127,7 +148,7 @@ export default function SignInRequiredModal({ onClose, title = 'Sign in required
           <>
             <h2 className="text-lg font-semibold text-gray-900 mb-2">Check your email</h2>
             <p className="text-sm text-gray-500">
-              If {email} is registered, we've sent a sign-in link to it. Click the link in that email to sign in.
+              Click the magic link in your email to sign in.
             </p>
           </>
         )}

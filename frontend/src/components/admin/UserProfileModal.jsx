@@ -62,8 +62,8 @@ export default function UserProfileModal({ user, onClose, onUpdated }) {
               referrerPolicy="no-referrer"
             />
           ) : (
-            <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-xl font-semibold text-gray-600">
-              {local.name.charAt(0).toUpperCase()}
+            <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center leading-none text-2xl font-semibold text-gray-600">
+              <span className="translate-y-px">{local.name.charAt(0).toUpperCase()}</span>
             </div>
           )}
           <p className="text-base font-semibold text-gray-900">{local.name}</p>

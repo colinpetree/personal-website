@@ -242,7 +242,7 @@ export default function AdminLayout() {
             <AvatarCircle name={admin.full_name} avatarFilename={admin.avatar_filename} size="sm" />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-gray-300 truncate">{admin.full_name}</p>
-              <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded-full leading-none mt-0.5 ${ROLE_BADGE[admin.role] || 'bg-gray-700 text-gray-400'}`}>
+              <span className={`inline-flex items-center px-1.5 py-1 text-[10px] font-medium rounded-full leading-none mt-0.5 ${ROLE_BADGE[admin.role] || 'bg-gray-700 text-gray-400'}`}>
                 {ROLE_LABELS[admin.role] || admin.role}
               </span>
             </div>

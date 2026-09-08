@@ -6,6 +6,7 @@ import { useSiteConfig } from '../hooks/useSiteConfig'
 import { useNavOverlay } from '../context/NavOverlayContext'
 import SignInRequiredModal from './SignInRequiredModal'
 import SearchModal from './SearchModal'
+import { getInitials } from '../utils/getInitials'
 
 // Shared by every nav-link-shaped control (desktop nav links, Sign in) so
 // the hover chip and the transparent/solid text colors stay in sync in one
@@ -14,7 +15,8 @@ function navItemClass(active, transparent) {
   const color = transparent
     ? (active ? 'text-white' : 'text-white/75 hover:text-white')
     : (active ? 'text-gray-900' : 'text-gray-500 hover:text-gray-900')
-  return `text-sm font-medium rounded-md px-3 py-1.5 transition-colors hover:bg-gray-400/20 ${color}`
+  const hoverBg = transparent ? 'hover:bg-gray-400/30' : 'hover:bg-gray-400/10'
+  return `text-sm font-medium rounded-md px-3 py-1.5 transition-colors ${hoverBg} ${color}`
 }
 
 function SearchButton({ className = '', transparent = false }) {
@@ -24,7 +26,7 @@ function SearchButton({ className = '', transparent = false }) {
       <button
         onClick={() => setShowSearchModal(true)}
         aria-label="Search"
-        className={`rounded-full p-2 transition-colors hover:bg-gray-400/20 ${transparent ? 'text-white/75 hover:text-white' : 'text-gray-500 hover:text-gray-900'} ${className}`}
+        className={`rounded-full p-2 transition-colors ${transparent ? 'hover:bg-gray-400/30 text-white/75 hover:text-white' : 'hover:bg-gray-400/10 text-gray-500 hover:text-gray-900'} ${className}`}
       >
         <Search size={18} />
       </button>
@@ -195,8 +197,8 @@ export default function Navbar() {
                     {user.avatar_url ? (
                       <img src={user.avatar_url} alt={user.name} className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
                     ) : (
-                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-600">
-                        {user.name.charAt(0).toUpperCase()}
+                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center leading-none text-sm font-semibold text-gray-600">
+                        <span className="translate-y-px">{getInitials(user.name)}</span>
                       </div>
                     )}
                   </button>
@@ -214,13 +216,13 @@ export default function Navbar() {
               </>
             ) : (
               <>
+                <SearchButton transparent={transparent} />
                 <button
                   onClick={() => setShowSignInModal(true)}
                   className={navItemClass(false, transparent)}
                 >
                   Sign in
                 </button>
-                <SearchButton transparent={transparent} />
               </>
             )
           ) : (
@@ -232,7 +234,7 @@ export default function Navbar() {
         <div className="md:hidden flex items-center gap-1">
           <SearchButton transparent={transparent} />
           <button
-            className={`rounded-full p-2 transition-colors hover:bg-gray-400/20 ${transparent ? 'text-white/75 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
+            className={`rounded-full p-2 transition-colors ${transparent ? 'hover:bg-gray-400/30 text-white/75 hover:text-white' : 'hover:bg-gray-400/10 text-gray-500 hover:text-gray-900'}`}
             onClick={() => setMenuOpen(o => !o)}
             aria-label="Toggle menu"
           >
@@ -279,8 +281,8 @@ export default function Navbar() {
                 {user.avatar_url ? (
                   <img src={user.avatar_url} alt={user.name} className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
                 ) : (
-                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold text-gray-600">
-                    {user.name.charAt(0).toUpperCase()}
+                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center leading-none text-base font-semibold text-gray-600">
+                    <span className="translate-y-px">{getInitials(user.name)}</span>
                   </div>
                 )}
                 <span className="text-lg font-medium text-gray-900">{user.name}</span>

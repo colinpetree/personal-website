@@ -120,7 +120,7 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
       {/* Body */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* Editor area */}
-        <div className="flex-1 overflow-y-auto bg-white relative editor-scroll-area pt-10">
+        <div className="flex-1 overflow-y-auto bg-white relative editor-scroll-area content-page-editor-scroll pt-10">
           <RichTextEditor
             ref={editorRef}
             initialHtml={contentHtml}

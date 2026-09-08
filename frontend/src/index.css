@@ -836,12 +836,53 @@ html {
   position: relative;
 }
 
-/* A leading fullscreen header (see useFullscreenHeaderNav, which overlays
-   Navbar transparently on top of it for this exact case) should own the
-   entire viewport, not just the width — cancel out the page-header-content
-   pages' shared `pt-10` (2.5rem) top padding so there's no gap above it. */
+/* A leading header of ANY layout should sit flush against the navbar rather
+   than leaving the page-header-content pages' shared `pt-10` (2.5rem) gap
+   above it — that gap belongs to plain-text-led pages (see the page-title
+   h1:first-child rule above), not header blocks, which already supply their
+   own internal padding. Full width/full screen are additionally special: see
+   useFullscreenHeaderNav, which overlays Navbar transparently on top of
+   those two layouts specifically — regular/wide/split stay flush too but
+   leave Navbar in its normal solid state. */
+.page-header-content > header.header-regular:first-child,
+.page-header-content > header.header-wide:first-child,
+.page-header-content > header.header-full:first-child,
+.page-header-content > header.header-split:first-child,
 .page-header-content > header.header-fullscreen:first-child {
   margin-top: -2.5rem;
+}
+
+/* Same flush treatment in the admin content-page editor (AdminPageContentEditor.jsx
+   — Home/About/Projects/Contact/Payment/AI Demo pages, marked by
+   .content-page-editor-scroll), so the editor matches the public site. No
+   navbar-overlay concern here (that's a public-site-only Navbar behavior), so
+   unlike the public-site rule above there's no per-layout distinction — every
+   layout (regular/wide/full/split/fullscreen) gets the same flush treatment
+   via one shared .header-block-editor marker class (nodes.jsx) instead of the
+   exported header-* layout classes, since the editor's live decorator view
+   renders computed Tailwind classes rather than those semantic class names.
+   Three sources of top gap need cancelling: the scroll container's own
+   pt-10, contentEditable's pt-2, and the header block's own my-4 top margin. */
+.content-page-editor-scroll:has([contenteditable] > span:first-child > .header-block-editor) {
+  padding-top: 0;
+}
+.content-page-editor-scroll:has([contenteditable] > span:first-child > .header-block-editor) [contenteditable] {
+  padding-top: 0;
+}
+.content-page-editor-scroll [contenteditable] > span:first-child > .header-block-editor {
+  margin-top: 0;
+}
+
+/* A leading h1/h2/h3 (not a HeaderNode block, just a plain heading as the
+   page's first node) shouldn't carry theme.js's mt-6/mt-5/mt-4 top margin
+   either — same reasoning as .page-header-content h1:first-child on the
+   public site: the scroll container's own pt-10 already supplies the top
+   gap, so the heading's own margin would double it up. !important beats
+   theme.js's Tailwind utility class. */
+.content-page-editor-scroll [contenteditable] > h1.editor-heading:first-child,
+.content-page-editor-scroll [contenteditable] > h2.editor-heading:first-child,
+.content-page-editor-scroll [contenteditable] > h3.editor-heading:first-child {
+  margin-top: 0 !important;
 }
 
 /* Wide inner: center and cap at 80rem within the full-width breakout */

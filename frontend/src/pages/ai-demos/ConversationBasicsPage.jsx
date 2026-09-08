@@ -548,9 +548,9 @@ export default function ConversationBasicsPage() {
                   key={preset.label}
                   type="button"
                   onClick={() => setSystemPrompt(preset.prompt)}
-                  className="rounded-full border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-600 hover:border-gray-400 hover:text-gray-900 transition-colors"
+                  className="inline-flex items-center leading-none rounded-full border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:border-gray-400 hover:text-gray-900 transition-colors"
                 >
-                  {preset.label}
+                  <span className="translate-y-px">{preset.label}</span>
                 </button>
               ))}
             </div>
