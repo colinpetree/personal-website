@@ -27,11 +27,11 @@ function SortBadge({ active, onClick, children }) {
     <button
       type="button"
       onClick={onClick}
-      className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+      className={`inline-flex items-center leading-none px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors ${
         active ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
       }`}
     >
-      {children}
+      <span className="translate-y-px">{children}</span>
     </button>
   )
 }

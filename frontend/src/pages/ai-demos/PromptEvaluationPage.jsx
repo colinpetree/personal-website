@@ -74,7 +74,7 @@ function scoreClasses(score) {
 
 function ScoreBadge({ label, score }) {
   return (
-    <span className={`inline-flex items-center gap-1 text-[11px] font-medium border rounded-full px-2 py-0.5 ${scoreClasses(score)}`}>
+    <span className={`inline-flex items-center gap-1 leading-none text-[11px] font-medium border rounded-full px-2 py-1 ${scoreClasses(score)}`}>
       {label} {score}/10
     </span>
   )

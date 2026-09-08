@@ -156,8 +156,8 @@ function AdminUsersPageContent() {
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold text-gray-600 flex-shrink-0">
-                      {user.name.charAt(0).toUpperCase()}
+                    <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center leading-none text-base font-semibold text-gray-600 flex-shrink-0">
+                      <span className="translate-y-px">{user.name.charAt(0).toUpperCase()}</span>
                     </div>
                   )}
                   <div className="min-w-0">
@@ -177,8 +177,8 @@ function AdminUsersPageContent() {
                     Joined {new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                   {!user.can_comment && (
-                    <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-red-50 text-red-600">
-                      Blocked
+                    <span className="inline-flex items-center leading-none text-xs font-medium px-2.5 py-1.5 rounded-full bg-red-50 text-red-600">
+                      <span className="translate-y-px">Blocked</span>
                     </span>
                   )}
                 </div>

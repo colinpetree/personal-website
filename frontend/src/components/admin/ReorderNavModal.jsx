@@ -117,11 +117,11 @@ export default function ReorderNavModal({ config, save, onClose }) {
                 <button
                   type="button"
                   onClick={() => setEnabled(e => ({ ...e, [key]: !e[key] }))}
-                  className={`text-xs font-medium px-2.5 py-1 rounded-full flex-shrink-0 transition-colors ${
+                  className={`inline-flex items-center leading-none text-xs font-medium px-2.5 py-1.5 rounded-full flex-shrink-0 transition-colors ${
                     enabled[key] ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'
                   }`}
                 >
-                  {enabled[key] ? 'Enabled' : 'Disabled'}
+                  <span className="translate-y-px">{enabled[key] ? 'Enabled' : 'Disabled'}</span>
                 </button>
               </div>
             </div>

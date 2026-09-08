@@ -15,6 +15,7 @@ import { setupSegmentLoopVideo } from '../utils/segmentLoopVideo'
 import { buildMeta, absoluteUploadUrl, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import { apiUrl, fetchSiteConfig } from '../lib/apiFetch'
 import NotFoundPage from './NotFoundPage'
+import { getInitials } from '../utils/getInitials'
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -187,8 +188,8 @@ function UserCommentForm({ slug, parentId, parentComment, onSuccess, onCancel, i
         {user.avatar_url ? (
           <img src={user.avatar_url} alt={user.name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" referrerPolicy="no-referrer" />
         ) : (
-          <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-600 flex-shrink-0">
-            {user.name.charAt(0).toUpperCase()}
+          <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center leading-none text-sm font-semibold text-gray-600 flex-shrink-0">
+            <span className="translate-y-px">{getInitials(user.name)}</span>
           </div>
         )}
         <div>
@@ -273,8 +274,8 @@ function CommentItem({ comment, slug, currentUserId, likedIds, likeDeltas, onLik
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-500 flex-shrink-0">
-            {(comment.author_name || '?').charAt(0).toUpperCase()}
+          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center leading-none text-sm font-semibold text-gray-500 flex-shrink-0">
+            <span className="translate-y-px">{getInitials(comment.author_name)}</span>
           </div>
         )}
         {hasReplies && (
@@ -724,8 +725,8 @@ export default function BlogPostPage() {
           const avatar = blogAuthor.avatar_filename ? (
             <img src={`/api/uploads/${blogAuthor.avatar_filename}`} className="w-11 h-11 rounded-full object-cover flex-shrink-0" alt={blogAuthor.name} />
           ) : (
-            <div className="w-11 h-11 rounded-full bg-gray-200 flex items-center justify-center text-sm font-semibold text-gray-500 flex-shrink-0">
-              {(blogAuthor.name || '?').charAt(0).toUpperCase()}
+            <div className="w-11 h-11 rounded-full bg-gray-200 flex items-center justify-center leading-none text-lg font-semibold text-gray-500 flex-shrink-0">
+              <span className="translate-y-px">{getInitials(blogAuthor.name)}</span>
             </div>
           )
           return (

@@ -89,26 +89,26 @@ export default function CategoryFilterBar({ categories, activeSlug, onSelect }) 
       <button
         type="button"
         onClick={() => handleBadgeClick(null)}
-        className={`shrink-0 whitespace-nowrap text-xs font-medium px-3 py-1 rounded-full border transition-colors ${
+        className={`shrink-0 inline-flex items-center leading-none whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
           activeSlug === null
             ? 'bg-gray-900 text-white border-gray-900'
             : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
         }`}
       >
-        All
+        <span className="translate-y-px">All</span>
       </button>
       {categories.map(c => (
         <button
           key={c.id}
           type="button"
           onClick={() => handleBadgeClick(c.slug)}
-          className={`shrink-0 whitespace-nowrap text-xs font-medium px-3 py-1 rounded-full border transition-colors ${
+          className={`shrink-0 inline-flex items-center leading-none whitespace-nowrap text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
             activeSlug === c.slug
               ? 'bg-gray-900 text-white border-gray-900'
               : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
           }`}
         >
-          {c.name}
+          <span className="translate-y-px">{c.name}</span>
         </button>
       ))}
     </div>

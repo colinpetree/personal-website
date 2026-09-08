@@ -32,7 +32,7 @@ ALLOWED_ATTRIBUTES = {
     '*': _COMMON_ATTRS,
     'a': ['href', 'target', 'rel', 'download'],
     'img': ['src', 'alt', 'srcset', 'sizes'],
-    'video': ['src', 'controls', 'autoplay', 'muted', 'loop', 'playsinline', 'poster'],
+    'video': ['src', 'controls', 'autoplay', 'muted', 'loop', 'playsinline', 'poster', 'disablepictureinpicture'],
     'audio': ['src', 'controls', 'controlslist'],
     'source': ['src', 'type'],
     'iframe': ['src', 'allow', 'allowfullscreen', 'loading'],

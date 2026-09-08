@@ -206,7 +206,7 @@ function AdminAccountsPageContent() {
                 <p className="text-sm font-medium text-gray-900 truncate">
                   {account.full_name}
                   {account.role === 'owner' && (
-                    <span className={`ml-2 px-1.5 py-0.5 text-xs font-medium rounded-full ${ROLE_BADGE.owner}`}>Owner</span>
+                    <span className={`ml-2 inline-flex items-center leading-none px-1.5 py-1 text-xs font-medium rounded-full ${ROLE_BADGE.owner}`}><span className="translate-y-px">Owner</span></span>
                   )}
                 </p>
                 <p className="text-xs text-gray-500 truncate">{account.email}{account.title ? ` · ${account.title}` : ''}</p>

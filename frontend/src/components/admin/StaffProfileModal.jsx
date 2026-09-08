@@ -31,13 +31,14 @@ export function getInitials(name) {
 }
 
 export function AvatarCircle({ name, avatarFilename, size = 'md' }) {
-  const sz = size === 'lg' ? 'w-16 h-16 text-xl' : size === 'sm' ? 'w-8 h-8 text-xs' : 'w-10 h-10 text-sm'
+  const circleSz = size === 'lg' ? 'w-16 h-16' : size === 'sm' ? 'w-8 h-8' : 'w-10 h-10'
+  const textSz = size === 'lg' ? 'text-2xl' : size === 'sm' ? 'text-sm' : 'text-base'
   if (avatarFilename) {
-    return <img src={`/api/uploads/${avatarFilename}`} className={`${sz} rounded-full object-cover`} alt={name} />
+    return <img src={`/api/uploads/${avatarFilename}`} className={`${circleSz} rounded-full object-cover`} alt={name} />
   }
   return (
-    <div className={`${sz} rounded-full bg-gray-200 flex items-center justify-center font-semibold text-gray-600`}>
-      {getInitials(name)}
+    <div className={`${circleSz} rounded-full bg-gray-200 flex items-center justify-center leading-none ${textSz} font-semibold text-gray-600`}>
+      <span className="translate-y-px">{getInitials(name)}</span>
     </div>
   )
 }
@@ -298,8 +299,8 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
             <input ref={avatarInputRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={handleAvatarSelect} />
           </div>
           <p className="text-base font-semibold text-gray-900">{displayName}</p>
-          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${ROLE_BADGE[local.role] || 'bg-gray-100 text-gray-600'}`}>
-            {ROLE_LABELS[local.role] || local.role}
+          <span className={`inline-flex items-center leading-none px-2 py-1 text-xs font-medium rounded-full ${ROLE_BADGE[local.role] || 'bg-gray-100 text-gray-600'}`}>
+            <span className="translate-y-px">{ROLE_LABELS[local.role] || local.role}</span>
           </span>
           {canEdit && local.avatar_filename && (
             <button

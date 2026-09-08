@@ -14,6 +14,7 @@ import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
 import NotFoundPage from './NotFoundPage'
+import { getInitials } from '../utils/getInitials'
 
 const PRESET_AMOUNTS = [3, 9, 15, 25]
 const MESSAGE_MAX_LEN = 500
@@ -365,8 +366,8 @@ export default function PaymentPage() {
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-500 flex-shrink-0">
-                      {(user.name || '?').charAt(0).toUpperCase()}
+                    <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center leading-none text-xs font-semibold text-gray-500 flex-shrink-0">
+                      <span className="translate-y-px">{getInitials(user.name)}</span>
                     </div>
                   )
                 )}

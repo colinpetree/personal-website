@@ -3,6 +3,7 @@ import { Upload } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import AvatarCropperModal from '../components/AvatarCropperModal'
+import { getInitials } from '../utils/getInitials'
 
 export default function UserProfilePage() {
   const { user, loading, updateProfile, uploadAvatar, deleteAvatar } = useUserAuth()
@@ -131,8 +132,8 @@ export default function UserProfilePage() {
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-xl font-semibold text-gray-600">
-                {user.name.charAt(0).toUpperCase()}
+              <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center leading-none text-2xl font-semibold text-gray-600">
+                <span className="translate-y-px">{getInitials(user.name)}</span>
               </div>
             )}
             <button

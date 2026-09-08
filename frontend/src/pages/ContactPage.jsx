@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { useTrackPageView } from '../hooks/useTrackPageView'
 import { fetchSiteConfig } from '../lib/apiFetch'
@@ -8,6 +8,7 @@ import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import HeaderImageLqip from '../components/HeaderImageLqip'
 import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 import NotFoundPage from './NotFoundPage'
+import { isValidEmail } from '../utils/isValidEmail'
 
 const INITIAL = { name: '', email: '', subject: '', message: '' }
 
@@ -34,18 +35,49 @@ export function meta({ data }) {
 export default function ContactPage() {
   const { config } = useSiteConfig()
   const contentRef = useRef(null)
+  const messageRef = useRef(null)
   const [form, setForm] = useState(INITIAL)
   const [status, setStatus] = useState(null) // 'sending' | 'success' | 'error'
   const [errorMsg, setErrorMsg] = useState('')
+  const [emailInvalid, setEmailInvalid] = useState(false)
   const isFormFilled = Object.values(form).every(v => v.trim() !== '')
   useTrackPageView('page', isNavEnabled(config, 'contact') ? 'contact' : null)
 
+  // Auto-grow the message textarea to fit its content (e.g. pressing Enter
+  // several times) instead of giving it a manual resize handle. Runs on every
+  // value change, including the programmatic reset back to INITIAL after a
+  // successful submit, so the height also shrinks back down then.
+  useEffect(() => {
+    const el = messageRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [form.message])
+
   function handleChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
+    // The invalid-email error and its red border must clear together — only
+    // editing the email field itself should dismiss that particular error.
+    // A different (e.g. server/network) error isn't tied to one field, so it
+    // still clears on any edit.
+    if (e.target.name === 'email') {
+      setEmailInvalid(false)
+      if (status === 'error') { setStatus(null); setErrorMsg('') }
+    } else if (status === 'error' && !emailInvalid) {
+      setStatus(null); setErrorMsg('')
+    }
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
+
+    if (!isValidEmail(form.email)) {
+      setEmailInvalid(true)
+      setStatus('error')
+      setErrorMsg('Please enter a valid email address.')
+      return
+    }
+
     setStatus('sending')
     setErrorMsg('')
 
@@ -96,22 +128,23 @@ export default function ContactPage() {
           <p className="text-green-800 font-medium">Message sent. Thanks for reaching out!</p>
         </div>
       ) : (
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <Field label="Name" name="name" value={form.name} onChange={handleChange} required />
-            <Field label="Email" name="email" type="email" value={form.email} onChange={handleChange} required />
+            <Field label="Email" name="email" type="email" value={form.email} onChange={handleChange} required error={emailInvalid} />
           </div>
           <Field label="Subject" name="subject" value={form.subject} onChange={handleChange} required />
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium text-gray-700" htmlFor="message">Message</label>
             <textarea
+              ref={messageRef}
               id="message"
               name="message"
               rows={6}
               value={form.message}
               onChange={handleChange}
               required
-              className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 resize-y"
+              className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-gray-400 resize-none overflow-hidden"
             />
           </div>
 
@@ -136,7 +169,7 @@ export default function ContactPage() {
   )
 }
 
-function Field({ label, name, type = 'text', value, onChange, required }) {
+function Field({ label, name, type = 'text', value, onChange, required, error = false }) {
   return (
     <div className="flex flex-col gap-1">
       <label className="text-sm font-medium text-gray-700" htmlFor={name}>{label}</label>
@@ -147,7 +180,9 @@ function Field({ label, name, type = 'text', value, onChange, required }) {
         value={value}
         onChange={onChange}
         required={required}
-        className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400"
+        className={`rounded-md border px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none ${
+          error ? 'border-red-400 focus:border-red-500' : 'border-gray-300 focus:border-gray-400'
+        }`}
       />
     </div>
   )

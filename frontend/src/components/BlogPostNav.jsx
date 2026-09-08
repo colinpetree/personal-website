@@ -21,9 +21,9 @@ function NavCard({ post, direction, categorySlug }) {
       <div className="flex-1 min-w-0">
         <p className="flex items-center gap-1 text-xs uppercase tracking-wide text-gray-400 mb-1 leading-none">
           {isNext ? (
-            <><span>Next</span><Chevron size={13} strokeWidth={2} className="shrink-0" /></>
+            <><span className="translate-y-px">Next</span><Chevron size={13} strokeWidth={2} className="shrink-0" /></>
           ) : (
-            <><Chevron size={13} strokeWidth={2} className="shrink-0" /><span>Previous</span></>
+            <><Chevron size={13} strokeWidth={2} className="shrink-0" /><span className="translate-y-px">Previous</span></>
           )}
         </p>
         <h3 className="text-xl lg:text-2xl font-bold text-gray-900 group-hover:text-gray-600 transition-colors mb-2 line-clamp-1 leading-[24px] lg:leading-[30px]">

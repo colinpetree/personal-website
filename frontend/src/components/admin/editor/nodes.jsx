@@ -590,7 +590,7 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, nodeKey, e
         onMouseLeave={() => setIsHovered(false)}
         className={`my-4 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
       >
-        <video src={src} controls loop={loop || undefined} className="w-full block bg-black" />
+        <video src={src} controls loop={loop || undefined} disablePictureInPicture className="w-full block bg-black" />
         <figcaption className="mt-0">
           <input
             type="text"
@@ -742,6 +742,7 @@ export class VideoNode extends DecoratorNode {
     video.defaultMuted = true
     video.volume = 0
     video.setAttribute('src', this.__src)
+    video.setAttribute('disablepictureinpicture', '')
     if (this.__loop) {
       video.setAttribute('data-export-autoplay', '')
       video.setAttribute('muted', '')
@@ -3826,6 +3827,7 @@ function HeaderBgVideo({ src, className, style }) {
     video.loop = true
     video.playsInline = true
     video.setAttribute('playsinline', '')
+    video.disablePictureInPicture = true
     if (className) video.className = className
     if (style) Object.assign(video.style, style)
     video.src = `/api/uploads/${src}`
@@ -4116,7 +4118,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
       />
 
       <div
-        className={`my-4 ${outerClass}`}
+        className={`my-4 header-block-editor ${outerClass}`}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
@@ -4642,6 +4644,7 @@ export class HeaderNode extends DecoratorNode {
           video.setAttribute('muted', '')
           video.setAttribute('loop', '')
           video.setAttribute('playsinline', '')
+          video.setAttribute('disablepictureinpicture', '')
           video.style.width = '100%'
           video.style.height = '100%'
           video.style.objectFit = 'cover'
@@ -4769,6 +4772,7 @@ export class HeaderNode extends DecoratorNode {
         video.setAttribute('muted', '')
         video.setAttribute('loop', '')
         video.setAttribute('playsinline', '')
+        video.setAttribute('disablepictureinpicture', '')
         video.className = 'header-bg-video'
         inner.appendChild(video)
       }

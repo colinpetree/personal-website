@@ -103,7 +103,7 @@ export default function SearchPage() {
 
   return (
     <main className="max-w-3xl mx-auto px-6 pt-10 pb-16">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Search</h1>
+      <h1 className="text-[34px] lg:text-[42px] font-bold leading-[42.5px] lg:leading-[52.5px] text-gray-900 mb-6">Search</h1>
       <form onSubmit={handleSubmit} className="flex rounded-lg shadow-md mb-10">
         <input
           type="text"
@@ -154,7 +154,7 @@ export default function SearchPage() {
                   <p className="text-sm text-gray-600 leading-relaxed line-clamp-3 mb-2">{result.snippet}</p>
                 )}
                 <span
-                  className={`inline-block text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                  className={`inline-flex items-center leading-none text-[11px] font-medium px-2 py-1 rounded-full ${
                     result.type === 'post' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'
                   }`}
                 >

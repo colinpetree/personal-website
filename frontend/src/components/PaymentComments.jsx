@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useRef, useState } from 'react'
+import { getInitials } from '../utils/getInitials'
 
 const LIMIT = 10
 const SCROLLBAR_IDLE_MS = 800
@@ -81,8 +82,8 @@ const PaymentComments = forwardRef(function PaymentComments({ enabled }, ref) {
                     referrerPolicy="no-referrer"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-base font-semibold text-amber-700 flex-shrink-0">
-                    {(c.display_name || '?').charAt(0).toUpperCase()}
+                  <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center leading-none text-base font-semibold text-amber-700 flex-shrink-0">
+                    {getInitials(c.display_name)}
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
