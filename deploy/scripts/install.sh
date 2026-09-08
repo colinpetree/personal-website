@@ -513,7 +513,7 @@ _export_deploy_report_common() {
     export DEPLOY_REPORT_DOMAIN="$DOMAIN"
     export DEPLOY_REPORT_HOSTNAME="$(hostname -f 2>/dev/null || hostname)"
     export DEPLOY_REPORT_TIMESTAMP="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-    export DEPLOY_REPORT_DISK="$(df -h "$APP_ROOT" 2>/dev/null | tail -1)"
+    export DEPLOY_REPORT_DISK="$(df -hP "$APP_ROOT" 2>/dev/null | tail -1)"
 }
 
 # ---- 5. Run pending SQL migrations before touching traffic ----------------

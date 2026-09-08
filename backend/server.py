@@ -234,6 +234,16 @@ def seed_initial_data(app):
             print('AdminAccount already exists — not creating another.')
 
 
+def _format_disk_usage(raw):
+    """Reformats a `df -h` output line (e.g. '/dev/root  15G  6.2G  8.3G  43%  /')
+    into a labeled, human-readable summary for the deploy report email."""
+    fields = raw.split()
+    if len(fields) < 5:
+        return raw or 'unknown'
+    filesystem, size, used, avail, pct = fields[:5]
+    return f'{used} used / {size} total ({avail} available, {pct} used) on {filesystem}'
+
+
 def send_deploy_report(app):
     """Emails a success/failure report for the deploy that just ran, reusing
     the site's own Mailgun settings (same config the public contact form
@@ -269,7 +279,7 @@ def send_deploy_report(app):
                 f'Previous version: {previous}',
                 f'New version: {release}',
                 f'Timestamp: {os.getenv("DEPLOY_REPORT_TIMESTAMP", "unknown")}',
-                f'Disk usage: {os.getenv("DEPLOY_REPORT_DISK", "unknown")}',
+                f'Disk usage: {_format_disk_usage(os.getenv("DEPLOY_REPORT_DISK", ""))}',
                 f'Health-check attempts: {os.getenv("DEPLOY_REPORT_ATTEMPTS", "unknown")}',
             ]
 
