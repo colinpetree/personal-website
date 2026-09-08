@@ -13,24 +13,25 @@ import { useNavOverlay } from '../context/NavOverlayContext'
 // index.css, but drives Navbar behavior instead of CSS since it needs to
 // react to which page is currently mounted.
 //
-// Returns the same boolean it computes so callers (FullscreenHeaderNav) can
-// also decide whether to show the scroll-down indicator, without every page
-// re-implementing the "is my first node an overlay-eligible header" check.
+// Returns { isOverlayHeader, isFullscreenHeader }: isOverlayHeader covers both
+// layouts (drives the Navbar overlay above) while isFullscreenHeader is
+// fullscreen-only, so callers like FullscreenHeaderNav can still limit the
+// scroll-down indicator to the "Full screen" layout — full-width headers
+// don't necessarily fill the viewport, so the hint would be misleading there.
 export function useFullscreenHeaderNav(containerRef, contentKey) {
   const nav = useNavOverlay()
-  const [isFullscreenHeader, setIsFullscreenHeader] = useState(false)
+  const [state, setState] = useState({ isOverlayHeader: false, isFullscreenHeader: false })
 
   useEffect(() => {
     const first = containerRef.current?.firstElementChild
-    const detected =
-      !!first && first.tagName === 'HEADER' &&
-      (first.classList.contains('header-fullscreen') || first.classList.contains('header-full'))
-    setIsFullscreenHeader(detected)
+    const isFullscreen = !!first && first.tagName === 'HEADER' && first.classList.contains('header-fullscreen')
+    const isOverlay = isFullscreen || (!!first && first.tagName === 'HEADER' && first.classList.contains('header-full'))
+    setState({ isOverlayHeader: isOverlay, isFullscreenHeader: isFullscreen })
     if (!nav) return
-    nav.setOverlay(detected)
+    nav.setOverlay(isOverlay)
     return () => nav.setOverlay(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [containerRef, contentKey, nav])
 
-  return isFullscreenHeader
+  return state
 }
