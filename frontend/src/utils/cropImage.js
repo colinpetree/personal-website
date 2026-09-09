@@ -10,13 +10,15 @@ function loadImage(src) {
 
 // Crops `imageSrc` to the pixel rectangle described by `cropPixels` (as
 // produced by react-easy-crop's onCropComplete) and resolves a PNG Blob of
-// exactly that rectangle. `outputSize` downsamples/upsamples the result to a
-// fixed square so avatars aren't uploaded at arbitrary huge resolutions.
-export async function getCroppedImageBlob(imageSrc, cropPixels, outputSize = 512) {
+// exactly that rectangle. `outputWidth`/`outputHeight` downsample/upsample
+// the result to a fixed size so uploads aren't arbitrary huge resolutions —
+// `outputHeight` defaults to `outputWidth` for square crops (avatars,
+// favicons); pass both explicitly for a non-square aspect (e.g. thumbnails).
+export async function getCroppedImageBlob(imageSrc, cropPixels, outputWidth = 512, outputHeight = outputWidth) {
   const image = await loadImage(imageSrc)
   const canvas = document.createElement('canvas')
-  canvas.width = outputSize
-  canvas.height = outputSize
+  canvas.width = outputWidth
+  canvas.height = outputHeight
   const ctx = canvas.getContext('2d')
 
   ctx.drawImage(
@@ -27,8 +29,8 @@ export async function getCroppedImageBlob(imageSrc, cropPixels, outputSize = 512
     cropPixels.height,
     0,
     0,
-    outputSize,
-    outputSize
+    outputWidth,
+    outputHeight
   )
 
   return new Promise((resolve, reject) => {

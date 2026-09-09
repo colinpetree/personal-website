@@ -538,7 +538,9 @@ export function meta({ params, location }) {
     description: post.meta_description || post.excerpt,
     image: post.thumbnail_filename
       ? absoluteUploadUrl(config, `/api/uploads/${post.thumbnail_filename}`)
-      : siteFallbackImage(config),
+      : post.list_thumbnail_filename
+        ? absoluteUploadUrl(config, `/api/uploads/${post.list_thumbnail_filename}`)
+        : siteFallbackImage(config),
     type: 'article',
   })
 }

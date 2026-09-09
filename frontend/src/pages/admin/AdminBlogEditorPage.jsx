@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router'
 import { ArrowLeft, ChevronRight, ExternalLink, PanelRight, Plus, Trash2, Upload, X, Type, BookA, BookType } from 'lucide-react'
 import RichTextEditor from '../../components/admin/editor'
+import { handleUploadFull } from '../../components/admin/editor/upload'
 import { Field, Input, InputWithPrefix, Textarea, Toggle } from '../../components/admin/AdminPage'
 import { Tooltip } from '../../components/ui/Tooltip'
 import FilterCombobox from '../../components/ui/FilterCombobox'
 import DatePicker from '../../components/ui/DatePicker'
+import AvatarCropperModal from '../../components/AvatarCropperModal'
 import { useToast } from '../../context/ToastContext'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import { useAdminAuth } from '../../context/AdminAuthContext'
@@ -386,6 +388,9 @@ export default function AdminBlogEditorPage() {
   const [thumbnailCaption, setThumbnailCaption] = useState('')
   const [thumbnailWidth, setThumbnailWidth] = useState(null)
   const [thumbnailHeight, setThumbnailHeight] = useState(null)
+  const [listThumbnailFilename, setListThumbnailFilename] = useState('')
+  const [listThumbnailAuto, setListThumbnailAuto] = useState(true)
+  const [listThumbnailCropSrc, setListThumbnailCropSrc] = useState(null)
   const [categoryId, setCategoryId] = useState(null)
 
   const autosaveTimer = useRef(null)
@@ -394,7 +399,16 @@ export default function AdminBlogEditorPage() {
   const excerptEdited = useRef(false)
   const editorRef = useRef(null)
   const featureImageInputRef = useRef(null)
+  const listThumbnailInputRef = useRef(null)
   const scrollContainerRef = useRef(null)
+  const titleRef = useRef(null)
+
+  useEffect(() => {
+    const el = titleRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${el.scrollHeight}px`
+  }, [title])
 
   useEffect(() => {
     fetch(`/api/admin/blog/posts/${id}`, { credentials: 'include' })
@@ -417,6 +431,8 @@ export default function AdminBlogEditorPage() {
         setThumbnailCaption(data.thumbnail_caption || '')
         setThumbnailWidth(data.thumbnail_width || null)
         setThumbnailHeight(data.thumbnail_height || null)
+        setListThumbnailFilename(data.list_thumbnail_filename || '')
+        setListThumbnailAuto(data.list_thumbnail_auto ?? true)
         setCategoryId(data.category_id || null)
         const s = data.status || 'draft'
         setStatus(s)
@@ -453,6 +469,8 @@ export default function AdminBlogEditorPage() {
     setPost(data)
     setSlug(data.slug)
     setExcerpt(data.excerpt || '')
+    setListThumbnailFilename(data.list_thumbnail_filename || '')
+    setListThumbnailAuto(data.list_thumbnail_auto ?? true)
     const savedDt = data.publish_date ? data.publish_date.slice(0, 16) : ''
     setPublishDatePart(savedDt ? savedDt.slice(0, 10) : '')
     setPublishTimePart(savedDt ? savedDt.slice(11, 16) : '')
@@ -538,6 +556,8 @@ export default function AdminBlogEditorPage() {
       thumbnail_caption: thumbnailCaption || null,
       thumbnail_width: thumbnailWidth || null,
       thumbnail_height: thumbnailHeight || null,
+      list_thumbnail_filename: listThumbnailFilename || null,
+      list_thumbnail_auto: listThumbnailAuto,
       category_id: categoryId || null,
       ...overrideFields,
     }).catch(() => {})
@@ -567,6 +587,34 @@ export default function AdminBlogEditorPage() {
     e.target.value = ''
   }
 
+  function handlePickListThumbnail(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setListThumbnailCropSrc(URL.createObjectURL(file))
+    e.target.value = ''
+  }
+
+  function closeListThumbnailCropper() {
+    if (listThumbnailCropSrc) URL.revokeObjectURL(listThumbnailCropSrc)
+    setListThumbnailCropSrc(null)
+  }
+
+  async function handleListThumbnailCropped(blob) {
+    const file = new File([blob], 'thumbnail.png', { type: blob.type || 'image/png' })
+    const data = await handleUploadFull(file)
+    setListThumbnailFilename(data.filename)
+    setListThumbnailAuto(false)
+    closeListThumbnailCropper()
+    markDirty()
+    handleSidebarSave(undefined, { list_thumbnail_filename: data.filename, list_thumbnail_auto: false })
+  }
+
+  function handleDeleteListThumbnail() {
+    setListThumbnailFilename('')
+    markDirty()
+    handleSidebarSave(undefined, { list_thumbnail_filename: null })
+  }
+
   // ── Publish flow ─────────────────────────────────────────────────────────────
 
   function openPublishDialog() {
@@ -594,6 +642,8 @@ export default function AdminBlogEditorPage() {
         thumbnail_caption: thumbnailCaption || null,
         thumbnail_width: thumbnailWidth || null,
         thumbnail_height: thumbnailHeight || null,
+        list_thumbnail_filename: listThumbnailFilename || null,
+        list_thumbnail_auto: listThumbnailAuto,
         category_id: categoryId || null,
       })
       setPublishDialog(null)
@@ -645,6 +695,8 @@ export default function AdminBlogEditorPage() {
         thumbnail_caption: thumbnailCaption || null,
         thumbnail_width: thumbnailWidth || null,
         thumbnail_height: thumbnailHeight || null,
+        list_thumbnail_filename: listThumbnailFilename || null,
+        list_thumbnail_auto: listThumbnailAuto,
         category_id: categoryId || null,
         content_html: contentHtml,
         title,
@@ -864,12 +916,13 @@ export default function AdminBlogEditorPage() {
                 />
               </>
             )}
-            <input
-              type="text"
+            <textarea
+              ref={titleRef}
+              rows={1}
               value={title}
               onChange={handleTitleChange}
               placeholder="Post title"
-              className="w-full text-[34px] lg:text-[42px] font-bold text-gray-900 outline-none border-none bg-transparent placeholder-gray-300 leading-[42.5px] lg:leading-[52.5px] pb-4"
+              className="w-full resize-none overflow-hidden text-[34px] lg:text-[42px] font-bold text-gray-900 outline-none border-none bg-transparent placeholder-gray-300 leading-[42.5px] lg:leading-[52.5px] pb-4"
               onKeyDown={e => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
@@ -998,6 +1051,66 @@ export default function AdminBlogEditorPage() {
               </Tooltip>
             </div>
           </Field>
+
+          <Field label="Post Thumbnail">
+            <Toggle
+              label="Enable thumbnail"
+              checked={listThumbnailAuto}
+              onChange={v => {
+                setListThumbnailAuto(v)
+                if (!v) setListThumbnailFilename('')
+                markDirty()
+                handleSidebarSave(undefined, { list_thumbnail_auto: v, ...(v ? {} : { list_thumbnail_filename: null }) })
+              }}
+            />
+            {listThumbnailFilename ? (
+              <div className="relative mt-2 w-40">
+                <img
+                  src={`/api/uploads/${listThumbnailFilename}`}
+                  alt="Post thumbnail"
+                  className="w-40 aspect-[7/5] object-cover rounded"
+                />
+                <Tooltip content="Delete thumbnail">
+                  <button
+                    type="button"
+                    onClick={handleDeleteListThumbnail}
+                    className="absolute top-1 right-1 w-5 h-5 rounded-md bg-white/90 border border-gray-200 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors"
+                    aria-label="Delete post thumbnail"
+                  >
+                    <Trash2 size={11} className="text-red-400" />
+                  </button>
+                </Tooltip>
+              </div>
+            ) : (
+              <Tooltip content="Upload thumbnail">
+                <button
+                  type="button"
+                  onClick={() => listThumbnailInputRef.current?.click()}
+                  className="mt-2 w-8 h-8 rounded-md border border-gray-200 flex items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+                  aria-label="Upload thumbnail"
+                >
+                  <Upload size={14} />
+                </button>
+              </Tooltip>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              ref={listThumbnailInputRef}
+              onChange={handlePickListThumbnail}
+            />
+          </Field>
+          {listThumbnailCropSrc && (
+            <AvatarCropperModal
+              imageSrc={listThumbnailCropSrc}
+              onCancel={closeListThumbnailCropper}
+              onCropped={handleListThumbnailCropped}
+              cropShape="rect"
+              aspect={7 / 5}
+              title="Crop post thumbnail"
+            />
+          )}
 
           <Toggle
             label="Scrollable header navigation"

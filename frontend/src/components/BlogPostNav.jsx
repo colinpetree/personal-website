@@ -34,11 +34,11 @@ function NavCard({ post, direction, categorySlug }) {
         )}
         <p className="text-xs text-gray-600">{formatDate(post.publish_date || post.created_at)}</p>
       </div>
-      {post.thumbnail_filename && (
+      {post.list_thumbnail_filename && (
         <img
-          src={`/api/uploads/${post.thumbnail_filename}`}
+          src={`/api/uploads/${post.list_thumbnail_filename}`}
           alt={post.title}
-          className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg shrink-0"
+          className="w-28 sm:w-36 aspect-[7/5] object-cover rounded shrink-0 thumb-shadow"
         />
       )}
     </Link>

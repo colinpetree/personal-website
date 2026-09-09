@@ -172,7 +172,7 @@ export default function BlogPage() {
       {config?.blog_text && (
         <div
           ref={contentRef}
-          className={`prose prose-gray max-w-none blog-content page-header-content ${config?.blog_font_family === 'sans' ? 'font-sans' : 'font-serif'} mb-10`}
+          className={`prose prose-gray max-w-none blog-content page-header-content ${config?.blog_font_family === 'sans' ? 'font-sans' : 'font-serif'} ${data?.categories?.length > 0 ? 'mb-6' : 'mb-10'}`}
           data-font-family={config?.blog_font_family || 'default'}
           dangerouslySetInnerHTML={{ __html: config.blog_text }}
         />
@@ -201,19 +201,10 @@ export default function BlogPage() {
         <>
           <div className="flex flex-col divide-y divide-gray-200">
             {data.posts.map(post => (
-              <article key={post.id} className="flex flex-col sm:flex-row gap-4 sm:gap-6 py-8 first:pt-0">
-                {post.thumbnail_filename && (
-                  <Link to={activeCategory ? `/${post.slug}?category=${activeCategory}` : `/${post.slug}`} className="shrink-0 order-1 sm:order-2">
-                    <img
-                      src={`/api/uploads/${post.thumbnail_filename}`}
-                      alt={post.title}
-                      className="w-full h-48 sm:w-28 sm:h-20 object-cover rounded-lg"
-                    />
-                  </Link>
-                )}
-                <div className="flex-1 min-w-0 order-2 sm:order-1">
+              <article key={post.id} className="flex flex-row gap-4 sm:gap-6 py-8 first:pt-0">
+                <div className="flex-1 min-w-0">
                   <Link to={activeCategory ? `/${post.slug}?category=${activeCategory}` : `/${post.slug}`}>
-                    <h2 className="text-xl lg:text-2xl font-bold text-gray-900 hover:text-gray-600 transition-colors mb-2 leading-[24px] lg:leading-[30px]">
+                    <h2 className="text-xl lg:text-2xl font-bold text-gray-900 hover:text-gray-600 transition-colors mb-2 leading-[24px] lg:leading-[30px] line-clamp-2">
                       {post.title}
                     </h2>
                   </Link>
@@ -226,6 +217,15 @@ export default function BlogPage() {
                     {formatDate(post.publish_date || post.created_at)}
                   </p>
                 </div>
+                {post.list_thumbnail_filename && (
+                  <Link to={activeCategory ? `/${post.slug}?category=${activeCategory}` : `/${post.slug}`} className="shrink-0 w-24 sm:w-36">
+                    <img
+                      src={`/api/uploads/${post.list_thumbnail_filename}`}
+                      alt={post.title}
+                      className="w-full aspect-square sm:aspect-[7/5] object-cover rounded thumb-shadow"
+                    />
+                  </Link>
+                )}
               </article>
             ))}
           </div>
@@ -236,7 +236,7 @@ export default function BlogPage() {
               <button
                 onClick={() => setPage(p => p - 1)}
                 disabled={page === 1}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+                className="inline-flex items-center gap-1.5 pl-2 pr-4 py-2 rounded-md border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors"
               >
                 <ChevronLeft size={15} strokeWidth={1.5} />Previous
               </button>
@@ -244,7 +244,7 @@ export default function BlogPage() {
               <button
                 onClick={() => setPage(p => p + 1)}
                 disabled={page >= data.pages}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-md border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+                className="inline-flex items-center gap-1.5 pl-4 pr-2 py-2 rounded-md border border-gray-300 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-colors"
               >
                 Next<ChevronRight size={15} strokeWidth={1.5} />
               </button>

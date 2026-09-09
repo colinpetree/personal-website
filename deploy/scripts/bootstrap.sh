@@ -93,7 +93,7 @@ echo "==> 3. Installing packages"
 add-apt-repository universe -y
 apt update
 apt install -y postgresql nginx varnish certbot python3-certbot-nginx \
-    libnginx-mod-http-brotli-filter libnginx-mod-http-brotli-static ufw gh
+    libnginx-mod-http-brotli-filter libnginx-mod-http-brotli-static ufw gh ffmpeg
 
 echo "==> 4. Configuring firewall (ufw)"
 ufw default deny incoming

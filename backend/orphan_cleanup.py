@@ -148,10 +148,12 @@ def _collect_referenced_filenames():
     # filters to status='published' for public-facing queries, but that
     # filter has no business here: an unpublished draft's media is just as
     # real a reference as a published post's.
-    for thumbnail, content_html in BlogPost.query.with_entities(BlogPost.thumbnail_filename,
-                                                                  BlogPost.content_html).all():
+    for thumbnail, list_thumbnail, content_html in BlogPost.query.with_entities(
+            BlogPost.thumbnail_filename, BlogPost.list_thumbnail_filename, BlogPost.content_html).all():
         if thumbnail:
             referenced.add(thumbnail)
+        if list_thumbnail:
+            referenced.add(list_thumbnail)
         referenced |= _extract_from_html(content_html)
 
     # NOT User.avatar_url — that's an external Google-hosted URL, never a
