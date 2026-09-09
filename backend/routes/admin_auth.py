@@ -148,8 +148,13 @@ def logout():
 
 @admin_auth_bp.route('/api/admin/me')
 def me():
+    # 200/null rather than 401 — this is a routine "am I logged in" check
+    # fired on every page load, not a failed request; the frontend already
+    # treats a null body the same as a 401 (see AdminAuthContext.jsx), so
+    # this just avoids a misleading red network-error entry for the
+    # expected, ordinary logged-out case.
     if not current_user.is_authenticated:
-        return jsonify({'error': 'Not authenticated'}), 401
+        return jsonify(None)
     return jsonify(_account_dict(current_user))
 
 
