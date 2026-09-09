@@ -217,13 +217,27 @@ for (const file of files) {
   const csp = [scriptSrc, ...CSP_STATIC_DIRECTIVES].join('; ')
   const metaTag = `<meta http-equiv="Content-Security-Policy" content="${csp.replace(/"/g, '&quot;')}">`
 
-  // Must land inside <head>, as early as possible — CSP via meta only
-  // governs content parsed AFTER the tag, and every inline script here is in
-  // <body>, well after any reasonable <head> placement.
-  if (!/<head[^>]*>/i.test(html)) {
-    throw new Error(`${file}: no <head> tag found — can't inject CSP meta tag`)
+  // Must land inside <head>, and CSP via meta only governs content parsed
+  // AFTER the tag — but it must go LAST among <head>'s children, not first
+  // and not anywhere in the middle. react-router's client entry calls
+  // hydrateRoot(document, ...) (the whole document, not a container div),
+  // and its <Meta/>/<Links/> components reconcile <head>'s children
+  // POSITIONALLY against React's own tree — confirmed by actually
+  // reproducing this locally: inserting this tag as <head>'s first child
+  // mismatched root.jsx's <meta charSet> (the real first child) against it
+  // ("Prop `charSet` did not match. Server: null Client: "UTF-8""); moving
+  // it to second position just shifted the SAME failure onto the NEXT head
+  // child instead (viewport's <meta name> reported the identical
+  // Server:null pattern). Either way, one early hydration mismatch on the
+  // document itself cascades into React discarding the ENTIRE prerendered
+  // page and re-rendering it from scratch client-side, on every load, on
+  // every route. Appending after everything React already manages avoids
+  // shifting any of those nodes' positions, while still landing well before
+  // any actual script content (all in <body>).
+  if (!/<\/head>/i.test(html)) {
+    throw new Error(`${file}: no </head> tag found — can't inject CSP meta tag`)
   }
-  const updated = html.replace(/<head([^>]*)>/i, `<head$1>${metaTag}`)
+  const updated = html.replace(/<\/head>/i, `${metaTag}</head>`)
 
   writeFileSync(file, updated)
 
