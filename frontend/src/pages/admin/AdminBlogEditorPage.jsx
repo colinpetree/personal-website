@@ -8,6 +8,7 @@ import { Tooltip } from '../../components/ui/Tooltip'
 import FilterCombobox from '../../components/ui/FilterCombobox'
 import DatePicker from '../../components/ui/DatePicker'
 import AvatarCropperModal from '../../components/AvatarCropperModal'
+import { getInitials } from '../../utils/getInitials'
 import { useToast } from '../../context/ToastContext'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import { useAdminAuth } from '../../context/AdminAuthContext'
@@ -968,8 +969,8 @@ export default function AdminBlogEditorPage() {
                 {owner.avatar_filename ? (
                   <img src={`/api/uploads/${owner.avatar_filename}`} className="w-6 h-6 rounded-full object-cover" alt={owner.full_name} />
                 ) : (
-                  <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center leading-none text-xs font-semibold text-gray-600">
-                    <span className="translate-y-px">{(owner.full_name || '?').charAt(0).toUpperCase()}</span>
+                  <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center leading-none text-[10px] font-semibold text-gray-600">
+                    <span className="scale-125">{getInitials(owner.full_name)}</span>
                   </div>
                 )}
                 <span className="text-sm text-gray-900">{owner.full_name}</span>
