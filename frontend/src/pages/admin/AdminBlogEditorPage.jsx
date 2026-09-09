@@ -869,7 +869,7 @@ export default function AdminBlogEditorPage() {
               value={title}
               onChange={handleTitleChange}
               placeholder="Post title"
-              className="w-full text-4xl font-bold text-gray-900 outline-none border-none bg-transparent placeholder-gray-300 leading-tight pb-4"
+              className="w-full text-[34px] lg:text-[42px] font-bold text-gray-900 outline-none border-none bg-transparent placeholder-gray-300 leading-[42.5px] lg:leading-[52.5px] pb-4"
               onKeyDown={e => {
                 if (e.key === 'Enter') {
                   e.preventDefault()
