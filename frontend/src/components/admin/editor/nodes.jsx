@@ -65,7 +65,7 @@ import { SOCIAL_PLATFORMS, GENERIC_ICONS, resolveLinkIcon, getPlatformMonoSvg } 
 
 // ─── ImageNodeComponent ───────────────────────────────────────────────────────
 
-function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, nodeKey, editor }) {
+function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, shadow, nodeKey, editor }) {
   const fontFamily = useContext(FontFamilyContext)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
@@ -159,6 +159,13 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, node
     })
   }
 
+  function toggleShadow() {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node instanceof ImageNode) node.getWritable().__shadow = !node.__shadow
+    })
+  }
+
   function saveHref(value) {
     if (value && !/^https?:\/\//i.test(value)) value = 'https://' + value
     editor.update(() => {
@@ -213,9 +220,9 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, node
         style={{ maxWidth: widthMaxMap[width] ?? '740px' }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`my-6 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+        className={`my-6 mx-auto rounded-lg transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
       >
-        <div style={{ position: 'relative', overflow: 'hidden' }}>
+        <div className={`rounded-lg overflow-hidden ${shadow ? 'thumb-shadow' : ''}`} style={{ position: 'relative' }}>
           {lqip && !imgLoaded && (
             <img
               src={lqip}
@@ -276,6 +283,27 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, node
 
           <div className="w-px h-5 bg-gray-200 mx-0.5" />
 
+          <Tooltip content="Drop shadow">
+            <div
+              role="switch"
+              tabIndex={0}
+              aria-checked={shadow}
+              onMouseDown={e => { e.preventDefault(); toggleShadow() }}
+              onKeyDown={e => {
+                if (e.key !== 'Enter' && e.key !== ' ') return
+                e.preventDefault()
+                toggleShadow()
+              }}
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+                shadow ? 'bg-gray-900' : 'bg-gray-300'
+              }`}
+            >
+              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${shadow ? 'translate-x-[19px]' : 'translate-x-[3px]'}`} />
+            </div>
+          </Tooltip>
+
+          <div className="w-px h-5 bg-gray-200 mx-0.5" />
+
           <Tooltip content="Link">
             <button
               ref={linkButtonRef}
@@ -331,13 +359,13 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, node
 
 export class ImageNode extends DecoratorNode {
   static getType() { return 'image' }
-  static clone(node) { return new ImageNode(node.__src, node.__alt, node.__caption, node.__width, node.__href, node.__srcset, node.__lqip, node.__key) }
+  static clone(node) { return new ImageNode(node.__src, node.__alt, node.__caption, node.__width, node.__href, node.__srcset, node.__lqip, node.__shadow, node.__key) }
 
   static importJSON(data) {
-    return new ImageNode(data.src, data.alt || '', data.caption || '', data.width || 'regular', data.href || '', data.srcset || '', data.lqip || '')
+    return new ImageNode(data.src, data.alt || '', data.caption || '', data.width || 'regular', data.href || '', data.srcset || '', data.lqip || '', data.shadow || false)
   }
   exportJSON() {
-    return { type: 'image', version: 1, src: this.__src, alt: this.__alt, caption: this.__caption, width: this.__width, href: this.__href, srcset: this.__srcset, lqip: this.__lqip }
+    return { type: 'image', version: 1, src: this.__src, alt: this.__alt, caption: this.__caption, width: this.__width, href: this.__href, srcset: this.__srcset, lqip: this.__lqip, shadow: this.__shadow }
   }
 
   static importDOM() {
@@ -360,7 +388,8 @@ export class ImageNode extends DecoratorNode {
           const href = (parent?.tagName === 'A') ? (parent.getAttribute('href') || '') : ''
           const srcset = domNode.getAttribute('data-srcset') || img.getAttribute('srcset') || ''
           const lqip = domNode.getAttribute('data-lqip') || ''
-          return { node: new ImageNode(img.getAttribute('src') || '', img.getAttribute('alt') || '', caption, width, href, srcset, lqip) }
+          const shadow = domNode.getAttribute('data-shadow') === 'true' || domNode.querySelector(':scope > div.thumb-shadow') !== null
+          return { node: new ImageNode(img.getAttribute('src') || '', img.getAttribute('alt') || '', caption, width, href, srcset, lqip, shadow) }
         },
         priority: 1,
       }),
@@ -374,7 +403,7 @@ export class ImageNode extends DecoratorNode {
     }
   }
 
-  constructor(src, alt = '', caption = '', width = 'regular', href = '', srcset = '', lqip = '', key) {
+  constructor(src, alt = '', caption = '', width = 'regular', href = '', srcset = '', lqip = '', shadow = false, key) {
     super(key)
     this.__src = src
     this.__alt = alt
@@ -383,6 +412,7 @@ export class ImageNode extends DecoratorNode {
     this.__href = href
     this.__srcset = srcset
     this.__lqip = lqip
+    this.__shadow = shadow
   }
 
   createDOM() {
@@ -409,20 +439,25 @@ export class ImageNode extends DecoratorNode {
     figure.setAttribute('data-width', this.__width || 'regular')
     if (this.__srcset) figure.setAttribute('data-srcset', this.__srcset)
     if (this.__lqip) figure.setAttribute('data-lqip', this.__lqip)
-    figure.style.borderRadius = '0.5rem'
-    figure.style.overflow = 'hidden'
+    if (this.__shadow) figure.setAttribute('data-shadow', 'true')
 
     if (this.__width === 'wide') {
-      figure.style.cssText += ';width:min(1040px,100vw);position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0;border-radius:0.5rem;overflow:hidden'
+      figure.style.cssText = 'width:min(1040px,100vw);position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0'
     } else if (this.__width === 'full') {
-      figure.style.cssText += ';width:100vw;position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0;border-radius:0;overflow:hidden'
+      figure.style.cssText = 'width:100vw;position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0'
     } else if (this.__width === 'narrow') {
-      figure.style.cssText += ';max-width:524px;margin:1.5rem auto;border-radius:0.5rem;overflow:hidden'
+      figure.style.cssText = 'max-width:524px;margin:1.5rem auto'
     } else {
-      figure.style.cssText += ';max-width:740px;margin:1.5rem auto;border-radius:0.5rem;overflow:hidden'
+      figure.style.cssText = 'max-width:740px;margin:1.5rem auto'
     }
 
-    figure.appendChild(img)
+    // Rounding, clipping, and the drop-shadow live on this inner wrapper
+    // (not the <figure>) so the shadow hugs just the image, not the caption.
+    const imgWrap = document.createElement('div')
+    imgWrap.style.cssText = this.__width === 'full' ? 'border-radius:0;overflow:hidden' : 'border-radius:0.5rem;overflow:hidden'
+    if (this.__shadow) imgWrap.classList.add('thumb-shadow')
+    imgWrap.appendChild(img)
+    figure.appendChild(imgWrap)
 
     if (this.__caption) {
       const figcaption = document.createElement('figcaption')
@@ -451,6 +486,7 @@ export class ImageNode extends DecoratorNode {
         href={this.__href}
         srcset={this.__srcset}
         lqip={this.__lqip}
+        shadow={this.__shadow}
         nodeKey={this.getKey()}
         editor={editor}
       />
@@ -458,8 +494,8 @@ export class ImageNode extends DecoratorNode {
   }
 }
 
-export function $createImageNode(src, alt = '', caption = '', width = 'regular', href = '', srcset = '', lqip = '') {
-  return new ImageNode(src, alt, caption, width, href, srcset, lqip)
+export function $createImageNode(src, alt = '', caption = '', width = 'regular', href = '', srcset = '', lqip = '', shadow = false) {
+  return new ImageNode(src, alt, caption, width, href, srcset, lqip, shadow)
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -480,7 +516,7 @@ function formatDuration(seconds) {
 
 // ─── VideoNodeComponent ───────────────────────────────────────────────────────
 
-function VideoNodeComponent({ src, caption, width, loop, segmentLoop, thumbnailSrc, nodeKey, editor }) {
+function VideoNodeComponent({ src, caption, width, loop, segmentLoop, thumbnailSrc, shadow, nodeKey, editor }) {
   const fontFamily = useContext(FontFamilyContext)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
@@ -530,7 +566,7 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, thumbnailS
     function calc() {
       const rect = figRef.current?.getBoundingClientRect()
       if (!rect) return
-      const W = 204
+      const W = 248
       const H = 40
       let left = rect.left + window.scrollX + rect.width / 2 - W / 2
       left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - W - 8))
@@ -579,6 +615,13 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, thumbnailS
     })
   }
 
+  function toggleShadow() {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node instanceof VideoNode) node.getWritable().__shadow = !node.__shadow
+    })
+  }
+
   const widthMaxMap = { regular: '740px', wide: '1040px', full: '100%', narrow: '524px' }
 
   return (
@@ -588,16 +631,18 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, thumbnailS
         style={{ maxWidth: widthMaxMap[width] ?? '740px' }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`my-6 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+        className={`my-6 mx-auto rounded-lg transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
       >
-        <video
-          src={src}
-          controls
-          loop={loop || undefined}
-          poster={thumbnailSrc || undefined}
-          disablePictureInPicture
-          className="w-full block bg-black"
-        />
+        <div className={`rounded-lg overflow-hidden ${shadow ? 'thumb-shadow' : ''}`}>
+          <video
+            src={src}
+            controls
+            loop={loop || undefined}
+            poster={thumbnailSrc || undefined}
+            disablePictureInPicture
+            className="w-full block bg-black"
+          />
+        </div>
         <figcaption className="mt-0">
           <input
             type="text"
@@ -665,6 +710,25 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, thumbnailS
               <ImageIcon size={14} strokeWidth={2} />
             </button>
           </Tooltip>
+          <div className="w-px h-5 bg-gray-200 mx-0.5" />
+          <Tooltip content="Drop shadow">
+            <div
+              role="switch"
+              tabIndex={0}
+              aria-checked={shadow}
+              onMouseDown={e => { e.preventDefault(); toggleShadow() }}
+              onKeyDown={e => {
+                if (e.key !== 'Enter' && e.key !== ' ') return
+                e.preventDefault()
+                toggleShadow()
+              }}
+              className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 ${
+                shadow ? 'bg-gray-900' : 'bg-gray-300'
+              }`}
+            >
+              <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${shadow ? 'translate-x-[19px]' : 'translate-x-[3px]'}`} />
+            </div>
+          </Tooltip>
         </div>,
         document.body
       )}
@@ -677,20 +741,20 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, thumbnailS
 export class VideoNode extends DecoratorNode {
   static getType() { return 'video' }
   static clone(node) {
-    return new VideoNode(node.__src, node.__caption, node.__width, node.__loop, node.__thumbnailSrc, node.__segmentLoop, node.__key)
+    return new VideoNode(node.__src, node.__caption, node.__width, node.__loop, node.__thumbnailSrc, node.__segmentLoop, node.__shadow, node.__key)
   }
 
   static importJSON(data) {
-    return new VideoNode(data.src, data.caption || '', data.width || 'regular', data.loop || false, data.thumbnailSrc || '', data.segmentLoop || false)
+    return new VideoNode(data.src, data.caption || '', data.width || 'regular', data.loop || false, data.thumbnailSrc || '', data.segmentLoop || false, data.shadow || false)
   }
   exportJSON() {
-    return { type: 'video', version: 1, src: this.__src, caption: this.__caption, width: this.__width, loop: this.__loop, thumbnailSrc: this.__thumbnailSrc, segmentLoop: this.__segmentLoop }
+    return { type: 'video', version: 1, src: this.__src, caption: this.__caption, width: this.__width, loop: this.__loop, thumbnailSrc: this.__thumbnailSrc, segmentLoop: this.__segmentLoop, shadow: this.__shadow }
   }
 
   static importDOM() {
     return {
       figure: (domNode) => {
-        if (!domNode.querySelector(':scope > video')) return null
+        if (!domNode.querySelector('video')) return null
         return {
           conversion: (domNode) => {
             const video = domNode.querySelector('video')
@@ -700,7 +764,8 @@ export class VideoNode extends DecoratorNode {
             const loop = video.hasAttribute('loop')
             const thumbnailSrc = video.getAttribute('poster') || ''
             const segmentLoop = domNode.getAttribute('data-segment-loop') === 'true'
-            return { node: new VideoNode(video.getAttribute('src') || '', caption, widthClass, loop, thumbnailSrc, segmentLoop) }
+            const shadow = domNode.getAttribute('data-shadow') === 'true'
+            return { node: new VideoNode(video.getAttribute('src') || '', caption, widthClass, loop, thumbnailSrc, segmentLoop, shadow) }
           },
           priority: 1,
         }
@@ -716,7 +781,7 @@ export class VideoNode extends DecoratorNode {
     }
   }
 
-  constructor(src, caption = '', width = 'regular', loop = false, thumbnailSrc = '', segmentLoop = false, key) {
+  constructor(src, caption = '', width = 'regular', loop = false, thumbnailSrc = '', segmentLoop = false, shadow = false, key) {
     super(key)
     this.__src = src
     this.__caption = caption
@@ -724,6 +789,7 @@ export class VideoNode extends DecoratorNode {
     this.__loop = loop
     this.__thumbnailSrc = thumbnailSrc
     this.__segmentLoop = segmentLoop
+    this.__shadow = shadow
   }
 
   createDOM() {
@@ -782,22 +848,36 @@ export class VideoNode extends DecoratorNode {
     const figure = document.createElement('figure')
     figure.className = `kg-width-${this.__width || 'regular'}`
     if (this.__width === 'wide') {
-      figure.style.cssText = 'width:min(1040px,100vw);position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0;border-radius:0.5rem;overflow:hidden;background:#000'
+      figure.style.cssText = 'width:min(1040px,100vw);position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0'
     } else if (this.__width === 'full') {
-      figure.style.cssText = 'width:100vw;position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0;border-radius:0;overflow:hidden;background:#000'
+      figure.style.cssText = 'width:100vw;position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0'
     } else if (this.__width === 'narrow') {
-      figure.style.cssText = 'max-width:524px;margin:1.5rem auto;border-radius:0.5rem;overflow:hidden;background:#000'
+      figure.style.cssText = 'max-width:524px;margin:1.5rem auto'
       if (this.__segmentLoop) figure.style.position = 'relative'
     } else {
-      figure.style.cssText = 'max-width:740px;margin:1.5rem auto;border-radius:0.5rem;overflow:hidden;background:#000'
+      figure.style.cssText = 'max-width:740px;margin:1.5rem auto'
       if (this.__segmentLoop) figure.style.position = 'relative'
     }
     if (this.__segmentLoop) figure.setAttribute('data-segment-loop', 'true')
-    figure.appendChild(video)
+    if (this.__shadow) figure.setAttribute('data-shadow', 'true')
+
+    // Rounding, clipping, letterbox background, and the drop-shadow live on
+    // this inner wrapper (not the <figure>) so they hug just the video
+    // frame, not the caption. Chrome can render actively-decoding video
+    // through a hardware "overlay" path on Windows that ignores this
+    // wrapper's clip during playback, occasionally showing a thin sliver at
+    // a corner — accepted as a known cosmetic limitation rather than
+    // "fixed" with CSS tricks on the <video> itself, which introduced worse
+    // artifacts (a double-clip chamfer, then a full-frame ghosting haze).
+    const videoWrap = document.createElement('div')
+    videoWrap.style.cssText = (this.__width === 'full' ? 'border-radius:0;overflow:hidden;background:#000' : 'border-radius:0.5rem;overflow:hidden;background:#000')
+    if (this.__shadow) videoWrap.classList.add('thumb-shadow')
+    videoWrap.appendChild(video)
+    figure.appendChild(videoWrap)
+
     if (this.__caption) {
       const figcaption = document.createElement('figcaption')
       figcaption.textContent = this.__caption
-      figcaption.style.cssText = 'background:#fff'
       figure.appendChild(figcaption)
     }
     return { element: figure }
@@ -812,6 +892,7 @@ export class VideoNode extends DecoratorNode {
         loop={this.__loop}
         segmentLoop={this.__segmentLoop}
         thumbnailSrc={this.__thumbnailSrc}
+        shadow={this.__shadow}
         nodeKey={this.getKey()}
         editor={editor}
       />

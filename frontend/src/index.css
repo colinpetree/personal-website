@@ -18,9 +18,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Soft elevation for small preview thumbnails (blog list, post nav) — reads
-   as the thumbnail floating above the page, and keeps a light-edged image
-   from blending into a white background. */
+/* Soft elevation for small preview thumbnails (blog list, post nav) and for
+   the optional "Drop shadow" toggle on ImageNode figures — reads as the
+   image floating above the page, and keeps a light-edged image (e.g. a
+   screenshot of a white UI) from blending into a white background. */
 .thumb-shadow {
   box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.18), 0 2px 4px -1px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
 }
@@ -316,6 +317,9 @@ html {
   margin-top: 0;
   padding: 0.5rem 1rem;
   font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.875rem; /* text-sm, matches the editor's caption input */
+  line-height: 1.25rem;
+  color: #6b7280; /* text-gray-500, matches the editor's caption input */
 }
 
 .blog-content hr {
