@@ -253,15 +253,32 @@ html {
 }
 
 /* Typography plugin's default figure margin fights the explicit vertical margin
-   our image node sets itself (both in the editor and in exported HTML) — reset
-   just the vertical margin wherever Lexical content renders (not just the
-   public .blog-content output), leaving horizontal centering (mx-auto) alone. */
-.prose figure {
+   our image/video nodes set themselves (both in the editor and in exported
+   HTML) — reset just the vertical margin wherever Lexical content renders (not
+   just the public .blog-content output), leaving horizontal centering
+   (mx-auto) alone. Wrapped in :where() (zero specificity, same trick the
+   typography plugin itself uses for every rule it generates) so this only
+   beats the plugin's own zero-specificity default — a real utility class like
+   `my-4`/`my-6` set directly on the figure (the editor's live render; exported
+   HTML instead sets margin inline, which always wins regardless) still wins.
+   A plain `.prose figure { margin: 0 }` selector has real specificity and was
+   silently cancelling those editor utility classes too, leaving live-editor
+   figures flush against each other despite the public site showing a gap. */
+:where(.prose figure) {
   margin-top: 0;
   margin-bottom: 0;
 }
 
-.prose figure img {
+/* No :where() here (unlike the figure rule above) — nothing in this codebase
+   ever sets an intentional margin utility directly on an <img>/<video> inside
+   a figure (only the figure itself gets my-4/my-6), so there's no legitimate
+   editor spacing to protect, and real specificity is needed to reliably beat
+   the typography plugin's own image margin default regardless of CSS source
+   order. Without this, that default (~2em) is trapped as extra height inside
+   the image wrapper div's overflow:hidden (which blocks margin collapsing),
+   showing up as a visible white gap between the image and its caption. */
+.prose figure img,
+.prose figure video {
   margin: 0;
 }
 

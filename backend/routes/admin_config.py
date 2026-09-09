@@ -20,12 +20,12 @@ admin_config_bp = Blueprint('admin_config', __name__)
 
 ALLOWED_EXTENSIONS = {
     'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg',
-    'mp4', 'webm', 'ogv', 'mov', 'avi',
+    'mp4', 'webm', 'mov',
     'mp3', 'wav', 'ogg', 'flac', 'm4a',
     'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip', 'csv',
 }
 
-VIDEO_EXTENSIONS = {'mp4', 'webm', 'ogv', 'mov', 'avi'}
+VIDEO_EXTENSIONS = {'mp4', 'webm', 'mov'}
 
 # Matches the FileDropzone `accept` list on the Site icon field — no SVG,
 # since ICO generation needs a raster source.

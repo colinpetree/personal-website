@@ -30,7 +30,7 @@ import {
   $getNodeByKey, $isParagraphNode, $isDecoratorNode, $isElementNode,
   $createNodeSelection, $setSelection, createCommand,
 } from 'lexical'
-import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createLinkGroupNode, $createToggleNode, $createCodeBlockNode, $createHeaderNode, $createYouTubeNode, $createVimeoNode, $createSpotifyNode, generateSafeHtmlFromNodes } from './nodes'
+import { $createImageNode, $createVideoNode, VideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createLinkGroupNode, $createToggleNode, $createCodeBlockNode, $createHeaderNode, $createYouTubeNode, $createVimeoNode, $createSpotifyNode, generateSafeHtmlFromNodes } from './nodes'
 import { handleUploadFull } from './upload'
 import { Tooltip } from '../../ui/Tooltip'
 import { ColorSwatchMenu } from '../../ui/ColorPicker'
@@ -998,10 +998,18 @@ export function SlashCommandPlugin() {
         })
       } else if (action === 'video') {
         const data = await handleUploadFull(files[0])
+        const videoSrc = `/api/uploads/${data.filename}`
+        const thumbnailSrc = data.poster_filename ? `/api/uploads/${data.poster_filename}` : ''
+        let newKey = null
         editor.update(() => {
           const node = $getNodeByKey(paragraphKey)
-          if (node && $isParagraphNode(node)) node.replace($createVideoNode(`/api/uploads/${data.filename}`, '', 'regular', false, data.poster_filename ? `/api/uploads/${data.poster_filename}` : ''))
+          if (node && $isParagraphNode(node)) {
+            const videoNode = $createVideoNode(videoSrc, '', 'regular', false, thumbnailSrc)
+            node.replace(videoNode)
+            newKey = videoNode.getKey()
+          }
         })
+        if (newKey) editor.dispatchCommand(OPEN_VIDEO_POSTER_COMMAND, { nodeKey: newKey, src: videoSrc, thumbnailSrc })
       } else if (action === 'audio') {
         const data = await handleUploadFull(files[0])
         editor.update(() => {
@@ -1780,6 +1788,7 @@ function captureAnchorKey(editor) {
 }
 
 function insertMediaNodes(editor, anchorKey, uploads) {
+  const videoPayloads = []
   editor.update(() => {
     const mediaNodes = uploads.map(createNodeFromUpload)
     let insertAfter = (anchorKey ? $getNodeByKey(anchorKey) : null) ?? $getRoot().getLastChild()
@@ -1795,6 +1804,9 @@ function insertMediaNodes(editor, anchorKey, uploads) {
       } else {
         insertAfter.insertAfter(node)
       }
+      if (node instanceof VideoNode) {
+        videoPayloads.push({ nodeKey: node.getKey(), src: node.__src, thumbnailSrc: node.__thumbnailSrc })
+      }
       insertAfter = node
       const para = $createParagraphNode()
       insertAfter.insertAfter(para)
@@ -1802,6 +1814,7 @@ function insertMediaNodes(editor, anchorKey, uploads) {
     }
     if ($isParagraphNode(insertAfter)) insertAfter.selectStart()
   })
+  for (const payload of videoPayloads) editor.dispatchCommand(OPEN_VIDEO_POSTER_COMMAND, payload)
 }
 
 function extractBrowserImageUrl(dataTransfer) {
@@ -2368,6 +2381,196 @@ export function RecordingModalPlugin() {
     <RecordingModal
       onClose={() => setIsOpen(false)}
       onInsert={handleInsert}
+    />
+  )
+}
+
+// ─── VideoPosterModalPlugin ───────────────────────────────────────────────────
+
+export const OPEN_VIDEO_POSTER_COMMAND = createCommand('OPEN_VIDEO_POSTER_COMMAND')
+
+function VideoPosterModal({ videoSrc, initialPosterSrc, onSave, onClose }) {
+  const [hasScrubbed, setHasScrubbed] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [saving, setSaving] = useState(false)
+  const videoRef = useRef(null)
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key === 'Escape' && !saving) onClose()
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose, saving])
+
+  function handleVideoError() {
+    // Browser can't decode this file at all — skip silently, no dialog.
+    onClose()
+  }
+
+  function handleSliderChange(e) {
+    const t = Number(e.target.value)
+    setCurrentTime(t)
+    if (videoRef.current) videoRef.current.currentTime = t
+    setHasScrubbed(true)
+  }
+
+  async function handleSave() {
+    if (!hasScrubbed) { onClose(); return }
+    const video = videoRef.current
+    if (!video) { onClose(); return }
+    setSaving(true)
+    try {
+      const canvas = document.createElement('canvas')
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      canvas.getContext('2d').drawImage(video, 0, 0)
+      const blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(b => (b ? resolve(b) : reject(new Error('Failed to capture frame'))), 'image/jpeg', 0.85)
+      })
+      await onSave(blob)
+    } catch {
+      setSaving(false)
+    }
+  }
+
+  const showLivePreview = hasScrubbed || !initialPosterSrc
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onMouseDown={e => { if (e.target === e.currentTarget && !saving) onClose() }}
+    >
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <Image size={16} className="text-gray-500" />
+            <span className="text-sm font-semibold text-gray-800">Choose video poster</span>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40"
+          >
+            <span className="text-lg leading-none">&times;</span>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="p-5 space-y-4">
+          <div className="rounded-lg overflow-hidden bg-black flex items-center justify-center" style={{ aspectRatio: '16/9' }}>
+            {!showLivePreview && (
+              <img src={initialPosterSrc} alt="" className="w-full h-full object-contain" />
+            )}
+            <video
+              ref={videoRef}
+              src={videoSrc}
+              preload="metadata"
+              disablePictureInPicture
+              onError={handleVideoError}
+              onLoadedMetadata={e => setDuration(e.target.duration)}
+              className={`w-full h-full object-contain ${showLivePreview ? '' : 'hidden'}`}
+            />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min={0}
+              max={duration || 0}
+              step={0.01}
+              value={currentTime}
+              onChange={handleSliderChange}
+              onKeyDown={e => e.stopPropagation()}
+              disabled={!duration || saving}
+              className="flex-1 h-1.5 accent-blue-500 disabled:opacity-40"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50">
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="px-4 py-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors text-sm font-medium disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors text-sm font-medium disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
+export function VideoPosterModalPlugin() {
+  const [editor] = useLexicalComposerContext()
+  const [active, setActive] = useState(null)
+  // Mirrors `active` synchronously. Multiple OPEN_VIDEO_POSTER_COMMAND
+  // dispatches can happen back-to-back in the same tick (e.g. a multi-file
+  // drag-drop, which fires one dispatch per video with no await between
+  // them) — React state updates aren't applied until the next render, so a
+  // command handler reading `active` (state) would see the same stale value
+  // for every dispatch in that batch and could set it more than once,
+  // silently dropping every video but the last. Reading/writing this ref
+  // instead keeps the "is one already open" check correct across
+  // same-tick dispatches.
+  const activeRef = useRef(null)
+  const queueRef = useRef([])
+
+  function advanceQueue() {
+    const next = queueRef.current.shift() || null
+    activeRef.current = next
+    setActive(next)
+  }
+
+  useEffect(() => {
+    return editor.registerCommand(
+      OPEN_VIDEO_POSTER_COMMAND,
+      (payload) => {
+        if (activeRef.current) {
+          queueRef.current.push(payload)
+        } else {
+          activeRef.current = payload
+          setActive(payload)
+        }
+        return true
+      },
+      COMMAND_PRIORITY_LOW
+    )
+  }, [editor])
+
+  async function handleSave(blob) {
+    const file = new File([blob], 'poster.jpg', { type: 'image/jpeg' })
+    const data = await handleUploadFull(file)
+    const newSrc = `/api/uploads/${data.filename}`
+    const key = active.nodeKey
+    editor.update(() => {
+      const node = $getNodeByKey(key)
+      if (node instanceof VideoNode) node.getWritable().__thumbnailSrc = newSrc
+    })
+    advanceQueue()
+  }
+
+  if (!active) return null
+
+  return (
+    <VideoPosterModal
+      key={active.nodeKey}
+      videoSrc={active.src}
+      initialPosterSrc={active.thumbnailSrc}
+      onSave={handleSave}
+      onClose={advanceQueue}
     />
   )
 }
