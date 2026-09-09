@@ -4941,7 +4941,7 @@ function YouTubeNodeComponent({ videoId, caption, nodeKey, editor }) {
       <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
         <iframe
           src={`https://www.youtube.com/embed/${videoId}`}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture"
           allowFullScreen
           title="YouTube video"
           style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
@@ -5021,7 +5021,7 @@ export class YouTubeNode extends DecoratorNode {
 
     const iframe = document.createElement('iframe')
     iframe.setAttribute('src', `https://www.youtube.com/embed/${this.__videoId}`)
-    iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture')
+    iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture')
     iframe.setAttribute('allowfullscreen', '')
     iframe.setAttribute('title', 'YouTube video')
     iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none'
