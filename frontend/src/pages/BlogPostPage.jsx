@@ -677,12 +677,13 @@ export default function BlogPostPage() {
       const lqipSrc = figure.getAttribute('data-lqip')
       if (!img || !lqipSrc) return
 
+      const wrap = img.parentElement
       const placeholder = document.createElement('img')
       placeholder.src = lqipSrc
       placeholder.setAttribute('aria-hidden', 'true')
       placeholder.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(20px);transform:scale(1.05);pointer-events:none'
-      figure.style.position = 'relative'
-      figure.insertBefore(placeholder, img)
+      wrap.style.position = 'relative'
+      wrap.insertBefore(placeholder, img)
 
       img.style.transition = 'opacity 0.4s'
       img.style.opacity = '0'
