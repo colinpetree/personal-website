@@ -3,7 +3,7 @@ import { useLoaderData } from 'react-router'
 import { ExternalLink } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { useTrackPageView } from '../hooks/useTrackPageView'
-import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
+import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled, domFallbackTitle, domFallbackMetaContent } from '../utils/meta'
 import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
@@ -66,14 +66,21 @@ function ProjectCardSkeleton() {
 // also calls useLoaderData() — confirmed that combination makes meta()'s
 // `data` param unreliable at prerender time (see getCachedSiteConfig in
 // apiFetch.js). Read the synchronous cache instead.
+// See BlogPage.jsx's meta() for the full explanation — same
+// getCachedSiteConfig()-can-be-null-on-first-client-hydrate race, same fix:
+// fall back to whatever the browser's own parser already put in the DOM
+// from the server-rendered page instead of a placeholder, so the very
+// first client render matches the server's exact value with zero
+// network wait.
 export function meta() {
   const config = getCachedSiteConfig()
   if (!isNavEnabled(config, 'projects')) return notFoundMeta(config)
-  return buildMeta({
-    title: config?.site_title ? `${config.projects_page_name ?? 'Projects'} - ${config.site_title}` : undefined,
-    description: config?.projects_meta_description,
-    image: siteFallbackImage(config),
-  })
+  const title = config?.site_title
+    ? `${config.projects_page_name ?? 'Projects'} - ${config.site_title}`
+    : domFallbackTitle()
+  const description = config?.projects_meta_description ?? (config ? undefined : domFallbackMetaContent('meta[name="description"]'))
+  const image = siteFallbackImage(config) ?? (config ? null : domFallbackMetaContent('meta[property="og:image"]'))
+  return buildMeta({ title, description, image })
 }
 
 // Shown only while clientLoader is resolving on a hard load with nothing

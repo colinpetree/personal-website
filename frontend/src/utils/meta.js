@@ -58,6 +58,36 @@ export function siteFallbackImage(config) {
     : null
 }
 
+// Fallback for a meta()-computed value when getCachedSiteConfig() hasn't
+// resolved yet — reads whatever the browser's OWN HTML parser already put
+// in the DOM from the server-rendered page, rather than a hardcoded
+// placeholder or the (not-yet-settled) fetch. This is synchronously
+// available with zero network wait, since the browser parses the entire
+// server-rendered document — including <title>/<meta> tags — before any JS
+// executes, so it's guaranteed to already equal exactly what the server
+// rendered. Used by BlogPage/ProjectsPage/BlogPostPage's meta(): react-router
+// calls a route's meta() synchronously on the very first client hydrate pass
+// BEFORE that route's own clientLoader.hydrate fetch (which populates
+// getCachedSiteConfig's cache) has resolved — confirmed by direct
+// instrumentation, the same race the prerender-time fix in
+// react-router.config.ts addresses server-side. hydrateRoot(document, ...)
+// hydrates the whole document with no per-field isolation, so ANY value
+// that differs between this null-config pass and the already-resolved
+// server output (title/site info always resolved by prerender time) blows
+// up hydration for the entire page. Returns undefined (not null) when
+// nothing's there yet, matching buildMeta()'s own falsy-omits-the-tag
+// convention, and matches undefined during prerendering (no `document`).
+export function domFallbackTitle() {
+  return typeof document === 'undefined' ? undefined : document.title || undefined
+}
+export function domFallbackMetaContent(selector) {
+  // Scoped to <head> specifically, not the whole document — content_html
+  // (admin-authored, sanitized) renders into <body>, and this shouldn't
+  // trust a same-named tag there even in principle, sanitizer guarantees
+  // aside.
+  return typeof document === 'undefined' ? undefined : (document.head.querySelector(selector)?.getAttribute('content') ?? undefined)
+}
+
 // Builds a react-router `meta()` route export's return array — one shared
 // place for the og:/twitter: tag shape so every page's meta() stays a
 // one-line call instead of re-deriving this list. Each page must return its
