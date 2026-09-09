@@ -4,7 +4,7 @@ const theme = {
     h2: 'editor-heading max-w-3xl mx-auto px-6 text-2xl font-bold mt-5 mb-2',
     h3: 'editor-heading max-w-3xl mx-auto px-6 text-xl font-semibold mt-4 mb-2',
   },
-  paragraph: 'editor-paragraph max-w-3xl mx-auto px-6 mb-3 leading-relaxed',
+  paragraph: 'editor-paragraph max-w-3xl mx-auto px-6 mt-0 mb-3 leading-relaxed',
   // Border is drawn via background-gradient in .editor-quote so it aligns with px-6 text position
   quote: 'editor-quote max-w-3xl mx-auto border-l-0 pr-6 italic text-gray-600 my-3',
   text: {
@@ -16,8 +16,8 @@ const theme = {
   },
   list: {
     // pr-6 aligns right with paragraphs; pl-12 = px-6 (24px) + pl-6 (24px bullet indent)
-    ul: 'max-w-3xl mx-auto pr-6 pl-12 list-disc mb-3',
-    ol: 'max-w-3xl mx-auto pr-6 pl-12 list-decimal mb-3',
+    ul: 'max-w-3xl mx-auto pr-6 pl-12 list-disc mt-0 mb-3',
+    ol: 'max-w-3xl mx-auto pr-6 pl-12 list-decimal mt-0 mb-3',
     listitem: 'mb-1',
     nested: {
       listitem: '',

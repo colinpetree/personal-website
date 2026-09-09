@@ -296,10 +296,14 @@ html {
 
 .blog-content hr {
   border-color: #d1d5db; /* gray-300, matches editor DividerNode */
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-  margin-left: 1.5rem;
-  margin-right: 1.5rem;
+  margin-top: 21px;
+  margin-bottom: 0;
+}
+
+@media (min-width: 1024px) {
+  .blog-content hr {
+    margin-top: 29px;
+  }
 }
 
 .blog-content .btn-wrapper {
