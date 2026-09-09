@@ -3,6 +3,7 @@ import json
 import uuid
 import shutil
 import subprocess
+import logging
 from datetime import datetime
 from flask import Blueprint, jsonify, request, current_app
 from flask_login import current_user
@@ -13,6 +14,8 @@ from email_utils import send_email, mail_configured
 from upload_utils import save_and_optimize_image, save_favicon, IMAGE_OPTIMIZE_EXTENSIONS, get_app_data_dir, get_uploads_dir
 from varnish_purge import purge_all_public
 
+logger = logging.getLogger(__name__)
+
 admin_config_bp = Blueprint('admin_config', __name__)
 
 ALLOWED_EXTENSIONS = {
@@ -21,6 +24,8 @@ ALLOWED_EXTENSIONS = {
     'mp3', 'wav', 'ogg', 'flac', 'm4a',
     'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'zip', 'csv',
 }
+
+VIDEO_EXTENSIONS = {'mp4', 'webm', 'ogv', 'mov', 'avi'}
 
 # Matches the FileDropzone `accept` list on the Site icon field — no SVG,
 # since ICO generation needs a raster source.
@@ -274,11 +279,23 @@ def upload_file():
     filename = f'{base_name}.{ext}'
     saved_path = os.path.join(uploads_dir, filename)
     file.save(saved_path)
+
+    poster_filename = None
+    if ext in VIDEO_EXTENSIONS:
+        candidate = f'{base_name}_poster.jpg'
+        candidate_path = os.path.join(uploads_dir, candidate)
+        try:
+            if _extract_video_poster(saved_path, candidate_path):
+                poster_filename = candidate
+        except Exception:
+            logger.exception('Failed to extract video poster for %s', filename)
+
     return jsonify({
         'filename': filename,
         'original_name': file.filename,
         'mime_type': file.mimetype or '',
         'size': os.path.getsize(saved_path),
+        'poster_filename': poster_filename,
     })
 
 
@@ -305,6 +322,23 @@ def upload_favicon():
         return jsonify({'error': 'Could not process image. The file may be corrupted or unsupported.'}), 400
 
     return jsonify({'filename': filename})
+
+
+def _extract_video_poster(input_path, output_path):
+    """Best-effort: grabs a representative (non-blank) frame via ffmpeg's
+    `thumbnail` filter for use as the video's poster image. Returns False on
+    any failure (missing ffmpeg, corrupt video, etc.) rather than raising —
+    unlike _transcode_to_mp3, a poster is a nice-to-have, not the primary
+    deliverable of a video upload."""
+    if not shutil.which('ffmpeg'):
+        return False
+    result = subprocess.run(
+        ['ffmpeg', '-y', '-i', input_path,
+         '-vf', 'thumbnail,scale=640:-1', '-frames:v', '1',
+         output_path],
+        capture_output=True, timeout=60
+    )
+    return result.returncode == 0
 
 
 def _transcode_to_mp3(input_path, output_path):

@@ -7,6 +7,7 @@ from models import BlogPost, Comment, User, AdminAccount, SiteEventLog, SiteConf
 from routes.admin_auth import admin_required, role_at_least
 from varnish_purge import ban_pattern
 from sanitize_html import sanitize_content_html
+from thumbnail_utils import derive_list_thumbnail
 
 
 def _log(area, action_type, subject, subject_is_bold=False):
@@ -75,6 +76,8 @@ def _post_to_dict(post, include_content=False):
         'thumbnail_caption': post.thumbnail_caption,
         'thumbnail_width': post.thumbnail_width,
         'thumbnail_height': post.thumbnail_height,
+        'list_thumbnail_filename': post.list_thumbnail_filename,
+        'list_thumbnail_auto': post.list_thumbnail_auto,
         'author_id': post.author_id,
         'category_id': post.category_id,
         'created_at': post.created_at.isoformat() + 'Z',
@@ -153,7 +156,7 @@ def update_post(post_id):
             return jsonify({'error': 'A post with this slug already exists.'}), 400
         post.slug = new_slug
 
-    for field in ('content_html', 'excerpt', 'meta_description', 'scrollable_nav_enabled', 'font_family', 'thumbnail_filename', 'thumbnail_caption', 'thumbnail_width', 'thumbnail_height'):
+    for field in ('content_html', 'excerpt', 'meta_description', 'scrollable_nav_enabled', 'font_family', 'thumbnail_filename', 'thumbnail_caption', 'thumbnail_width', 'thumbnail_height', 'list_thumbnail_filename', 'list_thumbnail_auto'):
         if field in data:
             value = data[field]
             # Contributors are the lowest-trust writable role — sanitize their
@@ -206,6 +209,9 @@ def update_post(post_id):
         fingerprint_config = SiteConfig.query.first()
         if fingerprint_config:
             fingerprint_config.updated_at = datetime.utcnow()
+
+    if post.list_thumbnail_auto:
+        post.list_thumbnail_filename = derive_list_thumbnail(post.thumbnail_filename, post.content_html)
 
     _log('Post', 'edited', post.title, subject_is_bold=True)
     db.session.commit()

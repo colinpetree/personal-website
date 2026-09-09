@@ -10,7 +10,7 @@ import { getCroppedImageBlob } from '../utils/cropImage'
 // different overlay mask and no upload-blob squashing surprise from
 // react-easy-crop's cropShape="round" (that prop only changes the preview
 // mask, not the actual cropped rectangle — see getCroppedImageBlob).
-export default function AvatarCropperModal({ imageSrc, onCancel, onCropped, cropShape = 'round', title = 'Adjust your photo' }) {
+export default function AvatarCropperModal({ imageSrc, onCancel, onCropped, cropShape = 'round', title = 'Adjust your photo', aspect = 1 }) {
   const [crop, setCrop] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
@@ -26,7 +26,7 @@ export default function AvatarCropperModal({ imageSrc, onCancel, onCropped, crop
     setSaving(true)
     setError('')
     try {
-      const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels)
+      const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels, 512, Math.round(512 / aspect))
       onCropped(blob)
     } catch (err) {
       setError(err.message || 'Failed to crop image')
@@ -46,7 +46,7 @@ export default function AvatarCropperModal({ imageSrc, onCancel, onCropped, crop
             image={imageSrc}
             crop={crop}
             zoom={zoom}
-            aspect={1}
+            aspect={aspect}
             cropShape={cropShape}
             showGrid={false}
             onCropChange={setCrop}

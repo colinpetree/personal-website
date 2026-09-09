@@ -169,6 +169,13 @@ def _migrate_schema():
                 "ALTER TABLE blog_post ADD COLUMN font_family VARCHAR(10) NOT NULL DEFAULT 'default'"
             ))
 
+        if 'list_thumbnail_filename' not in blog_post_columns:
+            conn.execute(text('ALTER TABLE blog_post ADD COLUMN list_thumbnail_filename VARCHAR(255)'))
+        if 'list_thumbnail_auto' not in blog_post_columns:
+            conn.execute(text(
+                'ALTER TABLE blog_post ADD COLUMN list_thumbnail_auto BOOLEAN NOT NULL DEFAULT TRUE'
+            ))
+
         if 'analytics_start_date' not in config_columns:
             conn.execute(text('ALTER TABLE site_config ADD COLUMN analytics_start_date DATE'))
             # Defaults to "today" for existing rows so every range clamps to

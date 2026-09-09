@@ -187,6 +187,8 @@ class BlogPost(db.Model):
     thumbnail_caption = db.Column(db.String(500), nullable=True)
     thumbnail_width = db.Column(db.Integer, nullable=True)
     thumbnail_height = db.Column(db.Integer, nullable=True)
+    list_thumbnail_filename = db.Column(db.String(255), nullable=True)
+    list_thumbnail_auto = db.Column(db.Boolean, nullable=False, default=True)
     author_id = db.Column(db.Integer, db.ForeignKey('admin_account.id'), nullable=True)
     category_id = db.Column(db.Integer, db.ForeignKey('blog_category.id'), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)

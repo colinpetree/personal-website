@@ -31,7 +31,7 @@ import {
   $createNodeSelection, $setSelection, createCommand,
 } from 'lexical'
 import { $createImageNode, $createVideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createLinkGroupNode, $createToggleNode, $createCodeBlockNode, $createHeaderNode, $createYouTubeNode, $createVimeoNode, $createSpotifyNode, generateSafeHtmlFromNodes } from './nodes'
-import { handleUpload, handleUploadFull } from './upload'
+import { handleUploadFull } from './upload'
 import { Tooltip } from '../../ui/Tooltip'
 import { ColorSwatchMenu } from '../../ui/ColorPicker'
 
@@ -997,10 +997,10 @@ export function SlashCommandPlugin() {
           if (node && $isParagraphNode(node)) node.replace($createImageNode(`/api/uploads/${data.filename}`, '', '', 'regular', '', data.srcset || '', data.lqip || ''))
         })
       } else if (action === 'video') {
-        const filename = await handleUpload(files[0])
+        const data = await handleUploadFull(files[0])
         editor.update(() => {
           const node = $getNodeByKey(paragraphKey)
-          if (node && $isParagraphNode(node)) node.replace($createVideoNode(`/api/uploads/${filename}`))
+          if (node && $isParagraphNode(node)) node.replace($createVideoNode(`/api/uploads/${data.filename}`, '', 'regular', false, data.poster_filename ? `/api/uploads/${data.poster_filename}` : ''))
         })
       } else if (action === 'audio') {
         const data = await handleUploadFull(files[0])
@@ -1762,7 +1762,7 @@ function createNodeFromUpload({ data, file }) {
   const url = `/api/uploads/${data.filename}`
   const mime = file.type
   if (mime.startsWith('image/')) return $createImageNode(url, '', '', 'regular', '', data.srcset || '', data.lqip || '')
-  if (mime.startsWith('video/')) return $createVideoNode(url, '')
+  if (mime.startsWith('video/')) return $createVideoNode(url, '', 'regular', false, data.poster_filename ? `/api/uploads/${data.poster_filename}` : '')
   if (mime.startsWith('audio/')) return $createAudioNode(url, data.original_name || file.name)
   return $createFileNode(url, data.original_name || file.name, data.mime_type || file.type, data.size || file.size)
 }

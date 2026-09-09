@@ -794,8 +794,8 @@ export class VideoNode extends DecoratorNode {
   }
 }
 
-export function $createVideoNode(src, caption = '') {
-  return new VideoNode(src, caption)
+export function $createVideoNode(src, caption = '', width = 'regular', loop = false, thumbnailSrc = '') {
+  return new VideoNode(src, caption, width, loop, thumbnailSrc)
 }
 
 // ─── AudioNodeComponent ───────────────────────────────────────────────────────

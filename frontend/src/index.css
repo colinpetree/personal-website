@@ -18,6 +18,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Soft elevation for small preview thumbnails (blog list, post nav) — reads
+   as the thumbnail floating above the page, and keeps a light-edged image
+   from blending into a white background. */
+.thumb-shadow {
+  box-shadow: 0 6px 16px -4px rgba(0, 0, 0, 0.18), 0 2px 4px -1px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
 @keyframes blink-cursor {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }

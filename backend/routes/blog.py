@@ -40,6 +40,7 @@ def _post_to_dict(post, include_content=False):
         'thumbnail_caption': post.thumbnail_caption,
         'thumbnail_width': post.thumbnail_width,
         'thumbnail_height': post.thumbnail_height,
+        'list_thumbnail_filename': post.list_thumbnail_filename,
         'category_id': post.category_id,
         'category_name': category.name if category else None,
         'category_slug': category.slug if category else None,
