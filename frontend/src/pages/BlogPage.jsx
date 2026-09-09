@@ -15,7 +15,7 @@ function BlogListSkeleton() {
   return (
     <div className="flex flex-col divide-y divide-gray-200 animate-pulse">
       {Array.from({ length: 3 }).map((_, i) => (
-        <div key={i} className="flex flex-col sm:flex-row gap-4 sm:gap-6 py-8 first:pt-0">
+        <div key={i} className="flex flex-col sm:flex-row gap-4 sm:gap-6 py-6 first:pt-0">
           <div className="shrink-0 w-full h-48 sm:w-28 sm:h-20 bg-gray-100 rounded-lg order-1 sm:order-2" />
           <div className="flex-1 min-w-0 flex flex-col gap-2 py-1 order-2 sm:order-1">
             <div className="h-5 bg-gray-100 rounded w-3/4" />
@@ -100,7 +100,7 @@ export function meta() {
 // page-2+ pagination loading state below.
 export function HydrateFallback() {
   return (
-    <main className="max-w-3xl mx-auto px-6 pt-10 pb-16">
+    <main className="max-w-2xl mx-auto px-6 pt-10 pb-16">
       <BlogListSkeleton />
     </main>
   )
@@ -168,7 +168,7 @@ export default function BlogPage() {
   if (!enabled) return <NotFoundPage />
 
   return (
-    <main className="max-w-3xl mx-auto px-6 pt-10 pb-16">
+    <main className="max-w-2xl mx-auto px-6 pt-10 pb-16">
       {config?.blog_text && (
         <div
           ref={contentRef}
@@ -201,7 +201,7 @@ export default function BlogPage() {
         <>
           <div className="flex flex-col divide-y divide-gray-200">
             {data.posts.map(post => (
-              <article key={post.id} className="flex flex-row gap-4 sm:gap-6 py-8 first:pt-0">
+              <article key={post.id} className="flex flex-row gap-4 sm:gap-6 py-6 first:pt-0">
                 <div className="flex-1 min-w-0">
                   <Link to={activeCategory ? `/${post.slug}?category=${activeCategory}` : `/${post.slug}`}>
                     <h2 className="text-xl lg:text-2xl font-bold text-gray-900 hover:text-gray-600 transition-colors mb-2 leading-[24px] lg:leading-[30px] line-clamp-2">

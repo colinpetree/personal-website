@@ -31,7 +31,7 @@ import {
 } from './plugins'
 
 const RichTextEditor = forwardRef(function RichTextEditor(
-  { initialHtml, onChange, placeholder = 'Start writing…', firstBlockH1 = false, narrowPreview = false, fontFamily = 'default' },
+  { initialHtml, onChange, placeholder = 'Start writing…', firstBlockH1 = false, narrowPreview = false, readingColumnPreview = false, fontFamily = 'default' },
   ref
 ) {
   const initialConfig = {
@@ -67,7 +67,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
             contentEditable={
               <ContentEditable
                 data-font-family={fontFamily}
-                className={`outline-none min-h-[500px] pt-2 pb-10 prose prose-gray max-w-none ${ambientFontClass}${narrowPreview ? ' content-narrow-preview' : ''}`}
+                className={`outline-none min-h-[500px] pt-2 pb-10 prose prose-gray max-w-none ${ambientFontClass}${narrowPreview ? ' content-narrow-preview' : ''}${readingColumnPreview ? ' content-2xl-preview' : ''}`}
               />
             }
             placeholder={

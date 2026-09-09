@@ -17,7 +17,7 @@ function countWords(html) {
 const widthButtonGroup = 'flex self-start gap-0.5 bg-gray-100 rounded-lg p-0.5'
 const widthButton = (active) => `p-1.5 rounded-md transition-colors ${active ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
 
-export default function AdminPageContentEditor({ pageTitle, backTo, contentField, metaField, navField, widthField, fontFamilyField }) {
+export default function AdminPageContentEditor({ pageTitle, backTo, contentField, metaField, navField, widthField, fontFamilyField, readingColumnPreview = false }) {
   const { config, loading, save } = useAdminConfig()
   const { addToast } = useToast()
 
@@ -128,6 +128,7 @@ export default function AdminPageContentEditor({ pageTitle, backTo, contentField
             placeholder=""
             firstBlockH1
             narrowPreview={pageWidth === 'narrow'}
+            readingColumnPreview={readingColumnPreview}
             fontFamily={fontFamily}
           />
           <div style={{ height: '33vh' }} onClick={() => editorRef.current?.focusAtEnd()} />
