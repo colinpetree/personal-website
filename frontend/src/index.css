@@ -590,6 +590,15 @@ html {
   max-width: 48rem !important;
 }
 
+/* Blog page header content: .page-header-content strips the editor's baked-in
+   max-w-3xl on the public site and inherits the real <main> width instead
+   (max-w-2xl/42rem, see BlogPage.jsx), so the shipped output is already
+   correct — only the editor's own typing column still previews at the old
+   48rem. Scope it down to match what will actually render. */
+.content-2xl-preview .max-w-3xl {
+  max-width: 42rem !important;
+}
+
 /* Audio/File/YouTube/Vimeo/Spotify all size themselves via an inline
    max-width:740px style rather than the max-w-3xl class above (and,
    unlike Header/Image/Video, are meant to actually shrink with the page's

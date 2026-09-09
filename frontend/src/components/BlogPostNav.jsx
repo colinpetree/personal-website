@@ -26,7 +26,7 @@ function NavCard({ post, direction, categorySlug }) {
             <><Chevron size={13} strokeWidth={2} className="shrink-0" /><span className="translate-y-px">Previous</span></>
           )}
         </p>
-        <h3 className="text-xl lg:text-2xl font-bold text-gray-900 group-hover:text-gray-600 transition-colors mb-2 line-clamp-1 leading-[24px] lg:leading-[30px]">
+        <h3 className="text-xl lg:text-2xl font-bold text-gray-900 group-hover:text-gray-600 transition-colors mb-2 line-clamp-2 leading-[24px] lg:leading-[30px]">
           {post.title}
         </h3>
         {post.excerpt && (
@@ -38,7 +38,7 @@ function NavCard({ post, direction, categorySlug }) {
         <img
           src={`/api/uploads/${post.list_thumbnail_filename}`}
           alt={post.title}
-          className="w-28 sm:w-36 aspect-[7/5] object-cover rounded shrink-0 thumb-shadow"
+          className="w-28 sm:w-36 aspect-square sm:aspect-[7/5] object-cover rounded shrink-0 thumb-shadow"
         />
       )}
     </Link>
