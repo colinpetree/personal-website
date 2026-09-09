@@ -3,7 +3,7 @@ import { Link, useLoaderData } from 'react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { useTrackPageView } from '../hooks/useTrackPageView'
-import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
+import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled, domFallbackTitle, domFallbackMetaContent } from '../utils/meta'
 import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
 import CategoryFilterBar from '../components/CategoryFilterBar'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
@@ -66,14 +66,33 @@ clientLoader.hydrate = true
 // also calls useLoaderData() — confirmed that combination makes meta()'s
 // `data` param unreliable at prerender time (see getCachedSiteConfig in
 // apiFetch.js). Read the synchronous cache instead.
+//
+// getCachedSiteConfig() can legitimately return null here on the CLIENT even
+// after the prerender-time fix in react-router.config.ts: react-router calls
+// this route's meta() synchronously on the very first hydrate pass BEFORE
+// clientLoader.hydrate's own fetchSiteConfig() call has resolved (confirmed
+// by direct instrumentation — the same race, just client-side too).
+// hydrateRoot(document, ...) hydrates the whole document with no per-field
+// isolation, so ANY value that differs between this null-config pass and the
+// already-resolved server output (title/site info always resolved by
+// prerender time) throws hydration for the entire page — even a plain text
+// mismatch on an otherwise-matching tag, not just a missing/extra one
+// (confirmed empirically: fixing only the STRUCTURE, e.g. always including
+// `title` with a hardcoded placeholder, still failed with "Text content did
+// not match. Server: 'Blog - John Smith' Client: 'Blog'"). Falling back to
+// domFallbackTitle()/domFallbackMetaContent() instead of a placeholder reads
+// whatever the browser's own parser already put in the DOM from the
+// server's HTML — guaranteed to equal the server's exact value with zero
+// network wait, not just a same-shaped guess.
 export function meta() {
   const config = getCachedSiteConfig()
   if (!isNavEnabled(config, 'blog')) return notFoundMeta(config)
-  return buildMeta({
-    title: config?.site_title ? `${config.blog_page_name ?? 'Blog'} - ${config.site_title}` : undefined,
-    description: config?.blog_meta_description,
-    image: siteFallbackImage(config),
-  })
+  const title = config?.site_title
+    ? `${config.blog_page_name ?? 'Blog'} - ${config.site_title}`
+    : domFallbackTitle()
+  const description = config?.blog_meta_description ?? (config ? undefined : domFallbackMetaContent('meta[name="description"]'))
+  const image = siteFallbackImage(config) ?? (config ? null : domFallbackMetaContent('meta[property="og:image"]'))
+  return buildMeta({ title, description, image })
 }
 
 // Shown only while clientLoader resolves on a hard load with nothing

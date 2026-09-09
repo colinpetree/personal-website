@@ -12,7 +12,7 @@ import ShareButton from '../components/ShareButton'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import HeaderImageLqip from '../components/HeaderImageLqip'
 import { setupSegmentLoopVideo } from '../utils/segmentLoopVideo'
-import { buildMeta, absoluteUploadUrl, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
+import { buildMeta, absoluteUploadUrl, siteFallbackImage, notFoundMeta, isNavEnabled, domFallbackTitle, domFallbackMetaContent } from '../utils/meta'
 import { apiUrl, fetchSiteConfig } from '../lib/apiFetch'
 import NotFoundPage from './NotFoundPage'
 import { getInitials } from '../utils/getInitials'
@@ -503,9 +503,33 @@ clientLoader.hydrate = true
 // unreliable in meta() here, see _resolvedPostData's own comment above).
 export function meta({ params, location }) {
   const categorySlug = new URLSearchParams(location?.search).get('category')
-  const cached = _resolvedPostData.get(postCacheKey(params.slug, categorySlug))
-  const config = cached?.config
-  const post = cached?.post
+  const cacheKey = postCacheKey(params.slug, categorySlug)
+  const cached = _resolvedPostData.get(cacheKey)
+  // Same client-hydrate race as BlogPage/ProjectsPage's meta() (see their
+  // comments): react-router calls this route's meta() synchronously on the
+  // very first hydrate pass, before clientLoader.hydrate's own fetchPostData
+  // has resolved and populated this cache — an UNFETCHED slug (no entry at
+  // all) is not the same thing as a CONFIRMED 404 (an entry with
+  // notFound:true, set once fetchPostData actually got a 404 response from
+  // the API). Conflating the two here used to send this branch to
+  // notFoundMeta() even for a real, existing post, mismatching the server's
+  // already-resolved title ("Text content did not match. Server: 'First
+  // Post' Client: 'Page not found'"). Falling back to
+  // domFallbackTitle()/domFallbackMetaContent() instead reads whatever the
+  // browser's own parser already put in the DOM from the server-rendered
+  // page — guaranteed to equal the server's exact value with zero network
+  // wait — so the unfetched-yet case matches the server regardless of
+  // whether the real post ultimately turns out to exist or not.
+  if (cached === undefined) {
+    return buildMeta({
+      title: domFallbackTitle(),
+      description: domFallbackMetaContent('meta[name="description"]'),
+      image: domFallbackMetaContent('meta[property="og:image"]'),
+      type: 'article',
+    })
+  }
+  const config = cached.config
+  const post = cached.post
   if (!post || !isNavEnabled(config, 'blog')) {
     return notFoundMeta(config)
   }
