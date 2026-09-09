@@ -58,7 +58,7 @@ function decoratorFontClass(fontFamily) {
 import Picker from '@emoji-mart/react'
 import emojiData from '@emoji-mart/data'
 import { handleUploadFull } from './upload'
-import { FloatingToolbarPlugin } from './plugins'
+import { FloatingToolbarPlugin, OPEN_VIDEO_POSTER_COMMAND } from './plugins'
 import { Tooltip } from '../../ui/Tooltip'
 import { useToast } from '../../../context/ToastContext'
 import { SOCIAL_PLATFORMS, GENERIC_ICONS, resolveLinkIcon, getPlatformMonoSvg } from './socialIcons'
@@ -213,7 +213,7 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, node
         style={{ maxWidth: widthMaxMap[width] ?? '740px' }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`my-4 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+        className={`my-6 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
       >
         <div style={{ position: 'relative', overflow: 'hidden' }}>
           {lqip && !imgLoaded && (
@@ -480,7 +480,7 @@ function formatDuration(seconds) {
 
 // ─── VideoNodeComponent ───────────────────────────────────────────────────────
 
-function VideoNodeComponent({ src, caption, width, loop, segmentLoop, nodeKey, editor }) {
+function VideoNodeComponent({ src, caption, width, loop, segmentLoop, thumbnailSrc, nodeKey, editor }) {
   const fontFamily = useContext(FontFamilyContext)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
@@ -588,9 +588,16 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, nodeKey, e
         style={{ maxWidth: widthMaxMap[width] ?? '740px' }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`my-4 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+        className={`my-6 mx-auto rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
       >
-        <video src={src} controls loop={loop || undefined} disablePictureInPicture className="w-full block bg-black" />
+        <video
+          src={src}
+          controls
+          loop={loop || undefined}
+          poster={thumbnailSrc || undefined}
+          disablePictureInPicture
+          className="w-full block bg-black"
+        />
         <figcaption className="mt-0">
           <input
             type="text"
@@ -647,6 +654,15 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, nodeKey, e
               }`}
             >
               <Scissors size={14} strokeWidth={2} />
+            </button>
+          </Tooltip>
+          <div className="w-px h-5 bg-gray-200 mx-0.5" />
+          <Tooltip content="Choose Poster Image">
+            <button
+              onMouseDown={e => { e.preventDefault(); editor.dispatchCommand(OPEN_VIDEO_POSTER_COMMAND, { nodeKey, src, thumbnailSrc }) }}
+              className="p-1.5 rounded-md transition-colors text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+            >
+              <ImageIcon size={14} strokeWidth={2} />
             </button>
           </Tooltip>
         </div>,
@@ -738,8 +754,16 @@ export class VideoNode extends DecoratorNode {
     // `generateSafeHtmlFromNodes()`, which swaps it back in as a plain
     // string after `.outerHTML` has already been read, so no live element
     // ever carries `autoplay` + `src` at the same time.
+    //
+    // `muted`/`volume` are JS-only state — they silence this temporary
+    // element without ever being reflected into the exported HTML.
+    // `defaultMuted`, in contrast, DOES reflect to the `muted` content
+    // attribute per the HTML5 spec — setting it unconditionally here used to
+    // leak a `muted` attribute onto every exported video, including normal
+    // (non-looping, controls-visible) ones that should never start muted.
+    // It's set explicitly via setAttribute('muted', '') below, only for the
+    // loop/autoplay case that actually needs it.
     video.muted = true
-    video.defaultMuted = true
     video.volume = 0
     video.setAttribute('src', this.__src)
     video.setAttribute('disablepictureinpicture', '')
@@ -751,7 +775,7 @@ export class VideoNode extends DecoratorNode {
     } else {
       video.setAttribute('controls', '')
       if (this.__segmentLoop) video.setAttribute('playsinline', '')
-      if (this.__thumbnailSrc && !this.__segmentLoop) video.setAttribute('poster', this.__thumbnailSrc)
+      if (this.__thumbnailSrc) video.setAttribute('poster', this.__thumbnailSrc)
     }
     video.style.cssText = 'width:100%;display:block'
 
@@ -787,6 +811,7 @@ export class VideoNode extends DecoratorNode {
         width={this.__width}
         loop={this.__loop}
         segmentLoop={this.__segmentLoop}
+        thumbnailSrc={this.__thumbnailSrc}
         nodeKey={this.getKey()}
         editor={editor}
       />
@@ -4102,7 +4127,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             // matching backend/routes/admin_config.py's own ALLOWED_EXTENSIONS
             // video set — before assuming "not a video" defaults to image.
             const isVideo = file.type.startsWith('video/') ||
-              /\.(mp4|webm|ogv|mov|avi)$/i.test(file.name)
+              /\.(mp4|webm|mov)$/i.test(file.name)
             if (isVideo) {
               const { filename } = await handleUploadFull(file)
               commitField('setHeaderVideo', filename)

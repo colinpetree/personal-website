@@ -27,6 +27,7 @@ import {
   TableDragScrollPlugin,
   DragDropPastePlugin,
   RecordingModalPlugin,
+  VideoPosterModalPlugin,
 } from './plugins'
 
 const RichTextEditor = forwardRef(function RichTextEditor(
@@ -94,6 +95,7 @@ const RichTextEditor = forwardRef(function RichTextEditor(
         <TableColumnResizePlugin />
         <TableDragScrollPlugin />
         <RecordingModalPlugin />
+        <VideoPosterModalPlugin />
         <EditorHandlePlugin handleRef={ref} />
       </FontFamilyContext.Provider>
     </LexicalComposer>
