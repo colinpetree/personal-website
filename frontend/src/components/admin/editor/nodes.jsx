@@ -2501,19 +2501,7 @@ function LinkGroupEditModal({ link, onSave, onClose }) {
               {showPicker && (
                 <div ref={pickerRef} className="absolute top-full right-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden">
                   <div className="p-2 border-b border-gray-100">
-                    <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1.5 px-0.5">Social Icons</div>
-                    <div className="flex flex-wrap gap-1">
-                      {SOCIAL_PLATFORMS.map(p => (
-                        <Tooltip key={p.key} content={p.label}>
-                          <button
-                            onClick={() => { setIcon(`platform:${p.key}`); setShowPicker(false) }}
-                            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 transition-colors"
-                            dangerouslySetInnerHTML={{ __html: p.svg }}
-                          />
-                        </Tooltip>
-                      ))}
-                    </div>
-                    <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1.5 mt-2 px-0.5">Social Icons (Outline)</div>
+                    <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1.5 px-0.5">Social Icons (Outline)</div>
                     <div className="flex flex-wrap gap-1">
                       {SOCIAL_PLATFORMS.map(p => (
                         <Tooltip key={p.key} content={p.label}>
@@ -2521,6 +2509,18 @@ function LinkGroupEditModal({ link, onSave, onClose }) {
                             onClick={() => { setIcon(`platform-mono:${p.key}`); setShowPicker(false) }}
                             className="w-7 h-7 flex items-center justify-center rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
                             dangerouslySetInnerHTML={{ __html: getPlatformMonoSvg(p.key) }}
+                          />
+                        </Tooltip>
+                      ))}
+                    </div>
+                    <div className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1.5 mt-2 px-0.5">Social Images</div>
+                    <div className="flex flex-wrap gap-1">
+                      {SOCIAL_PLATFORMS.map(p => (
+                        <Tooltip key={p.key} content={p.label}>
+                          <button
+                            onClick={() => { setIcon(`platform:${p.key}`); setShowPicker(false) }}
+                            className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-gray-100 transition-colors"
+                            dangerouslySetInnerHTML={{ __html: p.svg }}
                           />
                         </Tooltip>
                       ))}

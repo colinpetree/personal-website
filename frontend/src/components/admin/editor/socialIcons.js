@@ -137,7 +137,7 @@ export function resolveLinkIcon(link) {
     return { type: 'emoji', value: icon, variant: null }
   } else {
     const detected = detectPlatform(link.url)
-    if (detected) return { type: 'svg', value: getPlatformSvg(detected), variant: 'platform' }
+    if (detected) return { type: 'svg', value: getPlatformMonoSvg(detected), variant: 'generic' }
   }
   return { type: 'svg', value: getGenericIconSvg('link'), variant: 'generic' }
 }
