@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useLoaderData, useSearchParams, Link } from 'react-router'
 import { Heart, Reply, MoreHorizontal, ChevronDown, X } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { useTrackPageView } from '../hooks/useTrackPageView'
-import GalleryLightbox from '../components/GalleryLightbox'
+import GalleryLightboxController from '../components/GalleryLightboxController'
 import SignInRequiredModal from '../components/SignInRequiredModal'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import BlogPostNav from '../components/BlogPostNav'
@@ -586,8 +586,6 @@ export default function BlogPostPage() {
     try { return new Set(JSON.parse(localStorage.getItem('liked_comments') || '[]')) }
     catch { return new Set() }
   })
-  const [lightboxImages, setLightboxImages] = useState([])
-  const [lightboxIndex, setLightboxIndex] = useState(null)
   const articleRef = useRef(null)
 
   async function fetchComments() {
@@ -625,8 +623,6 @@ export default function BlogPostPage() {
     setComments([])
     setLikeDeltas({})
     setReportingComment(null)
-    setLightboxImages([])
-    setLightboxIndex(null)
     if (!post) return
     let cancelled = false
     fetch(`/api/blog/${slug}/comments`)
@@ -658,16 +654,6 @@ export default function BlogPostPage() {
       localStorage.setItem('liked_comments', JSON.stringify([...likedIds]))
     })
   }
-
-  const handleArticleClick = useCallback((e) => {
-    if (e.target.tagName !== 'IMG') return
-    const gallery = e.target.closest('figure.gallery')
-    if (!gallery) return
-    const allImgs = [...gallery.querySelectorAll('img')]
-    const clickedIndex = allImgs.indexOf(e.target)
-    setLightboxImages(allImgs.map(i => ({ src: i.getAttribute('src') || i.src, alt: i.alt || '' })))
-    setLightboxIndex(clickedIndex)
-  }, [])
 
   useEffect(() => {
     if (!articleRef.current || !post?.content_html) return
@@ -789,7 +775,6 @@ export default function BlogPostPage() {
         className={`prose prose-xl prose-gray max-w-none mb-16 blog-content ${post.font_family === 'sans' ? 'font-sans' : 'font-serif'}`}
         data-font-family={post.font_family || 'default'}
         dangerouslySetInnerHTML={{ __html: post.content_html || '' }}
-        onClick={handleArticleClick}
       />
 
       {post.scrollable_nav_enabled && (
@@ -797,15 +782,7 @@ export default function BlogPostPage() {
       )}
       <CodeBlockCopyToast containerRef={articleRef} contentKey={post.content_html} />
       <HeaderImageLqip containerRef={articleRef} contentKey={post.content_html} />
-
-      {lightboxIndex !== null && (
-        <GalleryLightbox
-          images={lightboxImages}
-          index={lightboxIndex}
-          onClose={() => setLightboxIndex(null)}
-          onNavigate={setLightboxIndex}
-        />
-      )}
+      <GalleryLightboxController containerRef={articleRef} contentKey={post.content_html} />
 
       <BlogPostNav next={next} previous={previous} categorySlug={categorySlug} />
 

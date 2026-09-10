@@ -31,6 +31,7 @@ import {
   $createNodeSelection, $setSelection, createCommand,
 } from 'lexical'
 import { $createImageNode, $createVideoNode, VideoNode, $createAudioNode, $createFileNode, $createGalleryNode, $createDividerNode, $createCalloutNode, $createButtonNode, $createLinkGroupNode, $createToggleNode, $createCodeBlockNode, $createHeaderNode, $createYouTubeNode, $createVimeoNode, $createSpotifyNode, generateSafeHtmlFromNodes } from './nodes'
+import { GALLERY_MAX_IMAGES } from '../../../lib/galleryLayout'
 import { handleUploadFull } from './upload'
 import { Tooltip } from '../../ui/Tooltip'
 import { ColorSwatchMenu } from '../../ui/ColorPicker'
@@ -1024,9 +1025,9 @@ export function SlashCommandPlugin() {
         })
       } else if (action === 'gallery') {
         const uploaded = []
-        for (const file of files) {
+        for (const file of files.slice(0, GALLERY_MAX_IMAGES)) {
           const data = await handleUploadFull(file)
-          uploaded.push({ src: `/api/uploads/${data.filename}`, alt: '', srcset: data.srcset || '' })
+          uploaded.push({ src: `/api/uploads/${data.filename}`, alt: '', srcset: data.srcset || '', width: data.width, height: data.height })
         }
         if (uploaded.length) {
           editor.update(() => {

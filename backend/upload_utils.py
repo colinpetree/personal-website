@@ -38,7 +38,7 @@ def thumbnail_variant_filename(filename, uploads_dir, width=400):
 def optimize_image(input_path, uploads_dir, base_name):
     """Convert image to WebP, generate 400/800/1200w variants, and a base64 LQIP.
 
-    Returns (webp_filename, srcset_string, lqip_data_url).
+    Returns (webp_filename, srcset_string, lqip_data_url, width, height).
     """
     from PIL import Image
 
@@ -80,14 +80,15 @@ def optimize_image(input_path, uploads_dir, base_name):
     lqip_img.save(buf, 'JPEG', quality=20)
     lqip = f'data:image/jpeg;base64,{base64.b64encode(buf.getvalue()).decode()}'
 
-    return webp_filename, srcset, lqip
+    return webp_filename, srcset, lqip, img.width, img.height
 
 
 def save_and_optimize_image(file, uploads_dir):
     """Saves an uploaded werkzeug FileStorage image, optimizing it to WebP.
 
-    Returns (filename, srcset, lqip). Raises on unsupported/corrupt images —
-    caller is responsible for catching and returning an error response.
+    Returns (filename, srcset, lqip, width, height). Raises on
+    unsupported/corrupt images — caller is responsible for catching and
+    returning an error response.
     """
     os.makedirs(uploads_dir, exist_ok=True)
     base_name = uuid.uuid4().hex

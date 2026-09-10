@@ -187,7 +187,7 @@ Pi always initiates).
 
 **[Prod]** Initialize the repository:
 ```bash
-sudo bash /opt/personal-website/current/deploy/setup-restic-repo.sh
+sudo bash /opt/personal-website/current/deploy/scripts/setup-restic-repo.sh
 ```
 Copy the `RESTIC_PASSWORD=...` it prints.
 
@@ -221,8 +221,8 @@ sudo -u personalweb chmod 600 ~/.ssh/authorized_keys
 
 **[Prod]** Run the backup once manually and enable the nightly timer:
 ```bash
-sudo bash /opt/personal-website/current/deploy/backup.sh
-restic -r /opt/personal-website/data/restic-repo snapshots   # confirm a snapshot exists
+sudo bash /opt/personal-website/current/deploy/scripts/backup.sh
+sudo bash -c 'set -a; source /opt/personal-website/data/.env; set +a; restic -r /opt/personal-website/data/restic-repo snapshots'   # confirm a snapshot exists
 sudo systemctl enable --now personal-website-backup.timer
 ```
 
@@ -230,7 +230,7 @@ sudo systemctl enable --now personal-website-backup.timer
 ```bash
 cd ~/src/personal-website
 bash deploy/scripts/backup-pull.sh
-restic -r ~/personal-website-backups snapshots   # should show today's snapshot
+bash -c 'set -a; source ~/.personal-website-build.env; set +a; restic -r ~/personal-website-backups snapshots'   # should show today's snapshot
 ```
 
 Full restore instructions (only needed in an actual disaster) are in

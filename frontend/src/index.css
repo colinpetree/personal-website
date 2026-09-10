@@ -292,24 +292,49 @@ html {
   background-color: #f3f4f6;
 }
 
-.blog-content figure.gallery img {
-  aspect-ratio: 4 / 3;
-  width: 100%;
-  height: auto;
-  object-fit: cover;
-  background-color: #f3f4f6;
-}
-
 .blog-content figure.gallery {
-  margin: 1.5rem 0;
-  width: min(1040px, calc(100vw - 2rem));
+  width: min(1040px, 100vw);
   position: relative;
   left: 50%;
   transform: translateX(-50%);
+  margin: 1.5rem 0;
 }
 
-.blog-content figure.gallery img {
-  cursor: zoom-in;
+.blog-content figure.gallery .gallery-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.blog-content figure.gallery .gallery-row {
+  display: flex;
+  gap: 16px;
+}
+
+.blog-content figure.gallery .gallery-row img {
+  min-width: 0;
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+  display: block;
+  background-color: #f3f4f6;
+  cursor: pointer;
+}
+
+/* Single-image galleries: true aspect ratio always, capped height, centered
+   (letterboxed) instead of cropped/stretched — matches Ghost CMS at every
+   breakpoint, mobile included. */
+.blog-content figure.gallery .gallery-row--single {
+  justify-content: center;
+  background-color: #f3f4f6;
+}
+
+.blog-content figure.gallery .gallery-row--single img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 600px;
+  object-fit: contain;
 }
 
 .blog-content figcaption {

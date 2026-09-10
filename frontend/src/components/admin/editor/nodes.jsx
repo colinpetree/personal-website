@@ -12,7 +12,8 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { TableNode, TableCellNode } from '@lexical/table'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, Maximize2, Columns2, RectangleVertical, RectangleHorizontal, StretchHorizontal, Fullscreen, Link, Link2, Link2Off, X, Music, FileText, Plus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, GripVertical } from 'lucide-react'
+import { AlignLeft, AlignCenter, Maximize2, Columns2, RectangleVertical, RectangleHorizontal, StretchHorizontal, Fullscreen, Link, Link2, Link2Off, X, Music, FileText, Plus, ImagePlus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, GripVertical } from 'lucide-react'
+import { GALLERY_MAX_IMAGES, groupImagesIntoRows, computeRowAspectRatio, aspectRatioOf } from '../../../lib/galleryLayout'
 import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
 
 function resolveTextColor(mode, bgHex) {
@@ -1402,8 +1403,12 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  const [toolbarPos, setToolbarPos] = useState(null)
   const containerRef = useRef(null)
   const addFileRef = useRef(null)
+  const isMountedRef = useRef(true)
+  const probeStateRef = useRef(new Map()) // src -> { attempts, inFlight, timer }
+  const probeImageRef = useRef(null)
 
   const showRing = isSelected || captionFocused
 
@@ -1442,6 +1447,99 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
     )
   }, [isSelected, editor, nodeKey])
 
+  // Position the floating toolbar above the gallery, same pattern as
+  // ImageNodeComponent/VideoNodeComponent.
+  useLayoutEffect(() => {
+    if (!isSelected || !containerRef.current) { setToolbarPos(null); return }
+    function calc() {
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const W = 40
+      const H = 40
+      let left = rect.left + window.scrollX + rect.width / 2 - W / 2
+      left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - W - 8))
+      let top = rect.top + window.scrollY - H - 8
+      if (top < window.scrollY + 8) top = rect.bottom + window.scrollY + 8
+      setToolbarPos({ top, left })
+    }
+    calc()
+    window.addEventListener('scroll', calc, true)
+    window.addEventListener('resize', calc)
+    return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
+  }, [isSelected])
+
+  // Self-heal old/missing per-image dimensions by measuring them client-side
+  // — so simply opening a pre-redesign gallery in the editor backfills real
+  // aspect ratios, and the next save bakes them into exportDOM.
+  //
+  // This is deliberately NOT driven by React's render/effect cycle beyond
+  // kicking a probe chain off once per src — GalleryNode.clone() deep-clones
+  // every image object on ANY node mutation (e.g. typing in the caption
+  // field), so `images` gets a new identity on every keystroke even when the
+  // images themselves haven't changed. Tying retries or completion-handling
+  // to effect re-runs (as earlier versions of this did) means an unrelated
+  // keystroke can supersede an in-flight probe's own effect instance, and a
+  // stale-closure `cancelled` check would then discard the result even on
+  // SUCCESS, with no way to retry a "succeeded but discarded" outcome.
+  //
+  // Instead: probeImageRef holds a self-recursing prober per src, tracked in
+  // probeStateRef (attempts/inFlight/timer) entirely independent of re-
+  // renders — it schedules its own retries via setTimeout and applies a
+  // successful result directly, gated only by isMountedRef (true unmount,
+  // set once below), never by anything that fires on a merely-superseded
+  // render. The effect below only ever starts this chain once per src.
+  probeImageRef.current = function probeImage(src) {
+    const state = probeStateRef.current
+    const entry = state.get(src) || { attempts: 0, inFlight: false, timer: null }
+    if (entry.inFlight || entry.attempts >= 3) return
+    entry.attempts += 1
+    entry.inFlight = true
+    state.set(src, entry)
+    const probe = new Image()
+    probe.onload = () => {
+      entry.inFlight = false
+      if (!isMountedRef.current) return
+      const width = probe.naturalWidth
+      const height = probe.naturalHeight
+      editor.update(() => {
+        const node = $getNodeByKey(nodeKey)
+        if (!(node instanceof GalleryNode)) return
+        const w = node.getWritable()
+        // Look up the target fresh by src (never by a captured index) so a
+        // delete/reorder that happened while this probe was in flight can't
+        // write dimensions onto the wrong image.
+        const idx = w.__images.findIndex(im => im.src === src && (!im.width || !im.height))
+        if (idx === -1) return
+        w.__images = w.__images.map((im, j) => (j === idx ? { ...im, width, height } : im))
+      })
+    }
+    probe.onerror = () => {
+      entry.inFlight = false
+      if (!isMountedRef.current) return
+      if (entry.attempts < 3) {
+        entry.timer = setTimeout(() => {
+          if (isMountedRef.current) probeImageRef.current(src)
+        }, 2000)
+      }
+    }
+    probe.src = src
+  }
+
+  useEffect(() => {
+    images.forEach(img => {
+      if (img.width && img.height) return
+      if (probeStateRef.current.has(img.src)) return // already tracked — in flight, mid-retry, or exhausted
+      probeImageRef.current(img.src)
+    })
+  }, [images])
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false
+      probeStateRef.current.forEach(entry => { if (entry.timer) clearTimeout(entry.timer) })
+    }
+  }, [])
+
   function removeImage(index) {
     editor.update(() => {
       const node = $getNodeByKey(nodeKey)
@@ -1461,14 +1559,14 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
   }
 
   async function handleAddImages(e) {
-    const remaining = 9 - images.length
+    const remaining = GALLERY_MAX_IMAGES - images.length
     const files = [...(e.target.files || [])].slice(0, remaining)
     e.target.value = ''
     if (!files.length) return
     for (const file of files) {
       try {
         const data = await handleUploadFull(file)
-        const newImg = { src: `/api/uploads/${data.filename}`, alt: '', srcset: data.srcset || '' }
+        const newImg = { src: `/api/uploads/${data.filename}`, alt: '', srcset: data.srcset || '', width: data.width, height: data.height }
         editor.update(() => {
           const node = $getNodeByKey(nodeKey)
           if (node instanceof GalleryNode) {
@@ -1482,35 +1580,86 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
     }
   }
 
+  const rows = groupImagesIntoRows(images)
+  let flatIndex = 0
+
   return (
     <div
       ref={containerRef}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className={`my-6 rounded-lg overflow-hidden transition-all ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+      className={`my-6 mx-auto overflow-hidden transition-all ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+      style={{ maxWidth: '1040px' }}
     >
-      <div className="grid grid-cols-3 gap-1">
-        {images.map((img, i) => (
-          <div key={i} className="relative aspect-square overflow-hidden bg-gray-100 group">
-            <img src={img.src} alt={img.alt} className="w-full h-full object-cover" draggable={false} />
-            <button
-              onMouseDown={e => { e.preventDefault(); removeImage(i) }}
-              className="absolute top-1 right-1 w-5 h-5 bg-gray-900/70 rounded-full text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-            >
-              <X size={10} />
-            </button>
-          </div>
-        ))}
-        {images.length < 9 && (
-          <button
-            onMouseDown={e => { e.preventDefault(); addFileRef.current?.click() }}
-            className="aspect-square flex flex-col items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-400 hover:text-gray-500 transition-colors"
-          >
-            <Plus size={20} />
-            <span className="text-xs mt-1">Add image</span>
-          </button>
-        )}
-      </div>
+      {images.length === 0 ? (
+        <button
+          onMouseDown={e => { e.preventDefault(); addFileRef.current?.click() }}
+          className="w-full border-2 border-dashed border-gray-200 py-10 flex flex-col items-center justify-center text-gray-400 hover:text-gray-500 hover:border-gray-300 transition-colors"
+        >
+          <ImagePlus size={20} />
+          <span className="text-xs mt-1">Add images</span>
+        </button>
+      ) : (
+        <div className="flex flex-col gap-4">
+          {rows.map((row, rowIdx) => {
+            if (row.length === 1) {
+              const img = row[0]
+              const idx = flatIndex++
+              return (
+                <div key={rowIdx} className="flex justify-center bg-gray-100">
+                  <div className="relative group/img">
+                    <img
+                      src={img.src}
+                      alt={img.alt}
+                      className="max-w-full block"
+                      style={{ maxHeight: '600px', width: 'auto', height: 'auto', objectFit: 'contain', margin: 0 }}
+                      draggable={false}
+                    />
+                    <div className="absolute top-1.5 right-1.5 opacity-0 group-hover/img:opacity-100 transition-opacity">
+                      <Tooltip content="Delete">
+                        <button
+                          onMouseDown={e => { e.preventDefault(); removeImage(idx) }}
+                          className="p-1.5 rounded-md bg-white/90 hover:bg-white text-gray-500 hover:text-red-500 shadow-sm transition-colors"
+                        >
+                          <Trash2 size={14} strokeWidth={2} />
+                        </button>
+                      </Tooltip>
+                    </div>
+                  </div>
+                </div>
+              )
+            }
+            const rowAr = computeRowAspectRatio(row)
+            return (
+              <div key={rowIdx} className="flex gap-4" style={{ aspectRatio: `${rowAr}` }}>
+                {row.map(img => {
+                  const idx = flatIndex++
+                  const ar = aspectRatioOf(img)
+                  return (
+                    <div
+                      key={idx}
+                      className="relative overflow-hidden bg-gray-100 group/img"
+                      style={{ flex: `${ar} 1 0`, minWidth: 0 }}
+                    >
+                      <img src={img.src} alt={img.alt} className="w-full h-full object-cover block" style={{ margin: 0 }} draggable={false} />
+                      <div className="absolute top-1.5 right-1.5 opacity-0 group-hover/img:opacity-100 transition-opacity">
+                        <Tooltip content="Delete">
+                          <button
+                            onMouseDown={e => { e.preventDefault(); removeImage(idx) }}
+                            className="p-1.5 rounded-md bg-white/90 hover:bg-white text-gray-500 hover:text-red-500 shadow-sm transition-colors"
+                          >
+                            <Trash2 size={14} strokeWidth={2} />
+                          </button>
+                        </Tooltip>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
+      )}
       <input ref={addFileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleAddImages} />
       <input
         type="text"
@@ -1522,6 +1671,27 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
         placeholder="Type caption for gallery (optional)"
         className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
       />
+
+      {isSelected && toolbarPos && createPortal(
+        <div
+          style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999 }}
+          className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl px-1.5 py-1 shadow-2xl"
+          onMouseDown={e => e.preventDefault()}
+        >
+          <Tooltip content="Add images">
+            <button
+              disabled={images.length >= GALLERY_MAX_IMAGES}
+              onMouseDown={e => { e.preventDefault(); if (images.length < GALLERY_MAX_IMAGES) addFileRef.current?.click() }}
+              className={`p-1.5 rounded-md transition-colors ${
+                images.length >= GALLERY_MAX_IMAGES ? 'text-gray-300 cursor-not-allowed' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              <ImagePlus size={14} strokeWidth={2} />
+            </button>
+          </Tooltip>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
@@ -1535,7 +1705,7 @@ export class GalleryNode extends DecoratorNode {
   }
 
   static importJSON(data) {
-    return new GalleryNode(data.images || [], data.caption || '')
+    return new GalleryNode((data.images || []).slice(0, GALLERY_MAX_IMAGES), data.caption || '')
   }
   exportJSON() {
     return { type: 'gallery', version: 1, images: this.__images, caption: this.__caption }
@@ -1547,11 +1717,13 @@ export class GalleryNode extends DecoratorNode {
         if (!domNode.classList?.contains('gallery')) return null
         return {
           conversion: (domNode) => {
-            const imgs = [...domNode.querySelectorAll('img')]
+            const imgs = [...domNode.querySelectorAll('img')].slice(0, GALLERY_MAX_IMAGES)
             const images = imgs.map(img => ({
               src: img.getAttribute('src') || '',
               alt: img.getAttribute('alt') || '',
               srcset: img.getAttribute('srcset') || '',
+              width: parseInt(img.getAttribute('data-w') || '0', 10) || undefined,
+              height: parseInt(img.getAttribute('data-h') || '0', 10) || undefined,
             }))
             const caption = domNode.querySelector('figcaption')?.textContent?.trim() || ''
             return { node: new GalleryNode(images, caption) }
@@ -1580,24 +1752,36 @@ export class GalleryNode extends DecoratorNode {
     if (!this.__images.length) return { element: null }
     const figure = document.createElement('figure')
     figure.className = 'gallery'
-    figure.style.cssText = 'margin:1.5rem 0'
+    figure.style.cssText = 'width:min(1040px,100vw);position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0'
+
     const grid = document.createElement('div')
     grid.className = 'gallery-grid'
-    grid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:4px;border-radius:0.5rem;overflow:hidden'
-    for (const img of this.__images) {
-      const wrapper = document.createElement('div')
-      wrapper.style.cssText = 'aspect-ratio:1;overflow:hidden;background:#f3f4f6'
-      const imgEl = document.createElement('img')
-      imgEl.setAttribute('src', img.src)
-      imgEl.setAttribute('alt', img.alt || '')
-      if (img.srcset) {
-        imgEl.setAttribute('srcset', img.srcset)
-        imgEl.setAttribute('sizes', '400px')
+
+    const rows = groupImagesIntoRows(this.__images)
+    for (const row of rows) {
+      const rowEl = document.createElement('div')
+      rowEl.className = row.length === 1 ? 'gallery-row gallery-row--single' : 'gallery-row'
+      if (row.length > 1) {
+        rowEl.style.cssText = `aspect-ratio:${computeRowAspectRatio(row)}`
       }
-      imgEl.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block'
-      wrapper.appendChild(imgEl)
-      grid.appendChild(wrapper)
+      for (const img of row) {
+        const imgEl = document.createElement('img')
+        imgEl.setAttribute('src', img.src)
+        imgEl.setAttribute('alt', img.alt || '')
+        if (img.width) imgEl.setAttribute('data-w', String(img.width))
+        if (img.height) imgEl.setAttribute('data-h', String(img.height))
+        if (img.srcset) {
+          imgEl.setAttribute('srcset', img.srcset)
+          imgEl.setAttribute('sizes', '(max-width: 1040px) 100vw, 1040px')
+        }
+        if (row.length > 1) {
+          imgEl.style.cssText = `flex:${aspectRatioOf(img)} 1 0`
+        }
+        rowEl.appendChild(imgEl)
+      }
+      grid.appendChild(rowEl)
     }
+
     figure.appendChild(grid)
     if (this.__caption) {
       const figcaption = document.createElement('figcaption')

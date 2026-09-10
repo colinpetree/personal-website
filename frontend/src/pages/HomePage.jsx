@@ -5,6 +5,7 @@ import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage } from '../utils/meta'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
+import GalleryLightboxController from '../components/GalleryLightboxController'
 import HeaderImageLqip from '../components/HeaderImageLqip'
 import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 
@@ -60,6 +61,7 @@ export default function HomePage() {
         <ScrollableHeaderNav containerRef={contentRef} contentKey={config.home_text} />
       )}
       <CodeBlockCopyToast containerRef={contentRef} contentKey={config.home_text} />
+      <GalleryLightboxController containerRef={contentRef} contentKey={config.home_text} />
       <HeaderImageLqip containerRef={contentRef} contentKey={config.home_text} />
       <FullscreenHeaderNav containerRef={contentRef} contentKey={config.home_text} />
     </main>

@@ -264,7 +264,7 @@ def upload_file():
 
     if ext in IMAGE_OPTIMIZE_EXTENSIONS:
         try:
-            filename, srcset, lqip = save_and_optimize_image(file, uploads_dir)
+            filename, srcset, lqip, width, height = save_and_optimize_image(file, uploads_dir)
         except Exception:
             return jsonify({'error': 'Could not process image. The file may be corrupted or unsupported.'}), 400
         return jsonify({
@@ -274,6 +274,8 @@ def upload_file():
             'size': os.path.getsize(os.path.join(uploads_dir, filename)),
             'srcset': srcset,
             'lqip': lqip,
+            'width': width,
+            'height': height,
         })
 
     filename = f'{base_name}.{ext}'
