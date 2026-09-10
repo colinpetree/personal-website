@@ -40,4 +40,5 @@ backend/.build-venv-windows-test/
 SECURITY_QA_CHECKLIST.md
 .claude/skills/production-deploy-testing/
 .claude/skills/auto-publish-system/
+.claude/skills/testing-credentials/
 notes/
