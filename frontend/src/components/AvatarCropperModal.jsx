@@ -10,7 +10,11 @@ import { getCroppedImageBlob } from '../utils/cropImage'
 // different overlay mask and no upload-blob squashing surprise from
 // react-easy-crop's cropShape="round" (that prop only changes the preview
 // mask, not the actual cropped rectangle — see getCroppedImageBlob).
-export default function AvatarCropperModal({ imageSrc, onCancel, onCropped, cropShape = 'round', title = 'Adjust your photo', aspect = 1 }) {
+// outputWidth defaults to the 512px that's plenty for a small square
+// avatar/icon; wider, non-square crops (e.g. project cards, which can
+// render close to full container width) should pass a larger value so the
+// generated image isn't upscaled to fill its display size.
+export default function AvatarCropperModal({ imageSrc, onCancel, onCropped, cropShape = 'round', title = 'Adjust your photo', aspect = 1, outputWidth = 512 }) {
   const [crop, setCrop] = useState({ x: 0, y: 0 })
   const [zoom, setZoom] = useState(1)
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null)
@@ -26,7 +30,7 @@ export default function AvatarCropperModal({ imageSrc, onCancel, onCropped, crop
     setSaving(true)
     setError('')
     try {
-      const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels, 512, Math.round(512 / aspect))
+      const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels, outputWidth, Math.round(outputWidth / aspect))
       onCropped(blob)
     } catch (err) {
       setError(err.message || 'Failed to crop image')

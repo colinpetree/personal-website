@@ -8,6 +8,7 @@ from routes.admin_auth import admin_required, role_at_least
 from varnish_purge import ban_pattern
 from sanitize_html import sanitize_content_html
 from thumbnail_utils import derive_list_thumbnail
+from upload_utils import get_uploads_dir, thumbnail_variant_filename
 
 
 def _log(area, action_type, subject, subject_is_bold=False):
@@ -156,7 +157,7 @@ def update_post(post_id):
             return jsonify({'error': 'A post with this slug already exists.'}), 400
         post.slug = new_slug
 
-    for field in ('content_html', 'excerpt', 'meta_description', 'scrollable_nav_enabled', 'font_family', 'thumbnail_filename', 'thumbnail_caption', 'thumbnail_width', 'thumbnail_height', 'list_thumbnail_filename', 'list_thumbnail_auto'):
+    for field in ('content_html', 'excerpt', 'meta_description', 'scrollable_nav_enabled', 'font_family', 'thumbnail_filename', 'thumbnail_caption', 'thumbnail_width', 'thumbnail_height', 'list_thumbnail_auto'):
         if field in data:
             value = data[field]
             # Contributors are the lowest-trust writable role — sanitize their
@@ -169,6 +170,13 @@ def update_post(post_id):
                 except ValueError:
                     return jsonify({'error': 'Invalid content_html'}), 400
             setattr(post, field, value)
+
+    # list_thumbnail_filename only ever renders small (list/nav), so a
+    # manually-picked value is converted to its pre-generated 400w variant
+    # here rather than stored as the full-size filename the picker sends.
+    if 'list_thumbnail_filename' in data:
+        raw = data['list_thumbnail_filename']
+        post.list_thumbnail_filename = thumbnail_variant_filename(raw, get_uploads_dir()) if raw else None
 
     if 'category_id' in data:
         category_id = data['category_id']
@@ -211,7 +219,7 @@ def update_post(post_id):
             fingerprint_config.updated_at = datetime.utcnow()
 
     if post.list_thumbnail_auto:
-        post.list_thumbnail_filename = derive_list_thumbnail(post.thumbnail_filename, post.content_html)
+        post.list_thumbnail_filename = derive_list_thumbnail(post.thumbnail_filename, post.content_html, get_uploads_dir())
 
     _log('Post', 'edited', post.title, subject_is_bold=True)
     db.session.commit()

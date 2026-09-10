@@ -4,6 +4,7 @@ from extensions import db
 from models import Project, SiteConfig
 from routes.admin_auth import admin_required, role_at_least
 from varnish_purge import ban_pattern
+from upload_utils import get_uploads_dir, thumbnail_variant_filename
 
 admin_projects_bp = Blueprint('admin_projects', __name__)
 
@@ -41,7 +42,7 @@ def create_project():
         title=title,
         description=data.get('description') or None,
         url=data.get('url') or None,
-        image_filename=data.get('image_filename') or None,
+        image_filename=thumbnail_variant_filename(data.get('image_filename'), get_uploads_dir()) if data.get('image_filename') else None,
         order=max_order + 1,
         visible=data.get('visible', True),
     )
@@ -57,9 +58,16 @@ def update_project(project_id):
     project = Project.query.get_or_404(project_id)
     data = request.get_json(silent=True) or {}
 
-    for field in ('title', 'description', 'url', 'image_filename', 'order', 'visible'):
+    for field in ('title', 'description', 'url', 'order', 'visible'):
         if field in data:
             setattr(project, field, data[field] or None if field not in ('order', 'visible') else data[field])
+
+    # image_filename only ever renders small (admin list icon, edit preview,
+    # public card), so it's converted to its pre-generated 400w variant here
+    # rather than stored as the full-size filename the uploader sends.
+    if 'image_filename' in data:
+        raw = data['image_filename']
+        project.image_filename = thumbnail_variant_filename(raw, get_uploads_dir()) if raw else None
 
     if 'title' in data and not (data.get('title') or '').strip():
         return jsonify({'error': 'Title is required'}), 400
