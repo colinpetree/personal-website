@@ -2,34 +2,117 @@
 
 ## Backups
 
-`deploy/scripts/backup.sh` runs nightly (03:00 UTC, `personal-website-backup.timer`) as the `personalweb` user:
+Backups are **pulled by the Pi**, not pushed by production — production has
+no stable route to reach the Pi (no port-forwarding, a rotating public IP on
+university WiFi), whereas production itself has a stable domain and SSH
+already open. So production only ever produces backups locally; the Pi
+initiates the connection to go get them, on its own schedule.
 
-1. `pg_dump --format=custom` the database (from `DATABASE_URL` in `$DATA_DIR/.env`), gzipped, to `$DATA_DIR/backups/pg/`.
-2. `tar czf` the entire `$DATA_DIR` (uploads, `.env`, `certbot_domain.txt`, etc. — everything needed to actually restore a working site, not just the DB) to `$DATA_DIR/backups/data/`.
-3. Prunes local copies older than `BACKUP_RETENTION_DAYS` (default 14).
-4. `rsync`s the whole `backups/` directory to the Pi build box over SSH (key-based, set up once via `setup-backup-ssh.sh`).
+The mechanism is [restic](https://restic.net) (a deduplicating,
+content-addressed backup tool — conceptually like git's object store:
+unchanged content across snapshots is never stored twice, but every
+snapshot is still a full, independent point-in-time restore target). This
+matters a lot in practice: the previous design did a fresh full `tar` of the
+entire uploads directory every night and kept `BACKUP_RETENTION_DAYS` of
+them side by side — at ~10GB of uploads and 14 days retention that's
+~140GB, which doesn't fit on either box (`test633.org` has a 16GB disk; the
+Pi has a 50GB SD card). restic's dedup means 14 days of retention on a
+mostly-static media library costs close to 1x its size, not 14x.
 
-Silent on success. On any failure (bad `DATABASE_URL`, `pg_dump`/`tar` error, SSH/rsync failure, or missing config), it emails the site's configured `forward_email` via the existing watcher-alert path (`source=backup`) — same mechanism already used for gh-outage and deploy-report emails, see `backend/watcher_alerts.py`.
+**Production** (`deploy/scripts/backup.sh`, runs nightly at 03:00 UTC via
+`personal-website-backup.timer`, as the `personalweb` user):
+
+1. `pg_dump --format=custom` the database (from `DATABASE_URL` in
+   `$DATA_DIR/.env`), gzipped, to a single rotating file at
+   `$DATA_DIR/backups/pg/personal_website.sql.gz` (not date-stamped — restic's
+   own snapshot history is what provides point-in-time retention now).
+2. `restic backup` that dump file plus `$DATA_DIR/uploads`, `.env`, and
+   `certbot_domain.txt` into the local repository at
+   `$DATA_DIR/restic-repo`.
+3. `restic forget --keep-daily $BACKUP_RETENTION_DAYS --prune` (default 14)
+   to expire old snapshots and reclaim their now-unreferenced chunks.
+
+Silent on success. On any failure (bad `DATABASE_URL`, missing
+`RESTIC_PASSWORD`, `pg_dump`/`restic` error), it emails the site's
+configured `forward_email` via the existing watcher-alert path
+(`source=backup`) — same mechanism already used for gh-outage and
+deploy-report emails, see `backend/watcher_alerts.py`.
+
+**Pi** (`deploy/scripts/backup-pull.sh`, runs nightly at 05:30 UTC — after
+production's true worst-case completion time (its systemd unit's own
+`TimeoutStartSec=7200` ceiling, not just the sum of the script's individual
+step timeouts) — via the systemd `--user` timer
+`personal-website-backup-pull.timer`):
+
+1. `rsync`s `$DATA_DIR/restic-repo/` from production down to a local mirror
+   directory, using a dedicated, read-only-restricted SSH key (see setup
+   below). Since restic repo files are immutable and content-addressed, this
+   rsync is itself incremental — only genuinely new/changed chunks transfer
+   each night.
+2. Runs `restic snapshots --last` against the freshly-pulled local copy to
+   confirm today's snapshot is actually present — a real content check, not
+   just "the file transfer's exit code was 0."
+
+Also silent on success. On either the rsync or the snapshot check failing,
+it POSTs an alert directly to production's `/api/watcher-alert` route
+(the Pi has no local Mailgun credentials of its own) — the same
+pre-shared-secret HTTP mechanism `content-watch.sh` already uses for its own
+gh-outage alerts, source `backup`.
+
+Both failure paths funnel into the same alert `source=backup`, since
+they're one subsystem from the recipient's point of view — the alert
+message text says which stage (production's dump, or the Pi's pull) failed.
 
 ### One-time setup
 
-1. `sudo bash deploy/scripts/setup-backup-ssh.sh` on the production server — generates an SSH keypair under `$DATA_DIR/.ssh/` and prints the public key.
-2. Add that public key to the Pi's `~/.ssh/authorized_keys` (ideally restricted to `rsync --server` only, per the script's printed instructions).
-3. Set `BACKUP_REMOTE_HOST` / `BACKUP_REMOTE_USER` / `BACKUP_REMOTE_PATH` in `$DATA_DIR/.env`.
-4. Test manually as `personalweb`: `sudo -u personalweb bash /opt/personal-website/current/deploy/backup.sh` and confirm files land on the Pi.
-5. `sudo systemctl enable --now personal-website-backup.timer`.
+1. On **production**: `sudo bash deploy/scripts/setup-restic-repo.sh` —
+   generates `RESTIC_PASSWORD`, appends it to `$DATA_DIR/.env`, and runs
+   `restic init` on `$DATA_DIR/restic-repo`. Prints the password back out —
+   you'll need it again in step 2.
+2. On the **Pi**: `bash deploy/scripts/setup-backup-pull-pi.sh` — generates a
+   fresh, dedicated SSH keypair (never reuse an admin/deploy key for this —
+   an unattended job on a less-trusted network device should hold nothing
+   more powerful than "read this one directory"), prompts for the
+   `RESTIC_PASSWORD` from step 1, writes the pull config into
+   `~/.personal-website-build.env`, and installs + enables
+   `personal-website-backup-pull.timer`. Prints an `authorized_keys` line to
+   paste onto production.
+3. On **production**: paste that printed line into `personalweb`'s
+   `~/.ssh/authorized_keys` (create the file / fix permissions to `600` if
+   it doesn't already exist). The line's `command="rsync --server --sender
+   ..."` restriction means this key can only ever *read* the repo directory
+   — it cannot write to production even if the Pi were compromised and the
+   key leaked.
+4. Test the pull manually from the Pi:
+   `bash deploy/scripts/backup-pull.sh` (or, once installed,
+   `systemctl --user start personal-website-backup-pull`) and confirm
+   `restic -r <local mirror dir> snapshots` shows today's snapshot.
+5. On **production**: `sudo systemctl enable --now personal-website-backup.timer`.
 
 ### Restoring from a backup
 
 Deliberately manual, not scripted — a restore is rare and destructive enough that it should always be a deliberate, supervised action.
 
 ```bash
-# Database (drop-and-recreate the schema first if restoring onto an existing DB):
-gunzip -c personal_website-<date>.sql.gz | pg_restore --clean --if-exists -d "$DATABASE_URL"
+# Restore the latest snapshot's files (run against either production's own
+# repo, or the Pi's mirrored copy if production itself is lost):
+restic -r <repo-path> restore latest --target /tmp/restore
 
-# App data directory (uploads, .env, certbot_domain.txt, etc.):
-tar xzf data-<date>.tar.gz -C /opt/personal-website/data
+# Database (drop-and-recreate the schema first if restoring onto an existing DB):
+gunzip -c /tmp/restore/opt/personal-website/data/backups/pg/personal_website.sql.gz \
+    | pg_restore --clean --if-exists -d "$DATABASE_URL"
+
+# App data directory (uploads, .env, certbot_domain.txt, etc.) — copy the
+# restored files back into place:
+cp -r /tmp/restore/opt/personal-website/data/uploads /opt/personal-website/data/
+cp /tmp/restore/opt/personal-website/data/.env /opt/personal-website/data/.env
+cp /tmp/restore/opt/personal-website/data/certbot_domain.txt /opt/personal-website/data/
 ```
+
+`restic restore` needs `RESTIC_PASSWORD` set in its environment (or pass
+`--password-file`) — it's in production's `$DATA_DIR/.env`, and was also
+copied into the Pi's `~/.personal-website-build.env` during setup so a
+restore is possible even if production itself is gone.
 
 After restoring `.env`, restart the service: `sudo systemctl restart personal-website`.
 
@@ -55,7 +138,7 @@ Note: if `journalctl -u personal-website` returns nothing in a crash-loop alert 
 
 ## Orphan media cleanup
 
-Deleting a blog post/project, or editing one to remove an image, never deletes the underlying uploaded file — nothing in this codebase does that on its own, so `backend/uploads` grows unbounded forever otherwise. `deploy/scripts/media-cleanup.sh` runs daily at 04:00 UTC (`personal-website-media-cleanup.timer`, one hour after the backup timer — so each day's backup always captures the uploads directory before that day's cleanup runs) and reclaims that space safely.
+Deleting a blog post/project, or editing one to remove an image, never deletes the underlying uploaded file — nothing in this codebase does that on its own, so `backend/uploads` grows unbounded forever otherwise. `deploy/scripts/media-cleanup.sh` runs daily at 05:00 UTC (`personal-website-media-cleanup.timer`, after the backup timer — so each day's backup always captures the uploads directory before that day's cleanup runs) and reclaims that space safely. That margin is sized against `backup.sh`'s actual worst case (pg_dump, restic backup, and restic forget/prune each carry their own 1800s timeout, on top of `backup.timer`'s own randomized delay — ~04:40 UTC absolute latest), not a round-number guess — see the timer file's own comment.
 
 **How it decides what's safe to delete**: every run rescans, from scratch, every place an uploaded filename can be referenced — `SiteConfig.favicon_filename`, `AdminAccount`/`User`/`SiteEventLog` avatar fields, `Project.image_filename`, `BlogPost.thumbnail_filename`, and the actual HTML of `BlogPost.content_html` **and** all seven `SiteConfig.*_text` page-content fields (every image/video/audio/file/gallery/header-background reference the Lexical editor can produce). Every `BlogPost` is scanned regardless of `status` — a draft's media is exactly as real a reference as a published post's. Any referenced `{base}.webp` also protects its `_400w`/`_800w`/`_1200w` responsive variants, since several upload paths (avatars, thumbnails, project images, favicons) never literally reference those variants anywhere even though they exist on disk. `favicon.ico` is always exempt by name.
 

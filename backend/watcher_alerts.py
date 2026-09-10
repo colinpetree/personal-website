@@ -14,9 +14,12 @@ _SOURCE_INFO = {
     'production': ('gh/GitHub unreachable for 48h+',
                    'Check `gh auth status` on production and re-authenticate if the token expired or was revoked.'),
     'backup': ('nightly backup failed',
-               'Check `journalctl -u personal-website-backup` on the server for the exact step that failed '
-               '(pg_dump, tar, or rsync), and confirm DATABASE_URL, BACKUP_REMOTE_*, and the backup SSH key '
-               '(see deploy/scripts/setup-backup-ssh.sh) are all still valid.'),
+               'This can come from either half of the backup pipeline: production '
+               '(`journalctl -u personal-website-backup` — pg_dump, restic backup, or restic forget/prune '
+               'failing; confirm DATABASE_URL and RESTIC_PASSWORD in .env, see deploy/scripts/setup-restic-repo.sh) '
+               'or the Pi (`journalctl --user -u personal-website-backup-pull` — the rsync pull or its post-pull '
+               '`restic snapshots` check failing; confirm the Pi\'s backup-pull SSH key is still valid, see '
+               'deploy/scripts/setup-backup-pull-pi.sh). The message above should say which.'),
     'crash-loop': ('personal-website.service is down',
                    'Check `systemctl status personal-website` and `journalctl -u personal-website -n 100` on '
                    'the server for the underlying crash reason — a recent log tail is usually included below.'),

@@ -2,10 +2,15 @@
 Description=Run personal-website-media-cleanup daily
 
 [Timer]
-# One hour after personal-website-backup.timer's 03:00 — so each day's
-# backup always captures the uploads directory before that day's cleanup
-# runs (see deploy/BACKUP.md's safety-net reasoning).
-OnCalendar=*-*-* 04:00:00
+# After personal-website-backup.timer's 03:00 — so each day's backup always
+# captures the uploads directory before that day's cleanup runs (see
+# deploy/BACKUP.md's safety-net reasoning). Margin sized against backup.sh's
+# actual worst case, not a round-number guess: 03:00 + up to 600s
+# (backup.timer's own RandomizedDelaySec) + pg_dump's 1800s timeout +
+# restic backup's 1800s timeout + restic forget/prune's 1800s timeout =
+# 03:00 + 6000s ≈ 04:40 UTC absolute latest. 05:00 (+ up to 600s here)
+# leaves real margin past that.
+OnCalendar=*-*-* 05:00:00
 RandomizedDelaySec=600
 Persistent=true
 

@@ -40,8 +40,14 @@ ENABLE_AI_DEMOS_DEFAULT=true
 [ "$NO_AI" = true ] && ENABLE_AI_DEMOS_DEFAULT=false
 
 echo "==> 1. System user"
+# --shell /bin/bash (not adduser --system's default of a login-disabled
+# shell) is load-bearing: the Pi's backup-pull key authenticates as this
+# user with a forced `command=` in authorized_keys, and OpenSSH invokes a
+# forced command through the account's configured login shell regardless of
+# what the client asked to run — a nologin shell silently rejects even a
+# restricted forced command, not just an interactive login.
 if ! id personalweb >/dev/null 2>&1; then
-    adduser --system --group personalweb
+    adduser --system --shell /bin/bash --group personalweb
 else
     echo "    personalweb already exists, skipping"
 fi
@@ -93,7 +99,7 @@ echo "==> 3. Installing packages"
 add-apt-repository universe -y
 apt update
 apt install -y postgresql nginx varnish certbot python3-certbot-nginx \
-    libnginx-mod-http-brotli-filter libnginx-mod-http-brotli-static ufw gh ffmpeg
+    libnginx-mod-http-brotli-filter libnginx-mod-http-brotli-static ufw gh ffmpeg restic
 
 echo "==> 4. Configuring firewall (ufw)"
 ufw default deny incoming

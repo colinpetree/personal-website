@@ -1,0 +1,22 @@
+[Unit]
+Description=Run personal-website-backup-pull daily
+
+[Timer]
+# Explicit UTC (not left to the Pi's local timezone) so this stays
+# comfortably after production's 03:00 UTC backup timer's true worst case,
+# regardless of what timezone the Pi itself is set to. That worst case is
+# the production service's own TimeoutStartSec=7200 ceiling (see
+# personal-website-backup.service) — pg_dump and restic backup each carry
+# independent 1800s timeouts and restic forget/prune has no timeout of its
+# own, so the only real bound is systemd killing the whole unit 7200s after
+# it starts. Worst-case start is 03:00 + up to 600s (backup.timer's own
+# RandomizedDelaySec) = 03:10, so the absolute latest production could still
+# be writing to the repo is ~05:10 UTC. 05:30 leaves real margin past that,
+# rather than the ~1h40m of margin a naive "03:00 + ~50min" estimate would
+# have implied.
+OnCalendar=*-*-* 05:30:00 UTC
+RandomizedDelaySec=300
+Persistent=true
+
+[Install]
+WantedBy=timers.target

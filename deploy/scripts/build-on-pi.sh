@@ -202,7 +202,7 @@ cp "$REPO_DIR/deploy/scripts/install.sh" "$RELEASE_DIR/deploy/"
 cp "$REPO_DIR/deploy/scripts/rollback.sh" "$RELEASE_DIR/deploy/"
 cp "$REPO_DIR/deploy/scripts/update-watch.sh" "$RELEASE_DIR/deploy/"
 cp "$REPO_DIR/deploy/scripts/backup.sh" "$RELEASE_DIR/deploy/"
-cp "$REPO_DIR/deploy/scripts/setup-backup-ssh.sh" "$RELEASE_DIR/deploy/"
+cp "$REPO_DIR/deploy/scripts/setup-restic-repo.sh" "$RELEASE_DIR/deploy/"
 cp "$REPO_DIR/deploy/scripts/health-watch.sh" "$RELEASE_DIR/deploy/"
 cp "$REPO_DIR/deploy/scripts/media-cleanup.sh" "$RELEASE_DIR/deploy/"
 if [ "${VITE_ENABLE_AI_DEMOS:-}" = "false" ]; then
