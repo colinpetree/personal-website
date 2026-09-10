@@ -85,6 +85,46 @@ def save_and_optimize_image(file, uploads_dir):
             os.remove(tmp_path)
 
 
+AVATAR_MAX_DIM = 512
+
+
+def save_and_optimize_avatar(file, uploads_dir):
+    """Saves an uploaded avatar image as a single WebP, downscaled to fit
+    within AVATAR_MAX_DIM on its longest side. Avatars only ever render small
+    (nav bar, comment threads, admin lists), so unlike optimize_image() this
+    skips the srcset variants and LQIP a full-size blog image needs.
+
+    Returns the WebP filename. Raises on unsupported/corrupt images — caller
+    is responsible for catching and returning an error response.
+    """
+    from PIL import Image
+
+    os.makedirs(uploads_dir, exist_ok=True)
+    base_name = uuid.uuid4().hex
+    ext = file.filename.rsplit('.', 1)[-1].lower()
+    tmp_path = os.path.join(uploads_dir, f'{base_name}_tmp.{ext}')
+    file.save(tmp_path)
+    try:
+        img = Image.open(tmp_path)
+        if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+            img = img.convert('RGBA')
+        elif img.mode != 'RGB':
+            img = img.convert('RGB')
+
+        if max(img.width, img.height) > AVATAR_MAX_DIM:
+            scale = AVATAR_MAX_DIM / max(img.width, img.height)
+            new_size = (max(1, round(img.width * scale)), max(1, round(img.height * scale)))
+            img = img.resize(new_size, Image.LANCZOS)
+
+        webp_filename = f'{base_name}.webp'
+        img.save(os.path.join(uploads_dir, webp_filename), 'WEBP', quality=82)
+
+        return webp_filename
+    finally:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+
+
 def save_favicon(file, uploads_dir):
     """Saves an uploaded favicon image as a WebP (for the <link rel="icon">
     tag, which browsers prefer when present) and also overwrites a
