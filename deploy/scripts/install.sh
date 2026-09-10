@@ -326,7 +326,7 @@ _install_config updater "$RELEASE_DIR/deploy/systemd/personal-website-updater.se
 
 # Backup + health-monitoring timers — no templating needed (no
 # __BACKEND_PORT__/__DOMAIN__ placeholders), same hash-diff-safe install as
-# the updater unit above. Config (BACKUP_REMOTE_HOST etc.) lives in
+# the updater unit above. Config (RESTIC_PASSWORD etc.) lives in
 # $DATA_DIR/.env, not these unit files, so a later env-only tweak never shows
 # up as a "CHANGED" diff here.
 _install_config backup-service "$RELEASE_DIR/deploy/systemd/personal-website-backup.service" \
@@ -404,10 +404,12 @@ if [ "$FIRST_INSTALL" = true ]; then
     echo "      UPDATE_WATCH_RELEASES_REPO in"
     echo "      /etc/systemd/system/personal-website-updater.service, then run"
     echo "      systemctl enable --now personal-website-updater"
-    echo "   6. Nightly backups are NOT enabled yet (need an offsite destination"
-    echo "      configured first): run deploy/scripts/setup-backup-ssh.sh, set"
-    echo "      BACKUP_REMOTE_HOST/BACKUP_REMOTE_USER/BACKUP_REMOTE_PATH in"
-    echo "      $DATA_DIR/.env, then run"
+    echo "   6. Nightly backups are NOT enabled yet (need a restic repository"
+    echo "      initialized first): run deploy/scripts/setup-restic-repo.sh here,"
+    echo "      then run deploy/scripts/setup-backup-pull-pi.sh on the Pi and paste"
+    echo "      its printed authorized_keys line onto this server (this server"
+    echo "      never pushes anywhere — the Pi pulls the backup on its own"
+    echo "      schedule). Then run"
     echo "      systemctl enable --now personal-website-backup.timer"
     echo "      See deploy/BACKUP.md for full setup and restore instructions."
     echo "   7. Crash-loop/disk/certificate-expiry monitoring IS already enabled"

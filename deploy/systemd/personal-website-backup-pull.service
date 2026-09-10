@@ -1,0 +1,8 @@
+[Unit]
+Description=Personal Website nightly backup pull (from production)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/src/personal-website
+ExecStart=/bin/bash deploy/scripts/backup-pull.sh
