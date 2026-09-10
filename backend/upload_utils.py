@@ -19,6 +19,22 @@ def get_uploads_dir():
     return os.path.join(get_app_data_dir(), 'uploads')
 
 
+def thumbnail_variant_filename(filename, uploads_dir, width=400):
+    """Given a base uploaded image filename, returns its pre-generated
+    {width}w WebP variant filename if present on disk, else the original
+    filename unchanged (already-a-variant input, non-webp, or an image
+    uploaded before variant generation existed)."""
+    if not filename or not filename.endswith('.webp'):
+        return filename
+    if any(filename.endswith(f'_{w}w.webp') for w in (400, 800, 1200)):
+        return filename
+    base = filename[:-len('.webp')]
+    variant = f'{base}_{width}w.webp'
+    if os.path.exists(os.path.join(uploads_dir, variant)):
+        return variant
+    return filename
+
+
 def optimize_image(input_path, uploads_dir, base_name):
     """Convert image to WebP, generate 400/800/1200w variants, and a base64 LQIP.
 

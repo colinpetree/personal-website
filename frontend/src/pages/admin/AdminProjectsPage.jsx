@@ -4,6 +4,12 @@ import { ArrowUp, ArrowDown } from 'lucide-react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, EditableCard, Field, Input, InputWithPrefix, Textarea, Toggle } from '../../components/admin/AdminPage'
 import RoleGuard from '../../components/admin/RoleGuard'
+import AvatarCropperModal from '../../components/AvatarCropperModal'
+
+// Matches the public project card's computed proportions (w-full h-48 in a
+// 2-column grid at the default wide page width) — object-cover still masks
+// any residual mismatch across breakpoints, this just controls framing.
+const PROJECT_IMAGE_ASPECT = 2.1
 
 function DisplayValue({ value, fallback = '—' }) {
   return <p className="text-sm text-gray-900">{value || <span className="text-gray-400">{fallback}</span>}</p>
@@ -27,6 +33,7 @@ function AdminProjectsPageContent() {
   const [projError, setProjError] = useState('')
   const [uploadingImg, setUploadingImg] = useState(false)
   const [imgFile, setImgFile] = useState(null)
+  const [imgCropSrc, setImgCropSrc] = useState(null)
 
   useEffect(() => { fetchProjects() }, [])
 
@@ -41,6 +48,7 @@ function AdminProjectsPageContent() {
     setProjForm({ title: '', description: '', url: '', visible: true, image_filename: null })
     setProjError('')
     setImgFile(null)
+    setImgCropSrc(null)
   }
 
   function openEdit(p) {
@@ -48,6 +56,17 @@ function AdminProjectsPageContent() {
     setProjForm({ title: p.title, description: p.description || '', url: p.url || '', visible: p.visible, image_filename: p.image_filename })
     setProjError('')
     setImgFile(null)
+    setImgCropSrc(null)
+  }
+
+  function closeImgCropper() {
+    if (imgCropSrc) URL.revokeObjectURL(imgCropSrc)
+    setImgCropSrc(null)
+  }
+
+  function handleImgCropped(blob) {
+    setImgFile(new File([blob], 'project.png', { type: 'image/png' }))
+    closeImgCropper()
   }
 
   async function saveProject() {
@@ -233,7 +252,27 @@ function AdminProjectsPageContent() {
               {projForm.image_filename && (
                 <img src={`/api/uploads/${projForm.image_filename}`} alt="" className="w-full h-32 object-cover rounded mb-2" />
               )}
-              <input type="file" accept=".png,.jpg,.jpeg,.gif,.webp" onChange={e => setImgFile(e.target.files[0] || null)} className="text-sm text-gray-700" />
+              <input
+                type="file"
+                accept=".png,.jpg,.jpeg,.gif,.webp"
+                onChange={e => {
+                  const file = e.target.files[0]
+                  if (file) setImgCropSrc(URL.createObjectURL(file))
+                  e.target.value = ''
+                }}
+                className="text-sm text-gray-700"
+              />
+              {imgCropSrc && (
+                <AvatarCropperModal
+                  imageSrc={imgCropSrc}
+                  onCancel={closeImgCropper}
+                  onCropped={handleImgCropped}
+                  cropShape="rect"
+                  aspect={PROJECT_IMAGE_ASPECT}
+                  outputWidth={1200}
+                  title="Crop project image"
+                />
+              )}
             </Field>
             <Toggle label="Visible on site" checked={projForm.visible} onChange={v => setProjForm(f => ({ ...f, visible: v }))} />
             {projError && <p className="text-sm text-red-600">{projError}</p>}
