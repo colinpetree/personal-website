@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from extensions import db
 from routes.auth import get_current_user, user_required
-from upload_utils import save_and_optimize_image, IMAGE_OPTIMIZE_EXTENSIONS, get_uploads_dir
+from upload_utils import save_and_optimize_avatar, IMAGE_OPTIMIZE_EXTENSIONS, get_uploads_dir
 
 user_bp = Blueprint('user', __name__)
 
@@ -60,7 +60,7 @@ def upload_avatar():
 
     uploads_dir = get_uploads_dir()
     try:
-        filename, _srcset, _lqip = save_and_optimize_image(file, uploads_dir)
+        filename = save_and_optimize_avatar(file, uploads_dir)
     except Exception:
         return jsonify({'error': 'Could not process image. The file may be corrupted or unsupported.'}), 400
 
