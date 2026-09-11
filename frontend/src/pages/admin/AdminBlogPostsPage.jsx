@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router'
 import { ArrowLeft, ExternalLink, Pencil, X } from 'lucide-react'
 import { PageShell } from '../../components/admin/AdminPage'
@@ -107,7 +107,16 @@ export default function AdminBlogPostsPage() {
   const { addToast } = useToast()
   const { admin } = useAdminAuth()
 
+  // Ref guard, not just an empty dep array — React StrictMode double-invokes
+  // effects once in dev (mount, cleanup, mount again) against this same
+  // component instance, so without this the toast/modal below fires twice
+  // for a single delete/publish (the ref persists across that double-invoke,
+  // this flag doesn't).
+  const processedNavState = useRef(false)
+
   useEffect(() => {
+    if (processedNavState.current) return
+    processedNavState.current = true
     if (location.state?.publishConfirm) {
       setPublishConfirm(location.state.publishConfirm)
       window.history.replaceState({}, '')
@@ -142,7 +151,12 @@ export default function AdminBlogPostsPage() {
   if (loading) return <div className="p-8 text-gray-400">Loading…</div>
 
   const isContributor = admin?.role === 'contributor'
-  const visiblePosts = isContributor ? posts.filter(p => p.author_id === admin.id) : posts
+  // Contributors can't do anything with a published/scheduled post once
+  // it's live or queued — can't edit, can't delete (see admin_blog.py) —
+  // so it's hidden here rather than shown as a dead-end row that just
+  // bounces them back out of the editor (see AdminBlogEditorPage.jsx's
+  // redirect-away-if-not-draft).
+  const visiblePosts = isContributor ? posts.filter(p => p.author_id === admin.id && p.status === 'draft') : posts
 
   return (
     <PageShell title="Blog Posts">
@@ -174,7 +188,10 @@ export default function AdminBlogPostsPage() {
               className="flex items-center gap-4 px-4 py-3 bg-white hover:bg-gray-50 cursor-pointer"
             >
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">{post.title}</p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-sm font-medium text-gray-900 truncate">{post.title}</p>
+                  <p className="text-xs text-gray-400 shrink-0">/{post.slug}</p>
+                </div>
                 <p className="text-xs text-gray-400 mt-0.5">
                   Updated {formatDate(post.updated_at)}
                   {post.publish_date ? ` · Published ${formatDate(post.publish_date)}` : ''}

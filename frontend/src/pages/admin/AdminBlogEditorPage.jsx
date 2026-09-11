@@ -3,7 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router'
 import { ArrowLeft, ChevronRight, ExternalLink, PanelRight, Plus, Trash2, Upload, X, Type, BookA, BookType } from 'lucide-react'
 import RichTextEditor from '../../components/admin/editor'
 import { handleUploadFull } from '../../components/admin/editor/upload'
-import { Field, Input, InputWithPrefix, Textarea, Toggle } from '../../components/admin/AdminPage'
+import { Field, Input, Textarea, Toggle } from '../../components/admin/AdminPage'
+import SlugUrlField from '../../components/admin/SlugUrlField'
 import { Tooltip } from '../../components/ui/Tooltip'
 import FilterCombobox from '../../components/ui/FilterCombobox'
 import DatePicker from '../../components/ui/DatePicker'
@@ -398,6 +399,13 @@ export default function AdminBlogEditorPage() {
   const pendingFields = useRef({})
   const slugEdited = useRef(false)
   const excerptEdited = useRef(false)
+  // Suppresses repeat toasts for the same ongoing failure — scheduleSave
+  // retries every AUTOSAVE_DELAY regardless of whether the last attempt
+  // failed, so without this a persistent failure (e.g. the post got
+  // published elsewhere mid-edit, now permanently 403ing) would pop a new
+  // toast every ~2s for as long as the admin keeps typing. Reset to false
+  // the moment any save succeeds again.
+  const saveErrorShown = useRef(false)
   const editorRef = useRef(null)
   const featureImageInputRef = useRef(null)
   const listThumbnailInputRef = useRef(null)
@@ -440,7 +448,12 @@ export default function AdminBlogEditorPage() {
         setContentHtml(data.content_html || '')
         setDraftStatus(s === 'draft' ? (isNew ? 'new' : 'draft') : 'idle')
         setLoading(false)
-        if (admin?.role === 'contributor' && data.author_id !== admin.id) {
+        // Contributors can't save changes to a post once it's published or
+        // scheduled (see update_post), and it's already live/queued on the
+        // public site regardless — sitting in the editor at that point is
+        // just a dead end, so redirect away entirely rather than showing a
+        // read-only view nobody asked for.
+        if (admin?.role === 'contributor' && (data.author_id !== admin.id || (data.status || 'draft') !== 'draft')) {
           navigate('/admin/blog/posts', { replace: true })
         }
       })
@@ -467,6 +480,7 @@ export default function AdminBlogEditorPage() {
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Save failed')
+    saveErrorShown.current = false
     setPost(data)
     setSlug(data.slug)
     setExcerpt(data.excerpt || '')
@@ -492,9 +506,13 @@ export default function AdminBlogEditorPage() {
         pendingFields.current = {}
         clearTimeout(savingIndicatorTimer)
         setDraftStatus('draft-saved')
-      } catch {
+      } catch (err) {
         clearTimeout(savingIndicatorTimer)
         setDraftStatus('draft')
+        if (!saveErrorShown.current) {
+          saveErrorShown.current = true
+          addToast({ message: err.message || 'Failed to save' })
+        }
       }
     }, AUTOSAVE_DELAY)
   }
@@ -561,7 +579,12 @@ export default function AdminBlogEditorPage() {
       list_thumbnail_auto: listThumbnailAuto,
       category_id: categoryId || null,
       ...overrideFields,
-    }).catch(() => {})
+    }).catch(err => {
+      if (!saveErrorShown.current) {
+        saveErrorShown.current = true
+        addToast({ message: err.message || 'Failed to save' })
+      }
+    })
   }
 
   async function handleThumbnailUpload(e) {
@@ -730,7 +753,13 @@ export default function AdminBlogEditorPage() {
 
   async function handleDelete() {
     setDeleting(true)
-    await fetch(`/api/admin/blog/posts/${id}`, { method: 'DELETE', credentials: 'include' })
+    const res = await fetch(`/api/admin/blog/posts/${id}`, { method: 'DELETE', credentials: 'include' })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      addToast({ message: data.error || 'Failed to delete post' })
+      setDeleting(false)
+      return
+    }
     navigate('/admin/blog/posts', { state: { deleted: true } })
   }
 
@@ -750,14 +779,15 @@ export default function AdminBlogEditorPage() {
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 hover:font-semibold transition-all"
         >
-          Published <ExternalLink size={11} />
+          <span className="translate-y-[2px]">Published</span>
+          <ExternalLink size={12} className="shrink-0" />
         </a>
       )
     }
     if (status === 'scheduled') {
       return (
         <span
-          className="text-xs font-medium cursor-default transition-all"
+          className="text-xs leading-none font-medium cursor-default transition-all translate-y-[2px]"
           style={{ color: '#30cf43' }}
           onMouseEnter={() => setScheduledHover(true)}
           onMouseLeave={() => setScheduledHover(false)}
@@ -770,10 +800,10 @@ export default function AdminBlogEditorPage() {
       )
     }
     // draft
-    if (draftStatus === 'new') return <span className="text-xs text-gray-400">New</span>
-    if (draftStatus === 'saving') return <span className="text-xs text-gray-400">Saving...</span>
-    if (draftStatus === 'draft-saved') return <span className="text-xs text-gray-400">Draft - Saved</span>
-    if (draftStatus === 'draft') return <span className="text-xs text-gray-400">Draft</span>
+    if (draftStatus === 'new') return <span className="text-xs leading-none text-gray-400 translate-y-[2px]">New</span>
+    if (draftStatus === 'saving') return <span className="text-xs leading-none text-gray-400 translate-y-[2px]">Saving...</span>
+    if (draftStatus === 'draft-saved') return <span className="text-xs leading-none text-gray-400 translate-y-[2px]">Draft - Saved</span>
+    if (draftStatus === 'draft') return <span className="text-xs leading-none text-gray-400 translate-y-[2px]">Draft</span>
     return null
   }
 
@@ -790,7 +820,7 @@ export default function AdminBlogEditorPage() {
           title={isContributor ? 'Editors must review and publish your post' : undefined}
           className={`rounded-md bg-white px-4 py-1.5 text-sm font-medium transition-colors ${
             isContributor
-              ? 'text-gray-400 opacity-50 cursor-not-allowed'
+              ? 'text-gray-400 opacity-50'
               : 'text-green-600 hover:bg-gray-100'
           }`}
         >
@@ -816,7 +846,7 @@ export default function AdminBlogEditorPage() {
           title={isContributor ? 'Only Editors and above can unpublish posts' : undefined}
           className={`rounded-md bg-white px-4 py-1.5 text-sm font-medium transition-colors ${
             isContributor
-              ? 'text-gray-400 opacity-50 cursor-not-allowed'
+              ? 'text-gray-400 opacity-50'
               : 'text-gray-600 hover:bg-gray-100'
           }`}
         >
@@ -981,12 +1011,12 @@ export default function AdminBlogEditorPage() {
             <p className="text-xs text-gray-400">Edit the Owner account to change the author</p>
           </div>
 
-          <Field label="Slug">
-            <InputWithPrefix
-              prefix="/"
+          <Field label="Post URL">
+            <SlugUrlField
               value={slug}
               onChange={handleSlugChange}
               onBlur={handleSidebarSave}
+              domain={siteConfig?.domain}
               className="text-xs"
             />
           </Field>

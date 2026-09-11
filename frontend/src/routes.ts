@@ -137,6 +137,8 @@ export default (async () => {
       // All roles — no RoleGuard
       route('blog/posts', './pages/admin/AdminBlogPostsPage.jsx'),
       route('blog/posts/:id', './pages/admin/AdminBlogEditorPage.jsx'),
+      route('pages', './pages/admin/AdminPagesListPage.jsx'),
+      route('pages/:id', './pages/admin/AdminPageEditorPage.jsx'),
     ]),
   ] satisfies RouteConfig
 })()

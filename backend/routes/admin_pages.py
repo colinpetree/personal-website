@@ -3,7 +3,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user
 from extensions import db
 from models import Page, BlogPost, SiteConfig, SiteEventLog
-from routes.admin_auth import admin_required, role_at_least
+from routes.admin_auth import admin_required
 from varnish_purge import ban_pattern
 from sanitize_html import sanitize_content_html
 from slug_utils import slugify, unique_slug, get_reserved_slugs
@@ -97,6 +97,12 @@ def update_page(page_id):
     if current_user.role == 'contributor':
         if page.author_id != current_user.id:
             return jsonify({'error': 'You can only edit your own pages'}), 403
+        # A published page is already live — letting a contributor keep
+        # editing something they can't actually save changes to would just
+        # be a silent no-op wasting their time, so this is blocked outright
+        # rather than only blocking the status transition below.
+        if page.status != 'draft':
+            return jsonify({'error': 'You can only edit your own draft pages'}), 403
         if data.get('status') == 'published':
             return jsonify({'error': 'Contributors cannot publish pages'}), 403
 
@@ -154,9 +160,17 @@ def update_page(page_id):
 
 
 @admin_pages_bp.route('/api/admin/pages/<int:page_id>', methods=['DELETE'])
-@role_at_least('editor')
+@admin_required
 def delete_page(page_id):
     page = Page.query.get_or_404(page_id)
+
+    # Contributors can delete their own draft pages — they already can't
+    # edit a page once it's published (see update_page), so "own draft
+    # only" mirrors that same boundary rather than opening up a new one.
+    if current_user.role == 'contributor':
+        if page.author_id != current_user.id or page.status != 'draft':
+            return jsonify({'error': 'You can only delete your own draft pages'}), 403
+
     was_published = page.status == 'published'
     _log('Page', 'deleted', page.title, subject_is_bold=True)
     db.session.delete(page)

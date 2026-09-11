@@ -118,6 +118,13 @@ def update_post(post_id):
     if current_user.role == 'contributor':
         if post.author_id != current_user.id:
             return jsonify({'error': 'You can only edit your own posts'}), 403
+        # A published/scheduled post is already live (or about to go live) —
+        # letting a contributor keep editing something they can't actually
+        # save changes to would just be a silent no-op wasting their time,
+        # so this is blocked outright rather than only blocking the status
+        # transition below.
+        if post.status != 'draft':
+            return jsonify({'error': 'You can only edit your own draft posts'}), 403
         if data.get('status') in ('published', 'scheduled'):
             return jsonify({'error': 'Contributors cannot publish or schedule posts'}), 403
 
@@ -207,9 +214,20 @@ def update_post(post_id):
 
 
 @admin_blog_bp.route('/api/admin/blog/posts/<int:post_id>', methods=['DELETE'])
-@role_at_least('editor')
+@admin_required
 def delete_post(post_id):
     post = BlogPost.query.get_or_404(post_id)
+
+    # Contributors can delete their own draft posts — they already can't
+    # edit a post once it's published or scheduled (see update_post), so
+    # "own draft only" mirrors that same boundary rather than opening up a
+    # new one. A contributor's own post can only ever be 'draft' anyway
+    # (they're blocked from setting published/scheduled), but check status
+    # explicitly rather than relying on that being true forever.
+    if current_user.role == 'contributor':
+        if post.author_id != current_user.id or post.status != 'draft':
+            return jsonify({'error': 'You can only delete your own draft posts'}), 403
+
     was_published = post.status == 'published'
     _log('Post', 'deleted', post.title, subject_is_bold=True)
     db.session.delete(post)
