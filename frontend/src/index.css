@@ -367,16 +367,18 @@ html {
   font-weight: inherit;
 }
 
+/* Unlike other .blog-content elements (p, h1, etc.), which use a
+   margin-top-only rhythm scaled to the responsive font-size, the hr's
+   spacing comes from the editor's DividerNode wrapper (the outer
+   max-w-3xl/mx-auto/my-6 div plus the inner mx-6/py-8 div: 1.5rem +
+   2rem = 56px on each side, fixed — it doesn't scale with viewport).
+   Matching that fixed 56px here (instead of the 21px/29px text rhythm)
+   is what keeps the divider's vertical spacing the same in the editor
+   and on the public site. */
 .blog-content hr {
   border-color: #d1d5db; /* gray-300, matches editor DividerNode */
-  margin-top: 21px;
-  margin-bottom: 0;
-}
-
-@media (min-width: 1024px) {
-  .blog-content hr {
-    margin-top: 29px;
-  }
+  margin-top: 56px;
+  margin-bottom: 56px;
 }
 
 .blog-content .btn-wrapper {

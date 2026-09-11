@@ -1851,9 +1851,9 @@ function DividerNodeComponent({ nodeKey, editor }) {
       ref={containerRef}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="max-w-3xl mx-auto select-none my-3"
+      className="max-w-3xl mx-auto select-none my-6"
     >
-      <div className={`mx-6 py-4 rounded transition-all ${
+      <div className={`mx-6 py-8 rounded transition-all ${
         isSelected ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''
       }`}>
         <hr className="border-gray-300 my-0" />
