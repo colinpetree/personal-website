@@ -1,4 +1,4 @@
-import { Outlet, Scripts, Links, Meta, useLoaderData } from 'react-router'
+import { Outlet, Scripts, Links, Meta, ScrollRestoration, useLoaderData } from 'react-router'
 import { StrictMode } from 'react'
 import { AdminAuthProvider } from './context/AdminAuthContext'
 import { UserAuthProvider } from './context/UserAuthContext'
@@ -77,6 +77,7 @@ export function Layout({ children }) {
       </head>
       <body>
         {children}
+        <ScrollRestoration />
         <Scripts />
       </body>
     </html>
