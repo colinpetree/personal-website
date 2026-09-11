@@ -32,11 +32,19 @@ mostly-static media library costs close to 1x its size, not 14x.
 3. `restic forget --keep-daily $BACKUP_RETENTION_DAYS --prune` (default 14)
    to expire old snapshots and reclaim their now-unreferenced chunks.
 
-Silent on success. On any failure (bad `DATABASE_URL`, missing
+Silent on success. On failure (bad `DATABASE_URL`, missing
 `RESTIC_PASSWORD`, `pg_dump`/`restic` error), it emails the site's
 configured `forward_email` via the existing watcher-alert path
 (`source=backup`) — same mechanism already used for gh-outage and
-deploy-report emails, see `backend/watcher_alerts.py`.
+deploy-report emails, see `backend/watcher_alerts.py`. Debounced to at most
+one email per 24h **per error type** (same marker-file-per-condition
+pattern as `health-watch.sh`'s independent crash-loop/disk/certbot checks,
+under `$DATA_DIR/monitoring/`) — repeatedly hitting the *same* problem
+(retried manually while diagnosing something, or the timer failing the
+same way again the next night) sends exactly one email, not one per
+attempt, while a *different* problem showing up shortly after still gets
+its own fresh email rather than being masked by an unrelated marker. Every
+marker clears on the next fully successful run.
 
 **Pi** (`deploy/scripts/backup-pull.sh`, runs nightly at 05:30 UTC — after
 production's true worst-case completion time (its systemd unit's own
