@@ -19,7 +19,7 @@ export default {
       return []
     }
 
-    const { getSlugs, listAllPublishedSlugs } = await import('./src/lib/prerenderData.js')
+    const { getSlugs, listAllPublishedSlugs, listAllPublishedPageSlugs } = await import('./src/lib/prerenderData.js')
     const { fetchSiteConfig } = await import('./src/lib/apiFetch.js')
     // Pre-warms apiFetch.js's module-level _resolvedSiteConfig cache before
     // any route is rendered — confirmed empirically that this module-level
@@ -44,10 +44,11 @@ export default {
     // prerendered HTML. Treat any failure here exactly like PRERENDER_BASE_URL
     // being unset: zero prerendered routes, falling through to the plain CSR
     // shell so the browser fetches live from Flask instead.
-    let slugs, postSlugs
+    let slugs, postSlugs, pageSlugs
     try {
       slugs = await getSlugs(PRERENDER_BASE_URL)
       postSlugs = await listAllPublishedSlugs(PRERENDER_BASE_URL)
+      pageSlugs = await listAllPublishedPageSlugs(PRERENDER_BASE_URL)
     } catch (err) {
       console.warn(
         `[prerender] Failed to fetch content from PRERENDER_BASE_URL (${PRERENDER_BASE_URL}) — ` +
@@ -59,13 +60,20 @@ export default {
     // Deliberately excluded: /admin/*, /{payment}, /{ai_demo}(+subroutes),
     // /profile, /auth/magic — all session-gated or write-heavy; never valid
     // to serve a stale prerendered snapshot for these.
-    return [
+    //
+    // De-duplicated via a Set: the migrated About page (see the backend's
+    // one-time About->Page migration) is BOTH `slugs.about`'s fixed route
+    // AND a row `/api/pages` returns, so pageSlugs can otherwise contain the
+    // same path `slugs.about` already added, which would hand react-router
+    // two identical prerender paths.
+    return [...new Set([
       '/',
       `/${slugs.about}`,
       `/${slugs.blog}`,       // page 1 only — pagination stays client-fetched
       `/${slugs.projects}`,
       `/${slugs.contact}`,
       ...postSlugs.map((slug) => `/${slug}`),
-    ]
+      ...pageSlugs.map((slug) => `/${slug}`),
+    ])]
   },
 } satisfies Config

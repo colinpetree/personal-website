@@ -1,7 +1,7 @@
 from flask import Blueprint, jsonify, request
 from sqlalchemy.exc import IntegrityError
 from extensions import db
-from models import BlogPost, PageView, Project, ProjectClick, ShareEvent, SiteConfig
+from models import BlogPost, Page, PageView, Project, ProjectClick, ShareEvent, SiteConfig
 from analytics_utils import check_rate_limit, compute_visitor_key, is_admin_session, is_bot_request
 
 analytics_tracking_bp = Blueprint('analytics_tracking', __name__)
@@ -29,6 +29,12 @@ def track_view():
             return jsonify({'error': 'Unknown page_key'}), 400
     elif page_type == 'blog_post':
         if not BlogPost.query.filter_by(slug=page_key, status='published').first():
+            return jsonify({'error': 'Unknown page_key'}), 400
+    elif page_type == 'custom_page':
+        # Pages are open-ended/admin-creatable, so — unlike the fixed
+        # KNOWN_PAGE_KEYS set — this validates dynamically against the Page
+        # table, the same pattern 'blog_post' already uses against BlogPost.
+        if not Page.query.filter_by(slug=page_key, status='published').first():
             return jsonify({'error': 'Unknown page_key'}), 400
     else:
         return jsonify({'error': 'Invalid page_type'}), 400

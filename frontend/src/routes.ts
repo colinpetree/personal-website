@@ -1,5 +1,5 @@
 import { type RouteConfig, index, route, layout } from '@react-router/dev/routes'
-import { getSlugs, listAllPublishedSlugs } from './lib/prerenderData.js'
+import { getSlugs, listAllPublishedSlugs, listAllPublishedPageSlugs } from './lib/prerenderData.js'
 
 // Deployment-time flag — lets forks of this project exclude the AI demo
 // feature (its own API keys/spend) entirely from the build. Vite inlines
@@ -13,22 +13,23 @@ const FALLBACK_SLUGS = { blog: 'blog', projects: 'projects', about: 'about', con
 
 export default (async () => {
   let slugs = FALLBACK_SLUGS
-  // Whether the ':slug' route below should use the real BlogPostPage.jsx
-  // (loader + clientLoader) or BlogPostPageClientOnly.jsx (clientLoader
+  // Whether the ':slug' route below should use the real SlugResolverPage.jsx
+  // (loader + clientLoader) or SlugResolverPageClientOnly.jsx (clientLoader
   // only). Must mirror react-router.config.ts's prerender() exactly: that
-  // file only ever adds individual post paths to the prerendered set when
-  // postSlugs is non-empty, and react-router's ssr:false build hard-fails
-  // (validateSsrFalsePrerenderExports) if a route exports `loader` but has
-  // zero prerendered paths for its route id — even though clientLoader is
-  // what actually serves those posts at runtime. Defaults to true (the
-  // pre-existing behavior, and what local dev with PRERENDER_BASE_URL unset
-  // wants — that branch never touches this flag, and BlogPostPage.jsx's
-  // `loader` is harmless there since ssr:false validation only runs at
-  // build time). Only flipped false below once a reachable PRERENDER_BASE_URL
-  // positively confirms zero published posts — a fetch failure leaves this
-  // true, which is safe either way since react-router.config.ts's prerender()
-  // independently skips its own validation whenever nothing is prerendered.
-  let hasPublishedPosts = true
+  // file only ever adds individual page/post paths to the prerendered set
+  // when postSlugs/pageSlugs is non-empty, and react-router's ssr:false
+  // build hard-fails (validateSsrFalsePrerenderExports) if a route exports
+  // `loader` but has zero prerendered paths for its route id — even though
+  // clientLoader is what actually serves those pages/posts at runtime.
+  // Defaults to true (the pre-existing behavior, and what local dev with
+  // PRERENDER_BASE_URL unset wants — that branch never touches this flag,
+  // and SlugResolverPage.jsx's `loader` is harmless there since ssr:false
+  // validation only runs at build time). Only flipped false below once a
+  // reachable PRERENDER_BASE_URL positively confirms zero published
+  // pages AND posts — a fetch failure leaves this true, which is safe
+  // either way since react-router.config.ts's prerender() independently
+  // skips its own validation whenever nothing is prerendered.
+  let hasPrerenderedSlugItems = true
   // Dev server: relative fetch works via vite's dev proxy (server.proxy
   // ['/api']) forwarding to localhost:5000. Build time: PRERENDER_BASE_URL
   // -based absolute fetch, same source of truth as react-router.config.ts.
@@ -47,7 +48,11 @@ export default (async () => {
     // identically off the same live PRERENDER_BASE_URL.
     try {
       slugs = await getSlugs(base)
-      hasPublishedPosts = (await listAllPublishedSlugs(base)).length > 0
+      const [postSlugs, pageSlugs] = await Promise.all([
+        listAllPublishedSlugs(base),
+        listAllPublishedPageSlugs(base),
+      ])
+      hasPrerenderedSlugItems = postSlugs.length > 0 || pageSlugs.length > 0
     } catch (err) {
       console.warn(
         `[routes] Failed to fetch site-config from PRERENDER_BASE_URL (${base}) — ` +
@@ -87,7 +92,7 @@ export default (async () => {
       route('profile', './pages/UserProfilePage.jsx'),
       route('auth/magic', './pages/MagicLinkVerifyPage.jsx'),
       route('search', './pages/SearchPage.jsx'),
-      route(':slug', hasPublishedPosts ? './pages/BlogPostPage.jsx' : './pages/BlogPostPageClientOnly.jsx'),
+      route(':slug', hasPrerenderedSlugItems ? './pages/SlugResolverPage.jsx' : './pages/SlugResolverPageClientOnly.jsx'),
       route('*', './pages/NotFoundPage.jsx'),
     ]),
 

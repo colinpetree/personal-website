@@ -53,3 +53,29 @@ export function listAllPublishedSlugs(baseUrl) {
   }
   return _postSlugsPromises.get(baseUrl)
 }
+
+// Same shape/memoization as listAllPublishedSlugs above, and for the same
+// reason — react-router.config.ts's prerender() and routes.ts both call
+// this independently, and paginating through *all* pages (not just the
+// first) is what makes prerendering work correctly once a site has more
+// than one page of published Pages.
+const _pageSlugsPromises = new Map()
+
+export function listAllPublishedPageSlugs(baseUrl) {
+  if (!_pageSlugsPromises.has(baseUrl)) {
+    _pageSlugsPromises.set(baseUrl, (async () => {
+      const slugs = []
+      let page = 1
+      while (true) {
+        const res = await fetch(`${baseUrl}/api/pages?page=${page}&per_page=50`)
+        if (!res.ok) throw new Error(`Failed to fetch /api/pages page ${page} for prerender: HTTP ${res.status}`)
+        const data = await res.json()
+        slugs.push(...data.items.map((p) => p.slug))
+        if (page >= data.pages) break
+        page += 1
+      }
+      return slugs
+    })())
+  }
+  return _pageSlugsPromises.get(baseUrl)
+}

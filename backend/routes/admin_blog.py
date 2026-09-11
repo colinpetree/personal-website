@@ -135,12 +135,12 @@ def update_post(post_id):
         new_slug = _slugify(data['slug']) or _slugify(post.title) or 'untitled'
         if new_slug in _reserved_slugs():
             return jsonify({'error': f'"{new_slug}" is a reserved path and cannot be used as a slug.'}), 400
-        conflict = (
-            BlogPost.query.filter(BlogPost.slug == new_slug, BlogPost.id != post_id).first()
-            or Page.query.filter_by(slug=new_slug).first()
-        )
-        if conflict:
-            return jsonify({'error': 'A post with this slug already exists.'}), 400
+        conflict_post = BlogPost.query.filter(BlogPost.slug == new_slug, BlogPost.id != post_id).first()
+        conflict_page = None if conflict_post else Page.query.filter_by(slug=new_slug).first()
+        if conflict_post:
+            return jsonify({'error': f'The post "{conflict_post.title}" is already using this slug.'}), 400
+        if conflict_page:
+            return jsonify({'error': f'The page "{conflict_page.title}" is already using this slug.'}), 400
         post.slug = new_slug
 
     for field in ('content_html', 'excerpt', 'meta_description', 'scrollable_nav_enabled', 'font_family', 'thumbnail_filename', 'thumbnail_caption', 'thumbnail_width', 'thumbnail_height', 'list_thumbnail_auto'):

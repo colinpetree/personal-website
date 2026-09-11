@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
-import { useParams, useLoaderData, useSearchParams, Link } from 'react-router'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { Link, useSearchParams } from 'react-router'
 import { Heart, Reply, MoreHorizontal, ChevronDown, X } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
@@ -12,10 +12,9 @@ import ShareButton from '../components/ShareButton'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import HeaderImageLqip from '../components/HeaderImageLqip'
 import { setupSegmentLoopVideo } from '../utils/segmentLoopVideo'
-import { buildMeta, absoluteUploadUrl, siteFallbackImage, notFoundMeta, isNavEnabled, domFallbackTitle, domFallbackMetaContent } from '../utils/meta'
-import { apiUrl, fetchSiteConfig } from '../lib/apiFetch'
-import NotFoundPage from './NotFoundPage'
+import { isNavEnabled } from '../utils/meta'
 import { getInitials } from '../utils/getInitials'
+import NotFoundPage from './NotFoundPage'
 
 // ── Utilities ──────────────────────────────────────────────────────────────
 
@@ -398,186 +397,20 @@ function CommentItem({ comment, slug, currentUserId, likedIds, likeDeltas, onLik
   )
 }
 
-// ── Blog Post Page ─────────────────────────────────────────────────────────
-
-// Slug-keyed cache of the last fetchPostData() result per slug, read
-// synchronously by meta() below (see its comment for why: this route's
-// component also calls useLoaderData(), and that combination makes
-// meta()'s own `data` param come back undefined at prerender time —
-// confirmed empirically, same issue as BlogPage/ProjectsPage). Multiple
-// posts prerender within one build, so — unlike apiFetch.js's single-value
-// site-config cache — this needs to be keyed, not a single last-write-wins
-// variable.
-//
-// Bounded, not a plain Map: in the browser this lives for the whole tab
-// session, and a long session clicking through many different posts would
-// otherwise accumulate an ever-growing cache of full post/comments/author
-// data that's never freed. Map preserves insertion order, so the oldest
-// entry is always the first key — evicting it on overflow gives a simple,
-// good-enough LRU-ish bound without needing a dedicated cache library.
-const _resolvedPostData = new Map()
-const MAX_CACHED_POSTS = 20
-
-function postCacheKey(slug, categorySlug) {
-  return `${slug}:${categorySlug || ''}`
-}
-
-function cachePostData(key, result) {
-  _resolvedPostData.delete(key) // re-insert at the end (most-recently-used) if already present
-  _resolvedPostData.set(key, result)
-  if (_resolvedPostData.size > MAX_CACHED_POSTS) {
-    _resolvedPostData.delete(_resolvedPostData.keys().next().value)
-  }
-}
-
-// Shared by loader (build-time prerender) and clientLoader (runtime, for
-// any slug not in that prerender list — see clientLoader below for why
-// both are needed, not just loader). config is fetched alongside purely to
-// populate apiFetch.js's getCachedSiteConfig() cache in time for meta().
-//
-// Deliberately does NOT fetch comments — those are always loaded client-side
-// via the component's own effect below, never baked into a prerendered
-// snapshot. Moderating/deleting a comment doesn't touch its parent BlogPost
-// row (see content-update-triggers skill: Comment isn't one of the four
-// fingerprinted tables), so a comment baked in at build time could stay
-// stuck in the static HTML long after it was removed, with no rebuild ever
-// scheduled to fix it — unlike a stale post/page, which at least eventually
-// gets pulled by some other rebuild trigger. Fetching comments fresh on
-// every real visit sidesteps that staleness entirely rather than needing a
-// fifth fingerprinted table.
-async function fetchPostData(slug, categorySlug) {
-  const key = postCacheKey(slug, categorySlug)
-  const [postRes, config] = await Promise.all([
-    fetch(apiUrl(`/api/blog/${slug}`)),
-    fetchSiteConfig(),
-  ])
-  if (postRes.status === 404) {
-    const result = { notFound: true, post: null, blogAuthor: null, next: null, previous: null, config }
-    cachePostData(key, result)
-    return result
-  }
-  if (!postRes.ok) throw new Error(`Failed to load post ${slug}: HTTP ${postRes.status}`)
-  const post = await postRes.json()
-
-  const adjacentUrl = `/api/blog/${slug}/adjacent${categorySlug ? `?category=${categorySlug}` : ''}`
-  const [authorRes, adjacentRes] = await Promise.all([
-    fetch(apiUrl('/api/blog/author')),
-    fetch(apiUrl(adjacentUrl)),
-  ])
-  const blogAuthor = authorRes.ok ? await authorRes.json() : null
-  const adjacent = adjacentRes.ok ? await adjacentRes.json() : { next: null, previous: null }
-
-  const result = { notFound: false, post, blogAuthor, next: adjacent.next, previous: adjacent.previous, config }
-  cachePostData(key, result)
-  return result
-}
-
-// Runs in Node at prerender time, ONLY for slugs react-router.config.ts's
-// prerender() returned.
-export async function loader({ params, request }) {
-  const categorySlug = new URL(request.url).searchParams.get('category')
-  return fetchPostData(params.slug, categorySlug)
-}
-
-// Runs in the browser — required in addition to loader, not redundant with
-// it: under ssr:false, `loader` only works for prerendered paths (there's
-// no server to run it for anything else, and no .data file exists for an
-// unprerendered route — confirmed directly, curling <route>.data for an
-// unprerendered route returns the SPA shell HTML, not data, which is what
-// produced "No result found for routeId" / "Unable to decode turbo-stream
-// response" before this fix). clientLoader.hydrate=true makes this run on
-// the very first hard load too, not just subsequent client-side nav — a
-// post published after the last prerender build resolves correctly this
-// way instead of erroring.
-export async function clientLoader({ params, request }) {
-  const categorySlug = new URL(request.url).searchParams.get('category')
-  return fetchPostData(params.slug, categorySlug)
-}
-clientLoader.hydrate = true
-
-// og:image needs an absolute URL (scrapers fetch it directly, they don't
-// resolve relative to the page), and site_title falls back to config since
-// a 404'd/unloaded post has no title of its own to show. Reads
-// _resolvedPostData via params.slug rather than the `data` param — params
-// come from route matching (reliable), not loader data (confirmed
-// unreliable in meta() here, see _resolvedPostData's own comment above).
-export function meta({ params, location }) {
-  const categorySlug = new URLSearchParams(location?.search).get('category')
-  const cacheKey = postCacheKey(params.slug, categorySlug)
-  const cached = _resolvedPostData.get(cacheKey)
-  // Same client-hydrate race as BlogPage/ProjectsPage's meta() (see their
-  // comments): react-router calls this route's meta() synchronously on the
-  // very first hydrate pass, before clientLoader.hydrate's own fetchPostData
-  // has resolved and populated this cache — an UNFETCHED slug (no entry at
-  // all) is not the same thing as a CONFIRMED 404 (an entry with
-  // notFound:true, set once fetchPostData actually got a 404 response from
-  // the API). Conflating the two here used to send this branch to
-  // notFoundMeta() even for a real, existing post, mismatching the server's
-  // already-resolved title ("Text content did not match. Server: 'First
-  // Post' Client: 'Page not found'"). Falling back to
-  // domFallbackTitle()/domFallbackMetaContent() instead reads whatever the
-  // browser's own parser already put in the DOM from the server-rendered
-  // page — guaranteed to equal the server's exact value with zero network
-  // wait — so the unfetched-yet case matches the server regardless of
-  // whether the real post ultimately turns out to exist or not.
-  if (cached === undefined) {
-    return buildMeta({
-      title: domFallbackTitle(),
-      description: domFallbackMetaContent('meta[name="description"]'),
-      image: domFallbackMetaContent('meta[property="og:image"]'),
-      type: 'article',
-    })
-  }
-  const config = cached.config
-  const post = cached.post
-  if (!post || !isNavEnabled(config, 'blog')) {
-    return notFoundMeta(config)
-  }
-  return buildMeta({
-    title: post.title,
-    description: post.meta_description || post.excerpt,
-    image: post.thumbnail_filename
-      ? absoluteUploadUrl(config, `/api/uploads/${post.thumbnail_filename}`)
-      : post.list_thumbnail_filename
-        ? absoluteUploadUrl(config, `/api/uploads/${post.list_thumbnail_filename}`)
-        : siteFallbackImage(config),
-    type: 'article',
-  })
-}
-
-// Shown only while clientLoader is resolving on a hard load of a post that
-// wasn't prerendered (a prerendered post's real content is already in the
-// HTML and renders immediately; this never appears for those).
-export function HydrateFallback() {
-  return (
-    <main className="max-w-3xl mx-auto px-6 pt-10 pb-16 animate-pulse">
-      <div className="h-10 bg-gray-100 rounded w-5/6 mb-3" />
-      <div className="h-10 bg-gray-100 rounded w-2/3 mb-6" />
-      <div className="flex items-center gap-2 mb-8">
-        <div className="w-8 h-8 rounded-full bg-gray-100 shrink-0" />
-        <div className="flex flex-col gap-1.5">
-          <div className="h-3 bg-gray-100 rounded w-24" />
-          <div className="h-3 bg-gray-100 rounded w-20" />
-        </div>
-      </div>
-      <div className="flex flex-col gap-3">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className={`h-4 bg-gray-100 rounded ${i % 5 === 4 ? 'w-2/3' : 'w-full'}`} />
-        ))}
-      </div>
-    </main>
-  )
-}
-
-export default function BlogPostPage() {
-  const { slug } = useParams()
+// ── Blog Post View ─────────────────────────────────────────────────────────
+// Presentational component, rendered by SlugResolverPage.jsx once
+// /api/resolve/<slug> has confirmed `kind === 'post'`. The data-fetching /
+// meta()/loader machinery that used to live directly in this file (as
+// BlogPostPage.jsx) now lives in SlugResolverPage.jsx, generalized to also
+// handle `kind === 'page'` — see that file's comments for the full
+// unfetched-vs-404 hydration race this preserves from the original.
+export default function BlogPostView({ post, blogAuthor, next, previous }) {
+  const slug = post.slug
   const [searchParams] = useSearchParams()
   const categorySlug = searchParams.get('category')
   const { user: currentUser } = useUserAuth()
   const { config: siteConfig } = useSiteConfig()
-  const { notFound, post, blogAuthor, next, previous } = useLoaderData()
-  const blogPageTrackable = !notFound && isNavEnabled(siteConfig, 'blog') && post
-  useTrackPageView('blog_post', blogPageTrackable ? post.slug : null)
+  useTrackPageView('blog_post', post.slug)
   const [comments, setComments] = useState([])
   const [sort, setSort] = useState('Best')
   const [reportingComment, setReportingComment] = useState(null)
@@ -597,33 +430,21 @@ export default function BlogPostPage() {
     }
   }
 
-  // Comments are never part of `post`'s prerendered/loader data (see
-  // fetchPostData's comment above) — always fetched fresh here instead, on
-  // the very first mount and every time BlogPostPage is reused for a
-  // DIFFERENT post. BlogPostPage is reused (not remounted) when navigating
-  // client-side between two posts, since both match the same ':slug' route,
-  // so without this, clicking from one post to another would otherwise
-  // leave the previous post's comments (and any open report modal/
-  // lightbox) showing under the new post's title/content. Keyed on `post`'s
-  // identity (a fresh object per loader run), not `slug`, so it also
+  // Comments are never part of the resolved post data (see
+  // SlugResolverPage.jsx's fetchResolvedData) — always fetched fresh here
+  // instead, on the very first mount and every time this component is
+  // reused for a DIFFERENT post. It's reused (not remounted) when
+  // navigating client-side between two posts, since both match the same
+  // ':slug' route, so without this, clicking from one post to another would
+  // otherwise leave the previous post's comments (and any open report
+  // modal/lightbox) showing under the new post's title/content. Keyed on
+  // `post`'s identity (a fresh object per resolve), not `slug`, so it also
   // correctly resyncs on any future revalidation that doesn't change the
   // slug, not just a slug change specifically.
-  //
-  // Fetches inline with its own `cancelled` guard (same idiom as
-  // useAiDemoAccessLinks.js) rather than reusing fetchComments() above —
-  // this request isn't covered by react-router's own out-of-order-
-  // navigation handling the way `post`/loader data is, since it's a plain
-  // effect-driven fetch. Paging quickly between posts (e.g. BlogPostNav's
-  // next/previous links, same route, no remount) can leave an OLDER post's
-  // slower response resolving after a NEWER post's — without this guard,
-  // that stale response's `setComments()` would silently overwrite the
-  // current post's correct, already-loaded comments with the previous
-  // post's.
   useEffect(() => {
     setComments([])
     setLikeDeltas({})
     setReportingComment(null)
-    if (!post) return
     let cancelled = false
     fetch(`/api/blog/${slug}/comments`)
       .then(res => res.ok ? res.json() : null)
@@ -655,7 +476,14 @@ export default function BlogPostPage() {
     })
   }
 
-  useEffect(() => {
+  // useLayoutEffect, not useEffect — same reasoning as useHeaderImageLqip.js:
+  // this needs to insert the blurred placeholder and hide the real <img>
+  // (opacity:0) BEFORE the browser's first paint, not after. useEffect fires
+  // post-paint, leaving a window where the raw, un-blurred <img> is already
+  // in the DOM with its real src and starts loading/painting natively —
+  // visible as a flash of the image progressively rendering top-down before
+  // this effect ever gets a chance to cover it with the placeholder.
+  useLayoutEffect(() => {
     if (!articleRef.current || !post?.content_html) return
     const figures = articleRef.current.querySelectorAll('figure[data-lqip]')
     figures.forEach(figure => {
@@ -696,7 +524,13 @@ export default function BlogPostPage() {
     return () => cleanups.forEach(fn => fn())
   }, [post?.content_html])
 
-  if (notFound || !isNavEnabled(siteConfig, 'blog')) return <NotFoundPage />
+  // Backend already refuses to resolve a post at all once blog is disabled
+  // (see public_resolve.py's config.blog_enabled gate), so this is a second,
+  // client-side check — same as the old BlogPostPage.jsx's render-time
+  // guard. Kept as defense-in-depth: it catches the case where blog gets
+  // disabled after this post was already resolved/prerendered but before
+  // this component re-renders with fresh site config.
+  if (!isNavEnabled(siteConfig, 'blog')) return <NotFoundPage />
 
   const commentsVisible = !!(siteConfig?.users_enabled && siteConfig?.blog_comments_enabled)
   const sortedComments = sortComments(comments, sort)

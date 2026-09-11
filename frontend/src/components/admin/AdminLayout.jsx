@@ -62,9 +62,16 @@ const METRICS_NAV_ITEMS = [
   { to: '/admin/metrics/payments', label: 'Payment Metrics', adminOnly: true },
 ]
 
+// Standalone (not inside a collapsible NavGroup) top-level sidebar link —
+// used for Pages below. Contributor-visible like Blog > Posts, per the
+// Pages feature plan's locked-in permissions decision (contributors can
+// create/edit their own draft pages, same as blog posts).
+const PAGES_NAV_ITEM = { standalone: true, to: '/admin/pages', label: 'Pages' }
+
 function getFilteredNavGroups(role, navOrder) {
   if (role === 'contributor') {
     return [
+      PAGES_NAV_ITEM,
       {
         label: 'Blog',
         items: [
@@ -78,7 +85,7 @@ function getFilteredNavGroups(role, navOrder) {
   // Metrics is editor+ (same threshold as its route's RoleGuard) — the
   // Site Settings/Users entries inside "System Settings" are further
   // restricted below for editors specifically.
-  const withMetrics = [{ label: 'Metrics', items: METRICS_NAV_ITEMS }, ...navGroups]
+  const withMetrics = [{ label: 'Metrics', items: METRICS_NAV_ITEMS }, PAGES_NAV_ITEM, ...navGroups]
 
   if (role === 'editor') {
     return withMetrics.map(group => {
@@ -99,6 +106,23 @@ function getFilteredNavGroups(role, navOrder) {
   }
 
   return withMetrics
+}
+
+function StandaloneNavLink({ to, label }) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        `block px-3 py-2 rounded-md text-sm transition-colors mb-2 ${
+          isActive
+            ? 'bg-gray-700 text-white font-medium'
+            : 'text-gray-400 hover:text-white hover:bg-gray-800'
+        }`
+      }
+    >
+      {label}
+    </NavLink>
+  )
 }
 
 function NavGroup({ label, items, defaultCollapsed = false }) {
@@ -226,12 +250,14 @@ export default function AdminLayout() {
 
         <nav className="flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto" style={{ paddingBottom: '6rem' }}>
           {filteredNav.map(group => (
-            <NavGroup
-              key={group.label}
-              label={group.label}
-              items={group.items}
-              defaultCollapsed={group.defaultCollapsed}
-            />
+            group.standalone
+              ? <StandaloneNavLink key={group.to} to={group.to} label={group.label} />
+              : <NavGroup
+                  key={group.label}
+                  label={group.label}
+                  items={group.items}
+                  defaultCollapsed={group.defaultCollapsed}
+                />
           ))}
         </nav>
 

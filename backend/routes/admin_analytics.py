@@ -2,7 +2,7 @@ from collections import defaultdict
 from datetime import datetime, time, timedelta
 from flask import Blueprint, current_app, jsonify, request
 from extensions import db
-from models import BlogPost, Comment, ContactSubmission, PageView, Payment, Project, ProjectClick, ShareEvent, SiteConfig, User
+from models import BlogPost, Comment, ContactSubmission, Page, PageView, Payment, Project, ProjectClick, ShareEvent, SiteConfig, User
 from routes.admin_auth import role_at_least
 from routes.analytics_tracking import KNOWN_PAGE_KEYS
 from analytics_utils import local_date, local_today
@@ -314,6 +314,20 @@ def detail():
             return jsonify({'error': 'Post not found'}), 404
         page_type, page_key = 'blog_post', post.slug
         label = post.title
+    elif entity_type == 'custom_page':
+        # Mirrors the 'post' branch above exactly — Pages are structurally
+        # identical to blog posts here (open-ended, admin-creatable, looked
+        # up by id, tracked by slug), just a different table.
+        try:
+            page_id = int(key)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid page id'}), 400
+        page_row = Page.query.get(page_id)
+        if not page_row:
+            return jsonify({'error': 'Page not found'}), 404
+        post = None
+        page_type, page_key = 'custom_page', page_row.slug
+        label = page_row.title
     else:
         return jsonify({'error': 'Invalid type'}), 400
 
