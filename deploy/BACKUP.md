@@ -65,29 +65,51 @@ message text says which stage (production's dump, or the Pi's pull) failed.
 
 ### One-time setup
 
-1. On **production**: `sudo bash deploy/scripts/setup-restic-repo.sh` —
+1. On **production**: `sudo bash /opt/personal-website/current/deploy/setup-restic-repo.sh`
+   (note: no `scripts/` in the path — production releases ship scripts
+   flattened directly under `deploy/`, unlike the git repo layout) —
    generates `RESTIC_PASSWORD`, appends it to `$DATA_DIR/.env`, and runs
    `restic init` on `$DATA_DIR/restic-repo`. Prints the password back out —
    you'll need it again in step 2.
-2. On the **Pi**: `bash deploy/scripts/setup-backup-pull-pi.sh` — generates a
-   fresh, dedicated SSH keypair (never reuse an admin/deploy key for this —
-   an unattended job on a less-trusted network device should hold nothing
-   more powerful than "read this one directory"), prompts for the
-   `RESTIC_PASSWORD` from step 1, writes the pull config into
-   `~/.personal-website-build.env`, and installs + enables
-   `personal-website-backup-pull.timer`. Prints an `authorized_keys` line to
-   paste onto production.
+2. On the **Pi**: `bash deploy/scripts/setup-backup-pull-pi.sh
+   --production-host <address> --restic-password <password from step 1>`
+   — generates a fresh, dedicated SSH keypair (never reuse an admin/deploy
+   key for this — an unattended job on a less-trusted network device
+   should hold nothing more powerful than "read this one directory"),
+   writes the pull config into `~/.personal-website-build.env`, and
+   installs + enables `personal-website-backup-pull.timer`. Prints an
+   `authorized_keys` line to paste onto production.
+   `--production-host` must be an address SSH can reach directly — if the
+   domain is proxied through something like Cloudflare, its public DNS
+   resolves to the proxy's IPs, which only forward HTTP/HTTPS, not SSH's
+   port 22. Use the server's AWS-assigned public DNS name instead (or an
+   Elastic IP, or an unproxied "DNS only" subdomain), not the proxied
+   domain itself.
 3. On **production**: paste that printed line into `personalweb`'s
-   `~/.ssh/authorized_keys` (create the file / fix permissions to `600` if
-   it doesn't already exist). The line's `command="rsync --server --sender
-   ..."` restriction means this key can only ever *read* the repo directory
-   — it cannot write to production even if the Pi were compromised and the
-   key leaked.
-4. Test the pull manually from the Pi:
+   `authorized_keys` — at `/opt/personal-website/data/.ssh/authorized_keys`
+   (that's `personalweb`'s actual home directory, set by `bootstrap.sh`;
+   avoid `~` in a `sudo -u personalweb` one-liner, since it expands in the
+   invoking shell's context, not the target user's):
+   ```bash
+   sudo -u personalweb bash -c 'mkdir -p /opt/personal-website/data/.ssh && chmod 700 /opt/personal-website/data/.ssh && cat >> /opt/personal-website/data/.ssh/authorized_keys' <<'EOF'
+   <paste the restrict,command="..." line here>
+   EOF
+   sudo -u personalweb chmod 600 /opt/personal-website/data/.ssh/authorized_keys
+   ```
+   Create the file / fix permissions to `600` if it doesn't already exist.
+   The line's `command="rsync --server --sender ..."` restriction means
+   this key can only ever *read* the repo directory — it cannot write to
+   production even if the Pi were compromised and the key leaked.
+4. On **production**: produce a first snapshot by running the actual
+   service (not a bare `sudo bash backup.sh`, which would run as root and
+   leave the new files root-owned — unreadable by the Pi's key and
+   unwritable by the next `personalweb`-run backup):
+   `sudo systemctl start personal-website-backup`.
+5. Test the pull manually from the Pi:
    `bash deploy/scripts/backup-pull.sh` (or, once installed,
    `systemctl --user start personal-website-backup-pull`) and confirm
    `restic -r <local mirror dir> snapshots` shows today's snapshot.
-5. On **production**: `sudo systemctl enable --now personal-website-backup.timer`.
+6. On **production**: `sudo systemctl enable --now personal-website-backup.timer`.
 
 ### Restoring from a backup
 

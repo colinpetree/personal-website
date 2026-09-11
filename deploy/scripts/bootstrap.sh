@@ -140,6 +140,32 @@ systemctl restart varnish
 echo "==> 6. Creating data directories"
 mkdir -p "$DATA_DIR/uploads" "$APP_ROOT/releases"
 
+# adduser --system (step 1) with no --home defaults to /nonexistent — fine
+# for a service account that's never logged into directly, but the Pi's
+# backup-pull key DOES need to SSH in as personalweb, and OpenSSH resolves
+# authorized_keys relative to the account's real home directory. $DATA_DIR
+# already exists (just created above) and is already personalweb-owned
+# (step 9 below), so it doubles as a real, stable home instead of
+# provisioning a separate /home/personalweb.
+#
+# Only touch this if it's actually wrong — usermod refuses to change a
+# user's home while it has live processes ("user personalweb is currently
+# used by process ..."), and personal-website.service runs continuously as
+# personalweb. On a fresh bootstrap the service doesn't exist yet, so this
+# is a no-op check; on a re-run against an already-provisioned, already-
+# running server (this script promises re-runs are always safe) that
+# predates this fix, stop the service around the one-time change instead
+# of letting `usermod` hard-fail the whole script under set -e.
+if [ "$(getent passwd personalweb | cut -d: -f6)" != "$DATA_DIR" ]; then
+    SERVICE_WAS_ACTIVE=false
+    if systemctl is-active --quiet personal-website 2>/dev/null; then
+        SERVICE_WAS_ACTIVE=true
+        systemctl stop personal-website
+    fi
+    usermod -d "$DATA_DIR" personalweb
+    [ "$SERVICE_WAS_ACTIVE" = true ] && systemctl start personal-website
+fi
+
 echo "==> 7. Generating .env"
 if [ -f "$DATA_DIR/.env" ]; then
     echo "    $DATA_DIR/.env already exists — leaving it untouched (secrets/DB password stay stable)."

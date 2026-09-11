@@ -12,6 +12,14 @@
 #   bash setup-backup-pull-pi.sh --production-host test633.org \
 #       --production-remote-path /opt/personal-website/data/restic-repo \
 #       --restic-password <password from setup-restic-repo.sh's output>
+#
+# --production-host MUST be an address SSH can actually reach directly — if
+# the domain is proxied through Cloudflare (or similar), its public DNS
+# resolves to the proxy's IPs, which only forward HTTP/HTTPS, not port 22.
+# Use the server's AWS-assigned public DNS name instead (e.g.
+# ec2-1-2-3-4.us-east-2.compute.amazonaws.com — visible in the EC2 console,
+# or via `curl -4 ifconfig.me` run on the server itself), an Elastic IP, or
+# an unproxied ("DNS only") subdomain — never the proxied domain itself.
 set -euo pipefail
 
 if [ "$(id -u)" -eq 0 ]; then
@@ -36,6 +44,19 @@ if [ -z "$PROD_HOST" ] || [ -z "$RESTIC_PW" ]; then
     echo "       [--production-remote-path /opt/personal-website/data/restic-repo]"
     exit 1
 fi
+# Strip any trailing slash so we control exactly where one gets added below
+# — the forced-command path (FORCED_PATH) needs exactly one trailing slash,
+# while the plain PROD_REMOTE_PATH stored in .env must NOT have one, since
+# backup-pull.sh's own rsync invocation already appends its own "/".
+PROD_REMOTE_PATH="${PROD_REMOTE_PATH%/}"
+# This path gets baked verbatim into a *forced* SSH command below (see the
+# authorized_keys line printed at the end), and forced commands determine
+# rsync's copy semantics from the path they contain, not from whatever the
+# client's own rsync invocation requests. No trailing slash there would
+# make rsync copy the directory itself (nesting everything one level
+# deeper at the destination) instead of its contents, which is what
+# backup-pull.sh's own rsync call expects.
+FORCED_PATH="${PROD_REMOTE_PATH}/"
 
 REPO_DIR="$HOME/src/personal-website"
 BUILD_ENV="$HOME/.personal-website-build.env"
@@ -107,16 +128,20 @@ sudo loginctl enable-linger "$(whoami)"
 
 echo ""
 echo "=========================================================================="
-echo " Done. Paste this EXACT line into production's personalweb user's"
-echo " ~/.ssh/authorized_keys (create the file with chmod 600 if it doesn't"
-echo " already exist) — replace the path below if you used a non-default"
-echo " --production-remote-path:"
+echo " Done."
 echo ""
-echo "restrict,command=\"rsync --server --sender -logDtprze.iLsfxC . ${PROD_REMOTE_PATH}\" $(cat "$KEY_FILE.pub")"
+echo " Paste the ONE line below (between the ---- markers, nothing else) into"
+echo " production's personalweb user's authorized_keys file, at:"
+echo "   /opt/personal-website/data/.ssh/authorized_keys"
+echo " (personalweb's home is /opt/personal-website/data, not"
+echo " /home/personalweb — create the file with chmod 600 if it doesn't"
+echo " already exist). The --sender flag makes this forced command"
+echo " READ-ONLY — it can only serve files from that path, never write to"
+echo " production, even if this key were to leak."
 echo ""
-echo " The --sender flag makes this forced command READ-ONLY — it can only"
-echo " serve files from that path, never write to production, even if this"
-echo " key were to leak."
+echo "---- copy the single line below ----"
+echo "restrict,command=\"rsync --server --sender -logDtprze.iLsfxC . ${FORCED_PATH}\" $(cat "$KEY_FILE.pub")"
+echo "---- end of line to copy ----"
 echo ""
 echo " Verify manually once the key is in place:"
 echo "   cd $REPO_DIR && bash deploy/scripts/backup-pull.sh"

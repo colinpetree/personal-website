@@ -187,23 +187,42 @@ Pi always initiates).
 
 **[Prod]** Initialize the repository:
 ```bash
-sudo bash /opt/personal-website/current/deploy/scripts/setup-restic-repo.sh
+sudo bash /opt/personal-website/current/deploy/setup-restic-repo.sh
 ```
 Copy the `RESTIC_PASSWORD=...` it prints.
 
-**[Prod]** If this server was bootstrapped before this feature existed
-(i.e. `personalweb`'s shell isn't already `/bin/bash` — a fresh bootstrap in
-step 3 already sets this correctly, so this is only needed on an older
+**[Prod]** If this server was bootstrapped before this feature existed,
+check both `personalweb`'s shell *and* home directory (a fresh bootstrap in
+step 3 already sets both correctly, so this is only needed on an older
 box):
 ```bash
-sudo usermod -s /bin/bash personalweb
+getent passwd personalweb   # shell should end in /bin/bash, home should be /opt/personal-website/data
+```
+If either is wrong:
+```bash
+sudo systemctl stop personal-website   # usermod refuses to touch a user with live processes
+sudo usermod -s /bin/bash -d /opt/personal-website/data personalweb
+sudo systemctl start personal-website
 ```
 
-**[Pi]**
+**[Pi]** `--production-host` must be an address SSH can reach directly — if
+the domain is proxied through something like Cloudflare, its public DNS
+resolves to the proxy's IPs, which only forward HTTP/HTTPS, not SSH's port
+22. Use the server's AWS-assigned public DNS name instead (visible in the
+EC2 console, or via `curl -4 ifconfig.me` run on the server itself — e.g.
+`ec2-1-2-3-4.us-east-2.compute.amazonaws.com`), an Elastic IP, or an
+unproxied ("DNS only") subdomain — not the proxied domain itself. The raw
+public IP address itself works too (same `curl -4 ifconfig.me` output,
+without the hostname) — simpler, but note it'll change if the instance is
+ever stopped and started again (not a plain reboot) unless an Elastic IP is
+attached, so the AWS hostname or an Elastic IP holds up better long-term.
+(This
+doesn't affect `--site-url`/`PRERENDER_BASE_URL` in step 5 — those are
+plain HTTPS requests, meant to go through the proxy like normal traffic.)
 ```bash
 cd ~/src/personal-website
 bash deploy/scripts/setup-backup-pull-pi.sh \
-    --production-host <domain> \
+    --production-host <domain-or-unproxied-address> \
     --restic-password <password printed above>
 ```
 This installs `restic`, generates a dedicated read-only-restricted SSH key
@@ -211,18 +230,27 @@ This installs `restic`, generates a dedicated read-only-restricted SSH key
 `personal-website-backup-pull.timer`. It prints an `authorized_keys` line at
 the end.
 
-**[Prod]** Paste that exact printed line onto production:
+**[Prod]** Paste that exact printed line onto production. `personalweb`'s
+home is `/opt/personal-website/data` (not `/home/personalweb`), so don't
+use `~` here — it expands in the wrong shell context for a `sudo -u`
+one-liner like this:
 ```bash
-sudo -u personalweb bash -c 'mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys' <<'EOF'
+sudo -u personalweb bash -c 'mkdir -p /opt/personal-website/data/.ssh && chmod 700 /opt/personal-website/data/.ssh && cat >> /opt/personal-website/data/.ssh/authorized_keys' <<'EOF'
 <paste the restrict,command="..." line printed by setup-backup-pull-pi.sh>
 EOF
-sudo -u personalweb chmod 600 ~/.ssh/authorized_keys
+sudo -u personalweb chmod 600 /opt/personal-website/data/.ssh/authorized_keys
 ```
 
-**[Prod]** Run the backup once manually and enable the nightly timer:
+**[Prod]** Run the backup once manually and enable the nightly timer.
+Always run a manual backup as `personalweb` (via the systemd service, not
+a bare `sudo bash backup.sh`) — the service's files need to stay
+`personalweb`-owned, and a plain root run leaves them root-owned, which
+then breaks both the next `personalweb`-run backup (can't overwrite a
+root-owned file) and the Pi's pull (can't read a root-owned file over the
+read-only key):
 ```bash
-sudo bash /opt/personal-website/current/deploy/scripts/backup.sh
-sudo bash -c 'set -a; source /opt/personal-website/data/.env; set +a; restic -r /opt/personal-website/data/restic-repo snapshots'   # confirm a snapshot exists
+sudo systemctl start personal-website-backup
+sudo -u personalweb bash -c 'set -a; source /opt/personal-website/data/.env; set +a; restic -r /opt/personal-website/data/restic-repo snapshots'   # confirm a snapshot exists
 sudo systemctl enable --now personal-website-backup.timer
 ```
 
