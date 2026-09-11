@@ -339,7 +339,7 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
               value={local.email || ''}
               onChange={e => set('email', e.target.value)}
               disabled={!canEdit}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
             />
           </div>
 
@@ -364,7 +364,7 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
                       type="password"
                       value={oldPassword}
                       onChange={e => setOldPassword(e.target.value)}
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-400"
                     />
                   </div>
                 )}
@@ -375,7 +375,7 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
                       type={showNewPw ? 'text' : 'password'}
                       value={newPassword}
                       onChange={e => setNewPassword(e.target.value)}
-                      className="w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 pr-10 text-sm outline-none focus:border-gray-400"
                     />
                     <button
                       type="button"
@@ -435,7 +435,7 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
               value={local.full_name || ''}
               onChange={e => set('full_name', e.target.value)}
               disabled={!canEdit}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
             />
           </div>
 
@@ -447,7 +447,7 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
               value={local.title || ''}
               onChange={e => set('title', e.target.value)}
               disabled={!canEdit}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
             />
           </div>
 
@@ -459,7 +459,7 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
               value={local.location || ''}
               onChange={e => set('location', e.target.value)}
               disabled={!canEdit}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-400 disabled:bg-gray-50 disabled:text-gray-500"
             />
           </div>
         </div>

@@ -540,7 +540,7 @@ export default function ConversationBasicsPage() {
               onChange={e => setSystemPrompt(e.target.value)}
               placeholder="e.g. You are a helpful assistant. Keep answers concise and cite sources where relevant."
               rows={5}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-gray-400"
             />
             <div className="flex flex-wrap gap-1.5">
               {SYSTEM_PROMPT_PRESETS.map(preset => (

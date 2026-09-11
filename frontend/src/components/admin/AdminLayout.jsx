@@ -68,6 +68,10 @@ const METRICS_NAV_ITEMS = [
 // create/edit their own draft pages, same as blog posts).
 const PAGES_NAV_ITEM = { standalone: true, to: '/admin/pages', label: 'Pages' }
 
+// Editor+ only (not contributor-visible, unlike Pages above) — matches
+// AdminSiteNavigationPage.jsx's own RoleGuard minRole="editor".
+const SITE_NAVIGATION_NAV_ITEM = { standalone: true, to: '/admin/navigation', label: 'Site Navigation' }
+
 function getFilteredNavGroups(role, navOrder) {
   if (role === 'contributor') {
     return [
@@ -85,7 +89,7 @@ function getFilteredNavGroups(role, navOrder) {
   // Metrics is editor+ (same threshold as its route's RoleGuard) — the
   // Site Settings/Users entries inside "System Settings" are further
   // restricted below for editors specifically.
-  const withMetrics = [{ label: 'Metrics', items: METRICS_NAV_ITEMS }, PAGES_NAV_ITEM, ...navGroups]
+  const withMetrics = [{ label: 'Metrics', items: METRICS_NAV_ITEMS }, PAGES_NAV_ITEM, SITE_NAVIGATION_NAV_ITEM, ...navGroups]
 
   if (role === 'editor') {
     return withMetrics.map(group => {

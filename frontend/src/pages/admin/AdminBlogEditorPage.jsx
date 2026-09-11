@@ -135,7 +135,7 @@ function PublishDateField({ datePart, timePart, onDateChange, onTimeChange, onBl
               }
             }}
             placeholder="00:00"
-            className={`rounded-md border px-3 py-2 text-sm text-gray-900 w-full focus:outline-none focus:ring-2 focus:ring-gray-400 ${timeError ? 'border-red-400 focus:ring-red-300' : 'border-gray-300'}`}
+            className={`rounded-md border px-3 py-2 text-sm text-gray-900 w-full outline-none ${timeError ? 'border-red-400 focus:border-red-400' : 'border-gray-300 focus:border-gray-400'}`}
             style={{ paddingRight: `${tz.length * 7 + 12}px` }}
           />
           <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none select-none">

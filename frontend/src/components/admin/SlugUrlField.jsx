@@ -9,7 +9,7 @@ export default function SlugUrlField({ value, onChange, onBlur, domain, classNam
         value={value}
         onChange={onChange}
         onBlur={onBlur}
-        className={`rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full ${className || ''}`}
+        className={`rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400 w-full ${className || ''}`}
       />
       <p className="text-xs text-gray-400 truncate">
         {domain || 'localhost'}/{value}

@@ -76,7 +76,7 @@ export default function DatePicker({ value, onChange, onBlur, placeholder = 'YYY
         onBlur={() => onBlur?.(value)}
         onClick={() => setOpen(true)}
         placeholder={placeholder}
-        className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 w-full pr-8 focus:outline-none focus:ring-2 focus:ring-gray-400"
+        className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 w-full pr-8 outline-none focus:border-gray-400"
       />
       <button
         type="button"

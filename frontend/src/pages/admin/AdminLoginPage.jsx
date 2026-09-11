@@ -48,7 +48,7 @@ export default function AdminLoginPage() {
               onChange={e => setEmail(e.target.value)}
               required
               autoFocus
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-400"
             />
           </div>
           <div>
@@ -59,7 +59,7 @@ export default function AdminLoginPage() {
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-400"
             />
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}

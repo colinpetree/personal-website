@@ -203,7 +203,7 @@ function UserCommentForm({ slug, parentId, parentComment, onSuccess, onCancel, i
           )}
         </div>
       </div>
-      <div className="rounded-md border border-gray-300 focus-within:ring-2 focus-within:ring-gray-400">
+      <div className="rounded-md border border-gray-300 focus-within:border-gray-400">
         <textarea
           value={content}
           onChange={e => setContent(e.target.value)}

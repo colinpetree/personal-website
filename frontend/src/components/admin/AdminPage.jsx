@@ -121,14 +121,14 @@ export function Input({ ...props }) {
   return (
     <input
       {...props}
-      className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full"
+      className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400 w-full"
     />
   )
 }
 
 export function InputWithPrefix({ prefix, className, ...props }) {
   return (
-    <div className="flex rounded-md border border-gray-300 focus-within:ring-2 focus-within:ring-gray-400 overflow-hidden">
+    <div className="flex rounded-md border border-gray-300 focus-within:border-gray-400 overflow-hidden">
       <span className="flex items-center px-3 py-2 text-sm text-gray-500 bg-gray-50 border-r border-gray-300 whitespace-nowrap select-none">
         {prefix}
       </span>
@@ -144,7 +144,7 @@ export function Textarea({ ...props }) {
   return (
     <textarea
       {...props}
-      className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 w-full resize-y"
+      className="rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-gray-400 w-full resize-y"
     />
   )
 }

@@ -6,6 +6,7 @@ import { useSiteConfig } from '../hooks/useSiteConfig'
 import { useNavOverlay } from '../context/NavOverlayContext'
 import SignInRequiredModal from './SignInRequiredModal'
 import SearchModal from './SearchModal'
+import OverflowNav from './OverflowNav'
 import { getInitials } from '../utils/getInitials'
 
 // Shared by every nav-link-shaped control (desktop nav links, Sign in) so
@@ -16,7 +17,14 @@ function navItemClass(active, transparent) {
     ? (active ? 'text-white' : 'text-white/75 hover:text-white')
     : (active ? 'text-gray-900' : 'text-gray-500 hover:text-gray-900')
   const hoverBg = transparent ? 'hover:bg-gray-400/30' : 'hover:bg-gray-400/10'
-  return `text-sm font-medium rounded-md px-3 py-1.5 transition-colors ${hoverBg} ${color}`
+  // whitespace-nowrap + flex-shrink-0: a flex item's default min-width:auto
+  // otherwise lets the browser wrap/shrink a multi-word label (e.g. "AI
+  // Demos") below its measured natural width once OverflowNav.jsx's row
+  // gets tight — the JS width calculation there is what should decide
+  // whether an item fits, not the browser wrapping text as a fallback. If
+  // it truly doesn't fit, this makes the row overflow (clipped by
+  // OverflowNav's own overflow-hidden) instead of visibly wrapping.
+  return `text-sm font-medium rounded-md px-3 py-1.5 transition-colors whitespace-nowrap flex-shrink-0 ${hoverBg} ${color}`
 }
 
 function SearchButton({ className = '', transparent = false }) {
@@ -140,7 +148,12 @@ export default function Navbar() {
     }
   }, [config?.favicon_filename])
 
-  const navLinks = config?.nav?.filter(n => n.enabled) ?? []
+  // Ghost-style freeform {label, url} pairs — replaces the old fixed
+  // 7-page-key nav_order/*_enabled system (site_config.py still computes
+  // that as `config.nav` for the admin sidebar's own ordering, but the
+  // public Navbar no longer reads it). No `enabled` filter needed: every
+  // entry here is meant to render, unlike the old system's per-page toggle.
+  const navLinks = config?.primary_navigation ?? []
   const siteTitle = config?.site_title ?? ''
   const usersEnabled = config?.users_enabled ?? false
 
@@ -153,21 +166,27 @@ export default function Navbar() {
     >
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Site title / logo */}
-        {config ? (
-          <Link
-            to="/"
-            className={`text-lg font-semibold transition-colors ${
-              transparent ? 'text-white hover:text-white/80' : 'text-gray-900 hover:text-gray-700'
-            }`}
-          >
-            {siteTitle}
-          </Link>
-        ) : (
+        {config ? (() => {
+          const titleLink = config?.site_title_link || '/'
+          const titleClassName = `flex-shrink-0 whitespace-nowrap text-lg font-semibold transition-colors ${
+            transparent ? 'text-white hover:text-white/80' : 'text-gray-900 hover:text-gray-700'
+          }`
+          // Same internal-vs-external check as the nav links (see
+          // OverflowNav.jsx's isInternalPath) — site_title_link is a freely
+          // typed field with no format restriction, so it needs the same
+          // plain-<a>-for-external-URLs treatment or an external value
+          // would get swallowed into a broken in-app <Link> navigation.
+          return titleLink.startsWith('/') ? (
+            <Link to={titleLink} className={titleClassName}>{siteTitle}</Link>
+          ) : (
+            <a href={titleLink} className={titleClassName}>{siteTitle}</a>
+          )
+        })() : (
           <div className="w-32 h-4 bg-gray-100 rounded animate-pulse" />
         )}
 
         {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-1">
+        <nav className="hidden md:flex items-center gap-1 min-w-0 flex-1">
           {!config && (
             <>
               <div className="w-12 h-4 bg-gray-100 rounded animate-pulse" />
@@ -175,59 +194,55 @@ export default function Navbar() {
               <div className="w-12 h-4 bg-gray-100 rounded animate-pulse" />
             </>
           )}
-          {navLinks.map(link => (
-            <Link
-              key={link.key}
-              to={link.path}
-              className={navItemClass(location.pathname === link.path, transparent)}
-            >
-              {link.name}
-            </Link>
-          ))}
+          {config && (
+            <OverflowNav links={navLinks} transparent={transparent} navItemClass={navItemClass} />
+          )}
 
-          {usersEnabled ? (
-            user ? (
-              <>
-                <SearchButton transparent={transparent} />
-                <div className="relative ml-2" ref={userMenuRef}>
-                  <button
-                    onClick={() => setUserMenuOpen(o => !o)}
-                    className="flex items-center gap-2 focus:outline-none"
-                  >
-                    {user.avatar_url ? (
-                      <img src={user.avatar_url} alt={user.name} className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center leading-none text-sm font-semibold text-gray-600">
-                        <span className="translate-y-px">{getInitials(user.name)}</span>
+          <div className="flex items-center gap-1 flex-shrink-0">
+            {usersEnabled ? (
+              user ? (
+                <>
+                  <SearchButton transparent={transparent} />
+                  <div className="relative ml-2" ref={userMenuRef}>
+                    <button
+                      onClick={() => setUserMenuOpen(o => !o)}
+                      className="flex items-center gap-2 focus:outline-none"
+                    >
+                      {user.avatar_url ? (
+                        <img src={user.avatar_url} alt={user.name} className="w-8 h-8 rounded-full object-cover" referrerPolicy="no-referrer" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center leading-none text-sm font-semibold text-gray-600">
+                          <span className="translate-y-px">{getInitials(user.name)}</span>
+                        </div>
+                      )}
+                    </button>
+                    {userMenuOpen && (
+                      <div className="absolute right-0 mt-2 w-44 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-50">
+                        <div className="px-4 py-2 border-b border-gray-100">
+                          <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
+                          {user.title && <p className="text-xs text-gray-400 truncate">{user.title}</p>}
+                        </div>
+                        <Link to="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Profile</Link>
+                        <button onClick={logout} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Sign out</button>
                       </div>
                     )}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <SearchButton transparent={transparent} />
+                  <button
+                    onClick={() => setShowSignInModal(true)}
+                    className={navItemClass(false, transparent)}
+                  >
+                    Sign in
                   </button>
-                  {userMenuOpen && (
-                    <div className="absolute right-0 mt-2 w-44 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-50">
-                      <div className="px-4 py-2 border-b border-gray-100">
-                        <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
-                        {user.title && <p className="text-xs text-gray-400 truncate">{user.title}</p>}
-                      </div>
-                      <Link to="/profile" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Profile</Link>
-                      <button onClick={logout} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Sign out</button>
-                    </div>
-                  )}
-                </div>
-              </>
+                </>
+              )
             ) : (
-              <>
-                <SearchButton transparent={transparent} />
-                <button
-                  onClick={() => setShowSignInModal(true)}
-                  className={navItemClass(false, transparent)}
-                >
-                  Sign in
-                </button>
-              </>
-            )
-          ) : (
-            <SearchButton transparent={transparent} />
-          )}
+              <SearchButton transparent={transparent} />
+            )}
+          </div>
         </nav>
 
         {/* Mobile hamburger */}
@@ -262,18 +277,24 @@ export default function Navbar() {
           menuOpen ? 'flex' : 'hidden'
         }`}
       >
-        {navLinks.map(link => (
-          <Link
-            key={link.key}
-            to={link.path}
-            onClick={() => setMenuOpen(false)}
-            className={`text-2xl font-semibold -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
-              location.pathname === link.path ? 'text-gray-900' : 'text-gray-500'
-            }`}
-          >
-            {link.name}
-          </Link>
-        ))}
+        {navLinks.map((link, i) => {
+          const className = `text-2xl font-semibold -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
+            location.pathname === link.url ? 'text-gray-900' : 'text-gray-500'
+          }`
+          // Internal site pages always use root-relative paths — anything
+          // else an admin types into Site Navigation is treated as an
+          // external URL (see OverflowNav.jsx's isInternalPath for the
+          // desktop-nav equivalent of this same check).
+          return link.url.startsWith('/') ? (
+            <Link key={i} to={link.url} onClick={() => setMenuOpen(false)} className={className}>
+              {link.label}
+            </Link>
+          ) : (
+            <a key={i} href={link.url} onClick={() => setMenuOpen(false)} className={className}>
+              {link.label}
+            </a>
+          )
+        })}
         {usersEnabled && (
           user ? (
             <>

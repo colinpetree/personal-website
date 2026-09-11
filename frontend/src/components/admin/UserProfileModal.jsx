@@ -77,7 +77,7 @@ export default function UserProfileModal({ user, onClose, onUpdated }) {
               type="text"
               value={local.name || ''}
               onChange={e => set('name', e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-400"
             />
           </div>
 
@@ -87,7 +87,7 @@ export default function UserProfileModal({ user, onClose, onUpdated }) {
               type="email"
               value={local.email || ''}
               onChange={e => set('email', e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-400"
             />
           </div>
 
@@ -97,7 +97,7 @@ export default function UserProfileModal({ user, onClose, onUpdated }) {
               type="text"
               value={local.title || ''}
               onChange={e => set('title', e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-400"
             />
           </div>
 
