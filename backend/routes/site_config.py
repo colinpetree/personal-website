@@ -6,7 +6,7 @@ from email.utils import format_datetime
 from flask import Blueprint, jsonify, current_app, request
 from sqlalchemy import func
 from extensions import db
-from models import SiteConfig, Profile, Project, BlogPost, DEFAULT_NAV_ORDER
+from models import SiteConfig, Profile, Project, BlogPost, Page, DEFAULT_NAV_ORDER
 
 site_config_bp = Blueprint('site_config', __name__)
 logger = logging.getLogger(__name__)
@@ -119,6 +119,11 @@ def get_site_config():
         # directly and don't resolve relative URLs against the page).
         'domain': config.domain,
         'nav': [nav_items[key] for key in _resolve_nav_order(config)],
+        # Site Navigation (Pages feature) — additive alongside 'nav' above;
+        # Navbar.jsx hasn't cut over to these yet (a later wave), but they're
+        # already served so that work isn't blocked on this one.
+        'primary_navigation': json.loads(config.primary_navigation) if config.primary_navigation else [],
+        'site_title_link': config.site_title_link,
         'slugs': {
             'blog': config.blog_slug,
             'projects': config.projects_slug,
@@ -154,6 +159,7 @@ def get_content_version():
         db.session.query(func.max(Profile.updated_at)).scalar(),
         db.session.query(func.max(Project.updated_at)).scalar(),
         db.session.query(func.max(BlogPost.updated_at)).filter(BlogPost.status == 'published').scalar(),
+        db.session.query(func.max(Page.updated_at)).filter(Page.status == 'published').scalar(),
     ]
     latest = max((c for c in candidates if c is not None), default=None)
     resp = current_app.response_class(status=204)

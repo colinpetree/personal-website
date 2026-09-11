@@ -109,6 +109,21 @@ class SiteConfig(db.Model):
     google_oauth_client_id = db.Column(db.Text, nullable=True)
     google_oauth_client_secret = db.Column(db.Text, nullable=True)  # stored encrypted
     analytics_start_date = db.Column(db.Date, nullable=True)  # clamps the floor of every analytics date range
+
+    # Site Navigation (Pages feature) — freeform admin-managed nav links,
+    # replacing the old nav_order/*_enabled fixed-page-key system. See
+    # routes/admin_config.py and routes/site_config.py. nav_order above is
+    # left in place, unused, once this cuts over — additive-only migration
+    # style, no DROP COLUMN.
+    primary_navigation = db.Column(db.Text, nullable=True)   # JSON array of {label, url}
+    site_title_link = db.Column(db.String(500), nullable=False, default='/')
+    # One-time gate for the About -> Page migration in app.py — see
+    # _migrate_about_to_page(). Deliberately NOT inferred from "does a Page
+    # with this slug exist", since renaming the migrated page's slug later
+    # (completely normal once it's a regular Page) would otherwise look
+    # identical to "migration never ran" and create a duplicate.
+    about_migrated = db.Column(db.Boolean, nullable=False, default=False)
+
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -195,6 +210,28 @@ class BlogPost(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     comments = db.relationship('Comment', backref='post', lazy='dynamic', cascade='all, delete-orphan')
+
+
+class Page(db.Model):
+    """Open-ended, admin-created custom pages — draft/autosave/publish
+    lifecycle mirrors BlogPost closely (see routes/admin_pages.py), but
+    without excerpt/thumbnail/category. `title` drives slug auto-derivation
+    and is used verbatim as the browser-tab/SEO title, exactly like
+    BlogPost.title."""
+    __tablename__ = 'page'
+
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(500), nullable=False, default='Untitled')
+    slug = db.Column(db.String(500), nullable=False, unique=True)
+    content_html = db.Column(db.Text, nullable=True)
+    meta_description = db.Column(db.String(500), nullable=True)
+    scrollable_nav_enabled = db.Column(db.Boolean, nullable=False, default=False)
+    page_width = db.Column(db.String(20), nullable=False, default='regular')
+    font_family = db.Column(db.String(10), nullable=False, default='default')
+    status = db.Column(db.String(20), nullable=False, default='draft')  # draft | published
+    author_id = db.Column(db.Integer, db.ForeignKey('admin_account.id'), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class User(db.Model):

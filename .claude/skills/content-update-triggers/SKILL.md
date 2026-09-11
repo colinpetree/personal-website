@@ -1,11 +1,11 @@
 ---
 name: content-update-triggers
-description: Inventory of every admin action that bumps updated_at on SiteConfig, Profile, Project, or a published BlogPost — the four tables /api/content-version fingerprints to decide whether the Pi's content-watch.sh should trigger a full prerender rebuild (see the auto-publish-system skill for how that pipeline works end to end). Invoke whenever adding or modifying an admin route/model that writes to one of these four tables, when asked "does X trigger a rebuild", or when reviewing whether a new admin feature/page needs to be added to this list.
+description: Inventory of every admin action that bumps updated_at on SiteConfig, Profile, Project, a published BlogPost, or a published Page — the five tables /api/content-version fingerprints to decide whether the Pi's content-watch.sh should trigger a full prerender rebuild (see the auto-publish-system skill for how that pipeline works end to end). Invoke whenever adding or modifying an admin route/model that writes to one of these five tables, when asked "does X trigger a rebuild", or when reviewing whether a new admin feature/page needs to be added to this list.
 ---
 
 # What triggers a content-version change (and therefore a prerender rebuild)
 
-`GET /api/content-version` (`backend/routes/site_config.py:131-149`) returns a
+`GET /api/content-version` (`backend/routes/site_config.py`) returns a
 `Last-Modified` header equal to:
 
 ```python
@@ -14,10 +14,11 @@ max(
     Profile.updated_at,
     Project.updated_at,
     BlogPost.updated_at,        # WHERE status == 'published' only
+    Page.updated_at,            # WHERE status == 'published' only
 )
 ```
 
-All four columns are `db.Column(..., onupdate=datetime.utcnow)` (`backend/models.py:14/98/170/242`)
+All five columns are `db.Column(..., onupdate=datetime.utcnow)` (`backend/models.py`)
 — any ORM-level write to a row in one of these tables bumps its `updated_at`
 automatically, with no explicit code needed at the call site. `content-watch.sh`
 on the Pi polls this header every ~30 min; a change kicks off a full rebuild
@@ -104,6 +105,38 @@ that spectrum).
   nothing publicly visible changed. If this is ever made consistent with
   `BlogPost`'s `status='published'` filter, update this note.
 
+## Page — only matters while `status == 'published'`, same shape as BlogPost
+
+- `PUT /api/admin/pages/<id>` (`admin_pages.py`) — the page editor's save
+  handler. Sets `page.updated_at = datetime.utcnow()` unconditionally, same
+  as `update_post`. Covers title/slug/content/meta/font/width edits and
+  draft↔published transitions.
+- `DELETE /api/admin/pages/<id>` (`admin_pages.py`) — deleting a currently-
+  published page removes the row from the `MAX()` candidate set.
+- **Critical — unpublish/delete must bump `SiteConfig.updated_at`, or the
+  fingerprint can silently fail to move.** `get_content_version()` combines
+  candidates with a plain `max()` across all tables, not a hash of each
+  table's own max — so if the just-unpublished/deleted page's `updated_at`
+  wasn't the single largest timestamp across every fingerprinted table (some
+  other still-published post/page, or `SiteConfig` itself, already had an
+  equal-or-later one), removing it from the `Page` filter doesn't change the
+  overall `max()` at all, and the Pi's content-watcher sees no change —
+  leaving the now-unpublished page's stale prerendered HTML live in
+  production indefinitely. `update_page`/`delete_page` both explicitly bump
+  `SiteConfig.updated_at` on exactly this transition, mirroring
+  `update_post`/`delete_post`'s identical trick — see those two functions'
+  in-code comments for the full reasoning. This is the same mechanism, not a
+  new one; if this bullet and `update_post`'s ever diverge, one of them is
+  wrong.
+- **Not a trigger:** creating a page starts as `status='draft'`, excluded
+  from the fingerprint until published.
+- **One-time migration note:** the About→Page migration in `app.py`'s
+  `_seed_pages_and_nav()` creates a `Page` row directly (bypassing the admin
+  route) on the first startup after this feature was deployed — that insert
+  also bumps `Page.updated_at` (column default), so upgrading to this
+  feature itself triggers one rebuild, which is expected (the newly-migrated
+  About page needs to actually get prerendered).
+
 ## Profile — currently dead weight in the fingerprint
 
 No admin route in this codebase writes to `Profile` at all (only
@@ -134,12 +167,12 @@ cd backend
 FERNET_KEY=$(.venv/Scripts/python.exe -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
 DATABASE_URL="sqlite:////tmp/test.db" SECRET_KEY=test ENCRYPTION_KEY="$FERNET_KEY" \
   .venv/Scripts/python.exe -c "
-from app import create_app, _migrate_schema
+from app import create_app, _migrate_schema, _seed_pages_and_nav
 from extensions import db
 from server import seed_initial_data
 app = create_app()
 with app.app_context():
-    db.create_all(); _migrate_schema(); seed_initial_data(app)
+    db.create_all(); _migrate_schema(); seed_initial_data(app); _seed_pages_and_nav()
     client = app.test_client()
     before = client.head('/api/content-version').headers.get('Last-Modified')
     # ... perform the action under test directly against the DB/route here ...

@@ -1,14 +1,14 @@
-import re
 from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 from extensions import db
-from models import BlogPost, Comment, User, AdminAccount, SiteEventLog, SiteConfig, BlogCategory
+from models import BlogPost, Comment, User, AdminAccount, SiteEventLog, SiteConfig, BlogCategory, Page
 from routes.admin_auth import admin_required, role_at_least
 from varnish_purge import ban_pattern
 from sanitize_html import sanitize_content_html
 from thumbnail_utils import derive_list_thumbnail
 from upload_utils import get_uploads_dir, thumbnail_variant_filename
+from slug_utils import slugify as _slugify, unique_slug as _unique_slug, get_reserved_slugs as _get_reserved_slugs
 
 
 def _log(area, action_type, subject, subject_is_bold=False):
@@ -25,41 +25,17 @@ def _log(area, action_type, subject, subject_is_bold=False):
 
 admin_blog_bp = Blueprint('admin_blog', __name__)
 
-_STATIC_RESERVED = {'', 'admin', 'api', 'profile', 'search'}
+
+def _reserved_slugs():
+    return _get_reserved_slugs(SiteConfig.query.first())
 
 
-def _get_reserved_slugs():
-    config = SiteConfig.query.first()
-    if config:
-        return _STATIC_RESERVED | {
-            config.blog_slug, config.projects_slug, config.about_slug,
-            config.contact_slug, config.ai_demo_slug, config.payment_slug,
-        }
-    return _STATIC_RESERVED | {'blog', 'projects', 'about', 'contact', 'demo', 'payment'}
-
-
-def _slugify(text):
-    text = text.lower().strip()
-    text = re.sub(r'[^\w\s-]', '', text)
-    text = re.sub(r'[\s_-]+', '-', text)
-    text = re.sub(r'^-+|-+$', '', text)
-    return text
-
-
-def _unique_slug(base, exclude_id=None):
-    slug = base or 'untitled'
-    reserved = _get_reserved_slugs()
-    if slug in reserved:
-        slug = slug + '-post'
-    counter = 1
-    while True:
-        q = BlogPost.query.filter_by(slug=slug)
-        if exclude_id:
-            q = q.filter(BlogPost.id != exclude_id)
-        if not q.first():
-            return slug
-        slug = f'{base}-{counter}'
-        counter += 1
+def _ban_public_caches():
+    # /api/resolve/<slug> is what the public :slug route actually fetches
+    # (see routes/public_resolve.py) — banning only /api/blog would leave a
+    # stale cached resolve response outliving this edit/publish/unpublish.
+    ban_pattern('^/api/blog')
+    ban_pattern('^/api/resolve')
 
 
 def _post_to_dict(post, include_content=False):
@@ -111,7 +87,7 @@ def list_posts():
 def create_post():
     data = request.get_json(silent=True) or {}
     title = (data.get('title') or 'Untitled').strip()
-    slug = _unique_slug(_slugify(title))
+    slug = _unique_slug([BlogPost, Page], _slugify(title), _reserved_slugs())
     post = BlogPost(
         title=title,
         slug=slug,
@@ -121,7 +97,7 @@ def create_post():
     db.session.add(post)
     _log('Post', 'added', title, subject_is_bold=True)
     db.session.commit()
-    ban_pattern('^/api/blog')
+    _ban_public_caches()
     return jsonify(_post_to_dict(post, include_content=True)), 201
 
 
@@ -150,9 +126,12 @@ def update_post(post_id):
 
     if 'slug' in data:
         new_slug = _slugify(data['slug']) or _slugify(post.title) or 'untitled'
-        if new_slug in _get_reserved_slugs():
+        if new_slug in _reserved_slugs():
             return jsonify({'error': f'"{new_slug}" is a reserved path and cannot be used as a slug.'}), 400
-        conflict = BlogPost.query.filter(BlogPost.slug == new_slug, BlogPost.id != post_id).first()
+        conflict = (
+            BlogPost.query.filter(BlogPost.slug == new_slug, BlogPost.id != post_id).first()
+            or Page.query.filter_by(slug=new_slug).first()
+        )
         if conflict:
             return jsonify({'error': 'A post with this slug already exists.'}), 400
         post.slug = new_slug
@@ -223,7 +202,7 @@ def update_post(post_id):
 
     _log('Post', 'edited', post.title, subject_is_bold=True)
     db.session.commit()
-    ban_pattern('^/api/blog')
+    _ban_public_caches()
     return jsonify(_post_to_dict(post, include_content=True))
 
 
@@ -247,7 +226,7 @@ def delete_post(post_id):
             fingerprint_config.updated_at = datetime.utcnow()
 
     db.session.commit()
-    ban_pattern('^/api/blog')
+    _ban_public_caches()
     return jsonify({'message': 'Post deleted'})
 
 

@@ -64,6 +64,9 @@ def create_app():
     from routes.blog import blog_bp
     from routes.admin_blog import admin_blog_bp
     from routes.admin_blog_categories import admin_blog_categories_bp
+    from routes.pages import pages_bp
+    from routes.admin_pages import admin_pages_bp
+    from routes.public_resolve import public_resolve_bp
     from routes.auth import auth_bp
     from routes.user import user_bp
     from routes.admin_users import admin_users_bp
@@ -84,6 +87,9 @@ def create_app():
     app.register_blueprint(blog_bp)
     app.register_blueprint(admin_blog_bp)
     app.register_blueprint(admin_blog_categories_bp)
+    app.register_blueprint(pages_bp)
+    app.register_blueprint(admin_pages_bp)
+    app.register_blueprint(public_resolve_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
     app.register_blueprint(admin_users_bp)
@@ -208,10 +214,134 @@ def _migrate_schema():
                 'CREATE INDEX ix_analytics_attempt_ip_created ON analytics_attempt (ip_address, created_at)'
             ))
 
+        # Pages feature / Site Navigation — see slug_utils.py, routes/admin_pages.py,
+        # models.py's Page/SiteConfig.primary_navigation|site_title_link|about_migrated.
+        if 'primary_navigation' not in config_columns:
+            conn.execute(text('ALTER TABLE site_config ADD COLUMN primary_navigation TEXT'))
+        if 'site_title_link' not in config_columns:
+            conn.execute(text(
+                "ALTER TABLE site_config ADD COLUMN site_title_link VARCHAR(500) NOT NULL DEFAULT '/'"
+            ))
+        if 'about_migrated' not in config_columns:
+            conn.execute(text(
+                'ALTER TABLE site_config ADD COLUMN about_migrated BOOLEAN NOT NULL DEFAULT FALSE'
+            ))
+
+
+def _seed_pages_and_nav():
+    """One-time, idempotent data seeding for the Pages feature — run once
+    per startup, after _migrate_schema() has added the columns this reads/
+    writes. Two independent steps:
+
+      a) Migrates the old fixed About SiteConfig columns into a real Page
+         row (About is no longer a hardcoded page — see slug_utils.py's
+         comment on why 'about' is no longer a reserved slug). Gated on
+         SiteConfig.about_migrated, NOT on "does a Page with this slug
+         exist" — the latter would be fooled by a later slug rename and
+         recreate a duplicate About page on the next restart.
+
+      b) Seeds primary_navigation from the legacy nav_order + each fixed
+         page's enabled/name/slug, so existing installs' visible nav is
+         preserved across the upgrade. Gated on primary_navigation IS NULL,
+         so it only ever runs once and never clobbers an admin's own edits.
+         Runs after (a) so About's nav entry can point at its new Page-backed
+         URL instead of the (now-unused) SiteConfig columns.
+    """
+    import json
+    from models import SiteConfig, Page, BlogPost, DEFAULT_NAV_ORDER
+    from slug_utils import unique_slug, get_reserved_slugs
+
+    config = SiteConfig.query.first()
+    if not config:
+        return  # fresh install, nothing to migrate yet (seed.py hasn't run)
+
+    # Direct object reference to whatever Page this run creates for About,
+    # if any — used by the nav seed below so it doesn't need to re-query for
+    # it. Only a same-run migration relies on this; see the fallback query
+    # below for the (rare) case where about_migrated is already true but
+    # primary_navigation is still NULL from a previous partial run.
+    migrated_about = None
+
+    if not config.about_migrated:
+        if config.about_text or config.about_slug:
+            candidate = config.about_slug or 'about'
+            # Reserved-word/collision checks aren't skippable here even
+            # though this is a one-time system migration: the OLD
+            # admin_config.py PUT never validated about_slug against
+            # reserved words or existing BlogPost slugs at all, so a legacy
+            # install could already have an about_slug that collides with
+            # something.
+            final_slug = unique_slug([BlogPost, Page], candidate, get_reserved_slugs(config))
+            migrated_about = Page(
+                title=config.about_page_name or 'About',
+                slug=final_slug,
+                content_html=config.about_text,
+                meta_description=config.about_meta_description,
+                scrollable_nav_enabled=config.about_scrollable_nav_enabled,
+                page_width=config.about_page_width,
+                font_family=config.about_font_family,
+                status='published' if config.about_enabled else 'draft',
+                author_id=None,  # system-migrated, not attributable to any one admin
+            )
+            db.session.add(migrated_about)
+        config.about_migrated = True
+        db.session.commit()
+
+    if config.primary_navigation is None:
+        try:
+            legacy_order = json.loads(config.nav_order) if config.nav_order else list(DEFAULT_NAV_ORDER)
+        except (TypeError, ValueError):
+            legacy_order = list(DEFAULT_NAV_ORDER)
+        legacy_order = [key for key in legacy_order if key in DEFAULT_NAV_ORDER]
+        legacy_order += [key for key in DEFAULT_NAV_ORDER if key not in legacy_order]
+
+        if migrated_about is None:
+            # about_migrated was already true on entry (a previous run did
+            # step (a) but crashed before step (b)) — best-effort re-find by
+            # the title that migration would have used, since there's no
+            # stored id linking SiteConfig to it.
+            migrated_about = Page.query.filter_by(title=config.about_page_name or 'About').order_by(Page.id.asc()).first()
+
+        # "Enabled" here must match site_config.py's get_site_config() nav_items
+        # computation exactly, not just the raw *_enabled flag — contact and
+        # payment additionally require their third-party integration to
+        # actually be configured, and ai_demo additionally requires the
+        # deployment-level ENABLE_AI_DEMOS flag. Seeding a nav entry that the
+        # live nav array itself would never have shown bakes a broken/
+        # premature link into primary_navigation permanently, since this
+        # seed only ever runs once (gated on primary_navigation IS NULL).
+        from flask import current_app
+        contact_enabled = config.contact_enabled and bool(config.mailgun_api_key and config.mailgun_domain)
+        payment_enabled = config.payment_enabled and bool(config.stripe_publishable_key)
+        ai_demo_enabled = config.ai_demo_enabled and current_app.config['ENABLE_AI_DEMOS']
+
+        key_to_entry = {
+            'home': (config.home_page_name, '/', config.home_enabled),
+            'blog': (config.blog_page_name, f'/{config.blog_slug}', config.blog_enabled),
+            'projects': (config.projects_page_name, f'/{config.projects_slug}', config.projects_enabled),
+            'about': (
+                (migrated_about.title if migrated_about else (config.about_page_name or 'About')),
+                (f'/{migrated_about.slug}' if migrated_about else f'/{config.about_slug or "about"}'),
+                (migrated_about.status == 'published') if migrated_about else config.about_enabled,
+            ),
+            'contact': (config.contact_page_name, f'/{config.contact_slug}', contact_enabled),
+            'ai_demo': (config.ai_demo_page_name, f'/{config.ai_demo_slug}', ai_demo_enabled),
+            'payment': (config.payment_page_name, f'/{config.payment_slug}', payment_enabled),
+        }
+        seeded = [
+            {'label': name, 'url': url}
+            for key in legacy_order
+            for (name, url, enabled) in [key_to_entry[key]]
+            if enabled
+        ]
+        config.primary_navigation = json.dumps(seeded)
+        db.session.commit()
+
 
 if __name__ == '__main__':
     app = create_app()
     with app.app_context():
         db.create_all()
         _migrate_schema()
+        _seed_pages_and_nav()
     app.run(debug=True)

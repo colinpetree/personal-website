@@ -110,11 +110,21 @@ def check_imports():
 
 def run_migrations(app):
     """Runs db.create_all() + the hand-rolled column patcher + any pending
-    .sql migrations. Must be called once in gunicorn's master process before
-    workers are forked (see main() below) — never from a post_fork hook,
-    or concurrent workers would race on the same CREATE TABLE/INSERT
-    statements."""
-    from app import _migrate_schema
+    .sql migrations + one-time data seeding. Must be called once in
+    gunicorn's master process before workers are forked (see main() below)
+    — never from a post_fork hook, or concurrent workers would race on the
+    same CREATE TABLE/INSERT statements.
+
+    This is THE production migration entrypoint — deploy/scripts/install.sh
+    calls `server.py --migrate-only` (-> this function) on every install/
+    update, after --seed-initial-data has already run (install.sh runs them
+    in that order), so by the time this runs a SiteConfig row is guaranteed
+    to exist on both a fresh install and an upgrade. Any new one-time,
+    ORM-backed data migration (like _seed_pages_and_nav below) needs to be
+    called from here, not just from backend/app.py's `if __name__ ==
+    '__main__':` block — that block only ever runs for local `python
+    app.py` dev usage, never in production."""
+    from app import _migrate_schema, _seed_pages_and_nav
     from extensions import db
     from schema_migrations import run_pending_migrations
 
@@ -131,6 +141,7 @@ def run_migrations(app):
         db.create_all()
         _migrate_schema()
         run_pending_migrations(db.engine, migrations_dir)
+        _seed_pages_and_nav()
 
 
 def db_is_fresh(app):
