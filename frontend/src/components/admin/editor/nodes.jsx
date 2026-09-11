@@ -59,7 +59,7 @@ function decoratorFontClass(fontFamily) {
 import Picker from '@emoji-mart/react'
 import emojiData from '@emoji-mart/data'
 import { handleUploadFull } from './upload'
-import { FloatingToolbarPlugin, OPEN_VIDEO_POSTER_COMMAND } from './plugins'
+import { FloatingToolbarPlugin, OPEN_VIDEO_POSTER_COMMAND, parseYouTubeId, parseVimeoId, parseSpotifyPath } from './plugins'
 import { Tooltip } from '../../ui/Tooltip'
 import { useToast } from '../../../context/ToastContext'
 import { SOCIAL_PLATFORMS, GENERIC_ICONS, resolveLinkIcon, getPlatformMonoSvg } from './socialIcons'
@@ -90,13 +90,11 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, shad
     return editor.registerCommand(
       CLICK_COMMAND,
       (event) => {
-        const el = imgRef.current
-        if (el && (event.target === el || el.contains(event.target))) {
-          clearSelection()
-          setSelected(true)
-          return true
-        }
-        return false
+        const el = figRef.current
+        if (!el || !el.contains(event.target)) return false
+        clearSelection()
+        setSelected(true)
+        return true
       },
       COMMAND_PRIORITY_LOW
     )
@@ -125,7 +123,7 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, shad
 
   // Position toolbar above the figure whenever selection changes.
   useLayoutEffect(() => {
-    if (!isSelected || !figRef.current) { setToolbarPos(null); if (showLinkPopoverRef.current) { setShowLinkPopover(false); setLinkDraft('') } return }
+    if (!showRing || !figRef.current) { setToolbarPos(null); if (showLinkPopoverRef.current) { setShowLinkPopover(false); setLinkDraft('') } return }
     function calc() {
       const rect = figRef.current?.getBoundingClientRect()
       if (!rect) return
@@ -141,7 +139,7 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, shad
     window.addEventListener('scroll', calc, true)
     window.addEventListener('resize', calc)
     return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
-  }, [isSelected])
+  }, [showRing])
 
   function handleCaptionChange(e) {
     const val = e.target.value
@@ -252,13 +250,14 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, shad
             onFocus={() => setCaptionFocused(true)}
             onBlur={() => setCaptionFocused(false)}
             onClick={e => e.stopPropagation()}
+            onKeyDown={e => e.stopPropagation()}
             placeholder="Type caption for image (optional)"
             className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
           />
         </figcaption>
       </figure>
 
-      {isSelected && toolbarPos && createPortal(
+      {showRing && toolbarPos && createPortal(
         <div
           style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999 }}
           className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl px-1.5 py-1 shadow-2xl"
@@ -532,7 +531,6 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, thumbnailS
       (event) => {
         const el = figRef.current
         if (!el || !el.contains(event.target)) return false
-        if (event.target.tagName === 'INPUT') return false
         clearSelection()
         setSelected(true)
         return true
@@ -562,7 +560,7 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, thumbnailS
   }, [isSelected, editor, nodeKey])
 
   useLayoutEffect(() => {
-    if (!isSelected || !figRef.current) { setToolbarPos(null); return }
+    if (!showRing || !figRef.current) { setToolbarPos(null); return }
     function calc() {
       const rect = figRef.current?.getBoundingClientRect()
       if (!rect) return
@@ -578,7 +576,7 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, thumbnailS
     window.addEventListener('scroll', calc, true)
     window.addEventListener('resize', calc)
     return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
-  }, [isSelected])
+  }, [showRing])
 
   function handleCaptionChange(e) {
     const val = e.target.value
@@ -651,13 +649,14 @@ function VideoNodeComponent({ src, caption, width, loop, segmentLoop, thumbnailS
             onFocus={() => setCaptionFocused(true)}
             onBlur={() => setCaptionFocused(false)}
             onClick={e => e.stopPropagation()}
+            onKeyDown={e => e.stopPropagation()}
             placeholder="Type caption for video (optional)"
             className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
           />
         </figcaption>
       </figure>
 
-      {isSelected && toolbarPos && createPortal(
+      {showRing && toolbarPos && createPortal(
         <div
           style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999 }}
           className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl px-1.5 py-1 shadow-2xl"
@@ -1417,7 +1416,6 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
       (event) => {
         const el = containerRef.current
         if (!el || !el.contains(event.target)) return false
-        if (event.target.tagName === 'INPUT') return false
         clearSelection()
         setSelected(true)
         return true
@@ -1449,7 +1447,7 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
   // Position the floating toolbar above the gallery, same pattern as
   // ImageNodeComponent/VideoNodeComponent.
   useLayoutEffect(() => {
-    if (!isSelected || !containerRef.current) { setToolbarPos(null); return }
+    if (!showRing || !containerRef.current) { setToolbarPos(null); return }
     function calc() {
       const rect = containerRef.current?.getBoundingClientRect()
       if (!rect) return
@@ -1465,7 +1463,7 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
     window.addEventListener('scroll', calc, true)
     window.addEventListener('resize', calc)
     return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
-  }, [isSelected])
+  }, [showRing])
 
   // Self-heal old/missing per-image dimensions by measuring them client-side
   // — so simply opening a pre-redesign gallery in the editor backfills real
@@ -1667,11 +1665,12 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
         onFocus={() => setCaptionFocused(true)}
         onBlur={() => setCaptionFocused(false)}
         onClick={e => e.stopPropagation()}
+        onKeyDown={e => e.stopPropagation()}
         placeholder="Type caption for gallery (optional)"
         className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
       />
 
-      {isSelected && toolbarPos && createPortal(
+      {showRing && toolbarPos && createPortal(
         <div
           style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999 }}
           className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl px-1.5 py-1 shadow-2xl"
@@ -5165,6 +5164,61 @@ export function $createHeaderNode() {
   return new HeaderNode()
 }
 
+// Shared "edit embed link" popover for the YouTube/Vimeo/Spotify nodes below
+// — lets an existing embed's URL be swapped in place instead of deleting and
+// re-inserting the whole node. parseValue returning a falsy value (an
+// unrecognized URL) silently discards the edit, same tolerance as the image
+// node's own link popover.
+function useEmbedLinkPopover({ editor, nodeKey, active, buildDraft, parseValue, applyValue }) {
+  const [showLinkPopover, setShowLinkPopover] = useState(false)
+  const [linkDraft, setLinkDraft] = useState('')
+  const linkButtonRef = useRef(null)
+  const [popoverPos, setPopoverPos] = useState({ top: 0, left: 0 })
+
+  useEffect(() => {
+    if (!active && showLinkPopover) { setShowLinkPopover(false); setLinkDraft('') }
+  }, [active])
+
+  function openLinkPopover() {
+    if (showLinkPopover) { setShowLinkPopover(false); setLinkDraft(''); return }
+    if (!linkButtonRef.current) return
+    const rect = linkButtonRef.current.getBoundingClientRect()
+    setPopoverPos({ top: rect.top - 8, left: rect.left + rect.width / 2 })
+    setLinkDraft(buildDraft())
+    setShowLinkPopover(true)
+  }
+
+  function commitLink() {
+    const parsed = parseValue(linkDraft.trim())
+    if (parsed) {
+      editor.update(() => {
+        const node = $getNodeByKey(nodeKey)
+        if (node) applyValue(node, parsed)
+      })
+    }
+    setShowLinkPopover(false)
+    setLinkDraft('')
+  }
+
+  function cancelLink() {
+    setShowLinkPopover(false)
+    setLinkDraft('')
+  }
+
+  useEffect(() => {
+    if (!showLinkPopover) return
+    const onScroll = () => {
+      if (!linkButtonRef.current) return
+      const r = linkButtonRef.current.getBoundingClientRect()
+      setPopoverPos({ top: r.top - 8, left: r.left + r.width / 2 })
+    }
+    document.addEventListener('scroll', onScroll, { capture: true, passive: true })
+    return () => document.removeEventListener('scroll', onScroll, { capture: true })
+  }, [showLinkPopover])
+
+  return { showLinkPopover, linkDraft, setLinkDraft, linkButtonRef, popoverPos, openLinkPopover, commitLink, cancelLink }
+}
+
 // ─── YouTubeNodeComponent ─────────────────────────────────────────────────────
 
 function YouTubeNodeComponent({ videoId, caption, nodeKey, editor }) {
@@ -5172,6 +5226,7 @@ function YouTubeNodeComponent({ videoId, caption, nodeKey, editor }) {
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  const [toolbarPos, setToolbarPos] = useState(null)
   const figRef = useRef(null)
 
   const showRing = isSelected || captionFocused
@@ -5182,7 +5237,6 @@ function YouTubeNodeComponent({ videoId, caption, nodeKey, editor }) {
       (event) => {
         const el = figRef.current
         if (!el || !el.contains(event.target)) return false
-        if (event.target.tagName === 'INPUT') return false
         clearSelection()
         setSelected(true)
         return true
@@ -5211,6 +5265,36 @@ function YouTubeNodeComponent({ videoId, caption, nodeKey, editor }) {
     )
   }, [isSelected, editor, nodeKey])
 
+  // Position the floating toolbar above the embed, same pattern as
+  // ImageNodeComponent/VideoNodeComponent.
+  useLayoutEffect(() => {
+    if (!showRing || !figRef.current) { setToolbarPos(null); return }
+    function calc() {
+      const rect = figRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const W = 72
+      const H = 40
+      let left = rect.left + window.scrollX + rect.width / 2 - W / 2
+      left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - W - 8))
+      let top = rect.top + window.scrollY - H - 8
+      if (top < window.scrollY + 8) top = rect.bottom + window.scrollY + 8
+      setToolbarPos({ top, left })
+    }
+    calc()
+    window.addEventListener('scroll', calc, true)
+    window.addEventListener('resize', calc)
+    return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
+  }, [showRing])
+
+  const linkPopover = useEmbedLinkPopover({
+    editor,
+    nodeKey,
+    active: showRing,
+    buildDraft: () => `https://www.youtube.com/watch?v=${videoId}`,
+    parseValue: parseYouTubeId,
+    applyValue: (node, parsed) => { if (node instanceof YouTubeNode) node.getWritable().__videoId = parsed },
+  })
+
   function handleCaptionChange(e) {
     const val = e.target.value
     editor.update(() => {
@@ -5219,36 +5303,106 @@ function YouTubeNodeComponent({ videoId, caption, nodeKey, editor }) {
     })
   }
 
+  function removeNode() {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node) node.remove()
+    })
+  }
+
   return (
-    <figure
-      ref={figRef}
-      style={{ maxWidth: '740px' }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className={`my-4 mx-auto media-regular-preview rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
-    >
-      <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
-        <iframe
-          src={`https://www.youtube.com/embed/${videoId}`}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture"
-          allowFullScreen
-          title="YouTube video"
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
-        />
-      </div>
-      <figcaption className="mt-0">
-        <input
-          type="text"
-          value={caption}
-          onChange={handleCaptionChange}
-          onFocus={() => setCaptionFocused(true)}
-          onBlur={() => setCaptionFocused(false)}
-          onClick={e => e.stopPropagation()}
-          placeholder="Type caption (optional)"
-          className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
-        />
-      </figcaption>
-    </figure>
+    <>
+      <figure
+        ref={figRef}
+        style={{ maxWidth: '740px' }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`my-4 mx-auto media-regular-preview rounded-lg transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+      >
+        <div className="rounded-lg overflow-hidden" style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+          <iframe
+            src={`https://www.youtube.com/embed/${videoId}`}
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture"
+            allowFullScreen
+            title="YouTube video"
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '0.5rem' }}
+          />
+          {/* Clicks inside an <iframe> never reach the parent document (a hard
+              browser boundary), so CLICK_COMMAND above can never see them —
+              this transparent overlay catches the first click to select the
+              node/show the toolbar, then gets out of the way once selected
+              so the embed itself (play, etc.) is fully interactive. */}
+          {!isSelected && (
+            <div
+              style={{ position: 'absolute', inset: 0, cursor: 'pointer' }}
+              onMouseDown={e => { e.preventDefault(); clearSelection(); setSelected(true) }}
+            />
+          )}
+        </div>
+        <figcaption className="mt-0">
+          <input
+            type="text"
+            value={caption}
+            onChange={handleCaptionChange}
+            onFocus={() => setCaptionFocused(true)}
+            onBlur={() => setCaptionFocused(false)}
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => e.stopPropagation()}
+            placeholder="Type caption (optional)"
+            className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
+          />
+        </figcaption>
+      </figure>
+
+      {showRing && toolbarPos && createPortal(
+        <div
+          style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999 }}
+          className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl px-1.5 py-1 shadow-2xl"
+          onMouseDown={e => e.preventDefault()}
+        >
+          <Tooltip content="YouTube link">
+            <button
+              ref={linkPopover.linkButtonRef}
+              onMouseDown={e => { e.preventDefault(); e.stopPropagation(); linkPopover.openLinkPopover() }}
+              className="p-1.5 rounded-md transition-colors text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+            >
+              <Link2 size={14} strokeWidth={2} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Delete">
+            <button
+              onMouseDown={e => { e.preventDefault(); removeNode() }}
+              className="p-1.5 rounded-md transition-colors text-gray-500 hover:text-red-500 hover:bg-gray-100"
+            >
+              <Trash2 size={14} strokeWidth={2} />
+            </button>
+          </Tooltip>
+        </div>,
+        document.body
+      )}
+
+      {linkPopover.showLinkPopover && createPortal(
+        <div
+          style={{ position: 'fixed', top: linkPopover.popoverPos.top, left: linkPopover.popoverPos.left, transform: 'translate(-50%, -100%)', zIndex: 10000 }}
+          className="bg-white border border-gray-200 rounded-xl shadow-2xl px-2 py-2 flex items-center gap-1"
+        >
+          <input
+            autoFocus
+            type="text"
+            value={linkPopover.linkDraft}
+            onChange={e => linkPopover.setLinkDraft(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); linkPopover.commitLink() }
+              if (e.key === 'Escape') { e.preventDefault(); linkPopover.cancelLink() }
+            }}
+            onBlur={linkPopover.commitLink}
+            placeholder="https://www.youtube.com/watch?v=…"
+            className="text-xs bg-white text-gray-800 border border-gray-200 rounded px-2 py-1 w-56 outline-none focus:border-blue-500"
+          />
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
 
@@ -5303,17 +5457,20 @@ export class YouTubeNode extends DecoratorNode {
 
     const figure = document.createElement('figure')
     figure.className = 'embed embed-youtube'
-    figure.style.cssText = 'max-width:740px;margin:1.5rem auto;border-radius:0.5rem;overflow:hidden'
+    figure.style.cssText = 'max-width:740px;margin:1.5rem auto'
 
+    // Rounding + clipping live on this inner wrapper (not the <figure>) so
+    // they hug just the video frame, not the caption below it — same
+    // pattern as ImageNode/VideoNode.
     const wrapper = document.createElement('div')
-    wrapper.style.cssText = 'position:relative;padding-bottom:56.25%;height:0'
+    wrapper.style.cssText = 'position:relative;padding-bottom:56.25%;height:0;border-radius:0.5rem;overflow:hidden'
 
     const iframe = document.createElement('iframe')
     iframe.setAttribute('src', `https://www.youtube.com/embed/${this.__videoId}`)
     iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; fullscreen; gyroscope; picture-in-picture')
     iframe.setAttribute('allowfullscreen', '')
     iframe.setAttribute('title', 'YouTube video')
-    iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none'
+    iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;border-radius:0.5rem'
 
     wrapper.appendChild(iframe)
     figure.appendChild(wrapper)
@@ -5351,6 +5508,7 @@ function VimeoNodeComponent({ videoId, caption, nodeKey, editor }) {
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  const [toolbarPos, setToolbarPos] = useState(null)
   const figRef = useRef(null)
 
   const showRing = isSelected || captionFocused
@@ -5361,7 +5519,6 @@ function VimeoNodeComponent({ videoId, caption, nodeKey, editor }) {
       (event) => {
         const el = figRef.current
         if (!el || !el.contains(event.target)) return false
-        if (event.target.tagName === 'INPUT') return false
         clearSelection()
         setSelected(true)
         return true
@@ -5390,6 +5547,36 @@ function VimeoNodeComponent({ videoId, caption, nodeKey, editor }) {
     )
   }, [isSelected, editor, nodeKey])
 
+  // Position the floating toolbar above the embed, same pattern as
+  // ImageNodeComponent/VideoNodeComponent.
+  useLayoutEffect(() => {
+    if (!showRing || !figRef.current) { setToolbarPos(null); return }
+    function calc() {
+      const rect = figRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const W = 72
+      const H = 40
+      let left = rect.left + window.scrollX + rect.width / 2 - W / 2
+      left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - W - 8))
+      let top = rect.top + window.scrollY - H - 8
+      if (top < window.scrollY + 8) top = rect.bottom + window.scrollY + 8
+      setToolbarPos({ top, left })
+    }
+    calc()
+    window.addEventListener('scroll', calc, true)
+    window.addEventListener('resize', calc)
+    return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
+  }, [showRing])
+
+  const linkPopover = useEmbedLinkPopover({
+    editor,
+    nodeKey,
+    active: showRing,
+    buildDraft: () => `https://vimeo.com/${videoId}`,
+    parseValue: parseVimeoId,
+    applyValue: (node, parsed) => { if (node instanceof VimeoNode) node.getWritable().__videoId = parsed },
+  })
+
   function handleCaptionChange(e) {
     const val = e.target.value
     editor.update(() => {
@@ -5398,36 +5585,106 @@ function VimeoNodeComponent({ videoId, caption, nodeKey, editor }) {
     })
   }
 
+  function removeNode() {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node) node.remove()
+    })
+  }
+
   return (
-    <figure
-      ref={figRef}
-      style={{ maxWidth: '740px' }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className={`my-4 mx-auto media-regular-preview rounded-lg overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
-    >
-      <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
-        <iframe
-          src={`https://player.vimeo.com/video/${videoId}`}
-          allow="autoplay; fullscreen; picture-in-picture"
-          allowFullScreen
-          title="Vimeo video"
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
-        />
-      </div>
-      <figcaption className="mt-0">
-        <input
-          type="text"
-          value={caption}
-          onChange={handleCaptionChange}
-          onFocus={() => setCaptionFocused(true)}
-          onBlur={() => setCaptionFocused(false)}
-          onClick={e => e.stopPropagation()}
-          placeholder="Type caption (optional)"
-          className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
-        />
-      </figcaption>
-    </figure>
+    <>
+      <figure
+        ref={figRef}
+        style={{ maxWidth: '740px' }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`my-4 mx-auto media-regular-preview rounded-lg transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+      >
+        <div className="rounded-lg overflow-hidden" style={{ position: 'relative', paddingBottom: '56.25%', height: 0 }}>
+          <iframe
+            src={`https://player.vimeo.com/video/${videoId}`}
+            allow="autoplay; fullscreen; picture-in-picture"
+            allowFullScreen
+            title="Vimeo video"
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '0.5rem' }}
+          />
+          {/* Clicks inside an <iframe> never reach the parent document (a hard
+              browser boundary), so CLICK_COMMAND above can never see them —
+              this transparent overlay catches the first click to select the
+              node/show the toolbar, then gets out of the way once selected
+              so the embed itself (play, etc.) is fully interactive. */}
+          {!isSelected && (
+            <div
+              style={{ position: 'absolute', inset: 0, cursor: 'pointer' }}
+              onMouseDown={e => { e.preventDefault(); clearSelection(); setSelected(true) }}
+            />
+          )}
+        </div>
+        <figcaption className="mt-0">
+          <input
+            type="text"
+            value={caption}
+            onChange={handleCaptionChange}
+            onFocus={() => setCaptionFocused(true)}
+            onBlur={() => setCaptionFocused(false)}
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => e.stopPropagation()}
+            placeholder="Type caption (optional)"
+            className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
+          />
+        </figcaption>
+      </figure>
+
+      {showRing && toolbarPos && createPortal(
+        <div
+          style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999 }}
+          className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl px-1.5 py-1 shadow-2xl"
+          onMouseDown={e => e.preventDefault()}
+        >
+          <Tooltip content="Vimeo link">
+            <button
+              ref={linkPopover.linkButtonRef}
+              onMouseDown={e => { e.preventDefault(); e.stopPropagation(); linkPopover.openLinkPopover() }}
+              className="p-1.5 rounded-md transition-colors text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+            >
+              <Link2 size={14} strokeWidth={2} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Delete">
+            <button
+              onMouseDown={e => { e.preventDefault(); removeNode() }}
+              className="p-1.5 rounded-md transition-colors text-gray-500 hover:text-red-500 hover:bg-gray-100"
+            >
+              <Trash2 size={14} strokeWidth={2} />
+            </button>
+          </Tooltip>
+        </div>,
+        document.body
+      )}
+
+      {linkPopover.showLinkPopover && createPortal(
+        <div
+          style={{ position: 'fixed', top: linkPopover.popoverPos.top, left: linkPopover.popoverPos.left, transform: 'translate(-50%, -100%)', zIndex: 10000 }}
+          className="bg-white border border-gray-200 rounded-xl shadow-2xl px-2 py-2 flex items-center gap-1"
+        >
+          <input
+            autoFocus
+            type="text"
+            value={linkPopover.linkDraft}
+            onChange={e => linkPopover.setLinkDraft(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); linkPopover.commitLink() }
+              if (e.key === 'Escape') { e.preventDefault(); linkPopover.cancelLink() }
+            }}
+            onBlur={linkPopover.commitLink}
+            placeholder="https://vimeo.com/…"
+            className="text-xs bg-white text-gray-800 border border-gray-200 rounded px-2 py-1 w-56 outline-none focus:border-blue-500"
+          />
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
 
@@ -5482,17 +5739,20 @@ export class VimeoNode extends DecoratorNode {
 
     const figure = document.createElement('figure')
     figure.className = 'embed embed-vimeo'
-    figure.style.cssText = 'max-width:740px;margin:1.5rem auto;border-radius:0.5rem;overflow:hidden'
+    figure.style.cssText = 'max-width:740px;margin:1.5rem auto'
 
+    // Rounding + clipping live on this inner wrapper (not the <figure>) so
+    // they hug just the video frame, not the caption below it — same
+    // pattern as ImageNode/VideoNode.
     const wrapper = document.createElement('div')
-    wrapper.style.cssText = 'position:relative;padding-bottom:56.25%;height:0'
+    wrapper.style.cssText = 'position:relative;padding-bottom:56.25%;height:0;border-radius:0.5rem;overflow:hidden'
 
     const iframe = document.createElement('iframe')
     iframe.setAttribute('src', `https://player.vimeo.com/video/${this.__videoId}`)
     iframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture')
     iframe.setAttribute('allowfullscreen', '')
     iframe.setAttribute('title', 'Vimeo video')
-    iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none'
+    iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;border-radius:0.5rem'
 
     wrapper.appendChild(iframe)
     figure.appendChild(wrapper)
@@ -5530,6 +5790,7 @@ function SpotifyNodeComponent({ embedPath, caption, nodeKey, editor }) {
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
   const [isHovered, setIsHovered] = useState(false)
+  const [toolbarPos, setToolbarPos] = useState(null)
   const figRef = useRef(null)
 
   const showRing = isSelected || captionFocused
@@ -5542,7 +5803,6 @@ function SpotifyNodeComponent({ embedPath, caption, nodeKey, editor }) {
       (event) => {
         const el = figRef.current
         if (!el || !el.contains(event.target)) return false
-        if (event.target.tagName === 'INPUT') return false
         clearSelection()
         setSelected(true)
         return true
@@ -5571,6 +5831,36 @@ function SpotifyNodeComponent({ embedPath, caption, nodeKey, editor }) {
     )
   }, [isSelected, editor, nodeKey])
 
+  // Position the floating toolbar above the embed, same pattern as
+  // ImageNodeComponent/VideoNodeComponent.
+  useLayoutEffect(() => {
+    if (!showRing || !figRef.current) { setToolbarPos(null); return }
+    function calc() {
+      const rect = figRef.current?.getBoundingClientRect()
+      if (!rect) return
+      const W = 72
+      const H = 40
+      let left = rect.left + window.scrollX + rect.width / 2 - W / 2
+      left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - W - 8))
+      let top = rect.top + window.scrollY - H - 8
+      if (top < window.scrollY + 8) top = rect.bottom + window.scrollY + 8
+      setToolbarPos({ top, left })
+    }
+    calc()
+    window.addEventListener('scroll', calc, true)
+    window.addEventListener('resize', calc)
+    return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
+  }, [showRing])
+
+  const linkPopover = useEmbedLinkPopover({
+    editor,
+    nodeKey,
+    active: showRing,
+    buildDraft: () => `https://open.spotify.com/${embedPath}`,
+    parseValue: parseSpotifyPath,
+    applyValue: (node, parsed) => { if (node instanceof SpotifyNode) node.getWritable().__embedPath = parsed },
+  })
+
   function handleCaptionChange(e) {
     const val = e.target.value
     editor.update(() => {
@@ -5579,35 +5869,107 @@ function SpotifyNodeComponent({ embedPath, caption, nodeKey, editor }) {
     })
   }
 
+  function removeNode() {
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node) node.remove()
+    })
+  }
+
   return (
-    <figure
-      ref={figRef}
-      style={{ maxWidth: '740px' }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className={`my-4 mx-auto media-regular-preview rounded-xl overflow-hidden transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
-    >
-      <iframe
-        src={`https://open.spotify.com/embed/${embedPath}`}
-        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-        allowFullScreen
-        loading="lazy"
-        title="Spotify player"
-        style={{ width: '100%', height: `${iframeHeight}px`, border: 'none', borderRadius: '12px', display: 'block' }}
-      />
-      <figcaption className="mt-0">
-        <input
-          type="text"
-          value={caption}
-          onChange={handleCaptionChange}
-          onFocus={() => setCaptionFocused(true)}
-          onBlur={() => setCaptionFocused(false)}
-          onClick={e => e.stopPropagation()}
-          placeholder="Type caption (optional)"
-          className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
-        />
-      </figcaption>
-    </figure>
+    <>
+      <figure
+        ref={figRef}
+        style={{ maxWidth: '740px' }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        className={`my-4 mx-auto media-regular-preview transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+      >
+        <div style={{ position: 'relative' }}>
+          <iframe
+            src={`https://open.spotify.com/embed/${embedPath}`}
+            allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+            allowFullScreen
+            loading="lazy"
+            title="Spotify player"
+            style={{ width: '100%', height: `${iframeHeight}px`, border: 'none', borderRadius: '12px', display: 'block' }}
+          />
+          {/* Clicks inside an <iframe> never reach the parent document (a hard
+              browser boundary), so CLICK_COMMAND above can never see them —
+              this transparent overlay catches the first click to select the
+              node/show the toolbar, then gets out of the way once selected
+              so the embed itself (play, etc.) is fully interactive. */}
+          {!isSelected && (
+            <div
+              style={{ position: 'absolute', inset: 0, cursor: 'pointer' }}
+              onMouseDown={e => { e.preventDefault(); clearSelection(); setSelected(true) }}
+            />
+          )}
+        </div>
+        <figcaption className="mt-0">
+          <input
+            type="text"
+            value={caption}
+            onChange={handleCaptionChange}
+            onFocus={() => setCaptionFocused(true)}
+            onBlur={() => setCaptionFocused(false)}
+            onClick={e => e.stopPropagation()}
+            onKeyDown={e => e.stopPropagation()}
+            placeholder="Type caption (optional)"
+            className={`w-full ${decoratorFontClass(fontFamily)} text-sm text-gray-500 text-center bg-transparent border-0 outline-none py-2 px-4 placeholder-gray-400 select-text`}
+          />
+        </figcaption>
+      </figure>
+
+      {showRing && toolbarPos && createPortal(
+        <div
+          style={{ position: 'absolute', top: toolbarPos.top, left: toolbarPos.left, zIndex: 9999 }}
+          className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl px-1.5 py-1 shadow-2xl"
+          onMouseDown={e => e.preventDefault()}
+        >
+          <Tooltip content="Spotify link">
+            <button
+              ref={linkPopover.linkButtonRef}
+              onMouseDown={e => { e.preventDefault(); e.stopPropagation(); linkPopover.openLinkPopover() }}
+              className="p-1.5 rounded-md transition-colors text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+            >
+              <Link2 size={14} strokeWidth={2} />
+            </button>
+          </Tooltip>
+          <Tooltip content="Delete">
+            <button
+              onMouseDown={e => { e.preventDefault(); removeNode() }}
+              className="p-1.5 rounded-md transition-colors text-gray-500 hover:text-red-500 hover:bg-gray-100"
+            >
+              <Trash2 size={14} strokeWidth={2} />
+            </button>
+          </Tooltip>
+        </div>,
+        document.body
+      )}
+
+      {linkPopover.showLinkPopover && createPortal(
+        <div
+          style={{ position: 'fixed', top: linkPopover.popoverPos.top, left: linkPopover.popoverPos.left, transform: 'translate(-50%, -100%)', zIndex: 10000 }}
+          className="bg-white border border-gray-200 rounded-xl shadow-2xl px-2 py-2 flex items-center gap-1"
+        >
+          <input
+            autoFocus
+            type="text"
+            value={linkPopover.linkDraft}
+            onChange={e => linkPopover.setLinkDraft(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); linkPopover.commitLink() }
+              if (e.key === 'Escape') { e.preventDefault(); linkPopover.cancelLink() }
+            }}
+            onBlur={linkPopover.commitLink}
+            placeholder="https://open.spotify.com/track/…"
+            className="text-xs bg-white text-gray-800 border border-gray-200 rounded px-2 py-1 w-56 outline-none focus:border-blue-500"
+          />
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
 

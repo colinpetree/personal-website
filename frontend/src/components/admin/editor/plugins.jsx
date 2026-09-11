@@ -413,7 +413,7 @@ const SLASH_GROUPS = [
   },
 ]
 
-function parseYouTubeId(url) {
+export function parseYouTubeId(url) {
   const patterns = [
     /[?&]v=([^&#]+)/,
     /youtu\.be\/([^?&#]+)/,
@@ -427,12 +427,12 @@ function parseYouTubeId(url) {
   return null
 }
 
-function parseVimeoId(url) {
+export function parseVimeoId(url) {
   const m = url.match(/vimeo\.com\/(?:video\/)?(\d+)/)
   return m ? m[1] : null
 }
 
-function parseSpotifyPath(url) {
+export function parseSpotifyPath(url) {
   const m = url.match(/open\.spotify\.com\/(track|album|playlist|episode|artist)\/([a-zA-Z0-9]+)/)
   return m ? `${m[1]}/${m[2]}` : null
 }
