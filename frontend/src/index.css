@@ -292,6 +292,15 @@ html {
   background-color: #f3f4f6;
 }
 
+/* Standalone (non-gallery) ImageNode figures open the lightbox on click,
+   same as gallery images — [data-width] is the attribute unique to
+   ImageNode's own exported figures (VideoNode/AudioNode/HeaderNode/embeds
+   don't set it). A linked image already shows a pointer cursor from its
+   wrapping <a>, so this is harmless to apply unconditionally. */
+.blog-content figure[data-width] img {
+  cursor: pointer;
+}
+
 .blog-content figure.gallery {
   width: min(1040px, 100vw);
   position: relative;
@@ -345,6 +354,17 @@ html {
   font-size: 0.875rem; /* text-sm, matches the editor's caption input */
   line-height: 1.25rem;
   color: #6b7280; /* text-gray-500, matches the editor's caption input */
+}
+
+/* A linked image's whole figure (including its caption) is wrapped in an
+   <a> so the image itself is clickable — but the caption shouldn't look
+   like a link (blue + underlined) just because it's technically inside one.
+   The image stays clickable regardless; this only resets the caption's text
+   styling back to normal. */
+.blog-content a figcaption {
+  color: #6b7280;
+  text-decoration: none;
+  font-weight: inherit;
 }
 
 .blog-content hr {

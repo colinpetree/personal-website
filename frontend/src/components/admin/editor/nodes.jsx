@@ -316,17 +316,6 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, shad
               <Link2 size={14} strokeWidth={2} />
             </button>
           </Tooltip>
-
-          {href && (
-            <Tooltip content="Remove link">
-              <button
-                onMouseDown={e => { e.preventDefault(); e.stopPropagation(); removeLink() }}
-                className="p-1.5 rounded-md transition-colors text-gray-500 hover:text-red-500 hover:bg-gray-100"
-              >
-                <Link2Off size={14} strokeWidth={2} />
-              </button>
-            </Tooltip>
-          )}
         </div>,
         document.body
       )}
@@ -349,6 +338,16 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, shad
             placeholder="Add link…"
             className="text-xs bg-white text-gray-800 border border-gray-200 rounded px-2 py-1 w-52 outline-none focus:border-blue-500"
           />
+          {href && (
+            <Tooltip content="Remove link">
+              <button
+                onMouseDown={e => { e.preventDefault(); removeLink() }}
+                className="p-1.5 rounded-md transition-colors text-gray-500 hover:text-red-500 hover:bg-gray-100 shrink-0"
+              >
+                <Link2Off size={14} strokeWidth={2} />
+              </button>
+            </Tooltip>
+          )}
         </div>,
         document.body
       )}

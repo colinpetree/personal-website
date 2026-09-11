@@ -28,13 +28,29 @@ export function useGalleryLightbox(containerRef, contentKey) {
     if (!container || !contentKey) return
     function onClick(e) {
       if (e.target.tagName !== 'IMG') return
+
       const gallery = e.target.closest('figure.gallery')
-      if (!gallery || !container.contains(gallery)) return
-      const allImgs = [...gallery.querySelectorAll('img')]
-      const clickedIndex = allImgs.indexOf(e.target)
-      galleryElRef.current = gallery
-      setImages(allImgs.map(img => ({ src: img.getAttribute('src') || img.src, alt: img.alt || '' })))
-      setIndex(clickedIndex)
+      if (gallery) {
+        if (!container.contains(gallery)) return
+        const allImgs = [...gallery.querySelectorAll('img')]
+        const clickedIndex = allImgs.indexOf(e.target)
+        galleryElRef.current = gallery
+        setImages(allImgs.map(img => ({ src: img.getAttribute('src') || img.src, alt: img.alt || '' })))
+        setIndex(clickedIndex)
+        setOriginRect(rectFromImg(e.target))
+        return
+      }
+
+      // Standalone (non-gallery) images — only `[data-width]` figures are
+      // ImageNode's own output (VideoNode uses a class instead of this
+      // attribute, AudioNode/HeaderNode/embeds don't use it at all), and only
+      // when the image isn't wrapped in a link (a linked image should still
+      // navigate to its href, not lightbox).
+      const figure = e.target.closest('figure[data-width]')
+      if (!figure || !container.contains(figure) || figure.closest('a')) return
+      galleryElRef.current = null
+      setImages([{ src: e.target.getAttribute('src') || e.target.src, alt: e.target.alt || '' }])
+      setIndex(0)
       setOriginRect(rectFromImg(e.target))
     }
     container.addEventListener('click', onClick)
