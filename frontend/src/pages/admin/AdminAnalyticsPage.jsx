@@ -67,8 +67,8 @@ function AdminAnalyticsPageContent() {
             <div className="flex flex-col divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
               {pages.map(page => (
                 <Link
-                  key={page.key}
-                  to={`/admin/metrics/page/${page.key}`}
+                  key={`${page.type}-${page.key}`}
+                  to={`/admin/metrics/${page.type}/${page.key}`}
                   className="flex items-center gap-6 px-4 py-3 bg-white hover:bg-gray-50 transition-colors"
                 >
                   <p className="flex-1 min-w-0 text-sm font-medium text-gray-900 truncate">{page.label}</p>

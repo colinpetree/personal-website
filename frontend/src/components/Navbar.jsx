@@ -149,9 +149,8 @@ export default function Navbar() {
   }, [config?.favicon_filename])
 
   // Ghost-style freeform {label, url} pairs — replaces the old fixed
-  // 7-page-key nav_order/*_enabled system (site_config.py still computes
-  // that as `config.nav` for the admin sidebar's own ordering, but the
-  // public Navbar no longer reads it). No `enabled` filter needed: every
+  // 7-page-key nav_order/*_enabled system entirely (that system, and the
+  // `config.nav` field it fed, are gone). No `enabled` filter needed: every
   // entry here is meant to render, unlike the old system's per-page toggle.
   const navLinks = config?.primary_navigation ?? []
   const siteTitle = config?.site_title ?? ''

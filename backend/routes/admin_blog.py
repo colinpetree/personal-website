@@ -86,7 +86,7 @@ def list_posts():
 @admin_required
 def create_post():
     data = request.get_json(silent=True) or {}
-    title = (data.get('title') or 'Untitled').strip()
+    title = (data.get('title') or '').strip() or 'Untitled'
     slug = _unique_slug([BlogPost, Page], _slugify(title), _reserved_slugs())
     post = BlogPost(
         title=title,
@@ -129,7 +129,7 @@ def update_post(post_id):
             return jsonify({'error': 'Contributors cannot publish or schedule posts'}), 403
 
     if 'title' in data:
-        post.title = (data['title'] or 'Untitled').strip()
+        post.title = (data['title'] or '').strip() or 'Untitled'
 
     if 'slug' in data:
         new_slug = _slugify(data['slug']) or _slugify(post.title) or 'untitled'

@@ -147,7 +147,10 @@ export function meta({ params, location }) {
     const page = cached.page
     if (!page) return notFoundMeta(config)
     return buildMeta({
-      title: page.title,
+      // "{title} - {site_title}", same as every other fixed page (Blog,
+      // Projects, Contact, ...) — blog posts are the one exception that
+      // keep their own exclusive tab title with no site name suffix.
+      title: config?.site_title ? `${page.title} - ${config.site_title}` : page.title,
       description: page.meta_description,
       image: siteFallbackImage(config),
     })

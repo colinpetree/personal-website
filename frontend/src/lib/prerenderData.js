@@ -19,10 +19,10 @@ export function getSlugs(baseUrl) {
       if (!res.ok) throw new Error(`Failed to fetch site-config for prerender: HTTP ${res.status}`)
       const config = await res.json()
       const {
-        blog = 'blog', projects = 'projects', about = 'about',
+        blog = 'blog', projects = 'projects',
         contact = 'contact', ai_demo = 'demo', payment = 'payment',
       } = config.slugs ?? {}
-      return { blog, projects, about, contact, ai_demo, payment }
+      return { blog, projects, contact, ai_demo, payment }
     })())
   }
   return _slugsPromises.get(baseUrl)

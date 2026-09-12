@@ -39,7 +39,7 @@ function AdminBlogPageContent() {
           {({ editing, local, set }) => editing ? (
             <>
               <Toggle label="Enable blog" checked={local.blog_enabled} onChange={v => set('blog_enabled', v)} />
-              <Field label="Link label">
+              <Field label="Page title" hint="Used for the browser tab title (e.g. Blog - Site Name).">
                 <Input value={local.blog_page_name} onChange={e => set('blog_page_name', e.target.value)} />
               </Field>
               <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
@@ -60,7 +60,7 @@ function AdminBlogPageContent() {
                 </p>
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Link label</p>
+                <p className="text-xs font-medium text-gray-500">Page title</p>
                 <DisplayValue value={local.blog_page_name} />
               </div>
               <div className="flex flex-col gap-1">

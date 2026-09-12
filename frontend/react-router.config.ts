@@ -60,15 +60,8 @@ export default {
     // Deliberately excluded: /admin/*, /{payment}, /{ai_demo}(+subroutes),
     // /profile, /auth/magic — all session-gated or write-heavy; never valid
     // to serve a stale prerendered snapshot for these.
-    //
-    // De-duplicated via a Set: the migrated About page (see the backend's
-    // one-time About->Page migration) is BOTH `slugs.about`'s fixed route
-    // AND a row `/api/pages` returns, so pageSlugs can otherwise contain the
-    // same path `slugs.about` already added, which would hand react-router
-    // two identical prerender paths.
     return [...new Set([
       '/',
-      `/${slugs.about}`,
       `/${slugs.blog}`,       // page 1 only — pagination stays client-fetched
       `/${slugs.projects}`,
       `/${slugs.contact}`,

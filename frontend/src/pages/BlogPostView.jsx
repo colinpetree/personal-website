@@ -568,7 +568,11 @@ export default function BlogPostView({ post, blogAuthor, next, previous }) {
       {/* Author + date */}
       <div className="flex items-center justify-between gap-2 mb-8">
         {blogAuthor ? (() => {
-          const authorHref = siteConfig?.about_enabled ? `/${siteConfig.about_slug || 'about'}` : '/'
+          // Used to link to the fixed About page when enabled; About is a
+          // regular Page now with no fixed slug/enabled flag to check here,
+          // so this always links home (matching the effective behavior
+          // already in place for every site with About disabled).
+          const authorHref = '/'
           const avatar = blogAuthor.avatar_filename ? (
             <img src={`/api/uploads/${blogAuthor.avatar_filename}`} className="w-11 h-11 rounded-full object-cover flex-shrink-0" alt={blogAuthor.name} />
           ) : (

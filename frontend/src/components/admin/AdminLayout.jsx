@@ -9,39 +9,35 @@ import { useSiteConfig } from '../../hooks/useSiteConfig'
 // routes; keeps this sidebar link from pointing at a route that doesn't exist.
 const AI_DEMOS_ENABLED = import.meta.env.VITE_ENABLE_AI_DEMOS !== 'false'
 
-// One entry per site page key — reordered per the admin's saved nav order
-// (see ReorderNavModal.jsx / SiteConfig.nav_order) rather than fixed here.
-const SITE_PAGE_LOOKUP = {
+// Blog keeps its own group (unchanged). Everything else that's still a
+// fixed SiteConfig-backed page lives under "Feature Pages", in this fixed
+// order — About is gone from this list entirely: it's a regular `Page` now,
+// reached through the standalone "Pages" link below, not a fixed page key.
+const FEATURE_PAGE_LOOKUP = {
   home: { to: '/admin/home', label: 'Home' },
-  blog: {
-    to: '/admin/blog',
-    label: 'Blog',
-    end: true,
-    subItems: [
-      { to: '/admin/blog/posts', label: 'Posts' },
-      { to: '/admin/blog/comments', label: 'Comments' },
-    ],
-  },
   projects: { to: '/admin/projects', label: 'Projects' },
-  about: { to: '/admin/about', label: 'About' },
   contact: { to: '/admin/contact', label: 'Contact' },
   ai_demo: { to: '/admin/demo', label: 'AI Demo' },
   payment: { to: '/admin/payment', label: 'Payment' },
 }
 
-const DEFAULT_NAV_ORDER = ['home', 'blog', 'projects', 'about', 'contact', 'ai_demo', 'payment']
+const FEATURE_PAGE_ORDER = ['home', 'projects', 'contact', 'ai_demo', 'payment']
 
-function buildNavGroups(navOrder) {
-  const order = navOrder && navOrder.length ? navOrder : DEFAULT_NAV_ORDER
-  // The sidebar always lists every site page (regardless of the page's
-  // public enabled/disabled state), just in the configured order.
-  const sitePages = order
+function buildNavGroups() {
+  const featurePages = FEATURE_PAGE_ORDER
     .filter(key => key !== 'ai_demo' || AI_DEMOS_ENABLED)
-    .map(key => SITE_PAGE_LOOKUP[key])
-    .filter(Boolean)
+    .map(key => FEATURE_PAGE_LOOKUP[key])
 
   return [
-    { label: 'Site Pages', items: sitePages },
+    {
+      label: 'Blog',
+      items: [
+        { to: '/admin/blog', label: 'Blog', end: true },
+        { to: '/admin/blog/posts', label: 'Posts' },
+        { to: '/admin/blog/comments', label: 'Comments' },
+      ],
+    },
+    { label: 'Feature Pages', items: featurePages },
     {
       label: 'System Settings',
       defaultCollapsed: true,
@@ -72,7 +68,7 @@ const PAGES_NAV_ITEM = { standalone: true, to: '/admin/pages', label: 'Pages' }
 // AdminSiteNavigationPage.jsx's own RoleGuard minRole="editor".
 const SITE_NAVIGATION_NAV_ITEM = { standalone: true, to: '/admin/navigation', label: 'Site Navigation' }
 
-function getFilteredNavGroups(role, navOrder) {
+function getFilteredNavGroups(role) {
   if (role === 'contributor') {
     return [
       PAGES_NAV_ITEM,
@@ -85,28 +81,22 @@ function getFilteredNavGroups(role, navOrder) {
     ]
   }
 
-  const navGroups = buildNavGroups(navOrder)
-  // Metrics is editor+ (same threshold as its route's RoleGuard) — the
-  // Site Settings/Users entries inside "System Settings" are further
-  // restricted below for editors specifically.
-  const withMetrics = [{ label: 'Metrics', items: METRICS_NAV_ITEMS }, PAGES_NAV_ITEM, SITE_NAVIGATION_NAV_ITEM, ...navGroups]
+  const navGroups = buildNavGroups()
+  // Metrics is editor+ (same threshold as its route's RoleGuard).
+  const withMetrics = [{ label: 'Metrics', items: METRICS_NAV_ITEMS }, SITE_NAVIGATION_NAV_ITEM, PAGES_NAV_ITEM, ...navGroups]
 
   if (role === 'editor') {
-    return withMetrics.map(group => {
-      if (group.label === 'System Settings') {
-        return {
-          ...group,
-          items: group.items.filter(item => item.label !== 'Site Settings' && item.label !== 'Users'),
-        }
-      }
-      if (group.label === 'Metrics') {
-        return {
-          ...group,
-          items: group.items.filter(item => !item.adminOnly),
-        }
-      }
-      return group
-    })
+    // "System Settings" (Site Settings, Staff Accounts, Users) is hidden
+    // entirely for editors — every entry in it requires administrator+
+    // (matches each route's own RoleGuard threshold), so leaving any of
+    // them visible just links to a dead-end "must be administrator"
+    // fallback instead of actually being usable.
+    return withMetrics
+      .filter(group => group.label !== 'System Settings')
+      .map(group => group.label === 'Metrics'
+        ? { ...group, items: group.items.filter(item => !item.adminOnly) }
+        : group
+      )
   }
 
   return withMetrics
@@ -220,7 +210,7 @@ export default function AdminLayout() {
 
   const isEditorPage = /^\/admin\/blog\/posts\/[^/]+/.test(location.pathname)
     || /^\/admin\/pages\/[^/]+/.test(location.pathname)
-    || /^\/admin\/(home|about|projects|contact|payment|demo|blog)\/edit/.test(location.pathname)
+    || /^\/admin\/(home|projects|contact|payment|demo|blog)\/edit/.test(location.pathname)
 
   useEffect(() => {
     if (!loading && !admin) navigate('/admin/login', { replace: true })
@@ -241,18 +231,18 @@ export default function AdminLayout() {
     navigate('/admin/login')
   }
 
-  const filteredNav = getFilteredNavGroups(admin.role, config?.nav?.map(n => n.key))
+  const filteredNav = getFilteredNavGroups(admin.role)
 
   return (
     <ToastProvider>
     <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
-      {!isEditorPage && <aside className="w-52 shrink-0 bg-gray-900 flex flex-col relative">
+      {!isEditorPage && <aside className="w-52 shrink-0 bg-gray-900 flex flex-col overflow-hidden">
         <div className="px-5 py-5 border-b border-gray-700 shrink-0">
           <span className="text-white font-semibold text-sm">Site Admin</span>
         </div>
 
-        <nav className="flex-1 px-3 py-4 flex flex-col gap-1 overflow-y-auto" style={{ paddingBottom: '6rem' }}>
+        <nav className="admin-sidebar-scroll flex-1 min-h-0 px-3 py-4 flex flex-col gap-1 overflow-y-auto">
           {filteredNav.map(group => (
             group.standalone
               ? <StandaloneNavLink key={group.to} to={group.to} label={group.label} />
@@ -265,7 +255,7 @@ export default function AdminLayout() {
           ))}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 px-3 py-4 border-t border-gray-700 bg-gray-900">
+        <div className="shrink-0 px-3 py-4 border-t border-gray-700 bg-gray-900">
           <button
             onClick={() => setShowSelfProfile(true)}
             className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-gray-800 transition-colors text-left"

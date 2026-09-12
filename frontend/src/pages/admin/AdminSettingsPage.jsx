@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
 import { PageShell, Card, EditableCard, Field, Input, Textarea } from '../../components/admin/AdminPage'
 import FileDropzone from '../../components/admin/FileDropzone'
@@ -407,22 +406,6 @@ function AdminSettingsPageContent() {
             </>
           )}
         </EditableCard>}
-
-        {/* Navigation card */}
-        <Card>
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900">Navigation</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Manage the links shown in your site's header</p>
-            </div>
-            <Link
-              to="/admin/navigation"
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:border-gray-400 hover:text-gray-900 transition-colors flex-shrink-0"
-            >
-              Site Navigation
-            </Link>
-          </div>
-        </Card>
 
         {/* History card */}
         <Card>

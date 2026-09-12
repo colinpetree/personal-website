@@ -66,7 +66,7 @@ def list_pages():
 @admin_required
 def create_page():
     data = request.get_json(silent=True) or {}
-    title = (data.get('title') or 'Untitled').strip()
+    title = (data.get('title') or '').strip() or 'Untitled'
     slug = unique_slug([BlogPost, Page], slugify(title), _reserved_slugs())
     page = Page(
         title=title,
@@ -107,7 +107,7 @@ def update_page(page_id):
             return jsonify({'error': 'Contributors cannot publish pages'}), 403
 
     if 'title' in data:
-        page.title = (data['title'] or 'Untitled').strip()
+        page.title = (data['title'] or '').strip() or 'Untitled'
 
     if 'slug' in data:
         new_slug = slugify(data['slug']) or slugify(page.title) or 'untitled'

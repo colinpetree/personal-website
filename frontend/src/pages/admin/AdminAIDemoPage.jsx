@@ -211,7 +211,7 @@ function AdminAIDemoPageContent() {
                 The AI demo page uses <code className="bg-gray-100 px-1 rounded">ANTHROPIC_API_KEY</code> and <code className="bg-gray-100 px-1 rounded">VOYAGE_API_KEY</code> set in the server environment.
               </p>
               <Toggle label="Enable AI demo page" checked={local.ai_demo_enabled} onChange={v => set('ai_demo_enabled', v)} />
-              <Field label="Link label">
+              <Field label="Page title" hint="Used for the browser tab title and the demo sub-pages' 'Back to' link.">
                 <Input value={local.ai_demo_page_name} onChange={e => set('ai_demo_page_name', e.target.value)} />
               </Field>
               <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
@@ -230,7 +230,7 @@ function AdminAIDemoPageContent() {
                 </p>
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Link label</p>
+                <p className="text-xs font-medium text-gray-500">Page title</p>
                 <DisplayValue value={local.ai_demo_page_name} />
               </div>
               <div className="flex flex-col gap-1">

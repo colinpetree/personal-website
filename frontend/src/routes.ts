@@ -9,7 +9,7 @@ const AI_DEMOS_ENABLED = import.meta.env.VITE_ENABLE_AI_DEMOS !== 'false'
 
 // Same "unset -> sane defaults" fallback the old createRouter(slugs = {})
 // used, for local dev before any site-config exists in a fresh DB.
-const FALLBACK_SLUGS = { blog: 'blog', projects: 'projects', about: 'about', contact: 'contact', ai_demo: 'demo', payment: 'payment' }
+const FALLBACK_SLUGS = { blog: 'blog', projects: 'projects', contact: 'contact', ai_demo: 'demo', payment: 'payment' }
 
 export default (async () => {
   let slugs = FALLBACK_SLUGS
@@ -75,7 +75,6 @@ export default (async () => {
       index('./pages/HomePage.jsx'),
       route(slugs.blog, './pages/BlogPage.jsx'),
       route(slugs.projects, './pages/ProjectsPage.jsx'),
-      route(slugs.about, './pages/AboutPage.jsx'),
       route(slugs.contact, './pages/ContactPage.jsx'),
       ...(AI_DEMOS_ENABLED ? [
         route(slugs.ai_demo, './pages/AIDemoPage.jsx'),
@@ -129,8 +128,6 @@ export default (async () => {
       route('blog/categories', './pages/admin/AdminBlogCategoriesPage.jsx'),
       route('projects', './pages/admin/AdminProjectsPage.jsx'),
       route('projects/edit', './pages/admin/AdminProjectsEditRoute.jsx'),
-      route('about', './pages/admin/AdminAboutPage.jsx'),
-      route('about/edit', './pages/admin/AdminAboutEditRoute.jsx'),
       route('contact', './pages/admin/AdminContactPage.jsx'),
       route('contact/edit', './pages/admin/AdminContactEditRoute.jsx'),
       ...(AI_DEMOS_ENABLED ? [

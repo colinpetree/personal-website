@@ -15,7 +15,6 @@ RANGE_DAYS = {'7d': 7, '30d': 30, '3mo': 90, '6mo': 182, '1yr': 365}
 PAGE_CONFIG_FIELDS = {
     'home': ('home_enabled', 'home_page_name'),
     'blog': ('blog_enabled', 'blog_page_name'),
-    'about': ('about_enabled', 'about_page_name'),
     'projects': ('projects_enabled', 'projects_page_name'),
     'contact': ('contact_enabled', 'contact_page_name'),
     'ai_demo': ('ai_demo_enabled', 'ai_demo_page_name'),
@@ -144,14 +143,16 @@ def overview():
         return jsonify({'error': 'Invalid range'}), 400
     start, end = _date_range(range_param, config)
 
-    # Two PageView queries total (one per page_type), not one per page/post —
-    # see _bucket_all_page_views' docstring.
+    # Three PageView queries total (one per page_type), not one per
+    # page/post/Page — see _bucket_all_page_views' docstring.
     page_views_by_key, page_visitors_by_key = _bucket_all_page_views('page', start, end, config)
     post_views_by_key, post_visitors_by_key = _bucket_all_page_views('blog_post', start, end, config)
+    custom_page_views_by_key, custom_page_visitors_by_key = _bucket_all_page_views('custom_page', start, end, config)
 
     site_views, site_visitors = _merge_daily(
         (page_views_by_key, page_visitors_by_key),
         (post_views_by_key, post_visitors_by_key),
+        (custom_page_views_by_key, custom_page_visitors_by_key),
     )
     series, _, _ = _series_and_totals(site_views, site_visitors, start, end)
     range_start_utc, range_end_utc = _range_bounds_utc(start, end)
@@ -174,6 +175,7 @@ def overview():
             page_views_by_key.get(key, {}), page_visitors_by_key.get(key, {}), start, end
         )
         page_entry = {
+            'type': 'page',
             'key': key,
             'label': getattr(config, name_field),
             'views': total_views,
@@ -210,6 +212,25 @@ def overview():
             )
         pages.append(page_entry)
     pages.sort(key=lambda p: p['unique_visitors'], reverse=True)
+
+    # Custom Pages (the open-ended, admin-creatable `Page` table — About and
+    # anything else made under /admin/pages) are appended after the fixed
+    # feature pages above, in the order they were created/published rather
+    # than sorted by traffic — this is a small, deliberately-curated list (an
+    # admin only creates the pages they actually need), so publish order is
+    # more useful here than yet another views-sorted ranking. No limit/cap:
+    # same reasoning, there's no expectation of enough of these to need one.
+    for page in Page.query.filter_by(status='published').order_by(Page.created_at.asc()).all():
+        _, total_views, total_unique = _series_and_totals(
+            custom_page_views_by_key.get(page.slug, {}), custom_page_visitors_by_key.get(page.slug, {}), start, end
+        )
+        pages.append({
+            'type': 'custom_page',
+            'key': page.id,
+            'label': page.title,
+            'views': total_views,
+            'unique_visitors': total_unique,
+        })
 
     # Blog posts collapse into one aggregate row on the site overview — the
     # per-post breakdown lives on the dedicated /api/admin/analytics/blog

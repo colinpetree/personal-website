@@ -41,7 +41,7 @@ function AdminPaymentPageContent() {
           {({ editing, local, set }) => editing ? (
             <>
               <Toggle label="Enable payment page" checked={local.payment_enabled} onChange={v => set('payment_enabled', v)} />
-              <Field label="Link label">
+              <Field label="Page title" hint="Used for the browser tab title (e.g. Payment - Site Name).">
                 <Input value={local.payment_page_name} onChange={e => set('payment_page_name', e.target.value)} />
               </Field>
               <Field label="Page URL address" hint="Letters, numbers, and hyphens only. A page reload is needed for URL changes to take effect.">
@@ -61,7 +61,7 @@ function AdminPaymentPageContent() {
                 </p>
               </div>
               <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Link label</p>
+                <p className="text-xs font-medium text-gray-500">Page title</p>
                 <DisplayValue value={local.payment_page_name} />
               </div>
               <div className="flex flex-col gap-1">

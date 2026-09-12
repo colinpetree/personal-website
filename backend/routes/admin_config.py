@@ -7,7 +7,7 @@ import logging
 from datetime import datetime
 from flask import Blueprint, jsonify, request, current_app
 from flask_login import current_user
-from models import SiteConfig, SiteEventLog, DEFAULT_NAV_ORDER
+from models import SiteConfig, SiteEventLog
 from crypto import encrypt, decrypt
 from routes.admin_auth import admin_required, role_at_least
 from email_utils import send_email, mail_configured
@@ -40,7 +40,6 @@ def _config_to_dict(config):
     result = {
         'site_title': config.site_title,
         'site_description': config.site_description,
-        'nav_order': json.loads(config.nav_order) if config.nav_order else DEFAULT_NAV_ORDER,
         'domain': config.domain,
         'favicon_filename': config.favicon_filename,
         'timezone': config.timezone,
@@ -73,14 +72,6 @@ def _config_to_dict(config):
         'projects_slug': config.projects_slug,
         'projects_page_width': config.projects_page_width,
         'projects_font_family': config.projects_font_family,
-        'about_enabled': config.about_enabled,
-        'about_page_name': config.about_page_name,
-        'about_text': config.about_text,
-        'about_meta_description': config.about_meta_description,
-        'about_scrollable_nav_enabled': config.about_scrollable_nav_enabled,
-        'about_slug': config.about_slug,
-        'about_page_width': config.about_page_width,
-        'about_font_family': config.about_font_family,
         'contact_enabled': config.contact_enabled,
         'contact_page_name': config.contact_page_name,
         'contact_slug': config.contact_slug,
@@ -107,10 +98,6 @@ def _config_to_dict(config):
         'stripe_webhook_secret_set': bool(config.stripe_webhook_secret),
         'blog_comments_enabled': config.blog_comments_enabled,
         'analytics_start_date': config.analytics_start_date.isoformat() if config.analytics_start_date else None,
-        # Site Navigation (Pages feature) — additive alongside nav_order
-        # above; the admin nav UI hasn't cut over to these yet (see
-        # AdminSiteNavigationPage.jsx, a later wave), but the fields are
-        # already readable/writable so that work isn't blocked on this one.
         'primary_navigation': json.loads(config.primary_navigation) if config.primary_navigation else [],
         'site_title_link': config.site_title_link,
     }
@@ -168,7 +155,6 @@ def update_admin_config():
         'home_enabled', 'home_page_name', 'home_text', 'home_meta_description', 'home_scrollable_nav_enabled', 'home_page_width', 'home_font_family',
         'blog_enabled', 'blog_page_name', 'blog_slug', 'blog_text', 'blog_meta_description', 'blog_comments_enabled', 'blog_font_family',
         'projects_enabled', 'projects_page_name', 'projects_text', 'projects_meta_description', 'projects_scrollable_nav_enabled', 'projects_slug', 'projects_page_width', 'projects_font_family',
-        'about_enabled', 'about_page_name', 'about_text', 'about_meta_description', 'about_scrollable_nav_enabled', 'about_slug', 'about_page_width', 'about_font_family',
         'contact_enabled', 'contact_page_name', 'contact_slug', 'contact_text', 'contact_meta_description', 'contact_scrollable_nav_enabled', 'contact_page_width', 'contact_font_family',
         'mailgun_domain', 'smtp_from_email', 'forward_email',
         'payment_enabled', 'payment_page_name', 'stripe_publishable_key', 'payment_slug', 'payment_comments_enabled',
@@ -180,24 +166,11 @@ def update_admin_config():
         if field in data:
             setattr(config, field, data[field])
 
-    # Nav order — validated separately since it needs JSON (de)serialization
-    if 'nav_order' in data:
-        nav_order = data['nav_order']
-        if (
-            not isinstance(nav_order, list)
-            or not all(key in DEFAULT_NAV_ORDER for key in nav_order)
-            or len(nav_order) != len(set(nav_order))
-        ):
-            return jsonify({'error': 'Invalid nav_order'}), 400
-        config.nav_order = json.dumps(nav_order)
-
     # Primary navigation (Pages feature, Ghost-style freeform label/url
-    # pairs) — validated separately for the same reason nav_order is: it
-    # needs JSON (de)serialization, and unlike nav_order it isn't a closed
-    # set of known keys, so the check here is shape validation rather than
-    # membership validation. No stricter URL validation than "non-empty
-    # string" — arbitrary internal or external URLs are intentionally
-    # allowed, matching Ghost's own leniency.
+    # pairs) — validated separately since it needs JSON (de)serialization.
+    # No stricter URL validation than "non-empty string" — arbitrary internal
+    # or external URLs are intentionally allowed, matching Ghost's own
+    # leniency.
     if 'primary_navigation' in data:
         nav_items = data['primary_navigation']
         valid = isinstance(nav_items, list) and len(nav_items) <= 50
@@ -254,7 +227,7 @@ def update_admin_config():
             f.write(data['domain'])
 
     # Log the settings change
-    changed_keys = [k for k in data if k in plain_fields or k in ('nav_order', 'primary_navigation', 'mailgun_api_key', 'stripe_secret_key', 'stripe_webhook_secret', 'google_oauth_client_id', 'google_oauth_client_secret', 'analytics_start_date')]
+    changed_keys = [k for k in data if k in plain_fields or k in ('primary_navigation', 'mailgun_api_key', 'stripe_secret_key', 'stripe_webhook_secret', 'google_oauth_client_id', 'google_oauth_client_secret', 'analytics_start_date')]
     if changed_keys:
         subject = 'Site (' + ', '.join(changed_keys) + ')'
         entry = SiteEventLog(
