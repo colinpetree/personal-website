@@ -36,21 +36,33 @@ def unique_slug(models, base, reserved, exclude=None, fallback_suffix='post'):
     row in any of `models` (a list of model classes, each with a `.slug`
     column and `.query`). `exclude`, if given, is (model_class, id) — the
     row being edited is allowed to keep its own slug during an update.
+
+    If `base` already ends in "-<number>" (e.g. a manually-edited slug like
+    "hello-1"), collisions are resolved by incrementing that trailing number
+    ("hello-2") rather than appending another "-1" suffix on top of it
+    ("hello-1-1").
     """
     slug = base or 'untitled'
     if slug in reserved:
         slug = f'{slug}-{fallback_suffix}'
-    counter = 1
+
+    match = re.match(r'^(.*)-(\d+)$', slug)
+    if match:
+        root, counter = match.group(1), int(match.group(2)) + 1
+    else:
+        root, counter = slug, 1
+
+    candidate = slug
     while True:
         conflict = False
         for model in models:
-            q = model.query.filter_by(slug=slug)
+            q = model.query.filter_by(slug=candidate)
             if exclude and exclude[0] is model:
                 q = q.filter(model.id != exclude[1])
             if q.first():
                 conflict = True
                 break
         if not conflict:
-            return slug
-        slug = f'{base}-{counter}'
+            return candidate
+        candidate = f'{root}-{counter}'
         counter += 1

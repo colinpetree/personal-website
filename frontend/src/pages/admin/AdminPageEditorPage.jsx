@@ -236,7 +236,7 @@ export default function AdminPageEditorPage() {
       // publish/update, where slugEdited is forced true); a still-automatic,
       // title-derived slug should keep resolving silently.
       if (data.slug_collided && slugEdited.current) {
-        addToast({ message: `That URL is already taken — saved as "${data.slug}" instead.` })
+        addToast({ message: 'That URL is already taken', subtext: `Saved as "${data.slug}" instead.` })
       }
       setPage(data)
       setSlug(data.slug)
