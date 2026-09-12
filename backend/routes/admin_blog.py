@@ -131,17 +131,18 @@ def update_post(post_id):
     if 'title' in data:
         post.title = (data['title'] or '').strip() or 'Untitled'
 
+    slug_collided = False
     if 'slug' in data:
         new_slug = _slugify(data['slug']) or _slugify(post.title) or 'untitled'
         if new_slug in _reserved_slugs():
             return jsonify({'error': f'"{new_slug}" is a reserved path and cannot be used as a slug.'}), 400
-        conflict_post = BlogPost.query.filter(BlogPost.slug == new_slug, BlogPost.id != post_id).first()
-        conflict_page = None if conflict_post else Page.query.filter_by(slug=new_slug).first()
-        if conflict_post:
-            return jsonify({'error': f'The post "{conflict_post.title}" is already using this slug.'}), 400
-        if conflict_page:
-            return jsonify({'error': f'The page "{conflict_page.title}" is already using this slug.'}), 400
-        post.slug = new_slug
+        # A colliding slug no longer blocks the save — it silently gets a
+        # "-1", "-2", ... suffix (same resolution create_post already uses)
+        # so a draft/post can never get stuck unable to save over a slug
+        # clash. slug_collided tells the frontend whether that happened so
+        # it can decide whether to surface it to the admin.
+        post.slug = _unique_slug([BlogPost, Page], new_slug, _reserved_slugs(), exclude=(BlogPost, post_id))
+        slug_collided = post.slug != new_slug
 
     for field in ('content_html', 'excerpt', 'meta_description', 'scrollable_nav_enabled', 'font_family', 'thumbnail_filename', 'thumbnail_caption', 'thumbnail_width', 'thumbnail_height', 'list_thumbnail_auto'):
         if field in data:
@@ -210,7 +211,10 @@ def update_post(post_id):
     _log('Post', 'edited', post.title, subject_is_bold=True)
     db.session.commit()
     _ban_public_caches()
-    return jsonify(_post_to_dict(post, include_content=True))
+    result = _post_to_dict(post, include_content=True)
+    if 'slug' in data:
+        result['slug_collided'] = slug_collided
+    return jsonify(result)
 
 
 @admin_blog_bp.route('/api/admin/blog/posts/<int:post_id>', methods=['DELETE'])

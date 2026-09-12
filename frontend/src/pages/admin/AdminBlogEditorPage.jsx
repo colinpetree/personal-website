@@ -397,6 +397,11 @@ export default function AdminBlogEditorPage() {
 
   const autosaveTimer = useRef(null)
   const pendingFields = useRef({})
+  // Chains save() calls so their requests always reach the server in the
+  // order they were made — without this, a slow earlier request (e.g. a
+  // background autosave) can resolve after a faster later one (e.g. a
+  // sidebar save or Publish) and silently overwrite it with stale data.
+  const saveQueue = useRef(Promise.resolve())
   const slugEdited = useRef(false)
   const excerptEdited = useRef(false)
   // Suppresses repeat toasts for the same ongoing failure — scheduleSave
@@ -471,28 +476,57 @@ export default function AdminBlogEditorPage() {
 
   // ── Save helper ──────────────────────────────────────────────────────────────
 
-  const save = useCallback(async (fields) => {
-    const res = await fetch(`/api/admin/blog/posts/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(fields),
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Save failed')
-    saveErrorShown.current = false
-    setPost(data)
-    setSlug(data.slug)
-    setExcerpt(data.excerpt || '')
-    setListThumbnailFilename(data.list_thumbnail_filename || '')
-    setListThumbnailAuto(data.list_thumbnail_auto ?? true)
-    const savedDt = data.publish_date ? data.publish_date.slice(0, 16) : ''
-    setPublishDatePart(savedDt ? savedDt.slice(0, 10) : '')
-    setPublishTimePart(savedDt ? savedDt.slice(11, 16) : '')
-    return data
+  const save = useCallback((fields) => {
+    const run = async () => {
+      const res = await fetch(`/api/admin/blog/posts/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(fields),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Save failed')
+      saveErrorShown.current = false
+      // slug_collided means the backend silently suffixed a taken slug rather
+      // than rejecting the save — only worth a toast once the admin has taken
+      // manual ownership of the slug (typed into the URL field, or reached
+      // publish/update, where slugEdited is forced true); a still-automatic,
+      // title-derived slug should keep resolving silently.
+      if (data.slug_collided && slugEdited.current) {
+        addToast({ message: `That URL is already taken — saved as "${data.slug}" instead.` })
+      }
+      setPost(data)
+      setSlug(data.slug)
+      setExcerpt(data.excerpt || '')
+      setListThumbnailFilename(data.list_thumbnail_filename || '')
+      setListThumbnailAuto(data.list_thumbnail_auto ?? true)
+      const savedDt = data.publish_date ? data.publish_date.slice(0, 16) : ''
+      setPublishDatePart(savedDt ? savedDt.slice(0, 10) : '')
+      setPublishTimePart(savedDt ? savedDt.slice(11, 16) : '')
+      return data
+    }
+    // Don't start this request until whatever was queued before it has
+    // settled, so a slow request can never resolve after (and stomp) one
+    // that was made later.
+    const result = saveQueue.current.then(run, run)
+    saveQueue.current = result.then(() => {}, () => {})
+    return result
   }, [id])
 
   // ── Auto-save (draft only) ───────────────────────────────────────────────────
+
+  // Cancels any scheduled autosave and hands back whatever fields it hadn't
+  // sent yet, so an explicit save (sidebar blur, publish) can carry them
+  // along instead of the debounce timer discarding them by getting
+  // cancelled out from under it.
+  function flushPending() {
+    clearTimeout(autosaveTimer.current)
+    const pending = pendingFields.current
+    pendingFields.current = {}
+    return pending
+  }
+
+  useEffect(() => () => clearTimeout(autosaveTimer.current), [])
 
   function scheduleSave(fields) {
     if (status !== 'draft') return
@@ -562,9 +596,9 @@ export default function AdminBlogEditorPage() {
 
   function handleSidebarSave(overrideDatePart, overrideFields = {}) {
     if (status !== 'draft') return
-    clearTimeout(autosaveTimer.current)
     const dp = typeof overrideDatePart === 'string' ? overrideDatePart : publishDatePart
     save({
+      ...flushPending(),
       slug,
       excerpt,
       meta_description: metaDescription,
@@ -655,6 +689,7 @@ export default function AdminBlogEditorPage() {
     const publishDate = isScheduled ? combineDateFromDialog() : localNowString()
     try {
       const data = await save({
+        ...flushPending(),
         status: isScheduled ? 'scheduled' : 'published',
         publish_date: publishDate,
         slug,

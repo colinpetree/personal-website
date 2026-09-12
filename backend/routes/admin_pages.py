@@ -109,17 +109,18 @@ def update_page(page_id):
     if 'title' in data:
         page.title = (data['title'] or '').strip() or 'Untitled'
 
+    slug_collided = False
     if 'slug' in data:
         new_slug = slugify(data['slug']) or slugify(page.title) or 'untitled'
         if new_slug in _reserved_slugs():
             return jsonify({'error': f'"{new_slug}" is a reserved path and cannot be used as a slug.'}), 400
-        conflict_page = Page.query.filter(Page.slug == new_slug, Page.id != page_id).first()
-        conflict_post = None if conflict_page else BlogPost.query.filter_by(slug=new_slug).first()
-        if conflict_page:
-            return jsonify({'error': f'The page "{conflict_page.title}" is already using this slug.'}), 400
-        if conflict_post:
-            return jsonify({'error': f'The post "{conflict_post.title}" is already using this slug.'}), 400
-        page.slug = new_slug
+        # A colliding slug no longer blocks the save — it silently gets a
+        # "-1", "-2", ... suffix (same resolution create_page already uses)
+        # so a draft/page can never get stuck unable to save over a slug
+        # clash. slug_collided tells the frontend whether that happened so
+        # it can decide whether to surface it to the admin.
+        page.slug = unique_slug([BlogPost, Page], new_slug, _reserved_slugs(), exclude=(Page, page_id))
+        slug_collided = page.slug != new_slug
 
     for field in ('content_html', 'meta_description', 'scrollable_nav_enabled', 'page_width', 'font_family'):
         if field in data:
@@ -156,7 +157,10 @@ def update_page(page_id):
     _log('Page', 'edited', page.title, subject_is_bold=True)
     db.session.commit()
     _ban_public_caches()
-    return jsonify(_page_to_dict(page, include_content=True))
+    result = _page_to_dict(page, include_content=True)
+    if 'slug' in data:
+        result['slug_collided'] = slug_collided
+    return jsonify(result)
 
 
 @admin_pages_bp.route('/api/admin/pages/<int:page_id>', methods=['DELETE'])

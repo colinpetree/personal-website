@@ -157,6 +157,11 @@ export default function AdminPageEditorPage() {
 
   const autosaveTimer = useRef(null)
   const pendingFields = useRef({})
+  // Chains save() calls so their requests always reach the server in the
+  // order they were made — without this, a slow earlier request (e.g. a
+  // background autosave) can resolve after a faster later one (e.g. a
+  // sidebar save or Publish) and silently overwrite it with stale data.
+  const saveQueue = useRef(Promise.resolve())
   const slugEdited = useRef(false)
   // Same pattern as AdminPageContentEditor.jsx's metaEdited: auto-fill meta
   // description from content until the admin types their own — starts true
@@ -214,22 +219,51 @@ export default function AdminPageEditorPage() {
 
   // ── Save helper ──────────────────────────────────────────────────────────────
 
-  const save = useCallback(async (fields) => {
-    const res = await fetch(`/api/admin/pages/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(fields),
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Save failed')
-    saveErrorShown.current = false
-    setPage(data)
-    setSlug(data.slug)
-    return data
+  const save = useCallback((fields) => {
+    const run = async () => {
+      const res = await fetch(`/api/admin/pages/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(fields),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Save failed')
+      saveErrorShown.current = false
+      // slug_collided means the backend silently suffixed a taken slug rather
+      // than rejecting the save — only worth a toast once the admin has taken
+      // manual ownership of the slug (typed into the URL field, or reached
+      // publish/update, where slugEdited is forced true); a still-automatic,
+      // title-derived slug should keep resolving silently.
+      if (data.slug_collided && slugEdited.current) {
+        addToast({ message: `That URL is already taken — saved as "${data.slug}" instead.` })
+      }
+      setPage(data)
+      setSlug(data.slug)
+      return data
+    }
+    // Don't start this request until whatever was queued before it has
+    // settled, so a slow request can never resolve after (and stomp) one
+    // that was made later.
+    const result = saveQueue.current.then(run, run)
+    saveQueue.current = result.then(() => {}, () => {})
+    return result
   }, [id])
 
   // ── Auto-save (draft only) ───────────────────────────────────────────────────
+
+  // Cancels any scheduled autosave and hands back whatever fields it hadn't
+  // sent yet, so an explicit save (sidebar blur, publish) can carry them
+  // along instead of the debounce timer discarding them by getting
+  // cancelled out from under it.
+  function flushPending() {
+    clearTimeout(autosaveTimer.current)
+    const pending = pendingFields.current
+    pendingFields.current = {}
+    return pending
+  }
+
+  useEffect(() => () => clearTimeout(autosaveTimer.current), [])
 
   function scheduleSave(fields) {
     if (status !== 'draft') return
@@ -299,8 +333,8 @@ export default function AdminPageEditorPage() {
 
   function handleSidebarSave(overrideFields = {}) {
     if (status !== 'draft') return
-    clearTimeout(autosaveTimer.current)
     save({
+      ...flushPending(),
       slug,
       meta_description: metaDescription,
       scrollable_nav_enabled: scrollableNavEnabled,
