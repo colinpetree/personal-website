@@ -149,18 +149,18 @@ export function Textarea({ ...props }) {
   )
 }
 
-export function Toggle({ label, checked, onChange }) {
+export function Toggle({ label, checked, onChange, disabled = false }) {
   return (
     <label className="flex items-center gap-3 cursor-pointer">
       <div
-        onClick={() => onChange(!checked)}
-        className={`relative w-10 h-6 rounded-full transition-colors ${checked ? 'bg-gray-900' : 'bg-gray-300'}`}
+        onClick={() => { if (!disabled) onChange(!checked) }}
+        className={`relative w-10 h-6 rounded-full transition-colors ${checked ? 'bg-gray-900' : 'bg-gray-300'} ${disabled ? 'opacity-40' : ''}`}
       >
         <span
           className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : ''}`}
         />
       </div>
-      <span className="text-sm font-medium text-gray-700">{label}</span>
+      <span className={`text-sm font-medium text-gray-700 ${disabled ? 'opacity-40' : ''}`}>{label}</span>
     </label>
   )
 }

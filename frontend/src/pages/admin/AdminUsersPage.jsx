@@ -1,37 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
-import { EditableCard, Field, Input, Toggle } from '../../components/admin/AdminPage'
+import { EditableCard, Toggle } from '../../components/admin/AdminPage'
 import UserProfileModal from '../../components/admin/UserProfileModal'
 import RoleGuard, { adminOnlyFallback } from '../../components/admin/RoleGuard'
 import { Tooltip } from '../../components/ui/Tooltip'
-
-function RedirectUriBox({ uri }) {
-  const [copied, setCopied] = useState(false)
-
-  function copy() {
-    navigator.clipboard.writeText(uri).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <p className="text-sm font-medium text-gray-700">Authorized redirect URI</p>
-      <p className="text-xs text-gray-400">Add this URL to your Google OAuth app under "Authorized redirect URIs".</p>
-      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-        <span className="flex-1 text-sm text-gray-700 font-mono break-all">{uri}</span>
-        <button
-          type="button"
-          onClick={copy}
-          className="flex-shrink-0 text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors"
-        >
-          {copied ? 'Copied!' : 'Copy'}
-        </button>
-      </div>
-    </div>
-  )
-}
 
 export default function AdminUsersPage() {
   return (
@@ -68,6 +40,8 @@ function AdminUsersPageContent() {
     window.location.href = '/api/admin/users/export.csv'
   }
 
+  const mailgunConfigured = Boolean(config?.mailgun_api_key_set && config?.mailgun_domain && config?.smtp_from_email)
+
   return (
     <div className="max-w-4xl mx-auto px-8 py-10">
 
@@ -76,39 +50,26 @@ function AdminUsersPageContent() {
       <div className="mb-10">
         <EditableCard
           title="User accounts"
-          description="Allow visitors to sign in with Google to leave comments on posts"
+          description="Allow visitors to sign in and leave comments on posts. Requires Mailgun to be configured under Integrations."
           savedValues={{
             users_enabled: config?.users_enabled || false,
-            google_oauth_client_id: config?.google_oauth_client_id || '',
-            google_oauth_client_secret: '',
           }}
-          onSave={values => {
-            const payload = { users_enabled: values.users_enabled, google_oauth_client_id: values.google_oauth_client_id }
-            if (values.google_oauth_client_secret) payload.google_oauth_client_secret = values.google_oauth_client_secret
-            return save(payload)
-          }}
+          onSave={values => save(values)}
         >
           {({ editing, local, set }) => editing ? (
             <>
-              <Toggle label="Enable user accounts" checked={local.users_enabled} onChange={v => set('users_enabled', v)} />
-              {local.users_enabled && (
-                <>
-                  <RedirectUriBox uri={config?.google_oauth_redirect_uri || ''} />
-                  <Field label="Google OAuth Client ID">
-                    <Input value={local.google_oauth_client_id} onChange={e => set('google_oauth_client_id', e.target.value)} />
-                  </Field>
-                  <Field
-                    label="Google OAuth Client Secret"
-                    hint={config?.google_oauth_client_secret_set ? 'Currently set — enter a new value to replace it.' : ''}
-                  >
-                    <Input
-                      type="password"
-                      value={local.google_oauth_client_secret}
-                      onChange={e => set('google_oauth_client_secret', e.target.value)}
-                      placeholder={config?.google_oauth_client_secret_set ? '••••••••' : ''}
-                    />
-                  </Field>
-                </>
+              <Toggle
+                label="Enable user accounts"
+                checked={local.users_enabled}
+                onChange={v => set('users_enabled', v)}
+                disabled={!mailgunConfigured && !local.users_enabled}
+              />
+              {!mailgunConfigured && (
+                <p className="text-xs text-amber-600">
+                  {local.users_enabled
+                    ? 'Mailgun is not configured under Integrations — disable user accounts or configure Mailgun to keep saving other settings.'
+                    : 'Configure Mailgun under Integrations before enabling user accounts.'}
+                </p>
               )}
             </>
           ) : (

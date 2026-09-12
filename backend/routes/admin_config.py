@@ -220,6 +220,16 @@ def update_admin_config():
     if data.get('google_oauth_client_secret'):
         config.google_oauth_client_secret = encrypt(data['google_oauth_client_secret'].strip())
 
+    # User accounts require Mailgun to be configured, since magic-link
+    # sign-in and account-related emails depend on it — Google sign-in is
+    # an optional add-on layered on top, not a substitute. Only block the
+    # request that's actively turning users_enabled on; don't re-validate
+    # this on every unrelated save, since a site with a pre-existing
+    # users_enabled=True (from before Mailgun sign-in existed) shouldn't
+    # get every future settings save rejected because of it.
+    if data.get('users_enabled') and not mail_configured(config):
+        return jsonify({'error': 'Mailgun must be configured before enabling user accounts'}), 400
+
     # Write domain to certbot_domain.txt when set
     if 'domain' in data and data['domain']:
         cert_file = os.path.join(get_app_data_dir(), 'certbot_domain.txt')

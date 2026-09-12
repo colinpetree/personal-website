@@ -9,6 +9,34 @@ function DisplayValue({ value, fallback = '—' }) {
   )
 }
 
+function RedirectUriBox({ uri }) {
+  const [copied, setCopied] = useState(false)
+
+  function copy() {
+    navigator.clipboard.writeText(uri).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <p className="text-sm font-medium text-gray-700">Authorized redirect URI</p>
+      <p className="text-xs text-gray-400">Add this URL to your Google OAuth app under "Authorized redirect URIs".</p>
+      <div className="flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+        <span className="flex-1 text-sm text-gray-700 font-mono break-all">{uri}</span>
+        <button
+          type="button"
+          onClick={copy}
+          className="flex-shrink-0 text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors"
+        >
+          {copied ? 'Copied!' : 'Copy'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function AdminIntegrationsPage() {
   return (
     <RoleGuard minRole="administrator" fallback={adminOnlyFallback}>
@@ -105,6 +133,57 @@ function AdminIntegrationsPageContent() {
                   </button>
                 </div>
               )}
+            </>
+          )}
+        </EditableCard>
+
+        {/* Google Sign-In card */}
+        <EditableCard
+          title="Google Sign-In"
+          description="Optional add-on that lets users sign in with their Google account, in addition to email sign-in. Requires user accounts to be enabled under Users."
+          savedValues={{
+            google_oauth_client_id: config?.google_oauth_client_id || '',
+            google_oauth_client_secret: '',
+          }}
+          onSave={values => {
+            const payload = { google_oauth_client_id: values.google_oauth_client_id }
+            if (values.google_oauth_client_secret) payload.google_oauth_client_secret = values.google_oauth_client_secret
+            return save(payload)
+          }}
+        >
+          {({ editing, local, set }) => editing ? (
+            <>
+              <RedirectUriBox uri={config?.google_oauth_redirect_uri || ''} />
+              <Field label="Google OAuth Client ID">
+                <Input value={local.google_oauth_client_id} onChange={e => set('google_oauth_client_id', e.target.value)} />
+              </Field>
+              <Field
+                label="Google OAuth Client Secret"
+                hint={config?.google_oauth_client_secret_set ? 'Currently set — enter a new value to replace it.' : ''}
+              >
+                <Input
+                  type="password"
+                  value={local.google_oauth_client_secret}
+                  onChange={e => set('google_oauth_client_secret', e.target.value)}
+                  placeholder={config?.google_oauth_client_secret_set ? '••••••••' : ''}
+                />
+              </Field>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">Client ID</p>
+                <DisplayValue value={local.google_oauth_client_id} fallback="Not set" />
+              </div>
+              <div className="flex flex-col gap-1">
+                <p className="text-xs font-medium text-gray-500">Client Secret</p>
+                <p className="text-sm">
+                  {config?.google_oauth_client_secret_set
+                    ? <span className="text-gray-900">••••••••</span>
+                    : <span className="text-gray-400">Not set</span>
+                  }
+                </p>
+              </div>
             </>
           )}
         </EditableCard>
