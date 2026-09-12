@@ -43,6 +43,7 @@ function buildNavGroups() {
       defaultCollapsed: true,
       items: [
         { to: '/admin/settings', label: 'Site Settings' },
+        { to: '/admin/integrations', label: 'Integrations' },
         { to: '/admin/accounts', label: 'Staff Accounts' },
         { to: '/admin/users', label: 'Users' },
       ],

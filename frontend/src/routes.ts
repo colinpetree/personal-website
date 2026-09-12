@@ -115,6 +115,7 @@ export default (async () => {
     route('admin', './components/admin/AdminLayout.jsx', [
       index('./pages/admin/AdminAnalyticsPage.jsx'),
       route('settings', './pages/admin/AdminSettingsPage.jsx'),
+      route('integrations', './pages/admin/AdminIntegrationsPage.jsx'),
       route('navigation', './pages/admin/AdminSiteNavigationPage.jsx'),
       route('metrics/blog', './pages/admin/AdminBlogAnalyticsPage.jsx'),
       route('metrics/payments', './pages/admin/AdminPaymentAnalyticsPage.jsx'),

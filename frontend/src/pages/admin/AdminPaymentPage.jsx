@@ -96,68 +96,6 @@ function AdminPaymentPageContent() {
           </Link>
         </div>
 
-        {isAdmin && <EditableCard
-          title="Stripe keys"
-          description="Payment page is only shown in the navbar once a Stripe publishable key is set."
-          savedValues={{
-            stripe_publishable_key: config?.stripe_publishable_key || '',
-            stripe_secret_key: '',
-            stripe_webhook_secret: '',
-          }}
-          onSave={values => {
-            const payload = { ...values }
-            if (!payload.stripe_secret_key) delete payload.stripe_secret_key
-            if (!payload.stripe_webhook_secret) delete payload.stripe_webhook_secret
-            return save(payload)
-          }}
-        >
-          {({ editing, local, set }) => editing ? (
-            <>
-              <Field label="Stripe Publishable Key" hint="Starts with pk_test_ or pk_live_">
-                <Input value={local.stripe_publishable_key} onChange={e => set('stripe_publishable_key', e.target.value)} placeholder="pk_live_…" />
-              </Field>
-              <Field label="Stripe Secret Key" hint={config?.stripe_secret_key_set ? 'Currently set — enter a new value to replace it.' : 'Starts with sk_test_ or sk_live_'}>
-                <Input type="password" value={local.stripe_secret_key} onChange={e => set('stripe_secret_key', e.target.value)} placeholder={config?.stripe_secret_key_set ? '••••••••' : 'sk_live_…'} />
-              </Field>
-              <Field
-                label="Stripe Webhook Signing Secret"
-                hint={
-                  config?.stripe_webhook_secret_set
-                    ? 'Currently set — enter a new value to replace it.'
-                    : `Create a webhook in your Stripe dashboard pointing to https://${config?.domain || 'your-domain.com'}/api/payment/webhook, listening for checkout.session.completed and invoice.paid (the second is required for recording subscription renewals — one-time payments and a subscription's first charge work with just the first event, but every renewal after that needs invoice.paid to be recorded), then paste its signing secret here.`
-                }
-              >
-                <Input type="password" value={local.stripe_webhook_secret} onChange={e => set('stripe_webhook_secret', e.target.value)} placeholder={config?.stripe_webhook_secret_set ? '••••••••' : 'whsec_…'} />
-              </Field>
-            </>
-          ) : (
-            <>
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Publishable Key</p>
-                <DisplayValue value={local.stripe_publishable_key} fallback="Not set" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Secret Key</p>
-                <p className="text-sm">
-                  {config?.stripe_secret_key_set
-                    ? <span className="text-gray-900">••••••••</span>
-                    : <span className="text-gray-400">Not set</span>
-                  }
-                </p>
-              </div>
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Webhook Signing Secret</p>
-                <p className="text-sm">
-                  {config?.stripe_webhook_secret_set
-                    ? <span className="text-gray-900">••••••••</span>
-                    : <span className="text-gray-400">Not set</span>
-                  }
-                </p>
-              </div>
-            </>
-          )}
-        </EditableCard>}
-
         {isAdmin && (
           <div className="bg-white rounded-lg border border-gray-200 shadow-sm p-6 flex items-center justify-between gap-4">
             <div>
