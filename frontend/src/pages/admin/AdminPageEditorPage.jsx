@@ -507,7 +507,7 @@ export default function AdminPageEditorPage() {
         {/* Editor area */}
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-white relative editor-scroll-area">
           <div className="relative bg-gray-100 border-b border-gray-200">
-            <div className="absolute left-1 bottom-1 flex w-[220px] items-center gap-1.5 rounded-md bg-white px-3 py-1.5 shadow-sm">
+            <div className="absolute left-1 bottom-1 flex w-[220px] items-center gap-1.5 rounded-md bg-white py-1.5 pl-3 pr-2 shadow-sm">
               {siteConfig?.favicon_filename && !faviconFailed ? (
                 <img
                   src={`/api/uploads/${siteConfig.favicon_filename}`}
@@ -519,11 +519,12 @@ export default function AdminPageEditorPage() {
                 <Globe size={16} strokeWidth={1.5} className="shrink-0 text-gray-400" />
               )}
               <span
-                className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-xs text-gray-800"
+                className="relative top-[2px] min-w-0 flex-1 overflow-hidden whitespace-nowrap text-xs leading-none text-gray-800"
                 style={{ maskImage: 'linear-gradient(to right, black calc(100% - 16px), transparent)', WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 16px), transparent)' }}
               >
                 {tabTitle}
               </span>
+              <X size={13} strokeWidth={1.5} className="shrink-0 text-gray-400" />
             </div>
             <div className="max-w-3xl mx-auto px-6 pt-10 pb-6">
               <textarea
