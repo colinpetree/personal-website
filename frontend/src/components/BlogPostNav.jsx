@@ -16,7 +16,7 @@ function NavCard({ post, direction, categorySlug }) {
   return (
     <Link
       to={postHref(post, categorySlug)}
-      className="group flex items-center gap-4 rounded-md border border-gray-200 p-4 hover:border-gray-300 hover:bg-gray-50 transition-colors"
+      className="group flex items-start gap-4 rounded-md border border-gray-200 p-4 hover:border-gray-300 hover:bg-gray-50 transition-colors"
     >
       <div className="flex-1 min-w-0">
         <p className="flex items-center gap-1 text-xs uppercase tracking-wide text-gray-400 mb-1 leading-none">
