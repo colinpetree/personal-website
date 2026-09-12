@@ -6,7 +6,6 @@ import GalleryLightboxController from '../components/GalleryLightboxController'
 import HeaderImageLqip from '../components/HeaderImageLqip'
 import ContentLqip from '../components/ContentLqip'
 import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
-
 // Presentational component, rendered by SlugResolverPage.jsx once
 // /api/resolve/<slug> has confirmed `kind === 'page'`. Modeled directly on
 // AboutPage.jsx's render body (About is a regular Page now, migrated by the

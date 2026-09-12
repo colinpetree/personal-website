@@ -184,7 +184,6 @@ export default function BlogPage() {
       <HeaderImageLqip containerRef={contentRef} contentKey={config?.blog_text} />
       <ContentLqip containerRef={contentRef} contentKey={config?.blog_text} />
       <FullscreenHeaderNav containerRef={contentRef} contentKey={config?.blog_text} />
-
       {data?.categories?.length > 0 && (
         <CategoryFilterBar
           categories={data.categories}

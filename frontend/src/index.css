@@ -429,8 +429,8 @@ html {
   overflow: hidden;
   display: flex;
   align-items: center;
-  min-height: 3.325rem;
-  padding: 0.6rem 1.25rem;
+  min-height: 4rem;
+  padding: 0.9rem 1.25rem;
   border-radius: 0.75rem;
   background: var(--lg-bg, #fff);
   border: 1px solid #e5e7eb;
@@ -438,9 +438,14 @@ html {
   text-decoration: none !important;
   color: #111827;
   font-weight: 500;
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1.5rem;
   transition: background-color 0.15s, box-shadow 0.15s, transform 0.1s;
+}
+@media (min-width: 1024px) {
+  .blog-content .link-group-item {
+    font-size: 20px;
+  }
 }
 .blog-content .link-group-item:hover {
   background: var(--lg-hover-bg, #f3f4f6);
@@ -464,24 +469,24 @@ html {
 .blog-content .link-group-icon {
   position: absolute;
   z-index: 1;
-  left: 0.65rem;
+  left: 0.75rem;
   top: 50%;
   transform: translateY(-50%);
-  width: 1.8125rem;
-  height: 1.8125rem;
+  width: 2.25rem;
+  height: 2.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.375rem;
+  font-size: 1.75rem;
   line-height: 1;
 }
 .blog-content .link-group-icon > svg {
-  width: 1.375rem;
-  height: 1.375rem;
+  width: 1.75rem;
+  height: 1.75rem;
 }
 .blog-content .link-group-icon-badge {
-  width: 1.8125rem;
-  height: 1.8125rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border-radius: 0.4rem;
   background: #fff;
   display: flex;
@@ -490,16 +495,41 @@ html {
   overflow: hidden;
 }
 .blog-content .link-group-icon-badge svg {
-  width: 1.375rem;
-  height: 1.375rem;
+  width: 1.75rem;
+  height: 1.75rem;
 }
 .blog-content .link-group-text {
   position: relative;
   z-index: 1;
   width: 100%;
+  box-sizing: border-box;
+  /* Reserves the icon's own footprint (0.75rem offset + 2.25rem width, see
+     .link-group-icon) on the left, and the same amount on the right so the
+     reserved space is symmetric — this keeps short text exactly centered on
+     the button (matching left/right insets cancel out) while guaranteeing a
+     wrapped second/third line can never run under the icon, since the text's
+     own box now stops short of it entirely. */
+  padding: 0 2rem;
   text-align: center;
+  line-height: 1;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  /* Clamps to exactly 2 whole lines instead of letting a long label keep
+     growing the button — no ellipsis, just a hard cutoff. Uses the
+     line-clamp box model (not max-height) so no partial 3rd line ever
+     peeks through: max-height can only approximate a line count, since any
+     buffer generous enough to avoid clipping descenders also leaves enough
+     room for the next line to start rendering. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  /* Most link text (e.g. "GitHub") has no descenders, so centering the line
+     box leaves the visible glyphs looking high — nudge down to optically
+     center the actual letterforms instead of the abstract line box. */
+  transform: translateY(0.05em);
 }
-
 /* Strip the editor's outer px-6 from text elements on the public page */
 .blog-content h1,
 .blog-content h2,

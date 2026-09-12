@@ -582,7 +582,6 @@ export default function BlogPostView({ post, blogAuthor, next, previous }) {
       <HeaderImageLqip containerRef={articleRef} contentKey={post.content_html} />
       <ContentLqip containerRef={articleRef} contentKey={post.content_html} />
       <GalleryLightboxController containerRef={articleRef} contentKey={post.content_html} />
-
       <BlogPostNav next={next} previous={previous} categorySlug={categorySlug} />
 
       {commentsVisible && (

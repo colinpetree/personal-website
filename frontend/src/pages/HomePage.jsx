@@ -9,7 +9,6 @@ import GalleryLightboxController from '../components/GalleryLightboxController'
 import HeaderImageLqip from '../components/HeaderImageLqip'
 import ContentLqip from '../components/ContentLqip'
 import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
-
 // Purely for meta() below — the page body still reads config from context
 // via useSiteConfig(), fed by root's own loader. This separate fetch exists
 // because meta() can't reliably reach root's data through `matches` during

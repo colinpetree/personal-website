@@ -2769,10 +2769,10 @@ export function $createButtonNode() {
 // inside a fixed-size slot of the same footprint, so icons in different link rows line
 // up in the same column and read as the same size — regardless of a given lucide icon's
 // intrinsic proportions or an emoji glyph's natural rendered width.
-function LinkGroupIconPreview({ link, size = 22 }) {
+function LinkGroupIconPreview({ link, size = 28 }) {
   if (!link.iconEnabled) return null
   const resolved = resolveLinkIcon(link)
-  const badgeSize = size + 7
+  const badgeSize = size + 8
   const slotStyle = { width: badgeSize, height: badgeSize }
   if (!resolved) {
     return (
@@ -2910,7 +2910,7 @@ function LinkGroupEditModal({ link, onSave, onClose }) {
                   iconEnabled ? '' : 'opacity-40 grayscale'
                 }`}
               >
-                <LinkGroupIconPreview link={{ text, url, iconEnabled: true, icon }} />
+                <LinkGroupIconPreview link={{ text, url, iconEnabled: true, icon }} size={22} />
               </button>
 
               {showPicker && (
@@ -2990,7 +2990,7 @@ function LinkGroupEditModal({ link, onSave, onClose }) {
 
 const RADIUS_OPTIONS = [
   { key: 'square', label: 'Square', radius: '0.125rem', preview: '2px' },
-  { key: 'rounded', label: 'Slightly rounded', radius: '0.5rem', preview: '5px' },
+  { key: 'rounded', label: 'Rounded', radius: '0.5rem', preview: '5px' },
   { key: 'pill', label: 'Pill', radius: '9999px', preview: '9999px' },
 ]
 const RADIUS_MAP = Object.fromEntries(RADIUS_OPTIONS.map(o => [o.key, o.radius]))
@@ -3082,7 +3082,9 @@ function linkGroupBorderColor(textColor) {
   return r > 245 && g > 245 && b > 245 ? 'transparent' : textColor
 }
 
-function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, nodeKey, editor }) {
+const LINK_GROUP_WIDTH_MAX = { narrow: '32rem', regular: '740px' }
+
+function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, width, nodeKey, editor }) {
   const fontFamily = useContext(FontFamilyContext)
   const containerRef = useRef(null)
   const toolbarRef = useRef(null)
@@ -3223,7 +3225,8 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, nodeKey
   return (
     <div
       ref={containerRef}
-      className={`my-2 py-3 max-w-lg mx-auto px-4 rounded-xl border border-dashed border-gray-200 transition-all ${
+      style={{ maxWidth: LINK_GROUP_WIDTH_MAX[width] || LINK_GROUP_WIDTH_MAX.narrow }}
+      className={`my-2 py-3 mx-auto px-4 rounded-xl border border-dashed border-gray-200 transition-all ${
         isSelected ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''
       }`}
       onMouseEnter={() => setIsHovered(true)}
@@ -3239,13 +3242,13 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, nodeKey
           >
             <button
               onClick={() => setEditingIndex(i)}
-              style={{ borderRadius: itemRadius, borderColor: linkGroupBorderColor(textColor), color: link.text ? textColor : undefined, '--lg-bg': buttonColor, '--lg-hover-bg': linkGroupHoverColor(buttonColor, textColor), minHeight: '3.325rem', padding: '0.6rem 1.25rem' }}
-              className={`link-group-editor-item relative overflow-hidden w-full flex items-center border text-base font-medium ${decoratorFontClass(fontFamily)}`}
+              style={{ borderRadius: itemRadius, borderColor: linkGroupBorderColor(textColor), color: link.text ? textColor : undefined, '--lg-bg': buttonColor, '--lg-hover-bg': linkGroupHoverColor(buttonColor, textColor), minHeight: '4rem', padding: '0.9rem 1.25rem' }}
+              className={`link-group-editor-item relative overflow-hidden w-full flex items-center border text-lg font-medium ${decoratorFontClass(fontFamily)}`}
             >
-              <span className="absolute z-10 left-[0.65rem] top-1/2 -translate-y-1/2 flex items-center">
+              <span className="absolute z-10 left-3 top-1/2 -translate-y-1/2 flex items-center">
                 <LinkGroupIconPreview link={link} />
               </span>
-              <span className={`relative z-10 w-full text-center ${link.text ? '' : 'text-gray-400 font-normal'}`}>
+              <span className={`relative z-10 w-full text-center leading-none translate-y-[0.05em] box-border px-8 break-words line-clamp-2 ${link.text ? '' : 'text-gray-400 font-normal'}`}>
                 {link.text || 'Click to add link details'}
               </span>
             </button>
@@ -3301,6 +3304,24 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, nodeKey
           className="flex items-center gap-0.5 bg-white border border-gray-200 rounded-xl px-1.5 py-1 shadow-2xl"
           onMouseDown={e => e.preventDefault()}
         >
+          <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
+            {[
+              { key: 'narrow', icon: RectangleVertical, title: 'Narrow width' },
+              { key: 'regular', icon: RectangleHorizontal, title: 'Regular width' },
+            ].map(opt => (
+              <Tooltip key={opt.key} content={opt.title}>
+                <button
+                  onClick={() => setField('setWidth', opt.key)}
+                  className={`p-1.5 rounded-md transition-colors ${width === opt.key ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  <opt.icon size={15} />
+                </button>
+              </Tooltip>
+            ))}
+          </div>
+
+          <div className="w-px h-5 bg-gray-200 mx-0.5" />
+
           <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
             {RADIUS_OPTIONS.map(opt => (
               <Tooltip key={opt.key} content={opt.label}>
@@ -3368,18 +3389,18 @@ export class LinkGroupNode extends DecoratorNode {
   static getType() { return 'linkGroup' }
 
   static clone(node) {
-    return new LinkGroupNode(node.__links.map(l => ({ ...l })), node.__radius, node.__buttonColor, node.__textColor, node.__key)
+    return new LinkGroupNode(node.__links.map(l => ({ ...l })), node.__radius, node.__buttonColor, node.__textColor, node.__width, node.__key)
   }
 
   static importJSON(data) {
-    return new LinkGroupNode(data.links || [], data.radius || 'rounded', data.buttonColor || '#ffffff', data.textColor || '#111827')
+    return new LinkGroupNode(data.links || [], data.radius || 'rounded', data.buttonColor || '#ffffff', data.textColor || '#111827', data.width || 'narrow')
   }
 
   exportJSON() {
     return {
       type: 'linkGroup', version: 1,
       links: this.__links.map(l => ({ ...l })),
-      radius: this.__radius, buttonColor: this.__buttonColor, textColor: this.__textColor,
+      radius: this.__radius, buttonColor: this.__buttonColor, textColor: this.__textColor, width: this.__width,
     }
   }
 
@@ -3398,7 +3419,8 @@ export class LinkGroupNode extends DecoratorNode {
             const radius = domNode.getAttribute('data-radius') || 'rounded'
             const buttonColor = domNode.getAttribute('data-button-color') || '#ffffff'
             const textColor = domNode.getAttribute('data-text-color') || '#111827'
-            return { node: new LinkGroupNode(links, radius, buttonColor, textColor) }
+            const width = domNode.getAttribute('data-width') || 'narrow'
+            return { node: new LinkGroupNode(links, radius, buttonColor, textColor, width) }
           },
           priority: 2,
         }
@@ -3406,12 +3428,13 @@ export class LinkGroupNode extends DecoratorNode {
     }
   }
 
-  constructor(links = [], radius = 'rounded', buttonColor = '#ffffff', textColor = '#111827', key) {
+  constructor(links = [], radius = 'rounded', buttonColor = '#ffffff', textColor = '#111827', width = 'narrow', key) {
     super(key)
     this.__links = links
     this.__radius = radius
     this.__buttonColor = buttonColor
     this.__textColor = textColor
+    this.__width = width
   }
 
   createDOM() {
@@ -3427,6 +3450,7 @@ export class LinkGroupNode extends DecoratorNode {
   setRadius(radius) { this.getWritable().__radius = radius }
   setButtonColor(color) { this.getWritable().__buttonColor = color }
   setTextColor(color) { this.getWritable().__textColor = color }
+  setWidth(width) { this.getWritable().__width = width }
 
   exportDOM() {
     const wrap = document.createElement('div')
@@ -3434,6 +3458,8 @@ export class LinkGroupNode extends DecoratorNode {
     wrap.setAttribute('data-radius', this.__radius)
     wrap.setAttribute('data-button-color', this.__buttonColor)
     wrap.setAttribute('data-text-color', this.__textColor)
+    wrap.setAttribute('data-width', this.__width || 'narrow')
+    wrap.style.maxWidth = LINK_GROUP_WIDTH_MAX[this.__width] || LINK_GROUP_WIDTH_MAX.narrow
     const itemRadius = RADIUS_MAP[this.__radius] || RADIUS_MAP.rounded
     for (const link of this.__links) {
       if (!link.url?.trim()) continue // no valid link — don't publish a dead button
@@ -3485,6 +3511,7 @@ export class LinkGroupNode extends DecoratorNode {
         radius={this.__radius}
         buttonColor={this.__buttonColor}
         textColor={this.__textColor}
+        width={this.__width}
         nodeKey={this.getKey()}
         editor={editor}
       />
