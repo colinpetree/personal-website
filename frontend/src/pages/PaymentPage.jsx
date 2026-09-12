@@ -11,6 +11,7 @@ import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import GalleryLightboxController from '../components/GalleryLightboxController'
 import HeaderImageLqip from '../components/HeaderImageLqip'
+import ContentLqip from '../components/ContentLqip'
 import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 import { fetchSiteConfig } from '../lib/apiFetch'
 import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled } from '../utils/meta'
@@ -471,6 +472,7 @@ export default function PaymentPage() {
             <CodeBlockCopyToast containerRef={contentRef} contentKey={config.payment_text} />
             <GalleryLightboxController containerRef={contentRef} contentKey={config.payment_text} />
             <HeaderImageLqip containerRef={contentRef} contentKey={config.payment_text} />
+            <ContentLqip containerRef={contentRef} contentKey={config.payment_text} />
             <FullscreenHeaderNav containerRef={contentRef} contentKey={config.payment_text} />
           </>
         )}

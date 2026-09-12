@@ -15,12 +15,19 @@ import { useLayoutEffect } from 'react'
 // before the browser's own first paint of the solid fallback color,
 // avoiding a flash of solid color before the placeholder covers it.
 //
+// Matches useContentLqip's approach (the same technique used for
+// ImageNode/GalleryNode content images): the swap is an instant cut, no
+// fade/opacity transition — and scale(1.08) is a static crop, not an
+// animation, cropping the vignette CSS blur() leaves at an image's own edge
+// (no pixels beyond it to blend with) by rendering the placeholder oversized
+// and letting the container's overflow:hidden clip the soft border away.
+//
 // Two layouts, two techniques, because HeaderNode renders its image two
 // different ways (see nodes.jsx's exportDOM):
-//  - split layout uses a real <img> — same blur-up technique BlogPostPage.jsx
-//    already uses for content images: a blurred placeholder <img> painted
-//    OVER the real one (no z-index needed — a positioned sibling naturally
-//    paints after a non-positioned one), faded out once the real img loads.
+//  - split layout uses a real <img> — same blur-up technique content images
+//    use: a blurred placeholder <img> painted OVER the real one (no z-index
+//    needed — a positioned sibling naturally paints after a non-positioned
+//    one), removed once the real img loads.
 //  - every other layout paints the photo as a CSS background-image on
 //    .header-inner — there's no img element to hang a `load` event off, so
 //    a preloaded Image() drives a blurred placeholder <div> instead, kept
@@ -43,25 +50,23 @@ export function useHeaderImageLqip(containerRef, contentKey) {
         if (!imgEl) return
         const imgSide = imgEl.parentElement
         if (!imgSide.style.position) imgSide.style.position = 'relative'
+        // exportDOM already sets overflow:hidden on .header-split-image, but
+        // guard here too in case older saved posts predate that.
+        if (!imgSide.style.overflow) imgSide.style.overflow = 'hidden'
 
         const placeholder = document.createElement('img')
         placeholder.src = lqip
         placeholder.setAttribute('aria-hidden', 'true')
         placeholder.style.cssText =
           'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;' +
-          'filter:blur(20px);transform:scale(1.05);pointer-events:none'
+          'transform:scale(1.08);filter:blur(20px);pointer-events:none'
         imgSide.insertBefore(placeholder, imgEl)
-
-        imgEl.style.transition = 'opacity 0.4s'
-        imgEl.style.opacity = '0'
 
         let removed = false
         function reveal() {
           if (removed) return
-          imgEl.style.opacity = '1'
-          placeholder.style.transition = 'opacity 0.4s'
-          placeholder.style.opacity = '0'
-          setTimeout(() => { if (!removed) placeholder.remove() }, 400)
+          removed = true
+          placeholder.remove()
         }
 
         if (imgEl.complete && imgEl.naturalWidth) {
@@ -71,12 +76,7 @@ export function useHeaderImageLqip(containerRef, contentKey) {
           imgEl.addEventListener('error', reveal, { once: true })
         }
 
-        cleanups.push(() => {
-          removed = true
-          placeholder.remove()
-          imgEl.style.opacity = ''
-          imgEl.style.transition = ''
-        })
+        cleanups.push(() => { removed = true; placeholder.remove() })
         return
       }
 
@@ -88,6 +88,20 @@ export function useHeaderImageLqip(containerRef, contentKey) {
       // admin's shadow-overlay option is on) — needed so the placeholder's
       // position:absolute is relative to it, not some further ancestor.
       if (!inner.style.position) inner.style.position = 'relative'
+      // position:relative alone does NOT make inner establish its own
+      // stacking context (that needs position + a non-auto z-index) — so
+      // without this, the placeholder's z-index:-1 below can escape to
+      // whatever ANCESTOR stacking context is nearest instead, potentially
+      // painting it behind inner's own background entirely (invisible,
+      // leaving only the plain background-color showing). An explicit
+      // z-index here (any value) forces inner to own its stacking context
+      // so the negative z-index child is guaranteed to land where intended:
+      // above inner's own background, below the heading/subheading text.
+      if (!inner.style.zIndex) inner.style.zIndex = '0'
+      // Only set overflow:hidden for a video background at export time —
+      // guard it here for the image case too, or the scale(1.08) overscan
+      // below bleeds past the header's own edges instead of being cropped.
+      if (!inner.style.overflow) inner.style.overflow = 'hidden'
 
       const placeholder = document.createElement('div')
       placeholder.setAttribute('aria-hidden', 'true')
@@ -97,15 +111,15 @@ export function useHeaderImageLqip(containerRef, contentKey) {
       // content, so it lands behind them automatically.
       placeholder.style.cssText =
         'position:absolute;inset:0;z-index:-1;background-size:cover;background-position:center center;' +
-        'filter:blur(20px);transform:scale(1.05);pointer-events:none;transition:opacity 0.4s ease'
+        'transform:scale(1.08);filter:blur(20px);pointer-events:none'
       placeholder.style.backgroundImage = `url(${lqip})`
       inner.insertBefore(placeholder, inner.firstChild)
 
       let removed = false
       function reveal() {
         if (removed) return
-        placeholder.style.opacity = '0'
-        setTimeout(() => { if (!removed) placeholder.remove() }, 400)
+        removed = true
+        placeholder.remove()
       }
 
       const img = new Image()

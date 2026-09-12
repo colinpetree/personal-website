@@ -344,4 +344,9 @@ if __name__ == '__main__':
         db.create_all()
         _migrate_schema()
         _seed_pages_and_nav()
-    app.run(debug=True)
+    # threaded=True so the dev server can actually process concurrent
+    # requests (e.g. parallel image uploads from the editor's gallery
+    # insert) instead of serializing them one at a time regardless of how
+    # the frontend issues them. Production runs gunicorn with multiple sync
+    # workers instead (see server.py), so this only matters for local dev.
+    app.run(debug=True, threaded=True)

@@ -66,7 +66,7 @@ import { SOCIAL_PLATFORMS, GENERIC_ICONS, resolveLinkIcon, getPlatformMonoSvg } 
 
 // ─── ImageNodeComponent ───────────────────────────────────────────────────────
 
-function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, shadow, nodeKey, editor }) {
+function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, shadow, naturalWidth, naturalHeight, nodeKey, editor }) {
   const fontFamily = useContext(FontFamilyContext)
   const [isSelected, setSelected, clearSelection] = useLexicalNodeSelection(nodeKey)
   const [captionFocused, setCaptionFocused] = useState(false)
@@ -83,6 +83,43 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, shad
   const figRef = useRef(null)
 
   const showRing = isSelected || captionFocused
+
+  // Self-heal images saved before naturalWidth/naturalHeight were tracked
+  // (or pasted/dragged in some other path that didn't capture them): probe
+  // the src client-side and backfill the dimensions into the node so the
+  // next save's exportDOM can emit width/height attributes, same pattern as
+  // GalleryNode's own probeImage backfill — including its retry-on-error
+  // (up to 3 attempts, 2s apart), so a transient network failure doesn't
+  // silently give up on backfilling this image for the rest of the session.
+  useEffect(() => {
+    if (naturalWidth && naturalHeight) return
+    if (!src) return
+    let cancelled = false
+    let attempts = 0
+    let timer = null
+    function attempt() {
+      attempts += 1
+      const probe = new Image()
+      probe.onload = () => {
+        if (cancelled) return
+        editor.update(() => {
+          const node = $getNodeByKey(nodeKey)
+          if (!(node instanceof ImageNode)) return
+          const w = node.getWritable()
+          if (w.__naturalWidth && w.__naturalHeight) return
+          w.__naturalWidth = probe.naturalWidth
+          w.__naturalHeight = probe.naturalHeight
+        })
+      }
+      probe.onerror = () => {
+        if (cancelled || attempts >= 3) return
+        timer = setTimeout(attempt, 2000)
+      }
+      probe.src = src
+    }
+    attempt()
+    return () => { cancelled = true; if (timer) clearTimeout(timer) }
+  }, [src, naturalWidth, naturalHeight, editor, nodeKey])
 
   // Intercept Lexical's CLICK_COMMAND so clicking the image sets NodeSelection
   // instead of letting Lexical create a RangeSelection at the click position.
@@ -219,15 +256,15 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, shad
         style={{ maxWidth: widthMaxMap[width] ?? '740px' }}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        className={`my-6 mx-auto rounded-lg transition-all select-none ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+        className={`my-6 mx-auto transition-all select-none ${width === 'full' ? '' : 'rounded-lg'} ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
       >
-        <div className={`rounded-lg overflow-hidden ${shadow ? 'thumb-shadow' : ''}`} style={{ position: 'relative' }}>
+        <div className={`overflow-hidden ${width === 'full' ? '' : 'rounded-lg'} ${shadow ? 'thumb-shadow' : ''}`} style={{ position: 'relative' }}>
           {lqip && !imgLoaded && (
             <img
               src={lqip}
               aria-hidden="true"
               className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-              style={{ filter: 'blur(20px)', transform: 'scale(1.05)' }}
+              style={{ filter: 'blur(20px)', transform: 'scale(1.08)' }}
             />
           )}
           <img
@@ -236,9 +273,12 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, shad
             srcSet={srcset || undefined}
             sizes={srcset ? '(max-width: 740px) 100vw, 740px' : undefined}
             alt={alt}
+            width={naturalWidth || undefined}
+            height={naturalHeight || undefined}
+            loading="lazy"
+            decoding="async"
             onLoad={() => setImgLoaded(true)}
             className="w-full h-auto block"
-            style={{ transition: 'opacity 0.4s', opacity: lqip && !imgLoaded ? 0 : 1 }}
             draggable={false}
           />
         </div>
@@ -358,13 +398,13 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, shad
 
 export class ImageNode extends DecoratorNode {
   static getType() { return 'image' }
-  static clone(node) { return new ImageNode(node.__src, node.__alt, node.__caption, node.__width, node.__href, node.__srcset, node.__lqip, node.__shadow, node.__key) }
+  static clone(node) { return new ImageNode(node.__src, node.__alt, node.__caption, node.__width, node.__href, node.__srcset, node.__lqip, node.__shadow, node.__naturalWidth, node.__naturalHeight, node.__key) }
 
   static importJSON(data) {
-    return new ImageNode(data.src, data.alt || '', data.caption || '', data.width || 'regular', data.href || '', data.srcset || '', data.lqip || '', data.shadow || false)
+    return new ImageNode(data.src, data.alt || '', data.caption || '', data.width || 'regular', data.href || '', data.srcset || '', data.lqip || '', data.shadow || false, data.naturalWidth, data.naturalHeight)
   }
   exportJSON() {
-    return { type: 'image', version: 1, src: this.__src, alt: this.__alt, caption: this.__caption, width: this.__width, href: this.__href, srcset: this.__srcset, lqip: this.__lqip, shadow: this.__shadow }
+    return { type: 'image', version: 1, src: this.__src, alt: this.__alt, caption: this.__caption, width: this.__width, href: this.__href, srcset: this.__srcset, lqip: this.__lqip, shadow: this.__shadow, naturalWidth: this.__naturalWidth, naturalHeight: this.__naturalHeight }
   }
 
   static importDOM() {
@@ -388,7 +428,9 @@ export class ImageNode extends DecoratorNode {
           const srcset = domNode.getAttribute('data-srcset') || img.getAttribute('srcset') || ''
           const lqip = domNode.getAttribute('data-lqip') || ''
           const shadow = domNode.getAttribute('data-shadow') === 'true' || domNode.querySelector(':scope > div.thumb-shadow') !== null
-          return { node: new ImageNode(img.getAttribute('src') || '', img.getAttribute('alt') || '', caption, width, href, srcset, lqip, shadow) }
+          const naturalWidth = parseInt(img.getAttribute('width') || '0', 10) || undefined
+          const naturalHeight = parseInt(img.getAttribute('height') || '0', 10) || undefined
+          return { node: new ImageNode(img.getAttribute('src') || '', img.getAttribute('alt') || '', caption, width, href, srcset, lqip, shadow, naturalWidth, naturalHeight) }
         },
         priority: 1,
       }),
@@ -402,7 +444,7 @@ export class ImageNode extends DecoratorNode {
     }
   }
 
-  constructor(src, alt = '', caption = '', width = 'regular', href = '', srcset = '', lqip = '', shadow = false, key) {
+  constructor(src, alt = '', caption = '', width = 'regular', href = '', srcset = '', lqip = '', shadow = false, naturalWidth, naturalHeight, key) {
     super(key)
     this.__src = src
     this.__alt = alt
@@ -412,6 +454,8 @@ export class ImageNode extends DecoratorNode {
     this.__srcset = srcset
     this.__lqip = lqip
     this.__shadow = shadow
+    this.__naturalWidth = naturalWidth
+    this.__naturalHeight = naturalHeight
   }
 
   createDOM() {
@@ -428,10 +472,27 @@ export class ImageNode extends DecoratorNode {
     const img = document.createElement('img')
     img.setAttribute('src', this.__src)
     img.setAttribute('alt', this.__alt)
+    img.setAttribute('loading', 'lazy')
+    img.setAttribute('decoding', 'async')
+    // Native width/height attributes let the browser reserve this image's
+    // aspect-ratio-correct box before any bytes of it (or its LQIP) arrive —
+    // without them, the wrapping div below has no way to know its own height
+    // until the real image loads, so it collapses to 0px and the whole
+    // figure (blur placeholder included, since it's absolutely positioned
+    // and inherits its size from this same collapsed box) pops in out of
+    // nowhere and pushes later content down. GalleryNode already does this;
+    // this brings ImageNode to parity.
+    if (this.__naturalWidth) img.setAttribute('width', String(this.__naturalWidth))
+    if (this.__naturalHeight) img.setAttribute('height', String(this.__naturalHeight))
     if (this.__srcset) {
       img.setAttribute('srcset', this.__srcset)
       img.setAttribute('sizes', '(max-width: 740px) 100vw, 740px')
     }
+    // Also stamped on the <img> itself (in addition to the figure-level
+    // data-lqip below, which importDOM needs for round-tripping) so the
+    // public useContentLqip hook can find it with a single img[data-lqip]
+    // selector shared with GalleryNode, which has multiple images per figure.
+    if (this.__lqip) img.setAttribute('data-lqip', this.__lqip)
     img.style.cssText = 'width:100%;height:auto;display:block;margin:0'
 
     const figure = document.createElement('figure')
@@ -441,7 +502,13 @@ export class ImageNode extends DecoratorNode {
     if (this.__shadow) figure.setAttribute('data-shadow', 'true')
 
     if (this.__width === 'wide') {
-      figure.style.cssText = 'width:min(1040px,100vw);position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0'
+      // calc(100vw - 2rem), not a bare 100vw — same convention as the wide
+      // table wrapper in index.css: only kicks in once the viewport (not the
+      // 1040px cap) is the binding constraint, i.e. on mobile, giving a
+      // small gutter instead of running flush to the screen edge. "full"
+      // width is deliberately excluded — that layout is meant to bleed edge
+      // to edge at every size.
+      figure.style.cssText = 'width:min(1040px,calc(100vw - 2rem));position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0'
     } else if (this.__width === 'full') {
       figure.style.cssText = 'width:100vw;position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0'
     } else if (this.__width === 'narrow') {
@@ -486,6 +553,8 @@ export class ImageNode extends DecoratorNode {
         srcset={this.__srcset}
         lqip={this.__lqip}
         shadow={this.__shadow}
+        naturalWidth={this.__naturalWidth}
+        naturalHeight={this.__naturalHeight}
         nodeKey={this.getKey()}
         editor={editor}
       />
@@ -493,8 +562,8 @@ export class ImageNode extends DecoratorNode {
   }
 }
 
-export function $createImageNode(src, alt = '', caption = '', width = 'regular', href = '', srcset = '', lqip = '', shadow = false) {
-  return new ImageNode(src, alt, caption, width, href, srcset, lqip, shadow)
+export function $createImageNode(src, alt = '', caption = '', width = 'regular', href = '', srcset = '', lqip = '', shadow = false, naturalWidth, naturalHeight) {
+  return new ImageNode(src, alt, caption, width, href, srcset, lqip, shadow, naturalWidth, naturalHeight)
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1407,6 +1476,11 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
   const isMountedRef = useRef(true)
   const probeStateRef = useRef(new Map()) // src -> { attempts, inFlight, timer }
   const probeImageRef = useRef(null)
+  const [loadedSrcs, setLoadedSrcs] = useState(() => new Set())
+
+  function markLoaded(src) {
+    setLoadedSrcs(prev => (prev.has(src) ? prev : new Set(prev).add(src)))
+  }
 
   const showRing = isSelected || captionFocused
 
@@ -1560,21 +1634,27 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
     const files = [...(e.target.files || [])].slice(0, remaining)
     e.target.value = ''
     if (!files.length) return
-    for (const file of files) {
-      try {
-        const data = await handleUploadFull(file)
-        const newImg = { src: `/api/uploads/${data.filename}`, alt: '', srcset: data.srcset || '', width: data.width, height: data.height }
-        editor.update(() => {
-          const node = $getNodeByKey(nodeKey)
-          if (node instanceof GalleryNode) {
-            const w = node.getWritable()
-            w.__images = [...w.__images, newImg]
-          }
-        })
-      } catch {
-        // skip failed individual uploads
+    // Uploaded in parallel (not one-at-a-time) — the server-side WebP/resize/
+    // LQIP work for each file no longer has to finish before the next file's
+    // upload even starts, which is what made adding several images take tens
+    // of seconds. Failures are tolerated individually via allSettled so one
+    // bad file doesn't drop the others, matching the previous per-file
+    // try/catch behavior.
+    const results = await Promise.allSettled(files.map(handleUploadFull))
+    const newImages = results
+      .filter(r => r.status === 'fulfilled')
+      .map(r => {
+        const data = r.value
+        return { src: `/api/uploads/${data.filename}`, alt: '', srcset: data.srcset || '', width: data.width, height: data.height, lqip: data.lqip || '' }
+      })
+    if (!newImages.length) return
+    editor.update(() => {
+      const node = $getNodeByKey(nodeKey)
+      if (node instanceof GalleryNode) {
+        const w = node.getWritable()
+        w.__images = [...w.__images, ...newImages]
       }
-    }
+    })
   }
 
   const rows = groupImagesIntoRows(images)
@@ -1604,10 +1684,21 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
               const idx = flatIndex++
               return (
                 <div key={rowIdx} className="flex justify-center bg-gray-100">
-                  <div className="relative group/img">
+                  <div className="relative overflow-hidden group/img">
+                    {img.lqip && !loadedSrcs.has(img.src) && (
+                      <img
+                        src={img.lqip}
+                        aria-hidden="true"
+                        className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                        style={{ filter: 'blur(20px)', transform: 'scale(1.08)' }}
+                      />
+                    )}
                     <img
                       src={img.src}
                       alt={img.alt}
+                      loading="lazy"
+                      decoding="async"
+                      onLoad={() => markLoaded(img.src)}
                       className="max-w-full block"
                       style={{ maxHeight: '600px', width: 'auto', height: 'auto', objectFit: 'contain', margin: 0 }}
                       draggable={false}
@@ -1638,7 +1729,24 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
                       className="relative overflow-hidden bg-gray-100 group/img"
                       style={{ flex: `${ar} 1 0`, minWidth: 0 }}
                     >
-                      <img src={img.src} alt={img.alt} className="w-full h-full object-cover block" style={{ margin: 0 }} draggable={false} />
+                      {img.lqip && !loadedSrcs.has(img.src) && (
+                        <img
+                          src={img.lqip}
+                          aria-hidden="true"
+                          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+                          style={{ filter: 'blur(20px)', transform: 'scale(1.08)' }}
+                        />
+                      )}
+                      <img
+                        src={img.src}
+                        alt={img.alt}
+                        loading="lazy"
+                        decoding="async"
+                        onLoad={() => markLoaded(img.src)}
+                        className="w-full h-full object-cover block"
+                        style={{ margin: 0 }}
+                        draggable={false}
+                      />
                       <div className="absolute top-1.5 right-1.5 opacity-0 group-hover/img:opacity-100 transition-opacity">
                         <Tooltip content="Delete">
                           <button
@@ -1722,6 +1830,7 @@ export class GalleryNode extends DecoratorNode {
               srcset: img.getAttribute('srcset') || '',
               width: parseInt(img.getAttribute('data-w') || '0', 10) || undefined,
               height: parseInt(img.getAttribute('data-h') || '0', 10) || undefined,
+              lqip: img.getAttribute('data-lqip') || '',
             }))
             const caption = domNode.querySelector('figcaption')?.textContent?.trim() || ''
             return { node: new GalleryNode(images, caption) }
@@ -1750,7 +1859,11 @@ export class GalleryNode extends DecoratorNode {
     if (!this.__images.length) return { element: null }
     const figure = document.createElement('figure')
     figure.className = 'gallery'
-    figure.style.cssText = 'width:min(1040px,100vw);position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0'
+    // calc(100vw - 2rem), not a bare 100vw — see the matching comment in
+    // ImageNode.exportDOM(); galleries have no "full width" variant to
+    // exclude, so this always applies once the viewport becomes the
+    // binding constraint (mobile).
+    figure.style.cssText = 'width:min(1040px,calc(100vw - 2rem));position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0'
 
     const grid = document.createElement('div')
     grid.className = 'gallery-grid'
@@ -1766,16 +1879,30 @@ export class GalleryNode extends DecoratorNode {
         const imgEl = document.createElement('img')
         imgEl.setAttribute('src', img.src)
         imgEl.setAttribute('alt', img.alt || '')
-        if (img.width) imgEl.setAttribute('data-w', String(img.width))
-        if (img.height) imgEl.setAttribute('data-h', String(img.height))
+        imgEl.setAttribute('loading', 'lazy')
+        imgEl.setAttribute('decoding', 'async')
+        if (img.width) { imgEl.setAttribute('data-w', String(img.width)); imgEl.setAttribute('width', String(img.width)) }
+        if (img.height) { imgEl.setAttribute('data-h', String(img.height)); imgEl.setAttribute('height', String(img.height)) }
+        if (img.lqip) imgEl.setAttribute('data-lqip', img.lqip)
         if (img.srcset) {
           imgEl.setAttribute('srcset', img.srcset)
           imgEl.setAttribute('sizes', '(max-width: 1040px) 100vw, 1040px')
         }
+        // Each image gets its own positioned wrapper (mirroring the editor's
+        // own live GalleryNodeComponent render) so useContentLqip's blur-up
+        // placeholder is anchored to THIS image's own box. Without it,
+        // img.parentElement was the shared multi-image rowEl — an absolutely
+        // positioned placeholder there covers the entire row (all images'
+        // combined width), not just one image, which is what made the
+        // placeholder look oversized and then visibly shrink once removed.
+        const wrap = document.createElement('div')
         if (row.length > 1) {
-          imgEl.style.cssText = `flex:${aspectRatioOf(img)} 1 0`
+          wrap.style.cssText = `position:relative;overflow:hidden;min-width:0;flex:${aspectRatioOf(img)} 1 0`
+        } else {
+          wrap.style.cssText = 'position:relative;overflow:hidden;display:inline-block;max-width:100%;max-height:600px'
         }
-        rowEl.appendChild(imgEl)
+        wrap.appendChild(imgEl)
+        rowEl.appendChild(wrap)
       }
       grid.appendChild(rowEl)
     }

@@ -9,6 +9,7 @@ import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import GalleryLightboxController from '../components/GalleryLightboxController'
 import HeaderImageLqip from '../components/HeaderImageLqip'
+import ContentLqip from '../components/ContentLqip'
 import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 import NotFoundPage from './NotFoundPage'
 
@@ -122,6 +123,7 @@ export default function ProjectsPage() {
           <CodeBlockCopyToast containerRef={contentRef} contentKey={config.projects_text} />
           <GalleryLightboxController containerRef={contentRef} contentKey={config.projects_text} />
           <HeaderImageLqip containerRef={contentRef} contentKey={config.projects_text} />
+          <ContentLqip containerRef={contentRef} contentKey={config.projects_text} />
           <FullscreenHeaderNav containerRef={contentRef} contentKey={config.projects_text} />
         </>
       )}

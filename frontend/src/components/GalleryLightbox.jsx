@@ -55,6 +55,39 @@ function computeFlipGeometry(originRect, targetRect) {
   }
 }
 
+// The lightbox <img> always requests the full-resolution original — a
+// different resource than whatever smaller srcset variant the thumbnail
+// actually downloaded for its on-page size — so on a first open it hasn't
+// loaded/decoded yet. imgRef.current.getBoundingClientRect() would then
+// report a 0x0 box (nothing to measure), silently failing computeFlipGeometry
+// and skipping the whole animation — while a second open of the same image
+// finds it already decoded and cached, and animates fine. Computing the
+// target box analytically instead — from the aspect ratio we already know
+// (the thumbnail's own naturalWidth/naturalHeight, captured when it was
+// clicked, since the thumbnail is by definition already loaded) plus the
+// fixed max-h-[90vh] max-w-[90vw] object-contain constraint the lightbox
+// <img> renders with — removes that dependency entirely, so the animation
+// is correct on every open regardless of whether the full-res file has
+// finished loading yet.
+function computeTargetRect(imgW, imgH) {
+  if (!imgW || !imgH) return null
+  // clientWidth/Height (the layout viewport, e.g. what `fixed inset-0`
+  // sizes against), not window.innerWidth/Height — the latter includes a
+  // visible scrollbar's width, which would drift the centered box a few px
+  // off from where the lightbox container actually renders.
+  const vw = document.documentElement.clientWidth
+  const vh = document.documentElement.clientHeight
+  const scale = Math.min((vw * 0.9) / imgW, (vh * 0.9) / imgH, 1)
+  const width = imgW * scale
+  const height = imgH * scale
+  return {
+    left: (vw - width) / 2,
+    top: (vh - height) / 2,
+    width,
+    height,
+  }
+}
+
 // FLIP shared-element transition: the clicked thumbnail's captured
 // getBoundingClientRect() (originRect, from useGalleryLightbox) is used to
 // compute the crop-aware inverse geometry above, then animated to identity
@@ -79,12 +112,67 @@ export default function GalleryLightbox({ images, index, originRect, onClose, on
   const [imgOpacity, setImgOpacity] = useState(1)
   const [fadeTransitionOn, setFadeTransitionOn] = useState(false)
 
+  // The on-page thumbnail's srcset means a smaller variant is already
+  // decoded and cached (current.lowResSrc, from useGalleryLightbox) — the
+  // full-res original (current.src) is a different, likely-uncached
+  // resource on a cold page. Painting the already-available low-res version
+  // immediately means the open animation always has real pixels to show
+  // from frame one, instead of the image content itself popping in
+  // mid-animation once the full-res fetch+decode finally completes. Once it
+  // does, this swaps to it in the background — imperceptible when the two
+  // are close in resolution, but for a small thumbnail variant stretched up
+  // to fill most of the screen, the low-res stage is visibly softer than
+  // the full image — so `isCached` below skips it entirely whenever the
+  // full-res file already happens to be available, which the prefetch
+  // effect further down aims to make the common case for prev/next.
+  function isCached(src) {
+    if (!src) return false
+    const probe = new Image()
+    probe.src = src
+    return probe.complete && probe.naturalWidth > 0
+  }
+
+  const [displaySrc, setDisplaySrc] = useState(() => (isCached(current.src) ? current.src : (current.lowResSrc || current.src)))
+  useEffect(() => {
+    if (isCached(current.src)) { setDisplaySrc(current.src); return }
+    setDisplaySrc(current.lowResSrc || current.src)
+    if (!current.lowResSrc || current.lowResSrc === current.src) return
+    let cancelled = false
+    const upgrade = new Image()
+    upgrade.onload = () => { if (!cancelled) setDisplaySrc(current.src) }
+    upgrade.src = current.src
+    return () => { cancelled = true }
+  }, [current.src, current.lowResSrc])
+
+  // Prefetch the full-res files for both neighbors as soon as the current
+  // image is shown — by the time a Next/Prev click actually lands on one of
+  // them, it's very likely already cached, so the isCached fast path above
+  // takes over and the low-res stage never has to show at all for ordinary
+  // sequential browsing (only for jumping around faster than the network
+  // can keep up).
+  useEffect(() => {
+    const neighbors = [images[(index + 1) % total]?.src, images[(index - 1 + total) % total]?.src]
+    neighbors.forEach(src => { if (src) new Image().src = src })
+  }, [index, images, total])
+
   const prev = useCallback(() => onNavigate((index - 1 + total) % total), [index, total, onNavigate])
   const next = useCallback(() => onNavigate((index + 1) % total), [index, total, onNavigate])
 
   const computeStartGeometry = useCallback(() => {
-    if (!originRect || !imgRef.current) return null
-    return computeFlipGeometry(originRect, imgRef.current.getBoundingClientRect())
+    if (!originRect) return null
+    // Prefer the actual rendered box when it's available — exact, and by
+    // close time the image has certainly already loaded (it's been on
+    // screen). The analytical estimate is only a stand-in for when the real
+    // box isn't measurable yet (freshly opened, image still loading): using
+    // it as the "target" for the close animation too would end the shrink
+    // animation at its (however slightly) estimated position rather than
+    // the image's real one, producing a visible jump right as the lightbox
+    // unmounts and the real, exactly-positioned page thumbnail takes over.
+    const measured = imgRef.current?.getBoundingClientRect()
+    const targetRect = measured?.width && measured?.height
+      ? measured
+      : computeTargetRect(originRect.naturalWidth, originRect.naturalHeight)
+    return computeFlipGeometry(originRect, targetRect)
   }, [originRect])
 
   const handleClose = useCallback((useFlip = true) => {
@@ -209,7 +297,7 @@ export default function GalleryLightbox({ images, index, originRect, onClose, on
       {/* Image */}
       <img
         ref={imgRef}
-        src={current.src}
+        src={displaySrc}
         alt={current.alt || ''}
         className="relative max-h-[90vh] max-w-[90vw] object-contain select-none"
         style={{
@@ -218,6 +306,14 @@ export default function GalleryLightbox({ images, index, originRect, onClose, on
           clipPath: clipPath || 'inset(0%)',
           opacity: imgOpacity,
           transition: imgTransition,
+          // Hints the browser to promote this element to its own compositing
+          // layer as soon as it mounts, rather than reactively once the
+          // transform/clip-path animation actually starts two frames later.
+          // That layer allocation+rasterization is a one-time cost per page
+          // — without this hint it lands mid-animation on the very first
+          // lightbox open of a page (visible as a dropped-frame stutter),
+          // while every open after that reuses an already-warmed compositor.
+          willChange: 'transform, clip-path',
         }}
         onClick={e => e.stopPropagation()}
         draggable={false}

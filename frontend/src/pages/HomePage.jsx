@@ -7,6 +7,7 @@ import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import GalleryLightboxController from '../components/GalleryLightboxController'
 import HeaderImageLqip from '../components/HeaderImageLqip'
+import ContentLqip from '../components/ContentLqip'
 import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 
 // Purely for meta() below — the page body still reads config from context
@@ -63,6 +64,7 @@ export default function HomePage() {
       <CodeBlockCopyToast containerRef={contentRef} contentKey={config.home_text} />
       <GalleryLightboxController containerRef={contentRef} contentKey={config.home_text} />
       <HeaderImageLqip containerRef={contentRef} contentKey={config.home_text} />
+      <ContentLqip containerRef={contentRef} contentKey={config.home_text} />
       <FullscreenHeaderNav containerRef={contentRef} contentKey={config.home_text} />
     </main>
   )

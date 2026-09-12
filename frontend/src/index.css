@@ -302,7 +302,7 @@ html {
 }
 
 .blog-content figure.gallery {
-  width: min(1040px, 100vw);
+  width: min(1040px, calc(100vw - 2rem));
   position: relative;
   left: 50%;
   transform: translateX(-50%);

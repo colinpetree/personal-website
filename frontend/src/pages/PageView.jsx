@@ -4,6 +4,7 @@ import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import GalleryLightboxController from '../components/GalleryLightboxController'
 import HeaderImageLqip from '../components/HeaderImageLqip'
+import ContentLqip from '../components/ContentLqip'
 import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 
 // Presentational component, rendered by SlugResolverPage.jsx once
@@ -37,6 +38,7 @@ export default function PageView({ page }) {
           <CodeBlockCopyToast containerRef={contentRef} contentKey={page.content_html} />
           <GalleryLightboxController containerRef={contentRef} contentKey={page.content_html} />
           <HeaderImageLqip containerRef={contentRef} contentKey={page.content_html} />
+          <ContentLqip containerRef={contentRef} contentKey={page.content_html} />
           <FullscreenHeaderNav containerRef={contentRef} contentKey={page.content_html} />
         </>
       ) : (

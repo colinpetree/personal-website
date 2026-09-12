@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Heart, Reply, MoreHorizontal, ChevronDown, X } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
@@ -11,6 +11,7 @@ import BlogPostNav from '../components/BlogPostNav'
 import ShareButton from '../components/ShareButton'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import HeaderImageLqip from '../components/HeaderImageLqip'
+import ContentLqip from '../components/ContentLqip'
 import { setupSegmentLoopVideo } from '../utils/segmentLoopVideo'
 import { isNavEnabled } from '../utils/meta'
 import { getInitials } from '../utils/getInitials'
@@ -476,47 +477,6 @@ export default function BlogPostView({ post, blogAuthor, next, previous }) {
     })
   }
 
-  // useLayoutEffect, not useEffect — same reasoning as useHeaderImageLqip.js:
-  // this needs to insert the blurred placeholder and hide the real <img>
-  // (opacity:0) BEFORE the browser's first paint, not after. useEffect fires
-  // post-paint, leaving a window where the raw, un-blurred <img> is already
-  // in the DOM with its real src and starts loading/painting natively —
-  // visible as a flash of the image progressively rendering top-down before
-  // this effect ever gets a chance to cover it with the placeholder.
-  useLayoutEffect(() => {
-    if (!articleRef.current || !post?.content_html) return
-    const figures = articleRef.current.querySelectorAll('figure[data-lqip]')
-    figures.forEach(figure => {
-      const img = figure.querySelector('img')
-      const lqipSrc = figure.getAttribute('data-lqip')
-      if (!img || !lqipSrc) return
-
-      const wrap = img.parentElement
-      const placeholder = document.createElement('img')
-      placeholder.src = lqipSrc
-      placeholder.setAttribute('aria-hidden', 'true')
-      placeholder.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:blur(20px);transform:scale(1.05);pointer-events:none'
-      wrap.style.position = 'relative'
-      wrap.insertBefore(placeholder, img)
-
-      img.style.transition = 'opacity 0.4s'
-      img.style.opacity = '0'
-
-      function onLoad() {
-        img.style.opacity = '1'
-        placeholder.style.transition = 'opacity 0.4s'
-        placeholder.style.opacity = '0'
-        setTimeout(() => placeholder.remove(), 400)
-      }
-
-      if (img.complete && img.naturalWidth) {
-        onLoad()
-      } else {
-        img.addEventListener('load', onLoad, { once: true })
-      }
-    })
-  }, [post?.content_html])
-
   useEffect(() => {
     if (!articleRef.current || !post?.content_html) return
     const figures = articleRef.current.querySelectorAll('figure[data-segment-loop="true"]')
@@ -620,6 +580,7 @@ export default function BlogPostView({ post, blogAuthor, next, previous }) {
       )}
       <CodeBlockCopyToast containerRef={articleRef} contentKey={post.content_html} />
       <HeaderImageLqip containerRef={articleRef} contentKey={post.content_html} />
+      <ContentLqip containerRef={articleRef} contentKey={post.content_html} />
       <GalleryLightboxController containerRef={articleRef} contentKey={post.content_html} />
 
       <BlogPostNav next={next} previous={previous} categorySlug={categorySlug} />

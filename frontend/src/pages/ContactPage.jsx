@@ -7,6 +7,7 @@ import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import GalleryLightboxController from '../components/GalleryLightboxController'
 import HeaderImageLqip from '../components/HeaderImageLqip'
+import ContentLqip from '../components/ContentLqip'
 import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 import NotFoundPage from './NotFoundPage'
 import { isValidEmail } from '../utils/isValidEmail'
@@ -121,6 +122,7 @@ export default function ContactPage() {
           <CodeBlockCopyToast containerRef={contentRef} contentKey={config.contact_text} />
           <GalleryLightboxController containerRef={contentRef} contentKey={config.contact_text} />
           <HeaderImageLqip containerRef={contentRef} contentKey={config.contact_text} />
+          <ContentLqip containerRef={contentRef} contentKey={config.contact_text} />
           <FullscreenHeaderNav containerRef={contentRef} contentKey={config.contact_text} />
         </>
       )}

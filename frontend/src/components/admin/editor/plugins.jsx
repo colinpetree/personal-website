@@ -995,7 +995,7 @@ export function SlashCommandPlugin() {
         const data = await handleUploadFull(files[0])
         editor.update(() => {
           const node = $getNodeByKey(paragraphKey)
-          if (node && $isParagraphNode(node)) node.replace($createImageNode(`/api/uploads/${data.filename}`, '', '', 'regular', '', data.srcset || '', data.lqip || ''))
+          if (node && $isParagraphNode(node)) node.replace($createImageNode(`/api/uploads/${data.filename}`, '', '', 'regular', '', data.srcset || '', data.lqip || '', false, data.width, data.height))
         })
       } else if (action === 'video') {
         const data = await handleUploadFull(files[0])
@@ -1024,11 +1024,17 @@ export function SlashCommandPlugin() {
           if (node && $isParagraphNode(node)) node.replace($createFileNode(`/api/uploads/${data.filename}`, data.original_name, data.mime_type, data.size || 0))
         })
       } else if (action === 'gallery') {
-        const uploaded = []
-        for (const file of files.slice(0, GALLERY_MAX_IMAGES)) {
-          const data = await handleUploadFull(file)
-          uploaded.push({ src: `/api/uploads/${data.filename}`, alt: '', srcset: data.srcset || '', width: data.width, height: data.height })
-        }
+        // Uploaded in parallel — awaiting each file's server-side WebP/
+        // resize/LQIP work in sequence before starting the next is what made
+        // inserting a multi-image gallery take tens of seconds. allSettled
+        // tolerates individual failures rather than aborting the whole batch.
+        const results = await Promise.allSettled(files.slice(0, GALLERY_MAX_IMAGES).map(handleUploadFull))
+        const uploaded = results
+          .filter(r => r.status === 'fulfilled')
+          .map(r => {
+            const data = r.value
+            return { src: `/api/uploads/${data.filename}`, alt: '', srcset: data.srcset || '', width: data.width, height: data.height, lqip: data.lqip || '' }
+          })
         if (uploaded.length) {
           editor.update(() => {
             const node = $getNodeByKey(paragraphKey)
@@ -1770,7 +1776,7 @@ async function uploadMediaFile(file) {
 function createNodeFromUpload({ data, file }) {
   const url = `/api/uploads/${data.filename}`
   const mime = file.type
-  if (mime.startsWith('image/')) return $createImageNode(url, '', '', 'regular', '', data.srcset || '', data.lqip || '')
+  if (mime.startsWith('image/')) return $createImageNode(url, '', '', 'regular', '', data.srcset || '', data.lqip || '', false, data.width, data.height)
   if (mime.startsWith('video/')) return $createVideoNode(url, '', 'regular', false, data.poster_filename ? `/api/uploads/${data.poster_filename}` : '')
   if (mime.startsWith('audio/')) return $createAudioNode(url, data.original_name || file.name)
   return $createFileNode(url, data.original_name || file.name, data.mime_type || file.type, data.size || file.size)

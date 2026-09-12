@@ -9,6 +9,7 @@ import CategoryFilterBar from '../components/CategoryFilterBar'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
 import GalleryLightboxController from '../components/GalleryLightboxController'
 import HeaderImageLqip from '../components/HeaderImageLqip'
+import ContentLqip from '../components/ContentLqip'
 import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
 import NotFoundPage from './NotFoundPage'
 
@@ -181,6 +182,7 @@ export default function BlogPage() {
       <CodeBlockCopyToast containerRef={contentRef} contentKey={config?.blog_text} />
       <GalleryLightboxController containerRef={contentRef} contentKey={config?.blog_text} />
       <HeaderImageLqip containerRef={contentRef} contentKey={config?.blog_text} />
+      <ContentLqip containerRef={contentRef} contentKey={config?.blog_text} />
       <FullscreenHeaderNav containerRef={contentRef} contentKey={config?.blog_text} />
 
       {data?.categories?.length > 0 && (

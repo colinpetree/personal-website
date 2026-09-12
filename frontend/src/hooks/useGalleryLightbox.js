@@ -12,6 +12,27 @@ function rectFromImg(imgEl) {
   }
 }
 
+// The on-page thumbnail's `src` attribute is the full-resolution original —
+// srcset/sizes is what actually determines which (smaller) variant the
+// browser fetches and decodes for its on-page display size. `currentSrc` is
+// that resolved, already-loaded resource; falling back to `src` covers a
+// browser that hasn't picked one yet or a plain (non-srcset) `<img>`.
+// Handing this to the lightbox as a placeholder — see GalleryLightbox's
+// low-res-first swap — means the open animation never has to wait on a
+// fresh fetch+decode of the full-res file to have something to paint.
+function lowResSrc(imgEl) {
+  return imgEl.currentSrc || imgEl.getAttribute('src') || imgEl.src
+}
+
+// LQIP blur placeholders (useContentLqip) insert an aria-hidden <img> as a
+// sibling of the real one while it's still loading — excluded here so a
+// still-loading image's placeholder isn't counted as a second gallery image,
+// which would throw off `clickedIndex` and the images array for every image
+// after it.
+function galleryImgs(gallery) {
+  return [...gallery.querySelectorAll('img:not([aria-hidden])')]
+}
+
 // Delegated click handler for figure.gallery images, scoped to containerRef
 // (not document-wide) so it composes safely alongside other content on the
 // page. contentKey should be the HTML string that changes whenever the
@@ -32,10 +53,10 @@ export function useGalleryLightbox(containerRef, contentKey) {
       const gallery = e.target.closest('figure.gallery')
       if (gallery) {
         if (!container.contains(gallery)) return
-        const allImgs = [...gallery.querySelectorAll('img')]
+        const allImgs = galleryImgs(gallery)
         const clickedIndex = allImgs.indexOf(e.target)
         galleryElRef.current = gallery
-        setImages(allImgs.map(img => ({ src: img.getAttribute('src') || img.src, alt: img.alt || '' })))
+        setImages(allImgs.map(img => ({ src: img.getAttribute('src') || img.src, lowResSrc: lowResSrc(img), alt: img.alt || '' })))
         setIndex(clickedIndex)
         setOriginRect(rectFromImg(e.target))
         return
@@ -49,7 +70,7 @@ export function useGalleryLightbox(containerRef, contentKey) {
       const figure = e.target.closest('figure[data-width]')
       if (!figure || !container.contains(figure) || figure.closest('a')) return
       galleryElRef.current = null
-      setImages([{ src: e.target.getAttribute('src') || e.target.src, alt: e.target.alt || '' }])
+      setImages([{ src: e.target.getAttribute('src') || e.target.src, lowResSrc: lowResSrc(e.target), alt: e.target.alt || '' }])
       setIndex(0)
       setOriginRect(rectFromImg(e.target))
     }
@@ -63,7 +84,7 @@ export function useGalleryLightbox(containerRef, contentKey) {
   // after navigating still animates back to that image's actual on-page
   // thumbnail (not the originally-clicked one, and not a plain fade).
   const navigate = useCallback((i) => {
-    const imgEl = galleryElRef.current?.querySelectorAll('img')[i]
+    const imgEl = galleryElRef.current ? galleryImgs(galleryElRef.current)[i] : null
     setOriginRect(imgEl ? rectFromImg(imgEl) : null)
     setIndex(i)
   }, [])
