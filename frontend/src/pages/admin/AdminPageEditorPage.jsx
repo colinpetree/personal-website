@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router'
-import { ArrowLeft, ExternalLink, PanelRight, X, Type, BookA, BookType, RectangleHorizontal, RectangleVertical } from 'lucide-react'
+import { ArrowLeft, ExternalLink, PanelRight, X, Type, BookA, BookType, RectangleHorizontal, RectangleVertical, Globe } from 'lucide-react'
 import RichTextEditor from '../../components/admin/editor'
 import { Field, Textarea, Toggle } from '../../components/admin/AdminPage'
 import SlugUrlField from '../../components/admin/SlugUrlField'
@@ -144,6 +144,8 @@ export default function AdminPageEditorPage() {
   const [deleting, setDeleting] = useState(false)
 
   const [panelOpen, setPanelOpen] = useState(true)
+  const [faviconFailed, setFaviconFailed] = useState(false)
+  useEffect(() => setFaviconFailed(false), [siteConfig?.favicon_filename])
 
   const [title, setTitle] = useState('')
   const [contentHtml, setContentHtml] = useState('')
@@ -473,6 +475,11 @@ export default function AdminPageEditorPage() {
     )
   }
 
+  // Mirrors SlugResolverPage.jsx's meta() title format for a published page:
+  // "{title} - {site_title}", falling back to just the title if the site has
+  // no site_title set.
+  const tabTitle = siteConfig?.site_title ? `${title || 'Untitled'} - ${siteConfig.site_title}` : (title || 'Untitled')
+
   return (
     <div className="flex flex-col h-screen">
       {/* Header */}
@@ -499,30 +506,52 @@ export default function AdminPageEditorPage() {
       <div className="flex flex-1 overflow-hidden relative">
         {/* Editor area */}
         <div ref={scrollContainerRef} className="flex-1 overflow-y-auto bg-white relative editor-scroll-area">
-          <div className="max-w-3xl mx-auto px-6 pt-10">
-            <textarea
-              ref={titleRef}
-              rows={1}
-              value={title}
-              onChange={handleTitleChange}
-              placeholder="Page title"
-              className="w-full resize-none overflow-hidden text-[34px] lg:text-[42px] font-bold text-gray-900 outline-none border-none bg-transparent placeholder-gray-300 leading-[42.5px] lg:leading-[52.5px] pb-4"
-              onKeyDown={e => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  editorRef.current?.focusAtStart()
-                }
-              }}
+          <div className="relative bg-gray-100 border-b border-gray-200">
+            <div className="absolute left-1 bottom-1 flex w-[220px] items-center gap-1.5 rounded-md bg-white px-3 py-1.5 shadow-sm">
+              {siteConfig?.favicon_filename && !faviconFailed ? (
+                <img
+                  src={`/api/uploads/${siteConfig.favicon_filename}`}
+                  alt=""
+                  className="h-4 w-4 shrink-0 rounded-sm"
+                  onError={() => setFaviconFailed(true)}
+                />
+              ) : (
+                <Globe size={16} strokeWidth={1.5} className="shrink-0 text-gray-400" />
+              )}
+              <span
+                className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-xs text-gray-800"
+                style={{ maskImage: 'linear-gradient(to right, black calc(100% - 16px), transparent)', WebkitMaskImage: 'linear-gradient(to right, black calc(100% - 16px), transparent)' }}
+              >
+                {tabTitle}
+              </span>
+            </div>
+            <div className="max-w-3xl mx-auto px-6 pt-10 pb-6">
+              <textarea
+                ref={titleRef}
+                rows={1}
+                value={title}
+                onChange={handleTitleChange}
+                placeholder="Page title"
+                className="w-full resize-none overflow-hidden text-[34px] lg:text-[42px] font-bold text-gray-500 outline-none border-none bg-transparent placeholder-gray-400 leading-[42.5px] lg:leading-[52.5px]"
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    editorRef.current?.focusAtStart()
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <div className="page-editor-content pt-10">
+            <RichTextEditor
+              ref={editorRef}
+              key={page?.id}
+              initialHtml={contentHtml}
+              onChange={handleContentChange}
+              placeholder=""
+              fontFamily={fontFamily}
             />
           </div>
-          <RichTextEditor
-            ref={editorRef}
-            key={page?.id}
-            initialHtml={contentHtml}
-            onChange={handleContentChange}
-            placeholder=""
-            fontFamily={fontFamily}
-          />
           <div style={{ height: '33vh' }} onClick={() => {
             editorRef.current?.focusAtEnd()
             requestAnimationFrame(() => {

@@ -961,6 +961,22 @@ html {
   margin-top: 0;
 }
 
+/* Same flush treatment for AdminPageEditorPage.jsx's custom-Pages editor. The
+   gray title bar there stands in for the navbar, so the pt-10 gap being
+   cancelled here is the one on .page-editor-content (wrapping RichTextEditor,
+   sitting below the title bar) rather than the scroll container itself —
+   see the comment above the .content-page-editor-scroll rules for why three
+   sources of top gap need cancelling. */
+.page-editor-content:has([contenteditable] > span:first-child > .header-block-editor) {
+  padding-top: 0;
+}
+.page-editor-content:has([contenteditable] > span:first-child > .header-block-editor) [contenteditable] {
+  padding-top: 0;
+}
+.page-editor-content [contenteditable] > span:first-child > .header-block-editor {
+  margin-top: 0;
+}
+
 /* A leading h1/h2/h3 (not a HeaderNode block, just a plain heading as the
    page's first node) shouldn't carry theme.js's mt-6/mt-5/mt-4 top margin
    either — same reasoning as .page-header-content h1:first-child on the
