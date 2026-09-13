@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router'
-import { ArrowLeft, ExternalLink, PanelRight, X, Type, BookA, BookType, RectangleHorizontal, RectangleVertical, Globe } from 'lucide-react'
+import { ArrowLeft, ExternalLink, PanelRight, Pencil, X, Type, BookA, BookType, RectangleHorizontal, RectangleVertical, Globe } from 'lucide-react'
 import RichTextEditor from '../../components/admin/editor'
 import { Field, Textarea, Toggle } from '../../components/admin/AdminPage'
 import SlugUrlField from '../../components/admin/SlugUrlField'
 import { Tooltip } from '../../components/ui/Tooltip'
+import Popover from '../../components/ui/Popover'
 import { useToast } from '../../context/ToastContext'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import { useAdminAuth } from '../../context/AdminAuthContext'
@@ -143,7 +144,12 @@ export default function AdminPageEditorPage() {
   const [deleteDialog, setDeleteDialog] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  const [panelOpen, setPanelOpen] = useState(true)
+  // Settings panel visibility — closed by default below the `lg` breakpoint
+  // where it renders as an overlay, so opening the editor doesn't immediately
+  // cover the content on mobile.
+  const [panelOpen, setPanelOpen] = useState(() => (
+    typeof window === 'undefined' || window.matchMedia('(min-width: 1024px)').matches
+  ))
   const [faviconFailed, setFaviconFailed] = useState(false)
   useEffect(() => setFaviconFailed(false), [siteConfig?.favicon_filename])
 
@@ -469,18 +475,19 @@ export default function AdminPageEditorPage() {
 
     if (status === 'draft') {
       return (
-        <button
-          onClick={isContributor ? undefined : () => setPublishDialog(true)}
-          disabled={isContributor}
-          title={isContributor ? 'Editors must review and publish your page' : undefined}
-          className={`rounded-md bg-white px-4 py-1.5 text-sm font-medium transition-colors ${
-            isContributor
-              ? 'text-gray-400 opacity-50'
-              : 'text-green-600 hover:bg-gray-100'
-          }`}
-        >
-          Publish
-        </button>
+        <Tooltip content={isContributor ? 'Editors must review and publish your page' : undefined}>
+          <button
+            onClick={isContributor ? undefined : () => setPublishDialog(true)}
+            disabled={isContributor}
+            className={`rounded-md bg-white px-4 py-1.5 text-sm font-medium transition-colors ${
+              isContributor
+                ? 'text-gray-400 opacity-50'
+                : 'text-green-600 hover:bg-gray-100'
+            }`}
+          >
+            Publish
+          </button>
+        </Tooltip>
       )
     }
 
@@ -493,19 +500,81 @@ export default function AdminPageEditorPage() {
         >
           {updateSaving ? 'Updating...' : 'Update'}
         </button>
-        <button
-          onClick={isContributor ? undefined : () => setRevertDialog(true)}
-          disabled={isContributor}
-          title={isContributor ? 'Only Editors and above can unpublish pages' : undefined}
-          className={`rounded-md bg-white px-4 py-1.5 text-sm font-medium transition-colors ${
-            isContributor
-              ? 'text-gray-400 opacity-50'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          Unpublish
-        </button>
+        <Tooltip content={isContributor ? 'Only Editors and above can unpublish pages' : undefined}>
+          <button
+            onClick={isContributor ? undefined : () => setRevertDialog(true)}
+            disabled={isContributor}
+            className={`rounded-md bg-white px-4 py-1.5 text-sm font-medium transition-colors ${
+              isContributor
+                ? 'text-gray-400 opacity-50'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            Unpublish
+          </button>
+        </Tooltip>
       </>
+    )
+  }
+
+  // ── Mobile action menu (pencil icon → popover) ─────────────────────────────────
+
+  function MobileActionsMenu() {
+    const isContributor = admin?.role === 'contributor'
+
+    return (
+      <Popover
+        trigger={
+          <button
+            className="rounded-md p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            aria-label="Page actions"
+          >
+            <Pencil size={16} strokeWidth={1.5} />
+          </button>
+        }
+        align="end"
+      >
+        {({ close }) => (
+          <div className="py-1">
+            {status === 'draft' ? (
+              <button
+                onClick={() => {
+                  close()
+                  if (isContributor) { addToast({ message: 'Contributors cannot publish pages.' }); return }
+                  setPublishDialog(true)
+                }}
+                className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                  isContributor ? 'text-gray-300' : 'text-green-600 hover:bg-gray-50'
+                }`}
+              >
+                Publish
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => { close(); handleUpdate() }}
+                  disabled={!isDirty || updateSaving}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+                >
+                  {updateSaving ? 'Updating...' : 'Update'}
+                </button>
+                <button
+                  onClick={() => {
+                    close()
+                    if (isContributor) { addToast({ message: 'Contributors cannot unpublish pages.' }); return }
+                    setRevertDialog(true)
+                  }}
+                  className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                    isContributor ? 'text-gray-300' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  Unpublish
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </Popover>
     )
   }
 
@@ -524,7 +593,12 @@ export default function AdminPageEditorPage() {
         <HeaderStatus />
         <div className="flex-1" />
         <div className="flex items-center gap-2 shrink-0">
-          <ActionButtons />
+          <div className="hidden md:flex items-center gap-2">
+            <ActionButtons />
+          </div>
+          <div className="md:hidden">
+            <MobileActionsMenu />
+          </div>
           <Tooltip content={panelOpen ? 'Hide settings' : 'Show settings'}>
             <button
               onClick={() => setPanelOpen(v => !v)}

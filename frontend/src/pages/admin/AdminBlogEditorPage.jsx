@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router'
-import { ArrowLeft, ChevronRight, ExternalLink, PanelRight, Plus, Trash2, Upload, X, Type, BookA, BookType } from 'lucide-react'
+import { ArrowLeft, ChevronRight, ExternalLink, PanelRight, Pencil, Plus, Trash2, Upload, X, Type, BookA, BookType } from 'lucide-react'
 import RichTextEditor from '../../components/admin/editor'
 import { handleUploadFull } from '../../components/admin/editor/upload'
 import { Field, Input, Textarea, Toggle } from '../../components/admin/AdminPage'
 import SlugUrlField from '../../components/admin/SlugUrlField'
 import { Tooltip } from '../../components/ui/Tooltip'
+import Popover from '../../components/ui/Popover'
 import FilterCombobox from '../../components/ui/FilterCombobox'
 import DatePicker from '../../components/ui/DatePicker'
 import AvatarCropperModal from '../../components/AvatarCropperModal'
@@ -369,8 +370,12 @@ export default function AdminBlogEditorPage() {
   // Scheduled header hover
   const [scheduledHover, setScheduledHover] = useState(false)
 
-  // Settings panel visibility
-  const [panelOpen, setPanelOpen] = useState(true)
+  // Settings panel visibility — closed by default below the `lg` breakpoint
+  // where it renders as an overlay, so opening the editor doesn't immediately
+  // cover the content on mobile.
+  const [panelOpen, setPanelOpen] = useState(() => (
+    typeof window === 'undefined' || window.matchMedia('(min-width: 1024px)').matches
+  ))
 
   // Form fields
   const [title, setTitle] = useState('')
@@ -849,18 +854,19 @@ export default function AdminBlogEditorPage() {
 
     if (status === 'draft') {
       return (
-        <button
-          onClick={isContributor ? undefined : openPublishDialog}
-          disabled={isContributor}
-          title={isContributor ? 'Editors must review and publish your post' : undefined}
-          className={`rounded-md bg-white px-4 py-1.5 text-sm font-medium transition-colors ${
-            isContributor
-              ? 'text-gray-400 opacity-50'
-              : 'text-green-600 hover:bg-gray-100'
-          }`}
-        >
-          Publish
-        </button>
+        <Tooltip content={isContributor ? 'Editors must review and publish your post' : undefined}>
+          <button
+            onClick={isContributor ? undefined : openPublishDialog}
+            disabled={isContributor}
+            className={`rounded-md bg-white px-4 py-1.5 text-sm font-medium transition-colors ${
+              isContributor
+                ? 'text-gray-400 opacity-50'
+                : 'text-green-600 hover:bg-gray-100'
+            }`}
+          >
+            Publish
+          </button>
+        </Tooltip>
       )
     }
 
@@ -875,19 +881,82 @@ export default function AdminBlogEditorPage() {
         >
           {updateSaving ? 'Updating...' : 'Update'}
         </button>
-        <button
-          onClick={isContributor ? undefined : () => setRevertDialog(true)}
-          disabled={isContributor}
-          title={isContributor ? 'Only Editors and above can unpublish posts' : undefined}
-          className={`rounded-md bg-white px-4 py-1.5 text-sm font-medium transition-colors ${
-            isContributor
-              ? 'text-gray-400 opacity-50'
-              : 'text-gray-600 hover:bg-gray-100'
-          }`}
-        >
-          {revertLabel}
-        </button>
+        <Tooltip content={isContributor ? 'Only Editors and above can unpublish posts' : undefined}>
+          <button
+            onClick={isContributor ? undefined : () => setRevertDialog(true)}
+            disabled={isContributor}
+            className={`rounded-md bg-white px-4 py-1.5 text-sm font-medium transition-colors ${
+              isContributor
+                ? 'text-gray-400 opacity-50'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            {revertLabel}
+          </button>
+        </Tooltip>
       </>
+    )
+  }
+
+  // ── Mobile action menu (pencil icon → popover) ─────────────────────────────────
+
+  function MobileActionsMenu() {
+    const isContributor = admin?.role === 'contributor'
+    const revertLabel = status === 'scheduled' ? 'Unschedule' : 'Unpublish'
+
+    return (
+      <Popover
+        trigger={
+          <button
+            className="rounded-md p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            aria-label="Post actions"
+          >
+            <Pencil size={16} strokeWidth={1.5} />
+          </button>
+        }
+        align="end"
+      >
+        {({ close }) => (
+          <div className="py-1">
+            {status === 'draft' ? (
+              <button
+                onClick={() => {
+                  close()
+                  if (isContributor) { addToast({ message: 'Contributors cannot publish posts.' }); return }
+                  openPublishDialog()
+                }}
+                className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                  isContributor ? 'text-gray-300' : 'text-green-600 hover:bg-gray-50'
+                }`}
+              >
+                Publish
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={() => { close(); handleUpdate() }}
+                  disabled={!isDirty || updateSaving}
+                  className="w-full text-left px-3 py-2 text-sm text-gray-800 hover:bg-gray-50 disabled:opacity-40 transition-colors"
+                >
+                  {updateSaving ? 'Updating...' : 'Update'}
+                </button>
+                <button
+                  onClick={() => {
+                    close()
+                    if (isContributor) { addToast({ message: `Contributors cannot ${revertLabel.toLowerCase()} posts.` }); return }
+                    setRevertDialog(true)
+                  }}
+                  className={`w-full text-left px-3 py-2 text-sm transition-colors ${
+                    isContributor ? 'text-gray-300' : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  {revertLabel}
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </Popover>
     )
   }
 
@@ -901,7 +970,12 @@ export default function AdminBlogEditorPage() {
         <HeaderStatus />
         <div className="flex-1" />
         <div className="flex items-center gap-2 shrink-0">
-          <ActionButtons />
+          <div className="hidden md:flex items-center gap-2">
+            <ActionButtons />
+          </div>
+          <div className="md:hidden">
+            <MobileActionsMenu />
+          </div>
           <Tooltip content={panelOpen ? 'Hide settings' : 'Show settings'}>
             <button
               onClick={() => setPanelOpen(v => !v)}

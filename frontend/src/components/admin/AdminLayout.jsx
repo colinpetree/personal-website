@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router'
+import { Menu } from 'lucide-react'
 import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
 import { ToastProvider } from '../../context/ToastContext'
 import StaffProfileModal, { AvatarCircle, ROLE_BADGE, ROLE_LABELS } from './StaffProfileModal'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
+import Popover from '../ui/Popover'
 
 // Deployment-time flag — matches the one router.jsx uses to exclude the AI demo
 // routes; keeps this sidebar link from pointing at a route that doesn't exist.
@@ -103,10 +105,12 @@ function getFilteredNavGroups(role) {
   return withMetrics
 }
 
-function StandaloneNavLink({ to, label }) {
+function StandaloneNavLink({ to, label, onNavigate }) {
+  const location = useLocation()
   return (
     <NavLink
       to={to}
+      onClick={(e) => { if (location.pathname === to) e.preventDefault(); onNavigate?.() }}
       className={({ isActive }) =>
         `block px-3 py-2 rounded-md text-sm transition-colors mb-2 ${
           isActive
@@ -120,8 +124,9 @@ function StandaloneNavLink({ to, label }) {
   )
 }
 
-function NavGroup({ label, items, defaultCollapsed = false }) {
+function NavGroup({ label, items, defaultCollapsed = false, onNavigate }) {
   const [open, setOpen] = useState(!defaultCollapsed)
+  const location = useLocation()
 
   return (
     <div>
@@ -147,6 +152,7 @@ function NavGroup({ label, items, defaultCollapsed = false }) {
               <NavLink
                 to={item.to}
                 end={item.end}
+                onClick={(e) => { if (location.pathname === item.to) e.preventDefault(); onNavigate?.() }}
                 className={({ isActive }) =>
                   `block px-3 py-2 rounded-md text-sm transition-colors ${
                     isActive
@@ -163,6 +169,7 @@ function NavGroup({ label, items, defaultCollapsed = false }) {
                     <NavLink
                       key={sub.to}
                       to={sub.to}
+                      onClick={(e) => { if (location.pathname === sub.to) e.preventDefault(); onNavigate?.() }}
                       className={({ isActive }) =>
                         `block px-3 py-1.5 rounded-md text-xs transition-colors ${
                           isActive
@@ -208,6 +215,7 @@ export default function AdminLayout() {
     }
   }, [config?.site_title])
   const [showSelfProfile, setShowSelfProfile] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const isEditorPage = /^\/admin\/blog\/posts\/[^/]+/.test(location.pathname)
     || /^\/admin\/pages\/[^/]+/.test(location.pathname)
@@ -216,6 +224,10 @@ export default function AdminLayout() {
   useEffect(() => {
     if (!loading && !admin) navigate('/admin/login', { replace: true })
   }, [admin, loading, navigate])
+
+  useEffect(() => {
+    setMobileNavOpen(false)
+  }, [location.pathname])
 
   if (loading) {
     return (
@@ -237,57 +249,96 @@ export default function AdminLayout() {
   return (
     <ToastProvider>
     <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      {!isEditorPage && <aside className="w-52 shrink-0 bg-gray-900 flex flex-col overflow-hidden">
-        <div className="px-5 py-5 border-b border-gray-700 shrink-0">
-          <span className="text-white font-semibold text-sm">Site Admin</span>
-        </div>
+      {!isEditorPage && <>
+        {/* Mobile backdrop */}
+        {mobileNavOpen && (
+          <div
+            className="fixed inset-0 bg-black/40 z-40 md:hidden"
+            onClick={() => setMobileNavOpen(false)}
+          />
+        )}
 
-        <nav className="admin-sidebar-scroll flex-1 min-h-0 px-3 py-4 flex flex-col gap-1 overflow-y-auto">
-          {filteredNav.map(group => (
-            group.standalone
-              ? <StandaloneNavLink key={group.to} to={group.to} label={group.label} />
-              : <NavGroup
-                  key={group.label}
-                  label={group.label}
-                  items={group.items}
-                  defaultCollapsed={group.defaultCollapsed}
-                />
-          ))}
-        </nav>
+        {/* Sidebar */}
+        <aside
+          className={`fixed inset-y-0 left-0 z-50 w-64 shrink-0 bg-gray-900 flex flex-col overflow-hidden transition-transform duration-200 md:static md:z-auto md:w-52 md:translate-x-0 ${
+            mobileNavOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          <nav className="admin-sidebar-scroll flex-1 min-h-0 px-3 py-4 flex flex-col gap-1 overflow-y-auto mt-2">
+            {filteredNav.map(group => (
+              group.standalone
+                ? <StandaloneNavLink key={group.to} to={group.to} label={group.label} onNavigate={() => setMobileNavOpen(false)} />
+                : <NavGroup
+                    key={group.label}
+                    label={group.label}
+                    items={group.items}
+                    defaultCollapsed={group.defaultCollapsed}
+                    onNavigate={() => setMobileNavOpen(false)}
+                  />
+            ))}
+          </nav>
 
-        <div className="shrink-0 px-3 py-4 border-t border-gray-700 bg-gray-900">
-          <button
-            onClick={() => setShowSelfProfile(true)}
-            className="w-full flex items-center gap-2.5 px-2 py-2 rounded-md hover:bg-gray-800 transition-colors text-left"
-          >
-            <AvatarCircle name={admin.full_name} avatarFilename={admin.avatar_filename} size="sm" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-gray-300 truncate">{admin.full_name}</p>
-              <span className={`inline-flex items-center px-1.5 py-1 text-[10px] font-medium rounded-full leading-none mt-0.5 ${ROLE_BADGE[admin.role] || 'bg-gray-700 text-gray-400'}`}>
-                {ROLE_LABELS[admin.role] || admin.role}
-              </span>
-            </div>
-          </button>
-          <a
-            href="/api/admin/enter-public-site"
-            className="block w-full px-3 py-2 mt-1 rounded-md text-xs text-gray-500 hover:text-white hover:bg-gray-800 transition-colors"
-          >
-            Sign in to public site
-          </a>
-          <button
-            onClick={handleLogout}
-            className="w-full text-left px-3 py-2 rounded-md text-xs text-gray-500 hover:text-white hover:bg-gray-800 transition-colors"
-          >
-            Sign out
-          </button>
-        </div>
-      </aside>}
+          <div className="shrink-0 px-3 py-3 border-t border-gray-700 bg-gray-900">
+            <Popover
+              trigger={
+                <button className="rounded-full hover:ring-2 hover:ring-gray-700 transition-all" aria-label="Account menu">
+                  <AvatarCircle name={admin.full_name} avatarFilename={admin.avatar_filename} size="sm" />
+                </button>
+              }
+              align="start"
+              side="top"
+              panelClassName="!min-w-[220px]"
+            >
+              {({ close }) => (
+                <div>
+                  <div className="px-3 py-2 border-b border-gray-100">
+                    <p className="text-sm font-medium text-gray-900 truncate">{admin.full_name}</p>
+                    <span className={`inline-flex items-center px-1.5 py-1 text-[10px] font-medium rounded-full leading-none mt-1 ${ROLE_BADGE[admin.role] || 'bg-gray-100 text-gray-500'}`}>
+                      {ROLE_LABELS[admin.role] || admin.role}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => { setShowSelfProfile(true); close() }}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Edit profile
+                  </button>
+                  <a
+                    href="/api/admin/enter-public-site"
+                    className="block w-full px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Sign in to public site
+                  </a>
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Sign out
+                  </button>
+                </div>
+              )}
+            </Popover>
+          </div>
+        </aside>
+      </>}
 
       {/* Content */}
-      <main className="flex-1 overflow-auto">
-        <Outlet />
-      </main>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {!isEditorPage && (
+          <div className="md:hidden flex items-center px-4 py-3 border-b border-gray-200 bg-white shrink-0">
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              className="p-1.5 -ml-1.5 rounded-md text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
+              aria-label="Open navigation"
+            >
+              <Menu size={20} strokeWidth={1.75} />
+            </button>
+          </div>
+        )}
+        <main className="flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
     </div>
 
     {showSelfProfile && (

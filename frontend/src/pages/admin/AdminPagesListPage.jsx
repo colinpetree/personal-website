@@ -114,8 +114,7 @@ export default function AdminPagesListPage() {
 
   return (
     <PageShell title="Pages">
-      <div className="flex justify-between items-center mb-6 -mt-2">
-        <div />
+      <div className="mb-6 -mt-2">
         <button
           onClick={handleNew}
           disabled={creating}
@@ -136,11 +135,11 @@ export default function AdminPagesListPage() {
               className="flex items-center gap-4 px-4 py-3 bg-white hover:bg-gray-50 cursor-pointer"
             >
               <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-baseline gap-0 sm:gap-2">
                   <p className="text-sm font-medium text-gray-900 truncate">{page.title}</p>
                   <p className="text-xs text-gray-400 shrink-0">/{page.slug}</p>
                 </div>
-                <p className="text-xs text-gray-400 mt-0.5">Updated {formatDate(page.updated_at)}</p>
+                <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">Updated {formatDate(page.updated_at)}</p>
                 <div className="mt-0.5">
                   <StatusLabel page={page} />
                 </div>

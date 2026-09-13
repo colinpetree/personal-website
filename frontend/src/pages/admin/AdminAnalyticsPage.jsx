@@ -8,7 +8,7 @@ import { formatShortDate } from '../../utils/formatDate'
 
 function Stat({ value, label }) {
   return (
-    <div className="text-right w-20 shrink-0">
+    <div className="text-left sm:text-right sm:w-20 sm:shrink-0">
       <p className="text-sm font-semibold text-gray-900">{(value || 0).toLocaleString()}</p>
       <p className="text-[11px] text-gray-400">{label}</p>
     </div>
@@ -47,10 +47,7 @@ function AdminAnalyticsPageContent() {
     <PageShell title="Site Metrics" wide>
       <div className="flex flex-col gap-8">
         <div>
-          <div className="flex items-center justify-between gap-4 mb-3 flex-wrap -mt-4">
-            <h2 className="text-base font-semibold text-gray-900">Website visitors</h2>
-            <AnalyticsRangeSelector value={range} onChange={setRange} />
-          </div>
+          <AnalyticsRangeSelector className="-mt-4" title="Website visitors" value={range} onChange={setRange} />
           <Card>
             <AnalyticsChart series={data?.series} metric="unique_visitors" label="Unique visitors" />
           </Card>
@@ -64,19 +61,21 @@ function AdminAnalyticsPageContent() {
           {pages.length === 0 ? (
             <p className="text-sm text-gray-400">No enabled pages to show.</p>
           ) : (
-            <div className="flex flex-col divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+            <div className="flex flex-col gap-3 sm:gap-0 sm:divide-y sm:divide-gray-100 sm:border sm:border-gray-200 sm:rounded-lg sm:overflow-hidden">
               {pages.map(page => (
                 <Link
                   key={`${page.type}-${page.key}`}
                   to={`/admin/metrics/${page.type}/${page.key}`}
-                  className="flex items-center gap-6 px-4 py-3 bg-white hover:bg-gray-50 transition-colors"
+                  className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 rounded-lg border border-gray-200 sm:rounded-none sm:border-0 bg-white p-4 sm:px-4 sm:py-3 hover:bg-gray-50 transition-colors"
                 >
                   <p className="flex-1 min-w-0 text-sm font-medium text-gray-900 truncate">{page.label}</p>
-                  {page.key === 'contact' && <Stat value={page.submissions} label="Submissions" />}
-                  {page.key === 'ai_demo' && <Stat value={page.requests} label="Requests" />}
-                  {page.key === 'projects' && <Stat value={page.clicks} label="Clicks" />}
-                  <Stat value={page.views} label="Views" />
-                  <Stat value={page.unique_visitors} label="Unique visitors" />
+                  <div className="grid grid-cols-2 gap-3 sm:contents">
+                    {page.key === 'contact' && <Stat value={page.submissions} label="Submissions" />}
+                    {page.key === 'ai_demo' && <Stat value={page.requests} label="Requests" />}
+                    {page.key === 'projects' && <Stat value={page.clicks} label="Clicks" />}
+                    <Stat value={page.views} label="Views" />
+                    <Stat value={page.unique_visitors} label="Unique visitors" />
+                  </div>
                 </Link>
               ))}
             </div>
@@ -88,14 +87,16 @@ function AdminAnalyticsPageContent() {
             <h2 className="text-base font-semibold text-gray-900">Blog posts</h2>
             <p className="text-xs text-gray-500">{rangeText}</p>
           </div>
-          <div className="flex flex-col divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+          <div className="flex flex-col gap-3 sm:gap-0 sm:divide-y sm:divide-gray-100 sm:border sm:border-gray-200 sm:rounded-lg sm:overflow-hidden">
             <Link
               to="/admin/metrics/blog"
-              className="flex items-center gap-6 px-4 py-3 bg-white hover:bg-gray-50 transition-colors"
+              className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 rounded-lg border border-gray-200 sm:rounded-none sm:border-0 bg-white p-4 sm:px-4 sm:py-3 hover:bg-gray-50 transition-colors"
             >
               <p className="flex-1 min-w-0 text-sm font-medium text-gray-900 truncate">All posts</p>
-              <Stat value={data?.blog_summary?.views} label="Views" />
-              <Stat value={data?.blog_summary?.unique_visitors} label="Unique visitors" />
+              <div className="grid grid-cols-2 gap-3 sm:contents">
+                <Stat value={data?.blog_summary?.views} label="Views" />
+                <Stat value={data?.blog_summary?.unique_visitors} label="Unique visitors" />
+              </div>
             </Link>
           </div>
         </div>

@@ -84,10 +84,7 @@ function AdminAnalyticsDetailContent() {
         </Link>
 
         <div>
-          <div className="flex items-center justify-between gap-4 mb-3 flex-wrap">
-            <h2 className="text-base font-semibold text-gray-900">{metricLabel}</h2>
-            <AnalyticsRangeSelector value={range} onChange={setRange} />
-          </div>
+          <AnalyticsRangeSelector title={metricLabel} value={range} onChange={setRange} />
           <Card>
             <AnalyticsChart series={data.series} metric={metric} label={metricLabel} />
           </Card>

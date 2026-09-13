@@ -38,7 +38,7 @@ function SortBadge({ active, onClick, children }) {
 
 function Stat({ value, label }) {
   return (
-    <div className="text-right w-20 shrink-0">
+    <div className="text-left sm:text-right sm:w-20 sm:shrink-0">
       <p className="text-sm font-semibold text-gray-900">{(value || 0).toLocaleString()}</p>
       <p className="text-[11px] text-gray-400">{label}</p>
     </div>
@@ -78,10 +78,7 @@ function AdminBlogAnalyticsPageContent() {
     <PageShell title="Blog Metrics" wide>
       <div className="flex flex-col gap-8">
         <div>
-          <div className="flex items-center justify-between gap-4 mb-3 flex-wrap -mt-4">
-            <h2 className="text-base font-semibold text-gray-900">Blog post views</h2>
-            <AnalyticsRangeSelector value={range} onChange={setRange} />
-          </div>
+          <AnalyticsRangeSelector className="-mt-4" title="Blog post views" value={range} onChange={setRange} />
           <Card>
             <AnalyticsChart series={data?.series} metric="views" label="Views" />
           </Card>
@@ -104,21 +101,23 @@ function AdminBlogAnalyticsPageContent() {
           {posts.length === 0 ? (
             <p className="text-sm text-gray-400">No published posts to show.</p>
           ) : (
-            <div className="flex flex-col divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+            <div className="flex flex-col gap-3 sm:gap-0 sm:divide-y sm:divide-gray-100 sm:border sm:border-gray-200 sm:rounded-lg sm:overflow-hidden">
               {posts.map(post => (
                 <Link
                   key={post.id}
                   to={`/admin/metrics/post/${post.id}`}
-                  className="flex items-center gap-6 px-4 py-3 bg-white hover:bg-gray-50 transition-colors"
+                  className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 rounded-lg border border-gray-200 sm:rounded-none sm:border-0 bg-white p-4 sm:px-4 sm:py-3 hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900 truncate">{post.title}</p>
                     <p className="text-xs text-gray-400 mt-0.5">{formatAdminDateTime(post.publish_date)}</p>
                   </div>
-                  <Stat value={post.views} label="Views" />
-                  <Stat value={post.unique_visitors} label="Unique visitors" />
-                  <Stat value={post.comments} label="Comments" />
-                  <Stat value={post.shares} label="Shares" />
+                  <div className="grid grid-cols-2 gap-3 sm:contents">
+                    <Stat value={post.views} label="Views" />
+                    <Stat value={post.unique_visitors} label="Unique visitors" />
+                    <Stat value={post.comments} label="Comments" />
+                    <Stat value={post.shares} label="Shares" />
+                  </div>
                 </Link>
               ))}
             </div>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useLocation, Link } from 'react-router'
-import { ArrowLeft, ExternalLink, Pencil, X } from 'lucide-react'
+import { useNavigate, useLocation } from 'react-router'
+import { ExternalLink, Pencil, X } from 'lucide-react'
 import { PageShell } from '../../components/admin/AdminPage'
 import { useToast } from '../../context/ToastContext'
 import { useAdminAuth } from '../../context/AdminAuthContext'
@@ -160,14 +160,7 @@ export default function AdminBlogPostsPage() {
 
   return (
     <PageShell title="Blog Posts">
-      <div className="flex justify-between items-center mb-6 -mt-2">
-        {isContributor ? (
-          <div />
-        ) : (
-          <Link to="/admin/blog" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
-            <ArrowLeft size={14} strokeWidth={1.5} />Blog settings
-          </Link>
-        )}
+      <div className="mb-6 -mt-2">
         <button
           onClick={handleNew}
           disabled={creating}
@@ -188,11 +181,11 @@ export default function AdminBlogPostsPage() {
               className="flex items-center gap-4 px-4 py-3 bg-white hover:bg-gray-50 cursor-pointer"
             >
               <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-baseline gap-0 sm:gap-2">
                   <p className="text-sm font-medium text-gray-900 truncate">{post.title}</p>
                   <p className="text-xs text-gray-400 shrink-0">/{post.slug}</p>
                 </div>
-                <p className="text-xs text-gray-400 mt-0.5">
+                <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">
                   Updated {formatDate(post.updated_at)}
                   {post.publish_date ? ` · Published ${formatDate(post.publish_date)}` : ''}
                 </p>

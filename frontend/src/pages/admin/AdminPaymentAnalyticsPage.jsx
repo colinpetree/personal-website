@@ -103,7 +103,7 @@ function AdminPaymentAnalyticsPageContent() {
   return (
     <PageShell title="Payment Metrics" wide>
       <div className="flex flex-col gap-8">
-        <div className="grid grid-cols-2 gap-4 -mt-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 -mt-4">
           <Card>
             <Stat label="Received this month" value={formatCurrency(data?.this_month_total)} />
           </Card>
@@ -113,10 +113,7 @@ function AdminPaymentAnalyticsPageContent() {
         </div>
 
         <div>
-          <div className="flex items-center justify-between gap-4 mb-3 flex-wrap">
-            <h2 className="text-base font-semibold text-gray-900">Amount</h2>
-            <AnalyticsRangeSelector value={range} onChange={setRange} />
-          </div>
+          <AnalyticsRangeSelector title="Amount" value={range} onChange={setRange} />
           <Card>
             <AnalyticsChart
               series={data?.series}
