@@ -114,6 +114,37 @@ const COMPLETE_BOUNDARY_FULL_RE = new RegExp(
   `^${COMPLETE_BOUNDARY_FUNCTION.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')};\\$RC\\("${BOUNDARY_ID}","${BOUNDARY_ID}"\\)$`
 )
 
+// React Router's own <ScrollRestoration> bootstrap script (src/root.jsx
+// renders it unconditionally, so it's on every prerendered page) — a fixed
+// function body baked into react-router's own source (restoreScroll in
+// react-router/dist/.../chunk-*.mjs's ScrollRestoration()), not
+// attacker-influenced, trusted the same way COMPLETE_BOUNDARY_FUNCTION above
+// is. Only the two call arguments (the storage key and an optional per-page
+// restore key) vary per page, so — same approach as isContextBootstrap —
+// they're validated structurally via JSON.parse rather than pinned to fixed
+// values.
+const SCROLL_RESTORATION_FUNCTION = '(storageKey2, restoreKey) => {\n    if (!window.history.state || !window.history.state.key) {\n      let key = Math.random().toString(32).slice(2);\n      window.history.replaceState({ key }, "");\n    }\n    try {\n      let positions = JSON.parse(sessionStorage.getItem(storageKey2) || "{}");\n      let storedY = positions[restoreKey || window.history.state.key];\n      if (typeof storedY === "number") {\n        window.scrollTo(0, storedY);\n      }\n    } catch (error) {\n      console.error(error);\n      sessionStorage.removeItem(storageKey2);\n    }\n  }'
+const SCROLL_RESTORATION_PREFIX = `(${SCROLL_RESTORATION_FUNCTION})(`
+
+function isScrollRestoration(trimmed) {
+  if (!trimmed.startsWith(SCROLL_RESTORATION_PREFIX) || !trimmed.endsWith(')')) return false
+  const argsPart = trimmed.slice(SCROLL_RESTORATION_PREFIX.length, -1)
+  try {
+    // Wrapping in [] and parsing as JSON both confirms there are exactly two
+    // comma-separated values AND that they're inert string/null data with no
+    // executable syntax slot — same reasoning as isContextBootstrap.
+    const args = JSON.parse(`[${argsPart}]`)
+    return (
+      Array.isArray(args) &&
+      args.length === 2 &&
+      (args[0] === null || typeof args[0] === 'string') &&
+      (args[1] === null || typeof args[1] === 'string')
+    )
+  } catch {
+    return false
+  }
+}
+
 const CONTEXT_PREFIX = 'window.__reactRouterContext = '
 const CONTEXT_SUFFIX = ';window.__reactRouterContext.stream = new ReadableStream({start(controller){window.__reactRouterContext.streamController = controller;}}).pipeThrough(new TextEncoderStream());'
 
@@ -151,7 +182,8 @@ function isFrameworkScript(content) {
     STREAM_ENQUEUE_RE.test(trimmed) ||
     STREAM_CLOSE_RE.test(trimmed) ||
     COMPLETE_BOUNDARY_CALL_RE.test(trimmed) ||
-    COMPLETE_BOUNDARY_FULL_RE.test(trimmed)
+    COMPLETE_BOUNDARY_FULL_RE.test(trimmed) ||
+    isScrollRestoration(trimmed)
   )
 }
 
