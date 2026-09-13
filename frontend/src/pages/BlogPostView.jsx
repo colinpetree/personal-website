@@ -184,7 +184,7 @@ function UserCommentForm({ slug, parentId, parentComment, onSuccess, onCancel, i
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <div className="flex items-start gap-2">
+      <div className="flex items-center gap-2">
         {user.avatar_url ? (
           <img src={user.avatar_url} alt={user.name} className="w-7 h-7 rounded-full object-cover flex-shrink-0" referrerPolicy="no-referrer" />
         ) : (
@@ -265,16 +265,16 @@ function CommentItem({ comment, slug, currentUserId, likedIds, likeDeltas, onLik
   return (
     <div id={`comment-${comment.id}`} className="flex gap-3 py-4">
       {/* Left: avatar + thread line */}
-      <div className="flex flex-col items-center flex-shrink-0 w-6">
+      <div className="flex flex-col items-center flex-shrink-0 w-7">
         {comment.author_avatar ? (
           <img
             src={comment.author_avatar}
             alt={comment.author_name}
-            className="w-6 h-6 rounded-full object-cover flex-shrink-0"
+            className="w-7 h-7 rounded-full object-cover flex-shrink-0"
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center leading-none text-sm font-semibold text-gray-500 flex-shrink-0">
+          <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center leading-none text-sm font-semibold text-gray-500 flex-shrink-0">
             <span className="translate-y-px">{getInitials(comment.author_name)}</span>
           </div>
         )}
@@ -289,19 +289,21 @@ function CommentItem({ comment, slug, currentUserId, likedIds, likeDeltas, onLik
       {/* Right: content */}
       <div className="flex-1 min-w-0">
         {/* Name + date */}
-        <span className="font-medium text-gray-900 text-sm">
-          {comment.author_name || 'Anonymous'}
+        <div className="flex items-center flex-wrap gap-x-1.5 min-h-[1.75rem] translate-y-[1px]">
+          <span className="font-medium text-gray-900 text-sm">
+            {comment.author_name || 'Anonymous'}
+          </span>
           {comment.is_owner_author && (
-            <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded bg-blue-100 text-blue-700 font-medium align-middle">Author</span>
+            <span className="px-1.5 py-0.5 text-xs rounded bg-blue-100 text-blue-700 font-medium">Author</span>
           )}
           {comment.is_staff && (
-            <span className="ml-1.5 px-1.5 py-0.5 text-xs rounded bg-gray-200 text-gray-700 font-medium align-middle">Staff</span>
+            <span className="px-1.5 py-0.5 text-xs rounded bg-gray-200 text-gray-700 font-medium">Staff</span>
           )}
-          <span className="font-normal text-gray-400">
+          <span className="font-normal text-gray-400 text-sm">
             {comment.author_title ? ` · ${comment.author_title} · ` : ' · '}
             {formatDate(comment.created_at)}
           </span>
-        </span>
+        </div>
 
         {/* Content */}
         <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap mt-1">{comment.content}</p>

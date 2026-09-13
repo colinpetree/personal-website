@@ -281,8 +281,14 @@ export default function AdminLayout() {
           <div className="shrink-0 px-3 py-3 border-t border-gray-700 bg-gray-900">
             <Popover
               trigger={
-                <button className="rounded-full hover:ring-2 hover:ring-gray-700 transition-all" aria-label="Account menu">
+                <button className="w-full flex items-center gap-2 px-1.5 py-1.5 rounded-md cursor-pointer text-left" aria-label="Account menu">
                   <AvatarCircle name={admin.full_name} avatarFilename={admin.avatar_filename} size="sm" />
+                  <div className="min-w-0 flex-1 leading-tight">
+                    <p className="text-sm font-medium text-white truncate leading-tight">{admin.full_name}</p>
+                    <span className={`inline-flex items-center px-1.5 py-0.5 text-[10px] font-medium rounded-full leading-none ${ROLE_BADGE[admin.role] || 'bg-gray-100 text-gray-500'}`}>
+                      {ROLE_LABELS[admin.role] || admin.role}
+                    </span>
+                  </div>
                 </button>
               }
               align="start"
@@ -291,12 +297,6 @@ export default function AdminLayout() {
             >
               {({ close }) => (
                 <div>
-                  <div className="px-3 py-2 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-900 truncate">{admin.full_name}</p>
-                    <span className={`inline-flex items-center px-1.5 py-1 text-[10px] font-medium rounded-full leading-none mt-1 ${ROLE_BADGE[admin.role] || 'bg-gray-100 text-gray-500'}`}>
-                      {ROLE_LABELS[admin.role] || admin.role}
-                    </span>
-                  </div>
                   <button
                     onClick={() => { setShowSelfProfile(true); close() }}
                     className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
@@ -305,6 +305,9 @@ export default function AdminLayout() {
                   </button>
                   <a
                     href="/api/admin/enter-public-site"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={close}
                     className="block w-full px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 transition-colors"
                   >
                     Sign in to public site

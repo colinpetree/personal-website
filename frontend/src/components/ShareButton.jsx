@@ -80,10 +80,10 @@ export default function ShareButton({ url, title, siteTitle, postId }) {
   const items = [
     { key: 'link', label: 'Copy link', icon: <Link size={18} />, onClick: handleCopyLink },
     { key: 'mail', label: 'Email link', icon: <Mail size={18} />, onClick: handleEmail },
-    { key: 'facebook', label: 'Share on Facebook', icon: <SocialIcon platformKey="facebook" />, onClick: () => handleSocial(social.facebook, 'facebook') },
     { key: 'linkedin', label: 'Share on LinkedIn', icon: <SocialIcon platformKey="linkedin" />, onClick: () => handleSocial(social.linkedin, 'linkedin') },
     { key: 'x', label: 'Share on X', icon: <SocialIcon platformKey="x" />, onClick: () => handleSocial(social.x, 'x') },
     { key: 'bluesky', label: 'Share on Bluesky', icon: <SocialIcon platformKey="bluesky" />, onClick: () => handleSocial(social.bluesky, 'bluesky') },
+    { key: 'facebook', label: 'Share on Facebook', icon: <SocialIcon platformKey="facebook" />, onClick: () => handleSocial(social.facebook, 'facebook') },
   ]
 
   return (
