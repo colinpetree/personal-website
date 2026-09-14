@@ -19,7 +19,8 @@ hiddenimports = []
 # bindings, lazily-registered image codecs, class-path-string worker
 # selection, etc). See deploy plan §1 for the reasoning behind each one.
 for pkg in ('cryptography', 'psycopg2', 'Pillow', 'anthropic', 'voyageai',
-            'stripe', 'mcp', 'pydantic', 'pydantic_core', 'anyio'):
+            'stripe', 'mcp', 'pydantic', 'pydantic_core', 'anyio',
+            'bleach', 'tinycss2'):
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b

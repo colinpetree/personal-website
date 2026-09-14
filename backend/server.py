@@ -85,6 +85,7 @@ _CHECK_IMPORT_MODULES = (
     # missing.
     'gunicorn.app.base', 'cryptography', 'psycopg2', 'PIL', 'certifi',
     'anthropic', 'voyageai', 'stripe', 'mcp', 'pydantic', 'anyio',
+    'bleach', 'tinycss2',
 )
 
 
