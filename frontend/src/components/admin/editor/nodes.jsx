@@ -4218,7 +4218,9 @@ function HeaderFieldSyncPlugin({ parentEditor, nodeKey, setterName, initialHtml,
     return nestedEditor.registerCommand(
       KEY_DOWN_COMMAND,
       (event) => {
-        if (event.key !== 'Enter') return false
+        // Shift+Enter falls through so Lexical's default line-break handling (RichTextPlugin)
+        // can insert a soft line break instead of advancing to the next field/block.
+        if (event.key !== 'Enter' || event.shiftKey) return false
         event.preventDefault()
         if (onEnterKey) onEnterKey()
         return true
@@ -4382,11 +4384,20 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   const outerClass = isFullish ? 'w-full' : layout === 'wide' ? 'max-w-7xl mx-auto' : 'max-w-3xl mx-auto header-regular-preview'
   const sideMargin = isFullish ? '' : 'mx-6'
   const textAlignClass   = textAlign === 'center' ? 'text-center' : 'text-left'
+  // Non-split layouts only — split's text side is already a fixed 50%-width column. Caps
+  // the text block to half the header's width when left-aligned so it wraps like a real
+  // column instead of stretching full-width (which reads as center-but-off). Applies at
+  // every width, including mobile — left-aligned text shouldn't cross the header's
+  // midpoint. Widens to 60% below md (768px) since 50% wraps too aggressively on narrow
+  // phones; matches index.css's mobile `.header-text-col` override.
+  const textColClass = textAlign === 'left' ? 'max-w-[50%] max-md:max-w-[60%]' : 'max-w-full'
   // Unconditional (no md: prefix) so the editor's mobile preview matches exportDOM's
   // public HTML, which sets this same min-height as an inline style at every width —
   // previously the editor used a smaller mobile-only floor, so the header collapsed
   // shorter in the editor's mobile preview than it actually renders once published.
-  const minHeightClass   = layout === 'fullscreen' ? 'min-h-screen' : layout === 'split' ? 'min-h-[600px]' : layout === 'full' ? 'min-h-[551px]' : layout === 'wide' ? 'min-h-[447px]' : 'min-h-[347px]'
+  // clamp() values mirror the `heights` map in HeaderNode.exportDOM() (nodes.jsx) — keep
+  // both in sync. Fullscreen stays min-h-screen at every width, unaffected by scaling.
+  const minHeightClass   = layout === 'fullscreen' ? 'min-h-screen' : layout === 'split' ? 'min-h-[clamp(300px,42vw,600px)]' : layout === 'full' ? 'min-h-[clamp(280px,38vw,551px)]' : layout === 'wide' ? 'min-h-[clamp(240px,35vw,447px)]' : 'min-h-[clamp(200px,45vw,347px)]'
   // Fullscreen ramps up across breakpoints (biggest at 2xl), rather than jumping straight
   // to its max size at md like the other layouts. leading-tight/snug (unitless, so they
   // scale correctly across every size above) keep wrapped lines tight instead of
@@ -4398,12 +4409,17 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   // Wide/full/fullscreen ramp side padding up gradually across breakpoints instead of
   // jumping straight from the mobile value to the full 256px at md, which otherwise
   // squeezes the heading into a narrow column on in-between (tablet/small laptop) widths.
-  // Steps match index.css's public media queries exactly (no sm: step — the public CSS
-  // has no breakpoint between the flat mobile value and md, so an sm: step here would
-  // only apply in the editor and not on the published page).
+  // Steps match index.css's public media queries exactly.
   const paddingClass = layout === 'regular'
     ? 'px-8 md:px-20'
     : 'px-8 md:px-14 lg:px-24 xl:px-40 2xl:px-64'
+  // On small phones, a left-aligned header's left inset should match the blog post body
+  // text's own left margin (BlogPostView's `px-6` = 24px) so the header's text edge lines
+  // up with paragraph text below it — otherwise the header's default 32px (px-8) inset reads
+  // as misaligned against the narrower page margin. Centered text keeps the 32px inset (it
+  // isn't flush against an edge to compare against). max-sm: (below Tailwind's 640px `sm`)
+  // matches the public breakpoint added in index.css.
+  const leftInsetClass = textAlign === 'left' ? 'max-sm:pl-6' : ''
 
   const hasBgImage = layout !== 'split' && backgroundType === 'image' && headerImage
   const hasBgVideo = layout !== 'split' && backgroundType === 'video' && headerVideo
@@ -4633,7 +4649,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                 neither side collapses shorter than the other; md:min-h-0 lets desktop's
                 flex row stretch it to match the image side's height as before. */}
             <div
-              className="w-full md:w-1/2 min-h-[240px] md:min-h-0 relative flex flex-col justify-center gap-3 pl-8 pr-8 py-6 md:pl-24 md:pr-12 md:py-10"
+              className={`w-full md:w-1/2 min-h-[240px] md:min-h-0 relative flex flex-col justify-center gap-3 pl-8 pr-8 py-6 md:pl-24 md:pr-12 md:py-10 ${leftInsetClass}`}
               style={{ background: backgroundColor }}
             >
               {shadowOverlay && (
@@ -4646,7 +4662,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
           <div
             ref={containerRef}
             style={bgStyle}
-            className={`${shadowOverlay || hasBgVideo ? 'relative overflow-hidden' : ''} ${hasBgImage ? 'header-bg-image' : ''} ${sideMargin} ${minHeightClass} ${paddingClass} py-6 md:py-10 flex flex-col justify-center gap-3 ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+            className={`${shadowOverlay || hasBgVideo ? 'relative overflow-hidden' : ''} ${hasBgImage ? 'header-bg-image' : ''} ${sideMargin} ${minHeightClass} ${paddingClass} ${leftInsetClass} py-6 md:py-10 flex flex-col justify-center ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
           >
             {hasBgVideo && (
               <HeaderBgVideo src={headerVideo} className="header-bg-video" />
@@ -4654,9 +4670,11 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             {shadowOverlay || hasBgVideo ? (
               <>
                 {shadowOverlay && <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />}
-                <div className="relative flex flex-col gap-3">{textContent}</div>
+                <div className={`relative flex flex-col gap-3 header-text-col ${textColClass}`}>{textContent}</div>
               </>
-            ) : textContent}
+            ) : (
+              <div className={`flex flex-col gap-3 header-text-col ${textColClass}`}>{textContent}</div>
+            )}
           </div>
         )}
       </div>
@@ -5028,7 +5046,13 @@ export class HeaderNode extends DecoratorNode {
   setHeaderVideo(val) { this.getWritable().__headerVideo = val }
 
   exportDOM() {
-    const heights      = { regular: '347px', wide: '447px', full: '551px', split: '600px', fullscreen: '100vh' }
+    // Non-fullscreen heights scale continuously with viewport width via clamp() instead of
+    // staying flat, so headers shrink proportionally toward mobile instead of reading as
+    // "full page" there. The vw slope is chosen so the clamp reaches its max around the
+    // viewport width where that layout's own rendered width plateaus (its max-width cap,
+    // or a large-desktop reference for layouts with no cap) — see the plan/tuning notes for
+    // the derivation. Fullscreen intentionally stays 100vh at every width.
+    const heights      = { regular: 'clamp(200px, 45vw, 347px)', wide: 'clamp(240px, 35vw, 447px)', full: 'clamp(280px, 38vw, 551px)', split: 'clamp(300px, 42vw, 600px)', fullscreen: '100vh' }
     // Fullscreen's base (below xl) matches full width's size — the CSS media queries in
     // index.css (min-width: 1280px/1536px) ramp it up further at xl and 2xl.
     const headingSizes = { regular: '36px',  wide: '48px',  full: '60px',  split: '60px',  fullscreen: '60px' }
@@ -5246,6 +5270,18 @@ export class HeaderNode extends DecoratorNode {
 
       const headingColor = resolveTextColor(this.__textColorMode, this.__backgroundColor)
 
+      // Text content sits in its own column, capped to half the header's width when
+      // left-aligned so left align wraps like a real column instead of stretching edge to
+      // edge (which read as center-but-off for anything but very long text). Centered text
+      // is unaffected — full width, same as before. innerContentWrap is a flex column with
+      // default align-items:stretch, so a max-width here naturally left-anchors the column
+      // without needing any extra positioning. This 50% is the base/desktop value; index.css
+      // widens it to 60% below 768px (narrower phones wrap too tightly at 50%).
+      const textCol = document.createElement('div')
+      textCol.className = 'header-text-col'
+      textCol.style.maxWidth = (this.__textAlign || 'left') === 'left' ? '50%' : '100%'
+      innerContentWrap.appendChild(textCol)
+
       const headingEl = document.createElement('div')
       headingEl.className = 'header-heading'
       headingEl.style.fontSize = headingSizes[this.__layout] || '36px'
@@ -5253,7 +5289,7 @@ export class HeaderNode extends DecoratorNode {
       headingEl.style.fontWeight = 'bold'
       headingEl.style.color = headingColor
       headingEl.innerHTML = this.__heading
-      innerContentWrap.appendChild(headingEl)
+      textCol.appendChild(headingEl)
 
       if (!isBlankHtml(this.__subheading)) {
         const subEl = document.createElement('div')
@@ -5262,7 +5298,7 @@ export class HeaderNode extends DecoratorNode {
         subEl.style.lineHeight = '1.375'
         subEl.style.color = headingColor === 'white' ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)'
         subEl.innerHTML = this.__subheading
-        innerContentWrap.appendChild(subEl)
+        textCol.appendChild(subEl)
       }
 
       if (this.__buttonEnabled) {
@@ -5282,7 +5318,7 @@ export class HeaderNode extends DecoratorNode {
         a.style.fontWeight = '500'
         a.style.textDecoration = 'none'
         btnWrap.appendChild(a)
-        innerContentWrap.appendChild(btnWrap)
+        textCol.appendChild(btnWrap)
       }
 
       header.appendChild(inner)

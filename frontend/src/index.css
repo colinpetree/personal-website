@@ -1208,6 +1208,27 @@ html {
   .blog-content .header-subheading {
     font-size: 16px !important;
   }
+  /* Left-align's text column (nodes.jsx) widens from 50% to 60% on small screens — at 50%
+     narrow phone widths wrap too aggressively; 60% reads better without crossing the
+     header's midpoint by much. Matches the editor's `max-md:max-w-[60%]`. */
+  .blog-content header[data-text-align="left"] .header-text-col {
+    max-width: 60% !important;
+  }
+}
+
+/* On small phones, a left-aligned header's left inset drops further to match the blog
+   post body text's own left margin (BlogPostView's `px-6` = 24px, main.jsx), so the
+   header's text edge lines up with the paragraph text below it instead of sitting 8px
+   further in than it. Centered text is unaffected — it isn't flush against an edge to
+   line up with. Matches the editor's `max-sm:pl-6` (nodes.jsx). */
+@media (max-width: 640px) {
+  .blog-content header[data-text-align="left"].header-regular .header-inner,
+  .blog-content header[data-text-align="left"].header-wide .header-inner,
+  .blog-content header[data-text-align="left"].header-full .header-inner,
+  .blog-content header[data-text-align="left"].header-fullscreen .header-inner,
+  .blog-content header[data-text-align="left"].header-split .header-split-text {
+    padding-left: 24px !important;
+  }
 }
 
 /* ─── Tables — shared by the editor and the public blog ─────────────────────

@@ -56,7 +56,10 @@ export default function Navbar() {
   const location = useLocation()
   const { user, logout } = useUserAuth()
   const { overlay } = useNavOverlay() ?? {}
-  const transparent = !!overlay && !scrolled
+  // menuOpen forces the navbar solid even before scrolling: the mobile menu panel doesn't
+  // cover the navbar itself (intentional), so a still-transparent bar would let a
+  // fullscreen/split/full-width header show through behind the open menu's nav links.
+  const transparent = !!overlay && !scrolled && !menuOpen
 
   // Fullscreen-header pages (see useFullscreenHeaderNav) want the navbar to
   // overlay transparently on top of the header — white text, no background
@@ -103,6 +106,23 @@ export default function Navbar() {
     return () => cancelAnimationFrame(raf)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overlay])
+
+  // Opening/closing the mobile menu should snap the navbar's color instantly (white while
+  // the menu's open, since its panel doesn't cover the navbar itself), not play the same
+  // 300ms fade used for the scroll-driven transparent-to-white flip — same
+  // disable-transition-then-force-reflow trick as the route-change effect above, and same
+  // justNavigatedRef trick to make the border snap instead of its normal delayed reveal.
+  useLayoutEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    el.classList.add('navbar-no-transition')
+    void el.offsetHeight
+    const raf = requestAnimationFrame(() => el.classList.remove('navbar-no-transition'))
+    justNavigatedRef.current = true
+    setBorderVisible(!transparent)
+    return () => cancelAnimationFrame(raf)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menuOpen])
 
   // The border has no in-between visual state the way a color fade does —
   // it's either there or not — so animating it in sync with the
