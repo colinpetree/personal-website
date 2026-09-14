@@ -36,6 +36,18 @@ html {
   overflow-x: hidden;
 }
 
+/* iOS Safari zooms the page on focus for any input with font-size < 16px.
+   Force 16px on mobile viewports so tapping a field doesn't trigger zoom.
+   !important is needed to beat Tailwind utility classes (e.g. text-sm)
+   that set a smaller font-size with higher selector specificity. */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 /* Remove typography plugin's auto-backticks from code elements */
 .prose code::before,
 .prose code::after {
