@@ -30,13 +30,19 @@ def create_app():
     if is_production:
         # gunicorn only ever accepts connections from Varnish on 127.0.0.1
         # (never exposed publicly — see deploy/scripts/bootstrap.sh's ufw
-        # rules), and nginx always overwrites X-Forwarded-For with the real
-        # client address before proxying in, so there's exactly one hop of
-        # forwarding to trust here. Without this, request.remote_addr is
-        # always the loopback address of whichever proxy connected to
-        # gunicorn — breaking anything keyed on the visitor's real IP (the
-        # login and contact-form rate limiters below).
-        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=0, x_port=0, x_prefix=0)
+        # rules), and nginx sets X-Forwarded-For to the real client address
+        # before proxying in — but Varnish itself then appends its OWN
+        # connecting peer (nginx, reached over loopback) as a second entry,
+        # e.g. "203.0.113.5, 127.0.0.1", even with a custom vcl_recv that
+        # returns in every branch. Confirmed via varnishlog on test633.org:
+        # BereqHeader X-Forwarded-For consistently carries two values, not
+        # nginx's single one. x_for must be 2 (not 1) to correctly skip
+        # Varnish's own loopback stamp and land on nginx's real value —
+        # x_for=1 would instead pick Varnish's stamp itself (the rightmost
+        # entry), making request.remote_addr always 127.0.0.1 for every
+        # visitor and silently collapsing the login/contact-form rate
+        # limiters below into one shared bucket.
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=2, x_proto=1, x_host=0, x_port=0, x_prefix=0)
     # Deployment-time flag — lets forks of this project fully exclude the AI demo
     # feature (its own API keys/spend) without touching code. Not admin-toggleable;
     # ai_demo_enabled in SiteConfig is a separate runtime toggle for sites that have it.
