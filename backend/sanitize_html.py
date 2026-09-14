@@ -4,6 +4,7 @@ Only applied to contributor-authored posts (see admin_blog.py) — administrator
 owner accounts already have equivalent trust to editing site config directly.
 """
 import bleach
+import tinycss2
 from bleach.css_sanitizer import CSSSanitizer
 
 ALLOWED_TAGS = [
@@ -49,10 +50,98 @@ ALLOWED_PROTOCOLS = ['http', 'https', 'mailto', 'data']
 
 _IFRAME_ALLOWED_HOSTS = ('www.youtube.com', 'player.vimeo.com', 'open.spotify.com')
 
-_CSS_SANITIZER = CSSSanitizer(allowed_css_properties=[
-    'color', 'background-color', 'text-align', 'font-size', 'font-weight',
-    'width', 'height', 'max-width', 'max-height', 'border', 'border-radius',
-    'padding', 'margin', 'display', 'flex-direction', 'align-items', 'justify-content',
+# bleach's CSSSanitizer matches property names exactly as tinycss2 parses them
+# out of the style string — longhand properties (margin-top, background-image)
+# are distinct tokens from their shorthand (margin, background) and need their
+# own entries. This list has to cover everything HeaderNode.exportDOM()
+# (nodes.jsx) emits inline — background/position/inset/opacity/pointer-events/
+# overflow/line-height/box-sizing/margin-top/margin-left/margin-right/
+# background-image/background-repeat/background-position/text-decoration —
+# or a contributor-authored header block (shadow overlay, background image,
+# split-layout media) silently loses that styling once sanitized, with no
+# error surfaced anywhere.
+# Two of the properties above need their *value* restricted too, not just
+# their name — bleach's CSSSanitizer only filters by property name, and
+# allowing these unconditionally would let a contributor's content_html (sent
+# directly to the API, not necessarily through the editor UI) build a
+# tracking pixel or an invisible click-hijacking overlay inside their own
+# post/page:
+#   - background/background-image: nodes.jsx's exportDOM() only ever points
+#     these at our own /api/uploads/<file>, so any url() pointing elsewhere
+#     is dropped — otherwise an external url() fires an unconditional request
+#     to that host (with referrer) every time the content is viewed,
+#     including by the admin/editor who opens the draft to review it.
+#   - pointer-events: exportDOM() only ever sets this to 'none' (the shadow
+#     overlay is always decorative), so any other value is dropped —
+#     otherwise `position:absolute` + `opacity` (both needed for that same
+#     overlay) + `pointer-events:auto` builds a near-invisible clickable
+#     layer over other content.
+_SAFE_POINTER_EVENTS_VALUES = {'none'}
+_UPLOADS_URL_PREFIX = '/api/uploads/'
+
+
+def _iter_url_tokens(tokens):
+    """Yields every 'url' token anywhere in the tree, including ones nested
+    inside a function's arguments (e.g. image-set(url(...)), cross-fade(...))
+    — a flat scan of the top-level tokens alone misses those, which would
+    otherwise let an external url() back in through a wrapping function.
+    Iterative (an explicit stack, not recursion) so a request built directly
+    against the API with pathologically deep function nesting can't blow
+    Python's call stack and crash with an unhandled RecursionError instead of
+    a clean sanitize result."""
+    stack = list(tokens)
+    while stack:
+        t = stack.pop()
+        if t.type == 'url':
+            yield t
+        elif t.type == 'function':
+            stack.extend(t.arguments)
+
+
+def _declaration_value_is_safe(prop, value_tokens):
+    if prop == 'pointer-events':
+        idents = [t.lower_value for t in value_tokens if t.type == 'ident']
+        return all(v in _SAFE_POINTER_EVENTS_VALUES for v in idents)
+    if prop in ('background', 'background-image'):
+        return all(t.value.startswith(_UPLOADS_URL_PREFIX) for t in _iter_url_tokens(value_tokens))
+    return True
+
+
+class _RestrictedCSSSanitizer(CSSSanitizer):
+    """Same property-name allowlist as bleach's CSSSanitizer, plus a
+    value-level check (_declaration_value_is_safe) for the handful of
+    properties where the value matters as much as the property name."""
+
+    def sanitize_css(self, style):
+        parsed = tinycss2.parse_declaration_list(style)
+        if not parsed:
+            return ''
+        new_tokens = []
+        for token in parsed:
+            if token.type == 'declaration':
+                allowed_name = (
+                    token.lower_name in self.allowed_css_properties
+                    or token.lower_name in self.allowed_svg_properties
+                )
+                if not allowed_name or not _declaration_value_is_safe(token.lower_name, token.value):
+                    continue
+                new_tokens.append(token)
+            elif token.type in ('comment', 'whitespace'):
+                if new_tokens and new_tokens[-1].type != token.type:
+                    new_tokens.append(token)
+        if not new_tokens:
+            return ''
+        return tinycss2.serialize(new_tokens).strip()
+
+
+_CSS_SANITIZER = _RestrictedCSSSanitizer(allowed_css_properties=[
+    'color', 'background-color', 'background', 'background-image', 'background-repeat',
+    'background-position', 'text-align', 'text-decoration', 'font-size', 'font-weight',
+    'line-height', 'width', 'height', 'min-height', 'max-width', 'max-height',
+    'border', 'border-radius', 'box-sizing', 'padding', 'margin',
+    'margin-top', 'margin-left', 'margin-right', 'display', 'flex-direction',
+    'align-items', 'justify-content', 'position', 'inset', 'overflow',
+    'opacity', 'pointer-events',
 ])
 
 

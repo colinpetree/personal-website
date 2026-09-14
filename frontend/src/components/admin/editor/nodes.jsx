@@ -4254,8 +4254,6 @@ const HEADER_NESTED_THEME = {
 // VideoNode.exportDOM() above and generateSafeHtmlFromNodes(). This
 // component's simple mount-once/clean-up-once behavior was correct the
 // whole time.)
-const SPLIT_HEADER_VIDEO_STYLE = { margin: 0 }
-
 function HeaderBgVideo({ src, className, style }) {
   const anchorRef = useRef(null)
   useEffect(() => {
@@ -4570,26 +4568,24 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             className={`${sideMargin} ${minHeightClass} flex flex-col ${flipLayout ? 'md:flex-row-reverse' : 'md:flex-row'} ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
           >
             {/* Image/video side */}
-            {/* h-[240px] (not min-h) below md so the media's height:100% has a definite
-                height to resolve against — min-height alone doesn't establish one, which
-                left the media at its auto/intrinsic height with a gap below it on mobile. */}
+            {/* h-[240px] (not min-h) below md so the box itself has a definite height on
+                mobile, where there's no sibling row to stretch against — min-height alone
+                doesn't establish one. The media inside is absolutely-filled via the
+                header-split-image CSS rule (index.css), so it never affects this box's own
+                size — it just crops to whatever height the box ends up with. */}
             {(() => {
               const splitHasVideo = backgroundType === 'video' && headerVideo
               const splitMedia = splitHasVideo ? headerVideo : headerImage
               return (
                 <div
-                  className={`w-full md:w-1/2 h-[240px] md:h-auto bg-white flex items-center justify-center overflow-hidden relative group ${!splitMedia ? 'cursor-pointer' : ''}`}
+                  className={`header-split-image w-full md:w-1/2 h-[240px] md:h-auto bg-white flex items-center justify-center overflow-hidden group ${!splitMedia ? 'cursor-pointer' : ''}`}
                   onClick={!splitMedia ? () => splitImageInputRef.current?.click() : undefined}
                 >
                   {splitHasVideo ? (
-                    // Inline margin:0 beats @tailwindcss/typography's ".prose video"
-                    // 2em top/bottom margin — without it the video sits 32px below
-                    // the box's top edge, clipped by the box's own overflow:hidden.
-                    <HeaderBgVideo src={headerVideo} className="w-full h-full object-cover" style={SPLIT_HEADER_VIDEO_STYLE} />
+                    <HeaderBgVideo src={headerVideo} className="header-bg-video" />
                   ) : headerImage ? (
                     <img
                       src={`/api/uploads/${headerImage}`}
-                      className="w-full h-full object-cover"
                       alt=""
                       draggable={false}
                     />
@@ -4599,7 +4595,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                       <span className="text-sm text-gray-400">Click to upload image or video</span>
                     </div>
                   )}
-                  {/* Split shows the shadow overlay on the image/video side, not the text side */}
+                  {/* Shadow overlay darkens both sides — see the matching block on the text side below. */}
                   {splitMedia && shadowOverlay && (
                     <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />
                   )}
@@ -4637,9 +4633,12 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                 neither side collapses shorter than the other; md:min-h-0 lets desktop's
                 flex row stretch it to match the image side's height as before. */}
             <div
-              className={`w-full md:w-1/2 min-h-[240px] md:min-h-0 flex flex-col justify-center gap-3 pl-8 pr-8 py-6 md:pl-24 md:pr-12 md:py-10`}
+              className="w-full md:w-1/2 min-h-[240px] md:min-h-0 relative flex flex-col justify-center gap-3 pl-8 pr-8 py-6 md:pl-24 md:pr-12 md:py-10"
               style={{ background: backgroundColor }}
             >
+              {shadowOverlay && (
+                <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />
+              )}
               {textContent}
             </div>
           </div>
@@ -5087,27 +5086,20 @@ export class HeaderNode extends DecoratorNode {
           video.setAttribute('loop', '')
           video.setAttribute('playsinline', '')
           video.setAttribute('disablepictureinpicture', '')
-          video.style.width = '100%'
-          video.style.height = '100%'
-          video.style.objectFit = 'cover'
-          // Inline margin:0 beats @tailwindcss/typography's ".prose video" 2em
-          // top/bottom margin (see .header-bg-video's comment in index.css for
-          // the same issue on the other layouts) — without it the video sits
-          // 32px below the box's top edge, clipped by imgSide's overflow:hidden.
-          video.style.margin = '0'
+          // Position/size/crop come from the .header-split-image CSS rule
+          // (index.css) — the video is a direct child of imgSide, which that
+          // rule already targets — so it's absolutely-filled and can never
+          // affect imgSide's own box size, matching .header-bg-video on the
+          // other layouts.
           imgSide.appendChild(video)
         } else {
           const img = document.createElement('img')
           img.src = `/api/uploads/${this.__headerImage}`
-          img.style.width = '100%'
-          img.style.height = '100%'
-          img.style.objectFit = 'cover'
           imgSide.appendChild(img)
         }
 
-        // Split shows the shadow overlay on the image/video side, not the text side
+        // Shadow overlay darkens both sides — see the matching block on textSide below.
         if (this.__shadowOverlay) {
-          imgSide.style.position = 'relative'
           const overlay = document.createElement('div')
           overlay.style.position = 'absolute'
           overlay.style.inset = '0'
@@ -5127,6 +5119,17 @@ export class HeaderNode extends DecoratorNode {
       textSide.style.justifyContent = 'center'
       textSide.style.padding = '40px 48px 40px 96px'
       textSide.style.textAlign = this.__textAlign || 'left'
+
+      if (this.__shadowOverlay) {
+        textSide.style.position = 'relative'
+        const textOverlay = document.createElement('div')
+        textOverlay.style.position = 'absolute'
+        textOverlay.style.inset = '0'
+        textOverlay.style.background = '#000000'
+        textOverlay.style.opacity = '0.35'
+        textOverlay.style.pointerEvents = 'none'
+        textSide.appendChild(textOverlay)
+      }
 
       const textContentWrap = textSide
 

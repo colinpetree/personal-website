@@ -931,6 +931,25 @@ html {
   margin: 0 !important;
 }
 
+/* Header block — split layout's image/video side crops via absolute-fill,
+   exactly like .header-bg-image/.header-bg-video do for the other layouts,
+   so the media can never grow the header's box (its height comes only from
+   the header's own min-height plus the text side's content). Shared between
+   the editor preview and published HTML via the header-split-image class
+   both use. */
+.header-split-image {
+  position: relative;
+}
+.header-split-image > img,
+.header-split-image > video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  margin: 0 !important;
+}
+
 /* Navbar.jsx: momentarily kills every transition inside the navbar (itself
    and every descendant — nav links, search/hamburger buttons, the site
    title) right when a page's transparent/solid state is first determined,
@@ -958,10 +977,10 @@ html {
    than leaving the page-header-content pages' shared `pt-10` (2.5rem) gap
    above it — that gap belongs to plain-text-led pages (see the page-title
    h1:first-child rule above), not header blocks, which already supply their
-   own internal padding. Full width/full screen are additionally special: see
-   useFullscreenHeaderNav, which overlays Navbar transparently on top of
-   those two layouts specifically — regular/wide/split stay flush too but
-   leave Navbar in its normal solid state. */
+   own internal padding. Full width/full screen/split are additionally
+   special: see useFullscreenHeaderNav, which overlays Navbar transparently
+   on top of those three layouts specifically — regular/wide stay flush too
+   but leave Navbar in its normal solid state. */
 .page-header-content > header.header-regular:first-child,
 .page-header-content > header.header-wide:first-child,
 .page-header-content > header.header-full:first-child,
@@ -1160,9 +1179,10 @@ html {
   .blog-content header.header-split .header-split-text {
     width: 100% !important;
   }
-  /* height (not min-height): the split image's <img> uses height:100%, which needs a
-     definite height on this parent to resolve against — min-height alone doesn't count
-     as definite, so the image fell back to its auto/intrinsic height, leaving a gap. */
+  /* height (not min-height): the media inside is absolutely-positioned (see
+     .header-split-image above), so it never contributes to this box's own
+     height — on mobile there's no sibling row to flex-stretch against
+     either, so without an explicit height the box collapses to 0. */
   .blog-content header.header-split .header-split-image {
     height: 240px !important;
   }
