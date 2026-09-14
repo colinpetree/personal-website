@@ -292,11 +292,56 @@ fi
 NGINX_SRC="$WORKDIR/nginx-personal-website.conf"
 INSTALL_FULL_NGINX_CONFIG=false
 if [ -n "$DOMAIN" ] && [ -f "$CERT_DIR/fullchain.pem" ]; then
+    # Cloudflare's edge IP ranges change occasionally, so this is fetched
+    # live on every install rather than hardcoded into the repo (which would
+    # silently go stale). A fetch failure degrades gracefully to no real_ip
+    # trust at all — the same behavior as before this feature existed —
+    # rather than failing the install; it only matters for sites actually
+    # proxied through Cloudflare, and even then just means $remote_addr goes
+    # back to showing Cloudflare's edge IP until the next successful
+    # install/re-run.
+    CLOUDFLARE_REAL_IP_CONFIG=""
+    # Fetched as two SEPARATE curl calls, not one multi-URL call — Cloudflare's
+    # ips-v4 response has no trailing newline, so a single `curl url1 url2`
+    # (which just concatenates both bodies back-to-back) merges the last IPv4
+    # range directly into the first IPv6 range with no separator (e.g.
+    # "131.0.72.0/222400:cb00::/32"), producing an invalid CIDR that nginx -t
+    # rejects and silently dropping a real Cloudflare range. Confirmed against
+    # the live endpoint while building this. The explicit $'\n' here
+    # guarantees a separator regardless of either file's own trailing newline.
+    CF_V4="$(curl -sf https://www.cloudflare.com/ips-v4 2>/dev/null || true)"
+    CF_V6="$(curl -sf https://www.cloudflare.com/ips-v6 2>/dev/null || true)"
+    CF_RANGES=""
+    [ -n "$CF_V4" ] && [ -n "$CF_V6" ] && CF_RANGES="$CF_V4"$'\n'"$CF_V6"
+    if [ -n "$CF_RANGES" ]; then
+        CLOUDFLARE_REAL_IP_CONFIG="$(
+            echo "$CF_RANGES" | while read -r cidr; do
+                [ -n "$cidr" ] && echo "    set_real_ip_from $cidr;"
+            done
+            echo "    real_ip_header CF-Connecting-IP;"
+            echo "    real_ip_recursive on;"
+        )"
+        echo "==> Fetched $(echo "$CF_RANGES" | grep -c .) Cloudflare IP ranges for nginx real_ip config"
+    else
+        echo "WARNING: could not fetch Cloudflare's IP ranges (cloudflare.com unreachable?) —"
+        echo "         nginx will NOT recover real visitor IPs behind Cloudflare this run. If"
+        echo "         this site is Cloudflare-proxied, re-run install.sh once network access"
+        echo "         to cloudflare.com is available."
+    fi
+
     sed -e "s#__DOMAIN__#$DOMAIN#g" \
         -e "s#__SSL_CERT__#$CERT_DIR/fullchain.pem#g" \
         -e "s#__SSL_KEY__#$CERT_DIR/privkey.pem#g" \
         -e "s#__VARNISH_PORT__#$VARNISH_PORT#g" \
-        "$RELEASE_DIR/deploy/nginx/personal-website.conf" > "$NGINX_SRC"
+        "$RELEASE_DIR/deploy/nginx/personal-website.conf" > "$NGINX_SRC.tmp"
+    # sed -e with & / \ in the replacement (CIDR ranges contain neither, but
+    # a multi-line replacement itself is what breaks plain sed) — done as a
+    # separate awk pass instead of another -e, since sed's `s#pat#repl#`
+    # can't cleanly substitute a multi-line block via the shell variable.
+    awk -v repl="$CLOUDFLARE_REAL_IP_CONFIG" '
+        { gsub(/__CLOUDFLARE_REAL_IP_CONFIG__/, repl); print }
+    ' "$NGINX_SRC.tmp" > "$NGINX_SRC"
+    rm -f "$NGINX_SRC.tmp"
     INSTALL_FULL_NGINX_CONFIG=true
 else
     echo "NOTE: no certificate available — leaving the HTTP-only bootstrap nginx config in"
