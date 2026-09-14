@@ -40,34 +40,33 @@ npm run build                # Outputs to frontend/dist/
 
 ### Backend
 
-**App factory** (`backend/app.py`) — Creates Flask app, registers 14 blueprints, configures SQLAlchemy, LoginManager, CORS, and creates all tables on startup.
+**App factory** (`backend/app.py`) — Creates Flask app, registers 25 blueprints (23 unconditional + 2 gated behind `ENABLE_AI_DEMOS`), configures SQLAlchemy, LoginManager, CORS, and creates all tables on startup.
 
 **Extensions** (`backend/extensions.py`) — Shared `db` (SQLAlchemy) and `login_manager` instances, imported everywhere.
 
-**Encryption** (`backend/crypto.py`) — Fernet symmetric encryption for sensitive DB fields (SMTP password, Stripe keys, Google OAuth secrets). Requires `ENCRYPTION_KEY` env var.
+**Encryption** (`backend/crypto.py`) — Fernet symmetric encryption for sensitive DB fields (Mailgun API key, Stripe secret/webhook keys, Google OAuth client secret). Requires `ENCRYPTION_KEY` env var.
 
 **Route modules** (`backend/routes/`):
-- Public: `profile.py`, `site_config.py`, `blog.py`, `contact.py`, `uploads.py`, `auth.py`, `user.py`
-- Admin (require session + role): `admin_auth.py`, `admin_config.py`, `admin_accounts.py`, `admin_blog.py`, `admin_projects.py`, `admin_users.py`, `admin_history.py`
+- Public: `profile.py`, `site_config.py`, `projects.py`, `blog.py`, `pages.py`, `public_resolve.py` (unified slug resolution across blog posts and freeform Pages), `contact.py`, `uploads.py`, `auth.py`, `user.py`, `payment.py`, `search.py`, `analytics_tracking.py`, `ai_demo.py` (gated)
+- Admin (require session + role): `admin_auth.py`, `admin_config.py`, `admin_accounts.py`, `admin_projects.py`, `admin_blog.py`, `admin_blog_categories.py`, `admin_pages.py`, `admin_users.py`, `admin_history.py`, `admin_analytics.py`, `admin_ai_demo_links.py` (gated)
 
 Admin endpoints use `@admin_required` or `@role_required()` decorators. Role hierarchy: `contributor < editor < administrator < owner`.
 
 ### Database Models
 
-- **Profile** — One row: site name, title, bio
-- **SiteConfig** — One row: all site settings (page enable/disable, nav names, slugs, SMTP, Google OAuth, Stripe, timezone, domain, favicon). Sensitive fields stored encrypted.
-- **AdminAccount** — Staff accounts with role, password hash, avatar
-- **BlogPost** — Title, slug, `content_html`, excerpt, status, publish_date, thumbnail, author FK
-- **Comment** — Threaded (parent_id), supports admin/user/guest authoring
-- **User** — Google OAuth users (google_id, email, avatar, `can_comment` flag)
-- **Project** — Portfolio items with title, description, URL, image, order, visibility
-- **SiteEventLog** — Admin activity log (area, action_type, subject, timestamp)
+Content: **Profile** (one row: site name, title, bio) · **SiteConfig** (one row: page enable/disable, nav names, slugs, Mailgun, Google OAuth, Stripe, timezone, domain, favicon, freeform `primary_navigation` link list — sensitive fields stored encrypted) · **BlogPost** (title, slug, `content_html`, excerpt, status, publish_date, feature image, category FK, author FK) · **BlogCategory** · **Page** — freeform CMS pages (title, slug, `content_html`, meta description, draft/publish lifecycle same as `BlogPost`; the old fixed "About" page is now just a `Page` row) · **Project** (title, description, URL, image, order, visibility) · **Comment** (threaded via `parent_id`, admin/user authoring).
+
+People/access: **AdminAccount** (staff, role, password hash, avatar) · **User** (Google OAuth or magic-link, `can_comment` flag, avatar) · **AiDemoAccessLink** (per-user grants for the AI demo access-approval system).
+
+Payments: **Payment** — ledger row per checkout/renewal (user or guest, Stripe IDs, amount, mode, optional public comment).
+
+Analytics/operational (lighter-weight, mostly write-only): **PageView**, **ShareEvent**, **ProjectClick**, **ContactSubmission**, **SiteEventLog** (admin activity log), **LoginAttempt** / **ContactAttempt** / **AnalyticsAttempt** / **PortalLinkRequest** (per-IP rate-limit tracking).
 
 ### Frontend
 
 **Entry** — `main.jsx` wraps `<App>` in `AdminAuthContext` and `UserAuthContext`, then mounts. `App.jsx` renders `<Navbar>` + `<Outlet>`.
 
-**Routing** (`src/router.jsx`) — React Router v7 with dynamic slugs loaded from `SiteConfig`. Public routes under `/`; admin routes under `/admin/*` use `<AdminLayout>` (sidebar). Route slugs (e.g. `/blog`, `/projects`) are configurable per-site.
+**Routing** (`src/routes.ts`) — React Router v7 file-based route config (not `createBrowserRouter`), with SSR/prerendering support. Dynamic slugs loaded from `SiteConfig` at build/dev time. Public routes under `/`; admin routes under `/admin/*` use `<AdminLayout>` (sidebar). Only Home, Blog, Projects, Contact, AI Demo, and Payment have dedicated fixed routes with configurable slugs (e.g. `/blog`, `/projects`) — everything else (freeform CMS **Pages**, including the retired "About" page, and blog posts) resolves through a catch-all `:slug` route (`SlugResolverPage.jsx`) shared across both content types. Site navigation itself is a freeform link list (`primary_navigation` on `SiteConfig`, edited at `/admin/navigation`), not a fixed set of nav slots.
 
 **Auth Contexts:**
 - `AdminAuthContext` — Admin email/password session via Flask-Login. Exposes `admin`, `login()`, `logout()`, `refreshAdmin()`.
