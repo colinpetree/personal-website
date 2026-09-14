@@ -58,7 +58,7 @@ export default function PaymentPage() {
 
   const [step, setStep] = useState('form') // 'form' | 'checkout'
   const [frequency, setFrequency] = useState('once') // 'once' | 'monthly'
-  const [amount, setAmount] = useState(10)
+  const [amount, setAmount] = useState(PRESET_AMOUNTS[0])
   const [customAmount, setCustomAmount] = useState('')
   const [message, setMessage] = useState('')
   const [guestName, setGuestName] = useState('')
