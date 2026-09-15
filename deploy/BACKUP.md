@@ -150,7 +150,7 @@ After restoring `.env`, restart the service: `sudo systemctl restart personal-we
 
 `deploy/scripts/health-watch.sh` runs every 15 minutes (`personal-website-healthwatch.timer`) and checks three things, each debounced to at most one alert per day (a marker file under `$DATA_DIR/monitoring/`, cleared automatically once the condition clears):
 
-- **Crash-loop** — `systemctl is-failed personal-website.service`. Fires once systemd's own restart limit (default: 5 restarts/10s) has already been hit and the service has stopped retrying on its own.
+- **Crash-loop / DB reachability** — `personal-website.service` retries forever with no restart burst limit (`StartLimitIntervalSec=0`), so it self-heals on its own the instant a brief local-DB outage clears, and deliberately never reaches systemd's "failed" state. So instead of `systemctl is-failed`, this check probes the app directly (`curl http://127.0.0.1:$BACKEND_PORT/api/site-config`, the same request `install.sh`'s own post-deploy health check uses), retrying 3 times (up to ~70s total, since each attempt can itself take up to 10s before the 20s gap) before alerting — a brief blip self-heals silently; only a sustained outage triggers the alert.
 - **Disk usage** — `df` on `/` and on `$DATA_DIR`, alerting above `BACKUP_DISK_ALERT_PERCENT` (default 85%).
 - **Certbot expiry** — reads the live certificate's expiry date directly (`openssl x509 -enddate`) and alerts if fewer than `CERT_ALERT_DAYS` (default 14) remain, which would mean `certbot.timer` has silently stopped renewing.
 

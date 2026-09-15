@@ -67,17 +67,34 @@ _clear_marker() {
     rm -f "$STATE_DIR/$1-alert-sent"
 }
 
-# ---- 1. Crash-loop -----------------------------------------------------------
-# systemd's own default restart limit (5 restarts/10s, no override in
-# personal-website.service) trips the unit into "failed" and stops
-# restarting it — that's the actual crash-loop signal to watch for, since a
-# single transient restart is normal and not worth alerting on.
-if systemctl is-failed --quiet personal-website.service; then
-    LOG_TAIL="$(journalctl -u personal-website -n 20 --no-pager 2>/dev/null | tail -c 2000)"
-    _alert_if_due "crash-loop" "crash-loop" "personal-website.service is in 'failed' state — systemd's restart limit was hit and it is NOT running. Recent log:
-$LOG_TAIL"
-else
+# ---- 1. Crash-loop / DB reachability ------------------------------------------
+# personal-website.service has no restart burst limit (StartLimitIntervalSec=0)
+# — it retries forever so the app self-heals the instant a local DB outage
+# clears, with no manual restart needed for a brief blip. That means it never
+# reaches systemd's "failed" state, so `systemctl is-failed` is not a usable
+# signal here. Instead, probe the app the same way install.sh's own
+# post-deploy health check does: a live HTTP request that round-trips
+# through the DB. A short retry loop absorbs the handful of seconds the app
+# takes to restart on its own — only a *sustained* outage (still down after
+# 3 tries, up to ~70s total: each attempt can itself take up to 10s before
+# the 20s gap between attempts) is worth waking someone up for.
+BACKEND_PORT="$(grep -oP 'GUNICORN_BIND=127\.0\.0\.1:\K[0-9]+' /etc/systemd/system/personal-website.service 2>/dev/null || echo 8000)"
+_probe_healthy() {
+    local attempt
+    for attempt in 1 2 3; do
+        if curl -sf --connect-timeout 5 --max-time 10 "http://127.0.0.1:$BACKEND_PORT/api/site-config" >/dev/null 2>&1; then
+            return 0
+        fi
+        [ "$attempt" -lt 3 ] && sleep 20
+    done
+    return 1
+}
+if _probe_healthy; then
     _clear_marker "crash-loop"
+else
+    LOG_TAIL="$(journalctl -u personal-website -n 20 --no-pager 2>/dev/null | tail -c 2000)"
+    _alert_if_due "crash-loop" "crash-loop" "personal-website is not responding on 127.0.0.1:$BACKEND_PORT (checked /api/site-config, 3 attempts over up to ~70s) — app may be crash-looping or the database may be unreachable. Recent log:
+$LOG_TAIL"
 fi
 
 # ---- 2. Disk usage ------------------------------------------------------------

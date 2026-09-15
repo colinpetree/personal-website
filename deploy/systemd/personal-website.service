@@ -2,6 +2,13 @@
 Description=Personal Website (Flask + embedded gunicorn)
 After=network.target postgresql.service
 Requires=postgresql.service
+# Restart forever, deliberately with no burst limit: the DB is local, so an
+# outage (e.g. Postgres restarting) is expected to be brief and this unit
+# should come back on its own the instant it can, with no manual restart
+# needed. This means it never reaches `failed` state, so health-watch.sh's
+# crash-loop check does NOT use `systemctl is-failed` — see its own comment
+# for the active HTTP probe used instead.
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
