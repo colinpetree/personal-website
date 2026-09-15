@@ -34,6 +34,12 @@ _SOURCE_INFO = {
                        'files than ORPHAN_MEDIA_MAX_PER_RUN allows (a safety cap, not necessarily a real '
                        'problem — but worth a manual `--cleanup-orphan-media --dry-run` look before raising '
                        'the cap or letting it proceed).'),
+    'dependency-audit': ('monthly dependency audit report',
+                         'This is a routine report sent every run, not necessarily a failure, see the '
+                         'pip-audit/npm audit output above for whether any vulnerabilities were actually '
+                         'found. "completed WITH ERRORS" in the report body means the audit tooling itself '
+                         'failed to run (check `journalctl --user -u personal-website-dependency-audit` on '
+                         'the Pi), which is different from the tooling running fine and finding CVEs.'),
 }
 _DEFAULT_INFO = ('issue detected', 'Check the server logs for details — see the message above.')
 

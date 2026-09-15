@@ -1,0 +1,8 @@
+[Unit]
+Description=Personal Website monthly dependency vulnerability audit
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/src/personal-website
+ExecStart=/bin/bash deploy/scripts/dependency-audit.sh

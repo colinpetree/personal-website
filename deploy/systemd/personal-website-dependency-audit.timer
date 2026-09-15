@@ -1,0 +1,15 @@
+[Unit]
+Description=Run personal-website-dependency-audit monthly
+
+[Timer]
+# 1st of the month, 06:15 UTC, after production's 03:00 UTC backup and the
+# Pi's own 05:30 UTC backup-pull (see personal-website-backup-pull.timer),
+# so this never contends with either for the Pi's limited CPU/network at the
+# same moment. Persistent=true means a run missed while the Pi was powered
+# off fires once at next boot instead of silently skipping that month.
+OnCalendar=*-*-01 06:15:00 UTC
+RandomizedDelaySec=1800
+Persistent=true
+
+[Install]
+WantedBy=timers.target

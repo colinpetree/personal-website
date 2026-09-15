@@ -33,38 +33,52 @@ _alert() {
     local message="$1"
     _log "ALERT: $message"
     if [ -z "${WATCHER_ALERT_SECRET:-}" ]; then
-        _log "WATCHER_ALERT_SECRET is not set — cannot alert. Check $PI_BUILD_ENV."
+        _log "WATCHER_ALERT_SECRET is not set, cannot alert. Check $PI_BUILD_ENV."
         return
     fi
     if ! command -v python3 >/dev/null 2>&1; then
         # No safe-but-unescaped fallback here on purpose: a hand-rolled
         # printf '"%s"' quoting doesn't escape embedded quotes/backslashes,
         # which can produce invalid JSON that the backend's
-        # request.get_json(silent=True) silently treats as an empty body —
+        # request.get_json(silent=True) silently treats as an empty body,
         # mis-labeling the alert as source='pi' with a generic message
         # instead of failing loudly. Better to just not send it.
-        _log "python3 is not available — cannot safely JSON-encode the alert message. Not sending."
+        _log "python3 is not available, cannot safely JSON-encode the alert message. Not sending."
         return
     fi
-    # -K - (config from stdin) instead of -H on the command line — a header
-    # passed via -H is visible to any local user via `ps aux`/`/proc/<pid>/cmdline`
-    # for as long as curl runs; -K never puts the secret in argv at all.
-    local json_message
-    json_message="$(printf '%s' "$message" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')"
-    if [ -z "$json_message" ]; then
+    # Build the whole JSON body with python (a dict, not string interpolation
+    # into a hand-written template) and pass it to curl via --data-binary
+    # @file rather than embedding it in the -K config's `data = "..."` line.
+    # A json.dumps()'d string always starts/ends with an unescaped `"` of its
+    # own; substituting that into `data = "...${msg}..."` makes curl's own
+    # config-string parser treat that leading `"` as the value's closing
+    # quote, silently truncating everything after it. Verified empirically
+    # against a local echo server: the old pattern sent only
+    # `{"source":"backup","message":` with the actual alert text missing
+    # entirely, every time, regardless of content.
+    local payload_file
+    payload_file="$(mktemp)"
+    printf '%s' "$message" | python3 -c "import json,sys; json.dump({'source': 'backup', 'message': sys.stdin.read()}, sys.stdout)" > "$payload_file"
+    if [ ! -s "$payload_file" ]; then
         _log "Failed to JSON-encode the alert message. Not sending."
+        rm -f "$payload_file"
         return
     fi
-    if curl -sf --connect-timeout 10 --max-time 30 -X POST "$SITE_URL/api/watcher-alert" -K - <<CURLCFG
+    # The secret still goes through -K (config from stdin), never -H on the
+    # command line, so it never appears in argv/`ps aux`/`/proc/<pid>/cmdline`.
+    # The alert body isn't secret, so it can safely go via a normal
+    # --data-binary argv flag instead of fighting -K's config-string quoting.
+    if curl -sf --connect-timeout 10 --max-time 30 -X POST "$SITE_URL/api/watcher-alert" \
+        --data-binary "@$payload_file" -K - <<CURLCFG
 header = "X-Watcher-Secret: $WATCHER_ALERT_SECRET"
 header = "Content-Type: application/json"
-data = "{\"source\":\"backup\",\"message\":${json_message}}"
 CURLCFG
     then
         _log "Alert sent."
     else
-        _log "Alert POST failed — see above."
+        _log "Alert POST failed, see above."
     fi
+    rm -f "$payload_file"
 }
 
 mkdir -p "$BACKUP_PULL_LOCAL_DIR"
