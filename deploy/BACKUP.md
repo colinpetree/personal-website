@@ -121,7 +121,50 @@ message text says which stage (production's dump, or the Pi's pull) failed.
 
 ### Restoring from a backup
 
-Deliberately manual, not scripted — a restore is rare and destructive enough that it should always be a deliberate, supervised action.
+Two scripts automate the common restore paths. **Written and syntax-checked
+(`bash -n`) but not yet run end-to-end against a real server** — dry-run one
+of them against a disposable test box before trusting either during a real
+incident:
+
+- **Same box, DB/app wiped, `.env` intact** (e.g. after deliberately
+  resetting a test server per the reset recipe above): run
+  `deploy/scripts/restore.sh` directly on that box —
+  `sudo bash restore.sh --releases-repo <owner>/<dist-repo>`. It restores
+  the latest local snapshot's database and uploads, then installs the
+  latest release.
+- **Catastrophic outage — a brand-new EC2 instance, nothing local
+  survived**: production can never reach the Pi (see above), so the Pi has
+  to push instead of the target pulling. After `bootstrap.sh` and
+  `gh auth login` are done on the new box, run `deploy/scripts/restore-remote.sh`
+  **on the Pi**: `bash restore-remote.sh --target-user ubuntu --target-host
+  <new-host> --ssh-key ~/aws-key.pem`. It pushes the Pi's backup mirror to
+  the new box and remotely runs `restore.sh` there.
+
+Both scripts print a full explanation of what they're about to do — and
+require typing `yes` to confirm — before touching anything, and merge the
+restored `.env`'s secrets (critically, `ENCRYPTION_KEY` — without it,
+restored `SiteConfig` secrets like Mailgun/Stripe/Google OAuth keys are
+undecryptable garbage) into the target's own `.env` without touching that
+box's own `DATABASE_URL`. A successful from-scratch restore also relocates
+the pushed repo into `$DATA_DIR/restic-repo`, so the very next scheduled
+`personal-website-backup.timer` run continues the same backup lineage with
+no extra setup.
+
+Before touching anything, `restore.sh` also confirms the snapshot actually
+has everything a restore needs (the DB dump, `.env`, and `uploads/` — the
+same paths `backup.sh` backs up) and checks whether the box's own site is
+currently up and answering health checks. If it is, a second gate kicks in:
+typing `yes` alone is **not** enough — it requires typing `DESTROY` (this
+can't be skipped with `--yes`, only with an explicit `--force`), specifically
+to catch a mistyped `--target-host` on the Pi pointing this at a live site
+by accident. If `install.sh`'s own post-install health check fails and it
+rolls back to an older release, `restore.sh` also re-restores the
+pre-migration dump so that older code isn't left running against a newer
+release's schema changes.
+
+The manual command sequence below is what both scripts automate — useful
+as a reference for what's actually happening, or to restore by hand if
+something about a given situation doesn't fit the scripts:
 
 ```bash
 # Restore the latest snapshot's files (run against either production's own
