@@ -230,7 +230,7 @@ export default function McpPage() {
     }
     setRobotsNoindex(false)
     if (config?.site_title) {
-      document.title = `Model Context Protocol (MCP) - ${config.site_title}`
+      document.title = `MCP - ${config.site_title}`
     }
   }, [config])
 

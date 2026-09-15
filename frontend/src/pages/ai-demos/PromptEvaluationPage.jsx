@@ -176,7 +176,7 @@ export default function PromptEvaluationPage() {
     }
     setRobotsNoindex(false)
     if (config?.site_title) {
-      document.title = `Data evaluations - ${config.site_title}`
+      document.title = `Evaluations - ${config.site_title}`
     }
   }, [config])
 

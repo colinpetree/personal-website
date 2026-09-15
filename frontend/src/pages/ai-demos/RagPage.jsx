@@ -202,7 +202,7 @@ export default function RagPage() {
     }
     setRobotsNoindex(false)
     if (config?.site_title) {
-      document.title = `Retrieval Augmented Generation (RAG) - ${config.site_title}`
+      document.title = `RAG - ${config.site_title}`
     }
   }, [config])
 
