@@ -3,11 +3,21 @@ Description=Personal Website crash-loop/disk/certbot health check
 
 [Service]
 Type=oneshot
-User=personalweb
-Group=personalweb
+# Root, not personalweb: this needs to read personal-website.service's own
+# journal for the crash-loop alert's log tail, which a non-privileged user
+# can't do without the much broader systemd-journal group grant (read
+# access to every unit's journal on the box, not just this one) - and
+# personalweb is also the account gunicorn itself runs as, so widening what
+# THAT account can read would widen the blast radius of the app's own
+# attack surface. Root already has unrestricted journal read, and
+# personal-website-updater.service already runs its own --send-watcher-alert
+# call as root for the same reason, so this matches existing precedent
+# rather than introducing a new one. Every action this script takes
+# (systemctl/df/curl/openssl reads, one outbound alert email) has no
+# attacker-facing input, unlike the app itself.
 WorkingDirectory=/opt/personal-website
 # Every check here is local (systemctl/df/openssl) except the alert email
-# itself, which is bounded by email_utils.py's own 10s request timeout —
+# itself, which is bounded by email_utils.py's own 10s request timeout.
 # 120s is generous headroom, just enough to also cover starting the backend
 # binary, not a sign this is expected to ever run long.
 TimeoutStartSec=120

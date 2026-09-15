@@ -3,7 +3,7 @@
 # server (a fresh EC2 instance that's already been bootstrap.sh'd) by
 # pushing the Pi's backup mirror to it and remotely invoking restore.sh
 # there. Production can never reach the Pi (no port-forwarding, a rotating
-# public IP — see deploy/BACKUP.md), so the connection direction here is
+# public IP - see deploy/BACKUP.md), so the connection direction here is
 # deliberately Pi -> target, the same as backup-pull.sh already uses,
 # rather than having the target try to pull from the Pi.
 #
@@ -21,7 +21,7 @@ PI_BUILD_ENV="$HOME/.personal-website-build.env"
 _usage() {
     cat <<'EOF'
 ================================================================================
- restore-remote.sh — disaster-recovery restore, driven from the Pi
+ restore-remote.sh - disaster-recovery restore, driven from the Pi
 ================================================================================
  What this does:
    Pushes this Pi's local backup mirror to a brand-new, freshly-
@@ -38,7 +38,7 @@ _usage() {
  Safety note: this script always passes --yes to the remote restore.sh
  (there's no one at that terminal to answer a prompt), but restore.sh has
  its own separate, non-bypassable gate if the target turns out to be
- currently up and healthy — it'll require typing "DESTROY" over this SSH
+ currently up and healthy - it'll require typing "DESTROY" over this SSH
  session specifically to guard against a mistyped --target-host pointing
  this at a live site by accident.
 
@@ -49,7 +49,7 @@ _usage() {
 
  Flags:
    --target-user      SSH user on the target (e.g. ubuntu).
-   --target-host      Target's address. Must be directly SSH-reachable —
+   --target-host      Target's address. Must be directly SSH-reachable,
                        not a Cloudflare-proxied domain (SSH needs the raw
                        EC2 public DNS/IP; see deploy/BACKUP.md).
    --ssh-key          Path to the SSH private key for the target.
@@ -97,14 +97,14 @@ fi
 SSH_OPTS=(-i "$SSH_KEY" -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=15)
 
 # ---- Preflight ---------------------------------------------------------------
-[ -f "$PI_BUILD_ENV" ] || { echo "$PI_BUILD_ENV not found — run setup-backup-pull-pi.sh first."; exit 1; }
+[ -f "$PI_BUILD_ENV" ] || { echo "$PI_BUILD_ENV not found - run setup-backup-pull-pi.sh first."; exit 1; }
 set -a
 # shellcheck source=/dev/null
 source "$PI_BUILD_ENV"
 set +a
 
 if [ -z "${RESTIC_PASSWORD:-}" ] || [ -z "${BACKUP_PULL_LOCAL_DIR:-}" ]; then
-    echo "RESTIC_PASSWORD / BACKUP_PULL_LOCAL_DIR not set in $PI_BUILD_ENV — run setup-backup-pull-pi.sh first."
+    echo "RESTIC_PASSWORD / BACKUP_PULL_LOCAL_DIR not set in $PI_BUILD_ENV - run setup-backup-pull-pi.sh first."
     exit 1
 fi
 
@@ -115,7 +115,7 @@ d=json.load(sys.stdin)
 s=d[0]
 print(f"{s[\"time\"][:19]} from host {s.get(\"hostname\",\"?\")}")' 2>/dev/null || true)"
 if [ -z "$SNAPSHOT_INFO" ]; then
-    echo "Could not read a snapshot from $BACKUP_PULL_LOCAL_DIR — the local mirror may be stale or broken. Check backup-status.sh before proceeding."
+    echo "Could not read a snapshot from $BACKUP_PULL_LOCAL_DIR - the local mirror may be stale or broken. Check backup-status.sh before proceeding."
     exit 1
 fi
 
@@ -127,7 +127,7 @@ fi
 
 _log "Checking gh is authenticated on the target..."
 if ! ssh "${SSH_OPTS[@]}" "$TARGET_USER@$TARGET_HOST" 'gh auth status' >/dev/null 2>&1; then
-    echo "gh is not authenticated on the target — run 'gh auth login' there first, then re-run this script."
+    echo "gh is not authenticated on the target - run 'gh auth login' there first, then re-run this script."
     exit 1
 fi
 
@@ -169,7 +169,7 @@ EOF
 if [ "$ASSUME_YES" != true ]; then
     read -r -p 'Type "yes" to proceed: ' CONFIRM
     if [ "$CONFIRM" != "yes" ]; then
-        echo "Aborted — nothing was pushed."
+        echo "Aborted - nothing was pushed."
         exit 1
     fi
 fi
@@ -206,9 +206,9 @@ echo "==========================================================================
 if [ "$RESTORE_OK" = true ]; then
     _log "Restore completed successfully on $TARGET_HOST."
 else
-    _log "restore.sh reported a failure on $TARGET_HOST — see its output above."
+    _log "restore.sh reported a failure on $TARGET_HOST - see its output above."
     _log "~/restic-repo was intentionally left on the target for debugging (only cleaned up automatically after a successful move into /opt/personal-website/data/restic-repo)."
-    _log "NOTE: if this was a genuinely from-scratch box, install.sh has no previous release to auto-rollback to — the site may be left down; SSH in and debug manually."
+    _log "NOTE: if this was a genuinely from-scratch box, install.sh has no previous release to auto-rollback to - the site may be left down; SSH in and debug manually."
 fi
 echo "================================================================================"
 

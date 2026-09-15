@@ -6,7 +6,7 @@
 # automatically) plus the domain file install.sh reads for both TLS and
 # admin-panel seeding.
 #
-# Every step here is idempotent — safe to re-run (e.g. after a mid-way
+# Every step here is idempotent - safe to re-run (e.g. after a mid-way
 # failure). Once $DATA_DIR/.env exists it is never touched again, so a
 # re-run never regenerates secrets or resets the Postgres password.
 #
@@ -32,7 +32,7 @@ while [ $# -gt 0 ]; do
 done
 # ENABLE_AI_DEMOS default for the .env this script generates below. This is
 # the point where a --no-ai choice actually takes effect on a server's
-# backend — install.sh's own .env.example fallback (see build-on-pi.sh's
+# backend - install.sh's own .env.example fallback (see build-on-pi.sh's
 # --no-ai handling) only ever runs `if [ ! -f "$DATA_DIR/.env" ]`, which is
 # never true after this script has already run, so that path alone can't
 # reach a normally-bootstrapped server.
@@ -44,7 +44,7 @@ echo "==> 1. System user"
 # shell) is load-bearing: the Pi's backup-pull key authenticates as this
 # user with a forced `command=` in authorized_keys, and OpenSSH invokes a
 # forced command through the account's configured login shell regardless of
-# what the client asked to run — a nologin shell silently rejects even a
+# what the client asked to run - a nologin shell silently rejects even a
 # restricted forced command, not just an interactive login.
 if ! id personalweb >/dev/null 2>&1; then
     adduser --system --shell /bin/bash --group personalweb
@@ -53,7 +53,7 @@ else
 fi
 
 echo "==> 2. Configuring swap"
-# Safety net against OOM kills, not a working-set extension — a memory spike
+# Safety net against OOM kills, not a working-set extension - a memory spike
 # (Postgres + gunicorn + nginx + Varnish all under load at once) gets turned
 # into "things get briefly slower" instead of the kernel killing a process
 # outright. Confirmed necessary: an OOM kill took down the backend server
@@ -73,7 +73,7 @@ else
         else
             SWAP_MB=4096
         fi
-        echo "    Detected ${MEM_MB}MB RAM — creating ${SWAP_MB}MB /swapfile"
+        echo "    Detected ${MEM_MB}MB RAM - creating ${SWAP_MB}MB /swapfile"
         fallocate -l "${SWAP_MB}M" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count="$SWAP_MB"
     fi
     # chmod/mkswap run every time we get here (not just on fresh creation) so
@@ -86,13 +86,13 @@ else
     grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
 
     # Keep the kernel biased toward RAM, only reaching for swap under real
-    # pressure — this is a safety net, not meant to be used routinely.
+    # pressure - this is a safety net, not meant to be used routinely.
     echo 'vm.swappiness=10' > /etc/sysctl.d/99-swappiness.conf
     sysctl -p /etc/sysctl.d/99-swappiness.conf
 fi
 
 echo "==> 3. Installing packages"
-# universe is where libnginx-mod-http-brotli-* AND gh live on 24.04 — not
+# universe is where libnginx-mod-http-brotli-* AND gh live on 24.04 - not
 # enabled by default on a stock Ubuntu Server image. gh is required on
 # production for update-watch.sh/install.sh's --releases-repo flow (gh
 # release download/list).
@@ -113,11 +113,11 @@ echo "==> 5. Binding Varnish to 127.0.0.1:6081"
 # Varnish's packaged default is 0.0.0.0:6081, which would expose the cache
 # directly to the internet, bypassing nginx's TLS termination entirely. This
 # override is otherwise IDENTICAL to the packaged unit's ExecStart (see
-# `systemctl cat varnish`) — only `-a :6081` becomes `-a 127.0.0.1:6081`.
+# `systemctl cat varnish`) - only `-a :6081` becomes `-a 127.0.0.1:6081`.
 # Both `-F` (foreground) and `-j unix,user=vcache` (privilege drop) are
 # load-bearing, not incidental: the unit is Type=simple, which requires
 # ExecStart's process to BE the running service. Without -F, varnishd
-# daemonizes as it normally would from a shell — the process systemd is
+# daemonizes as it normally would from a shell - the process systemd is
 # tracking exits almost immediately after handing off to the daemonized
 # child, systemd treats that exit as "the service stopped" and sends
 # SIGTERM to the orphaned-but-still-cgrouped child a moment later. Confirmed
@@ -138,9 +138,17 @@ systemctl enable --now varnish
 systemctl restart varnish
 
 echo "==> 6. Creating data directories"
-mkdir -p "$DATA_DIR/uploads" "$APP_ROOT/releases"
+# monitoring/ is created here (not left for whichever of backup.sh/
+# health-watch.sh happens to touch it first) so it's guaranteed
+# personalweb-owned by the chown -R below, regardless of ordering.
+# health-watch.sh runs as root (see its systemd unit) and backup.sh runs as
+# personalweb, and both write their own alert-debounce marker files into
+# this same directory; if root's mkdir -p ever created it first, personalweb
+# would lose write access to it and backup.sh's own alerting would silently
+# break.
+mkdir -p "$DATA_DIR/uploads" "$DATA_DIR/monitoring" "$APP_ROOT/releases"
 
-# adduser --system (step 1) with no --home defaults to /nonexistent — fine
+# adduser --system (step 1) with no --home defaults to /nonexistent - fine
 # for a service account that's never logged into directly, but the Pi's
 # backup-pull key DOES need to SSH in as personalweb, and OpenSSH resolves
 # authorized_keys relative to the account's real home directory. $DATA_DIR
@@ -148,7 +156,7 @@ mkdir -p "$DATA_DIR/uploads" "$APP_ROOT/releases"
 # (step 9 below), so it doubles as a real, stable home instead of
 # provisioning a separate /home/personalweb.
 #
-# Only touch this if it's actually wrong — usermod refuses to change a
+# Only touch this if it's actually wrong - usermod refuses to change a
 # user's home while it has live processes ("user personalweb is currently
 # used by process ..."), and personal-website.service runs continuously as
 # personalweb. On a fresh bootstrap the service doesn't exist yet, so this
@@ -168,13 +176,13 @@ fi
 
 echo "==> 7. Generating .env"
 if [ -f "$DATA_DIR/.env" ]; then
-    echo "    $DATA_DIR/.env already exists — leaving it untouched (secrets/DB password stay stable)."
+    echo "    $DATA_DIR/.env already exists - leaving it untouched (secrets/DB password stay stable)."
     if [ "$NO_AI" = true ]; then
-        echo "    NOTE: --no-ai has no effect here — .env already existed from an earlier run,"
+        echo "    NOTE: --no-ai has no effect here - .env already existed from an earlier run,"
         echo "    so ENABLE_AI_DEMOS was never (re)written. Edit $DATA_DIR/.env by hand if needed."
     fi
 else
-    # hex, not base64 — base64's +/= alphabet can complicate parsing the
+    # hex, not base64 - base64's +/= alphabet can complicate parsing the
     # resulting postgresql:// URI; hex is always alphanumeric.
     DB_PASSWORD="$(openssl rand -hex 24)"
 
@@ -182,7 +190,7 @@ else
     # got interrupted after creating the role but before .env was written
     # (SSH drop, disk full, Ctrl+C), a retry here would otherwise regenerate
     # a fresh DB_PASSWORD while leaving the already-existing role on its old
-    # one — silently writing a DATABASE_URL into .env that can never
+    # one - silently writing a DATABASE_URL into .env that can never
     # authenticate. Always (re)setting the password to match what's about to
     # be written below makes this convergent regardless of role history.
     sudo -u postgres psql -v ON_ERROR_STOP=1 <<SQL
@@ -230,10 +238,10 @@ if [ -z "$DOMAIN" ] && [ -t 0 ]; then
 fi
 if [ -n "$DOMAIN" ]; then
     echo -n "$DOMAIN" > "$DATA_DIR/certbot_domain.txt"
-    echo "    Wrote $DATA_DIR/certbot_domain.txt — install.sh will pick this up automatically."
+    echo "    Wrote $DATA_DIR/certbot_domain.txt - install.sh will pick this up automatically."
 else
     touch -a "$DATA_DIR/certbot_domain.txt"
-    echo "    No domain provided — set one later via install.sh --domain or the admin panel."
+    echo "    No domain provided - set one later via install.sh --domain or the admin panel."
 fi
 
 echo "==> 9. Fixing ownership"
@@ -247,8 +255,8 @@ echo " Next steps:"
 echo "   1. Get a release tarball onto this box (scp from your build box, or"
 echo "      gh release download)."
 echo "   2. sudo bash install.sh personal-website-vX.Y.Z.tar.gz"
-echo "      No .env editing, no domain prompt, no admin setup needed — all"
+echo "      No .env editing, no domain prompt, no admin setup needed - all"
 echo "      handled automatically from here."
-echo "   3. install.sh prints a one-time-generated admin@example.com password —"
+echo "   3. install.sh prints a one-time-generated admin@example.com password -"
 echo "      save it from that output, then log in at https://<domain>/admin."
 echo "=========================================================================="

@@ -8,9 +8,9 @@
 #   - Directly, by hand, when the restic repo + password are already on this
 #     box (the common case: same box, DB/app wiped, .env survived).
 #   - Remotely, by deploy/scripts/restore-remote.sh running ON THE PI, for a
-#     genuinely from-scratch box (new EC2 instance) — that script pushes the
+#     genuinely from-scratch box (new EC2 instance) - that script pushes the
 #     Pi's backup mirror here first (production can never reach the Pi, only
-#     the reverse is possible — see deploy/BACKUP.md), then invokes this
+#     the reverse is possible - see deploy/BACKUP.md), then invokes this
 #     script over SSH with --restic-repo/--restic-password-file pointed at
 #     what it just pushed.
 #
@@ -38,7 +38,7 @@ APP_ROOT="/opt/personal-website"
 _usage() {
     cat <<'EOF'
 ================================================================================
- restore.sh — disaster-recovery restore for personal-website
+ restore.sh - disaster-recovery restore for personal-website
 ================================================================================
  What this does:
    Restores the latest local restic backup (DB dump + uploads + secrets)
@@ -60,9 +60,13 @@ _usage() {
        [--yes] [--force]
 
  Flags:
-   --releases-repo   <owner>/<repo> on GitHub to install from. Optional if
-                     this box already has personal-website-updater.service
-                     installed with UPDATE_WATCH_RELEASES_REPO set.
+   --releases-repo   <owner>/<repo> on GitHub to install from. Optional:
+                     defaults to UPDATE_WATCH_RELEASES_REPO from the
+                     installed updater unit if present, else derives
+                     colinpetree/personal-website-dist-<domain> from this
+                     box's own certbot_domain.txt (the same convention
+                     publish-release.sh uses on the Pi). Prints which of
+                     the three it used.
    --tag             Release tag to install. Defaults to the latest release
                      in --releases-repo.
    --restic-repo     Path to the restic repository. Defaults to
@@ -71,18 +75,18 @@ _usage() {
                      succeeds, so future nightly backups keep working.
    --restic-password / --restic-password-file
                      Restic repository password, or a file containing it
-                     (preferred — avoids the secret appearing in `ps aux`
+                     (preferred - avoids the secret appearing in `ps aux`
                      or shell history). If neither is given, falls back to
                      RESTIC_PASSWORD already in this box's .env.
    --yes             Skip the interactive confirmation prompt. This banner
                      still prints either way. Does NOT skip the extra
-                     "site is currently healthy" gate below — that one
+                     "site is currently healthy" gate below - that one
                      needs --force.
    --force           Skip the extra confirmation that appears if this box's
                      app is currently up and answering health checks. Use
                      this only when you deliberately intend to restore over
                      a live, working site (e.g. testing the restore path
-                     itself) — it's a separate flag from --yes on purpose.
+                     itself) - it's a separate flag from --yes on purpose.
    -h, --help        Print this and exit.
 
  This is a DESTRUCTIVE operation: it overwrites the current database
@@ -122,7 +126,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 if [ ! -f "$DATA_DIR/.env" ]; then
-    echo "$DATA_DIR/.env not found — run bootstrap.sh on this box first."
+    echo "$DATA_DIR/.env not found - run bootstrap.sh on this box first."
     exit 1
 fi
 
@@ -154,17 +158,32 @@ fi
 
 if [ -n "$RELEASES_REPO_ARG" ]; then
     RELEASES_REPO="$RELEASES_REPO_ARG"
+    RELEASES_REPO_SOURCE="--releases-repo"
 else
     RELEASES_REPO="$(grep -oP 'Environment=UPDATE_WATCH_RELEASES_REPO=\K\S+' /etc/systemd/system/personal-website-updater.service 2>/dev/null || true)"
+    RELEASES_REPO_SOURCE="the installed updater unit"
     if [ -z "$RELEASES_REPO" ]; then
-        echo "--releases-repo not given, and UPDATE_WATCH_RELEASES_REPO is not set in the installed updater unit."
+        # Same colinpetree/personal-website-dist-<domain> convention
+        # publish-release.sh derives from PRERENDER_BASE_URL on the Pi -
+        # this script runs on the target instead, so it uses the target's
+        # own certbot_domain.txt (written by bootstrap.sh) as the domain
+        # source, since that's what's actually available here.
+        DOMAIN="$(cat "$DATA_DIR/certbot_domain.txt" 2>/dev/null || true)"
+        if [ -n "$DOMAIN" ]; then
+            RELEASES_REPO="colinpetree/personal-website-dist-${DOMAIN}"
+            RELEASES_REPO_SOURCE="derived from $DATA_DIR/certbot_domain.txt ($DOMAIN)"
+        fi
+    fi
+    if [ -z "$RELEASES_REPO" ]; then
+        echo "--releases-repo not given, UPDATE_WATCH_RELEASES_REPO is not set in the installed updater unit, and $DATA_DIR/certbot_domain.txt is empty or missing - nothing to derive a default from."
         exit 1
     fi
 fi
+_log "Releases repo: $RELEASES_REPO (from $RELEASES_REPO_SOURCE)"
 
 _log "Verifying restic repository is reachable..."
 if ! restic -r "$RESTIC_REPO" snapshots --last >/dev/null 2>&1; then
-    echo "Could not read snapshots from $RESTIC_REPO — wrong password, or repo is corrupt."
+    echo "Could not read snapshots from $RESTIC_REPO - wrong password, or repo is corrupt."
     exit 1
 fi
 
@@ -177,14 +196,14 @@ print(f"{s[\"time\"][:19]} from host {s.get(\"hostname\",\"?\")}")' 2>/dev/null 
 _log "Confirming all files this restore needs are present in this snapshot..."
 SNAPSHOT_LS="$(restic -r "$RESTIC_REPO" ls latest 2>/dev/null || true)"
 # backup.sh's own restic backup call includes exactly these four paths (see
-# deploy/scripts/backup.sh) — check for all of them here, up front, rather
+# deploy/scripts/backup.sh) - check for all of them here, up front, rather
 # than letting a missing one surface as a confusing failure mid-restore
 # (e.g. the .env merge loop or the uploads cp erroring on a path that
 # simply isn't there).
 for required in "$DATA_DIR/backups/pg/personal_website.sql.gz" "$DATA_DIR/.env" "$DATA_DIR/uploads"; do
     if ! grep -qxF "$required" <<<"$SNAPSHOT_LS"; then
         echo "Expected path not found in latest snapshot: $required"
-        echo "Wrong repo, or an unexpected/old snapshot layout — investigate before proceeding."
+        echo "Wrong repo, or an unexpected/old snapshot layout - investigate before proceeding."
         exit 1
     fi
 done
@@ -192,7 +211,7 @@ done
 # copies it when present and the current one is empty), so its absence is
 # a warning, not a hard failure.
 if ! grep -qxF "$DATA_DIR/certbot_domain.txt" <<<"$SNAPSHOT_LS"; then
-    _log "WARNING: $DATA_DIR/certbot_domain.txt not found in latest snapshot — this box's own certbot_domain.txt (if any) will be left as-is."
+    _log "WARNING: $DATA_DIR/certbot_domain.txt not found in latest snapshot - this box's own certbot_domain.txt (if any) will be left as-is."
 fi
 
 _log "Checking available disk space against the snapshot's restore size..."
@@ -208,7 +227,7 @@ if [ -n "$NEEDED_BYTES" ] && [ -n "$AVAIL_BYTES" ]; then
         exit 1
     fi
 else
-    _log "Could not determine snapshot size / available disk space — skipping this check."
+    _log "Could not determine snapshot size / available disk space - skipping this check."
 fi
 
 if [ -n "$TAG_ARG" ]; then
@@ -216,7 +235,7 @@ if [ -n "$TAG_ARG" ]; then
 else
     TAG="$(gh release list --repo "$RELEASES_REPO" --limit 1 --json tagName -q '.[0].tagName' 2>/dev/null || true)"
     if [ -z "$TAG" ]; then
-        echo "No releases found in $RELEASES_REPO (or 'gh' is not authenticated here — run 'gh auth login')."
+        echo "No releases found in $RELEASES_REPO (or 'gh' is not authenticated here - run 'gh auth login')."
         exit 1
     fi
 fi
@@ -240,7 +259,7 @@ cat <<EOF
 
  This run will, in order:
    1. Stop personal-website.service (if running)
-   2. Restore the snapshot above — OVERWRITES the current database
+   2. Restore the snapshot above - OVERWRITES the current database
       (pg_restore --clean) and the uploads/ directory
    3. Merge secrets (ENCRYPTION_KEY, RESTIC_PASSWORD, etc.) from that
       snapshot's .env into this box's .env, keeping THIS box's DATABASE_URL
@@ -267,7 +286,7 @@ if [ "$SITE_HEALTHY" = true ] && [ "$FORCE" != true ]; then
 EOF
     read -r -p 'Type "DESTROY" (all caps) to proceed anyway: ' DESTROY_CONFIRM
     if [ "$DESTROY_CONFIRM" != "DESTROY" ]; then
-        echo "Aborted — nothing was changed."
+        echo "Aborted - nothing was changed."
         exit 1
     fi
 fi
@@ -276,7 +295,7 @@ fi
 if [ "$ASSUME_YES" != true ]; then
     read -r -p 'Type "yes" to proceed: ' CONFIRM
     if [ "$CONFIRM" != "yes" ]; then
-        echo "Aborted — nothing was changed."
+        echo "Aborted - nothing was changed."
         exit 1
     fi
 fi
@@ -331,7 +350,7 @@ chown -R personalweb:personalweb "$DATA_DIR/uploads"
 # ---- 6. Relocate the restic repo to its canonical location, if needed ---------
 if [ "$(readlink -f "$RESTIC_REPO")" != "$(readlink -f "$DATA_DIR/restic-repo" 2>/dev/null || echo "$DATA_DIR/restic-repo")" ]; then
     if [ -e "$DATA_DIR/restic-repo" ]; then
-        echo "ERROR: $DATA_DIR/restic-repo already exists and differs from the repo just used — resolve manually (not auto-overwriting)."
+        echo "ERROR: $DATA_DIR/restic-repo already exists and differs from the repo just used - resolve manually (not auto-overwriting)."
         exit 1
     fi
     _log "Relocating restic repo to $DATA_DIR/restic-repo so future nightly backups keep working..."
@@ -345,7 +364,7 @@ gh release download "$TAG" --repo "$RELEASES_REPO" --dir "$WORKDIR"
 tar -xzf "$WORKDIR"/personal-website-*.tar.gz -C "$WORKDIR"
 NEW_INSTALL="$(find "$WORKDIR" -mindepth 2 -maxdepth 3 -path '*/deploy/install.sh')"
 if [ -z "$NEW_INSTALL" ]; then
-    echo "Could not find deploy/install.sh inside the downloaded release — aborting before touching anything further."
+    echo "Could not find deploy/install.sh inside the downloaded release - aborting before touching anything further."
     exit 1
 fi
 
@@ -358,7 +377,7 @@ echo "==========================================================================
 if [ "$INSTALL_OK" = true ]; then
     _log "Restore complete."
 else
-    _log "install.sh reported a failure — see its output above."
+    _log "install.sh reported a failure - see its output above."
     # readlink -e (not -f): -f canonicalizes even a nonexistent final
     # component and would print a path anyway on a from-scratch box where
     # install.sh failed before ever creating this symlink, making the
@@ -366,21 +385,21 @@ else
     # exist, so it's genuinely empty when there's truly no current release.
     CURRENT_AFTER="$(readlink -e "$APP_ROOT/current" 2>/dev/null || true)"
     if [ -z "$CURRENT_AFTER" ] || [ "$(basename "$CURRENT_AFTER")" = "$TAG" ]; then
-        _log "NOTE: no previous release for install.sh to roll back to (or it left $TAG in place) — the site may be left down; debug manually (systemctl status personal-website, journalctl -u personal-website)."
+        _log "NOTE: no previous release for install.sh to roll back to (or it left $TAG in place) - the site may be left down; debug manually (systemctl status personal-website, journalctl -u personal-website)."
     else
         # install.sh rolled back to an OLDER release's code, but the database
         # still has whatever migrations it just ran for $TAG applied on top of
-        # the data we restored above — old code was never written against
+        # the data we restored above - old code was never written against
         # that schema. Re-restore the pre-migration dump (still sitting in
         # $WORKDIR, not cleaned up until this script exits) so the code
         # install.sh actually left running is paired with data at the schema
         # state it expects, rather than leaving a silent code/schema mismatch.
-        _log "install.sh rolled back to $(basename "$CURRENT_AFTER") — re-restoring pre-migration data so it isn't left running against $TAG's schema changes..."
+        _log "install.sh rolled back to $(basename "$CURRENT_AFTER") - re-restoring pre-migration data so it isn't left running against $TAG's schema changes..."
         if gunzip -c "$RESTORED/backups/pg/personal_website.sql.gz" | pg_restore --clean --if-exists -d "$DATABASE_URL"; then
             systemctl restart personal-website
             _log "Pre-migration data re-restored and $(basename "$CURRENT_AFTER") restarted."
         else
-            _log "WARNING: re-restoring pre-migration data also failed — database may now be in an inconsistent state. Investigate manually before trusting this site."
+            _log "WARNING: re-restoring pre-migration data also failed - database may now be in an inconsistent state. Investigate manually before trusting this site."
         fi
     fi
 fi
