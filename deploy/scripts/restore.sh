@@ -23,9 +23,9 @@
 #   sudo bash restore.sh --help
 #
 # Safety note: if the target is currently up and answering health checks,
-# this script requires typing "DESTROY" interactively no matter what --
-# --yes does NOT skip this specific gate, since restore-remote.sh always
-# passes --yes and the whole point of this gate is to catch "wrong
+# this script requires typing the box's own domain interactively no matter
+# what - --yes does NOT skip this specific gate, since restore-remote.sh
+# always passes --yes and the whole point of this gate is to catch "wrong
 # --target-host" mistakes on the Pi side. Pass --force to skip it
 # deliberately (e.g. testing a restore against a live box on purpose).
 set -euo pipefail
@@ -251,11 +251,14 @@ BACKEND_PORT="$(grep -oP 'GUNICORN_BIND=127\.0\.0\.1:\K[0-9]+' /etc/systemd/syst
 if [ -n "$BACKEND_PORT" ] && curl -sf --connect-timeout 3 --max-time 5 "http://127.0.0.1:$BACKEND_PORT/api/site-config" >/dev/null 2>&1; then
     SITE_HEALTHY=true
 fi
+CURRENT_DOMAIN="$(cat "$DATA_DIR/certbot_domain.txt" 2>/dev/null || true)"
+[ -n "$CURRENT_DOMAIN" ] || CURRENT_DOMAIN="$(hostname)"
 
 # ---- Info banner --------------------------------------------------------------
 _usage
 cat <<EOF
  Resolved for this run:
+   This box:         $CURRENT_DOMAIN
    Restic repo:      $RESTIC_REPO
    Latest snapshot:  $SNAPSHOT_INFO
    Releases repo:    $RELEASES_REPO
@@ -280,17 +283,27 @@ EOF
 # gate exists for (a fat-fingered --target-host on the Pi, pointed at a live
 # site by mistake) would sail straight through. --force is the explicit,
 # separate opt-in for genuinely wanting to restore over a live box.
+#
+# Confirmation is typing this box's own domain, not an arbitrary word like
+# "DESTROY" - the same pattern GitHub/Heroku use for deleting a repo/app.
+# It reads as a deliberate acknowledgment of exactly which site is about to
+# be wiped, rather than a word typed on reflex, which is exactly what
+# matters if --target-host was pointed at the wrong box.
 if [ "$SITE_HEALTHY" = true ] && [ "$FORCE" != true ]; then
     cat <<EOF
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!! This box's site is CURRENTLY UP AND HEALTHY (127.0.0.1:$BACKEND_PORT answered
-!! /api/site-config). Proceeding will DESTROY its live database and uploads,
-!! replacing them with the snapshot from: $SNAPSHOT_INFO
+!! This box ($CURRENT_DOMAIN) is CURRENTLY UP AND HEALTHY
+!! (127.0.0.1:$BACKEND_PORT answered /api/site-config).
+!!
+!! Proceeding will PERMANENTLY WIPE $CURRENT_DOMAIN's current live database
+!! and uploads/, replacing them with the snapshot from: $SNAPSHOT_INFO
+!!
+!! If this is not the site you meant to restore, stop now (Ctrl-C).
 !! This gate is NOT skipped by --yes. Pass --force if this is intentional.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 EOF
-    read -r -p 'Type "DESTROY" (all caps) to proceed anyway: ' DESTROY_CONFIRM
-    if [ "$DESTROY_CONFIRM" != "DESTROY" ]; then
+    read -r -p "Type this box's domain ($CURRENT_DOMAIN) to confirm: " DOMAIN_CONFIRM
+    if [ "$DOMAIN_CONFIRM" != "$CURRENT_DOMAIN" ]; then
         echo "Aborted - nothing was changed."
         exit 1
     fi
@@ -355,12 +368,25 @@ chown -R personalweb:personalweb "$DATA_DIR/uploads"
 # ---- 6. Relocate the restic repo to its canonical location, if needed ---------
 if [ "$(readlink -f "$RESTIC_REPO")" != "$(readlink -f "$DATA_DIR/restic-repo" 2>/dev/null || echo "$DATA_DIR/restic-repo")" ]; then
     if [ -e "$DATA_DIR/restic-repo" ]; then
-        echo "ERROR: $DATA_DIR/restic-repo already exists and differs from the repo just used - resolve manually (not auto-overwriting)."
-        exit 1
+        # Same repository pushed to a throwaway path (e.g. restore-remote.sh
+        # restoring a box from its OWN pulled-back backup, not a genuinely
+        # different instance) looks identical to a real conflict by path
+        # alone. Compare restic's own permanent repository ID (from `restic
+        # cat config`, set once at `restic init` and never changed) instead
+        # of assuming a path mismatch means a different repository.
+        EXISTING_REPO_ID="$(restic -r "$DATA_DIR/restic-repo" cat config 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' 2>/dev/null || true)"
+        PUSHED_REPO_ID="$(restic -r "$RESTIC_REPO" cat config 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' 2>/dev/null || true)"
+        if [ -n "$EXISTING_REPO_ID" ] && [ "$EXISTING_REPO_ID" = "$PUSHED_REPO_ID" ]; then
+            _log "$DATA_DIR/restic-repo is already this same repository (id $EXISTING_REPO_ID) - nothing to relocate."
+        else
+            echo "ERROR: $DATA_DIR/restic-repo already exists and is a DIFFERENT repository from the one just used (existing id: ${EXISTING_REPO_ID:-unknown}, used id: ${PUSHED_REPO_ID:-unknown}) - resolve manually (not auto-overwriting)."
+            exit 1
+        fi
+    else
+        _log "Relocating restic repo to $DATA_DIR/restic-repo so future nightly backups keep working..."
+        mv "$RESTIC_REPO" "$DATA_DIR/restic-repo"
+        chown -R personalweb:personalweb "$DATA_DIR/restic-repo"
     fi
-    _log "Relocating restic repo to $DATA_DIR/restic-repo so future nightly backups keep working..."
-    mv "$RESTIC_REPO" "$DATA_DIR/restic-repo"
-    chown -R personalweb:personalweb "$DATA_DIR/restic-repo"
 fi
 
 # ---- 7. Fetch and install the latest release -----------------------------------

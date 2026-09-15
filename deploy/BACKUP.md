@@ -158,8 +158,10 @@ Before touching anything, `restore.sh` also confirms the snapshot actually
 has everything a restore needs (the DB dump, `.env`, and `uploads/` - the
 same paths `backup.sh` backs up) and checks whether the box's own site is
 currently up and answering health checks. If it is, a second gate kicks in:
-typing `yes` alone is **not** enough - it requires typing `DESTROY` (this
-can't be skipped with `--yes`, only with an explicit `--force`), specifically
+typing `yes` alone is **not** enough - it requires typing the box's own
+domain (read from `certbot_domain.txt`, the same "type the resource name to
+confirm" pattern GitHub/Heroku use for deleting a repo/app), which can't be
+skipped with `--yes`, only with an explicit `--force`, specifically
 to catch a mistyped `--target-host` on the Pi pointing this at a live site
 by accident. If `install.sh`'s own post-install health check fails and it
 rolls back to an older release, `restore.sh` also re-restores the

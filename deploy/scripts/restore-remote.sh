@@ -38,8 +38,8 @@ _usage() {
  Safety note: this script always passes --yes to the remote restore.sh
  (there's no one at that terminal to answer a prompt), but restore.sh has
  its own separate, non-bypassable gate if the target turns out to be
- currently up and healthy - it'll require typing "DESTROY" over this SSH
- session specifically to guard against a mistyped --target-host pointing
+ currently up and healthy - it'll require typing the target's own domain
+ over this SSH session specifically to guard against a mistyped --target-host pointing
  this at a live site by accident.
 
  Usage:
