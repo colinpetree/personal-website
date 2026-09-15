@@ -109,11 +109,16 @@ if [ -z "${RESTIC_PASSWORD:-}" ] || [ -z "${BACKUP_PULL_LOCAL_DIR:-}" ]; then
 fi
 
 _log "Checking this Pi's local backup mirror is healthy..."
-SNAPSHOT_INFO="$(RESTIC_PASSWORD="$RESTIC_PASSWORD" restic -r "$BACKUP_PULL_LOCAL_DIR" snapshots --last --json 2>/dev/null \
+# No backslash inside the f-string's {...}: that's a syntax error on Python
+# older than 3.12 (PEP 701 lifted the restriction) - confirmed failing on
+# the Pi's own python3. Assign plain variables first instead.
+SNAPSHOT_INFO="$(RESTIC_PASSWORD="$RESTIC_PASSWORD" restic -r "$BACKUP_PULL_LOCAL_DIR" snapshots --latest 1 --json 2>/dev/null \
     | python3 -c 'import json,sys
 d=json.load(sys.stdin)
 s=d[0]
-print(f"{s[\"time\"][:19]} from host {s.get(\"hostname\",\"?\")}")' 2>/dev/null || true)"
+t=s["time"][:19]
+h=s.get("hostname","?")
+print(f"{t} from host {h}")' 2>/dev/null || true)"
 if [ -z "$SNAPSHOT_INFO" ]; then
     echo "Could not read a snapshot from $BACKUP_PULL_LOCAL_DIR - the local mirror may be stale or broken. Check backup-status.sh before proceeding."
     exit 1

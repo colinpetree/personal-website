@@ -182,16 +182,21 @@ fi
 _log "Releases repo: $RELEASES_REPO (from $RELEASES_REPO_SOURCE)"
 
 _log "Verifying restic repository is reachable..."
-if ! restic -r "$RESTIC_REPO" snapshots --last >/dev/null 2>&1; then
+if ! restic -r "$RESTIC_REPO" snapshots --latest 1 >/dev/null 2>&1; then
     echo "Could not read snapshots from $RESTIC_REPO - wrong password, or repo is corrupt."
     exit 1
 fi
 
-SNAPSHOT_INFO="$(restic -r "$RESTIC_REPO" snapshots --last --json 2>/dev/null \
+# No backslash inside the f-string's {...}: that's a syntax error on Python
+# older than 3.12 (PEP 701 lifted the restriction) - confirmed failing on
+# the Pi's own python3. Assign plain variables first instead.
+SNAPSHOT_INFO="$(restic -r "$RESTIC_REPO" snapshots --latest 1 --json 2>/dev/null \
     | python3 -c 'import json,sys
 d=json.load(sys.stdin)
 s=d[0]
-print(f"{s[\"time\"][:19]} from host {s.get(\"hostname\",\"?\")}")' 2>/dev/null || echo "unknown")"
+t=s["time"][:19]
+h=s.get("hostname","?")
+print(f"{t} from host {h}")' 2>/dev/null || echo "unknown")"
 
 _log "Confirming all files this restore needs are present in this snapshot..."
 SNAPSHOT_LS="$(restic -r "$RESTIC_REPO" ls latest 2>/dev/null || true)"
