@@ -339,9 +339,20 @@ _upsert_env() {   # _upsert_env <key> <value>
     echo "${key}=${value}" >> "$tmp"
     mv "$tmp" "$DATA_DIR/.env"
 }
-while IFS='=' read -r key value; do
+# A regex match, not `IFS='=' read -r key value`: bash's `read` silently
+# drops a trailing delimiter character when it's the very last character on
+# the line, which truncates any value ending in "=" by one character - and
+# every 32-byte base64 secret (ENCRYPTION_KEY, RESTIC_PASSWORD) ends in "="
+# padding, always, deterministically. Confirmed for real: this corrupted
+# both of those secrets on a live restore, breaking Mailgun/Stripe/Google
+# OAuth decryption and locking the restic repo's own password out from
+# under itself. `[[ ... =~ ... ]]` captures everything after the first "="
+# verbatim, including a trailing one.
+while IFS= read -r line; do
+    [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=(.*)$ ]] || continue   # skips blank/comment lines
+    key="${BASH_REMATCH[1]}"
+    value="${BASH_REMATCH[2]}"
     [ "$key" = "DATABASE_URL" ] && continue
-    [[ "$key" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]] || continue   # skips blank/comment lines
     _upsert_env "$key" "$value"
 done < "$RESTORED/.env"
 chown personalweb:personalweb "$DATA_DIR/.env"
