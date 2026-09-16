@@ -514,7 +514,7 @@ export default function ConversationBasicsPage() {
         >
           <PanelLeft size={15} />
         </button>
-        <Link to={`/${config?.ai_demo_slug ?? 'demo'}`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
+        <Link to={`/${config?.slugs?.ai_demo ?? 'demo'}`} className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ChevronLeft size={16} />
           Back to {config?.nav?.find(n => n.key === 'ai_demo')?.name || 'AI Demos'}
         </Link>

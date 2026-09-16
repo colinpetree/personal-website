@@ -87,7 +87,7 @@ export default function AIDemoPage() {
           demo.available ? (
             <Link
               key={demo.key}
-              to={`/${config?.ai_demo_slug ?? 'demo'}/${demo.key}`}
+              to={`/${config?.slugs?.ai_demo ?? 'demo'}/${demo.key}`}
               className="border border-gray-200 rounded-lg p-5 hover:border-gray-400 transition-colors"
             >
               <h2 className="text-lg font-semibold text-gray-900 mb-2">{demo.title}</h2>
