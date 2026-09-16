@@ -24,6 +24,14 @@ IMAGE_OPTIMIZE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 # capped responsive variants.
 MAX_IMAGE_DIM = 2400
 
+# Header/hero background images (HeaderNode's full/fullscreen/linear layouts) render
+# edge-to-edge at up to the full viewport width rather than being capped by the ~1200 CSS
+# px gallery/content column MAX_IMAGE_DIM above was tuned for, so on a large desktop or 4K
+# display (up to ~3840px wide) a MAX_IMAGE_DIM-capped background was visibly soft/upscaled
+# by the browser. Sized to cover a 4K-wide viewport with headroom, same reasoning as
+# MAX_IMAGE_DIM but for a much wider real-world display target.
+HEADER_IMAGE_MAX_DIM = 3840
+
 
 def get_app_data_dir():
     """Persistent runtime data directory — defaults to the Flask app's own
@@ -53,8 +61,12 @@ def thumbnail_variant_filename(filename, uploads_dir, width=400):
     return filename
 
 
-def optimize_image(input_path, uploads_dir, base_name):
+def optimize_image(input_path, uploads_dir, base_name, max_dim=MAX_IMAGE_DIM):
     """Convert image to WebP, generate 400/800/1200w variants, and a base64 LQIP.
+
+    max_dim overrides the default long-edge cap (MAX_IMAGE_DIM). Pass
+    HEADER_IMAGE_MAX_DIM for header/hero background images, which render much
+    wider than the content column MAX_IMAGE_DIM was tuned for.
 
     Returns (webp_filename, srcset_string, lqip_data_url, width, height).
     """
@@ -69,20 +81,20 @@ def optimize_image(input_path, uploads_dir, base_name):
     # be called before anything else touches pixel data. draft() only
     # supports power-of-2 scale factors and treats its target as a minimum,
     # so this is a coarse pre-scale — the resize below still does the exact,
-    # high-quality LANCZOS scale down to MAX_IMAGE_DIM.
+    # high-quality LANCZOS scale down to max_dim.
     if img.format == 'JPEG':
-        img.draft('RGB', (MAX_IMAGE_DIM, MAX_IMAGE_DIM))
+        img.draft('RGB', (max_dim, max_dim))
 
     if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
         img = img.convert('RGBA')
     elif img.mode != 'RGB':
         img = img.convert('RGB')
 
-    # Cap the source to MAX_IMAGE_DIM before any encoding — see the comment
-    # on MAX_IMAGE_DIM for why this matters. Every downstream step (full-size
+    # Cap the source to max_dim before any encoding; see the comment on
+    # MAX_IMAGE_DIM for why this matters. Every downstream step (full-size
     # save, responsive variants, LQIP) operates on this capped image.
-    if max(img.width, img.height) > MAX_IMAGE_DIM:
-        scale = MAX_IMAGE_DIM / max(img.width, img.height)
+    if max(img.width, img.height) > max_dim:
+        scale = max_dim / max(img.width, img.height)
         capped_size = (max(1, round(img.width * scale)), max(1, round(img.height * scale)))
         img = img.resize(capped_size, Image.LANCZOS)
 
@@ -122,8 +134,10 @@ def optimize_image(input_path, uploads_dir, base_name):
     return webp_filename, srcset, lqip, img.width, img.height
 
 
-def save_and_optimize_image(file, uploads_dir):
+def save_and_optimize_image(file, uploads_dir, max_dim=MAX_IMAGE_DIM):
     """Saves an uploaded werkzeug FileStorage image, optimizing it to WebP.
+
+    max_dim overrides the default long-edge cap; see optimize_image().
 
     Returns (filename, srcset, lqip, width, height). Raises on
     unsupported/corrupt images — caller is responsible for catching and
@@ -135,7 +149,7 @@ def save_and_optimize_image(file, uploads_dir):
     tmp_path = os.path.join(uploads_dir, f'{base_name}_tmp.{ext}')
     file.save(tmp_path)
     try:
-        return optimize_image(tmp_path, uploads_dir, base_name)
+        return optimize_image(tmp_path, uploads_dir, base_name, max_dim=max_dim)
     finally:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

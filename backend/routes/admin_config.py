@@ -11,7 +11,7 @@ from models import SiteConfig, SiteEventLog
 from crypto import encrypt, decrypt
 from routes.admin_auth import admin_required, role_at_least
 from email_utils import send_email, mail_configured
-from upload_utils import save_and_optimize_image, save_favicon, IMAGE_OPTIMIZE_EXTENSIONS, get_app_data_dir, get_uploads_dir
+from upload_utils import save_and_optimize_image, save_favicon, IMAGE_OPTIMIZE_EXTENSIONS, HEADER_IMAGE_MAX_DIM, get_app_data_dir, get_uploads_dir
 from varnish_purge import purge_all_public
 
 logger = logging.getLogger(__name__)
@@ -277,8 +277,12 @@ def upload_file():
     os.makedirs(uploads_dir, exist_ok=True)
 
     if ext in IMAGE_OPTIMIZE_EXTENSIONS:
+        # HeaderNode's full/fullscreen/linear layouts render this image edge-to-edge at up
+        # to the full viewport width, well beyond the ~1200 CSS px content column the
+        # default cap is tuned for, so the editor flags header uploads to use a wider cap.
+        max_dim_kwargs = {'max_dim': HEADER_IMAGE_MAX_DIM} if request.form.get('context') == 'header' else {}
         try:
-            filename, srcset, lqip, width, height = save_and_optimize_image(file, uploads_dir)
+            filename, srcset, lqip, width, height = save_and_optimize_image(file, uploads_dir, **max_dim_kwargs)
         except Exception:
             return jsonify({'error': 'Could not process image. The file may be corrupted or unsupported.'}), 400
         return jsonify({

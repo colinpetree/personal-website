@@ -12,7 +12,7 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { TableNode, TableCellNode } from '@lexical/table'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, Maximize2, Columns2, RectangleVertical, RectangleHorizontal, StretchHorizontal, Fullscreen, Link, Link2, Link2Off, X, Music, FileText, Plus, ImagePlus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, GripVertical } from 'lucide-react'
+import { AlignLeft, AlignCenter, Maximize2, Columns2, RectangleVertical, RectangleHorizontal, StretchHorizontal, Fullscreen, TriangleRight, Link, Link2, Link2Off, X, Music, FileText, Plus, ImagePlus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, GripVertical } from 'lucide-react'
 import { GALLERY_MAX_IMAGES, groupImagesIntoRows, computeRowAspectRatio, aspectRatioOf } from '../../../lib/galleryLayout'
 import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
 
@@ -1640,7 +1640,7 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
     // of seconds. Failures are tolerated individually via allSettled so one
     // bad file doesn't drop the others, matching the previous per-file
     // try/catch behavior.
-    const results = await Promise.allSettled(files.map(handleUploadFull))
+    const results = await Promise.allSettled(files.map(file => handleUploadFull(file)))
     const newImages = results
       .filter(r => r.status === 'fulfilled')
       .map(r => {
@@ -4367,6 +4367,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
         full:       { rightShift: -160, overlap: 380 },
         split:      { rightShift: -160, overlap: 380 },
         fullscreen: { rightShift: -160, overlap: 380 },
+        linear:     { rightShift: -160, overlap: 380 },
       }
       const { rightShift, overlap } = offsets[layout] || offsets.regular
       let left = rect.right + window.scrollX - PANEL_WIDTH + rightShift
@@ -4380,7 +4381,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
     return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
   }, [showPanel, layout])
 
-  const isFullish = layout === 'full' || layout === 'split' || layout === 'fullscreen'
+  const isFullish = layout === 'full' || layout === 'split' || layout === 'fullscreen' || layout === 'linear'
   const outerClass = isFullish ? 'w-full' : layout === 'wide' ? 'max-w-7xl mx-auto' : 'max-w-3xl mx-auto header-regular-preview'
   const sideMargin = isFullish ? '' : 'mx-6'
   const textAlignClass   = textAlign === 'center' ? 'text-center' : 'text-left'
@@ -4397,14 +4398,30 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   // shorter in the editor's mobile preview than it actually renders once published.
   // clamp() values mirror the `heights` map in HeaderNode.exportDOM() (nodes.jsx) — keep
   // both in sync. Fullscreen stays min-h-screen at every width, unaffected by scaling.
-  const minHeightClass   = layout === 'fullscreen' ? 'min-h-screen' : layout === 'split' ? 'min-h-[clamp(300px,42vw,600px)]' : layout === 'full' ? 'min-h-[clamp(280px,38vw,551px)]' : layout === 'wide' ? 'min-h-[clamp(240px,35vw,447px)]' : 'min-h-[clamp(200px,45vw,347px)]'
+  // linear uses a fixed `h-` (not `min-h-`) so its box can never grow past the
+  // aspect-ratio-driven value even if the heading/subheading/button content needs more
+  // room. overflow-hidden (applied at the className site below) clips any excess instead
+  // of letting the box (and the page) grow taller than intended. Every other layout keeps
+  // min-h- since they're floors, not hard caps. 2xl:h-screen forces linear to always fill
+  // the viewport (like fullscreen) at that breakpoint and up, since the 56.25vw slope alone
+  // can still land short of 100vh there; matches index.css's `min-width: 1536px` override.
+  const minHeightClass   = layout === 'fullscreen' ? 'min-h-screen' : layout === 'linear' ? 'h-[min(max(280px,56.25vw),100vh)] 2xl:h-screen' : layout === 'split' ? 'min-h-[clamp(300px,42vw,600px)]' : layout === 'full' ? 'min-h-[clamp(280px,38vw,551px)]' : layout === 'wide' ? 'min-h-[clamp(240px,35vw,447px)]' : 'min-h-[clamp(200px,45vw,347px)]'
   // Fullscreen ramps up across breakpoints (biggest at 2xl), rather than jumping straight
   // to its max size at md like the other layouts. leading-tight/snug (unitless, so they
   // scale correctly across every size above) keep wrapped lines tight instead of
   // inheriting the ambient prose line-height, which reads as an oversized gap at these
   // large heading/subheading font sizes.
-  const headingTextClass = (layout === 'fullscreen' ? 'text-[28px] md:text-6xl xl:text-[66px] 2xl:text-7xl' : isFullish ? 'text-[28px] md:text-6xl' : layout === 'wide' ? 'text-[28px] md:text-5xl' : 'text-[28px] md:text-4xl') + ' leading-tight'
-  const subTextClass     = (layout === 'fullscreen' ? 'text-base md:text-2xl xl:text-[27px] 2xl:text-3xl' : isFullish ? 'text-base md:text-2xl' : layout === 'wide' ? 'text-base md:text-[22px]' : 'text-base md:text-xl') + ' leading-snug'
+  // linear shrinks only below sm (640px) instead of md (768px) like the other fullish
+  // layouts, matching index.css's 639px-vs-768px split for .header-linear.
+  // Past 2xl (1536px), full/split/fullscreen/linear all switch their text to a pure vw
+  // size instead of staying flat, so it keeps growing with the header on very
+  // large/4K/1440p monitors instead of looking undersized once there's this much room.
+  // Each layout's vw slope is chosen to be continuous with its own flat size right at the
+  // 1536px breakpoint: full/split/linear start from 60px/24px (3.90625vw = 60/1536,
+  // 1.5625vw = 24/1536); fullscreen starts from its own bigger 72px/30px ramp value
+  // (4.6875vw = 72/1536, 1.953125vw = 30/1536).
+  const headingTextClass = (layout === 'fullscreen' ? 'text-[28px] md:text-6xl xl:text-[66px] 2xl:text-[4.6875vw]' : layout === 'linear' ? 'text-[28px] sm:text-6xl 2xl:text-[3.90625vw]' : isFullish ? 'text-[28px] md:text-6xl 2xl:text-[3.90625vw]' : layout === 'wide' ? 'text-[28px] md:text-5xl' : 'text-[28px] md:text-4xl') + ' leading-tight'
+  const subTextClass     = (layout === 'fullscreen' ? 'text-base md:text-2xl xl:text-[27px] 2xl:text-[1.953125vw]' : layout === 'linear' ? 'text-base sm:text-2xl 2xl:text-[1.5625vw]' : isFullish ? 'text-base md:text-2xl 2xl:text-[1.5625vw]' : layout === 'wide' ? 'text-base md:text-[22px]' : 'text-base md:text-xl') + ' leading-snug'
   const btnTextClass     = layout === 'fullscreen' ? 'text-xl' : isFullish ? 'text-lg' : 'text-base'
   // Wide/full/fullscreen ramp side padding up gradually across breakpoints instead of
   // jumping straight from the mobile value to the full 256px at md, which otherwise
@@ -4560,11 +4577,11 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             const isVideo = file.type.startsWith('video/') ||
               /\.(mp4|webm|mov)$/i.test(file.name)
             if (isVideo) {
-              const { filename } = await handleUploadFull(file)
+              const { filename } = await handleUploadFull(file, 'header')
               commitField('setHeaderVideo', filename)
               commitField('setBackgroundType', 'video')
             } else {
-              const { filename, lqip } = await handleUploadFull(file)
+              const { filename, lqip } = await handleUploadFull(file, 'header')
               commitField('setHeaderImage', filename)
               commitField('setHeaderImageLqip', lqip || '')
               commitField('setBackgroundType', 'image')
@@ -4662,7 +4679,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
           <div
             ref={containerRef}
             style={bgStyle}
-            className={`${shadowOverlay || hasBgVideo ? 'relative overflow-hidden' : ''} ${hasBgImage ? 'header-bg-image' : ''} ${sideMargin} ${minHeightClass} ${paddingClass} ${leftInsetClass} py-6 md:py-10 flex flex-col justify-center ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+            className={`${shadowOverlay || hasBgVideo || layout === 'linear' ? 'relative overflow-hidden' : ''} ${hasBgImage ? 'header-bg-image' : ''} ${sideMargin} ${minHeightClass} ${paddingClass} ${leftInsetClass} py-6 md:py-10 flex flex-col justify-center ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
           >
             {hasBgVideo && (
               <HeaderBgVideo src={headerVideo} className="header-bg-video" />
@@ -4713,6 +4730,14 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                   onClick={() => commitField('setLayout', 'full')}
                 >
                   <Maximize2 size={15} />
+                </button>
+              </Tooltip>
+              <Tooltip content="Linear">
+                <button
+                  className={`p-1.5 rounded-md transition-colors ${layout === 'linear' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  onClick={() => commitField('setLayout', 'linear')}
+                >
+                  <TriangleRight size={15} />
                 </button>
               </Tooltip>
               <Tooltip content="Split">
@@ -4791,6 +4816,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
               onVideoSelect={() => commitField('setBackgroundType', 'video')}
               onVideoDelete={() => { commitField('setHeaderVideo', null); commitField('setBackgroundType', 'color') }}
               onOpenChange={setBgPickerOpen}
+              uploadContext="header"
             />
           </div>
 
@@ -4965,7 +4991,8 @@ export class HeaderNode extends DecoratorNode {
             !node.classList?.contains('header-wide') &&
             !node.classList?.contains('header-full') &&
             !node.classList?.contains('header-split') &&
-            !node.classList?.contains('header-fullscreen')) return null
+            !node.classList?.contains('header-fullscreen') &&
+            !node.classList?.contains('header-linear')) return null
         return {
           conversion: (domNode) => {
             const layout = domNode.getAttribute('data-layout') || 'regular'
@@ -5052,12 +5079,17 @@ export class HeaderNode extends DecoratorNode {
     // viewport width where that layout's own rendered width plateaus (its max-width cap,
     // or a large-desktop reference for layouts with no cap) — see the plan/tuning notes for
     // the derivation. Fullscreen intentionally stays 100vh at every width.
-    const heights      = { regular: 'clamp(200px, 45vw, 347px)', wide: 'clamp(240px, 35vw, 447px)', full: 'clamp(280px, 38vw, 551px)', split: 'clamp(300px, 42vw, 600px)', fullscreen: '100vh' }
+    // linear's slope (56.25vw = 1080/1920) is a true 16:9 ratio, floored at 280px like the
+    // other layouts but capped at 100vh instead of a fixed px ceiling; once the viewport is
+    // wide/short enough that the 16:9 slope would exceed the screen's own height, the header
+    // stops growing there instead of pushing content off the page (mirrors fullscreen's
+    // 100vh cap, just reached via the aspect-ratio slope instead of applying at every width).
+    const heights      = { regular: 'clamp(200px, 45vw, 347px)', wide: 'clamp(240px, 35vw, 447px)', full: 'clamp(280px, 38vw, 551px)', split: 'clamp(300px, 42vw, 600px)', fullscreen: '100vh', linear: 'min(max(280px, 56.25vw), 100vh)' }
     // Fullscreen's base (below xl) matches full width's size — the CSS media queries in
     // index.css (min-width: 1280px/1536px) ramp it up further at xl and 2xl.
-    const headingSizes = { regular: '36px',  wide: '48px',  full: '60px',  split: '60px',  fullscreen: '60px' }
-    const subSizes     = { regular: '20px',  wide: '22px',  full: '24px',  split: '24px',  fullscreen: '24px' }
-    const btnSizes     = { regular: '16px',  wide: '16px',  full: '18px',  split: '18px',  fullscreen: '20px' }
+    const headingSizes = { regular: '36px',  wide: '48px',  full: '60px',  split: '60px',  fullscreen: '60px', linear: '60px' }
+    const subSizes     = { regular: '20px',  wide: '22px',  full: '24px',  split: '24px',  fullscreen: '24px', linear: '24px' }
+    const btnSizes     = { regular: '16px',  wide: '16px',  full: '18px',  split: '18px',  fullscreen: '20px', linear: '18px' }
 
     const header = document.createElement('header')
     header.className = `header-${this.__layout}`
@@ -5067,9 +5099,15 @@ export class HeaderNode extends DecoratorNode {
     header.setAttribute('data-button-url', this.__buttonUrl)
     header.setAttribute('data-button-color', this.__buttonColor)
     header.setAttribute('data-text-align', this.__textAlign)
-    if (this.__headerImage) header.setAttribute('data-header-image', this.__headerImage)
-    if (this.__headerImageLqip) header.setAttribute('data-header-image-lqip', this.__headerImageLqip)
-    if (this.__headerVideo) header.setAttribute('data-header-video', this.__headerVideo)
+    // Only the active media type's reference is written out here (and so round-trips back
+    // in via importDOM). backgroundType tracks which of image/video is current, and the
+    // other one (left over from switching types without deleting it) is deliberately
+    // dropped instead of lingering as an unused reference in the saved/published HTML.
+    if (this.__backgroundType === 'image' && this.__headerImage) {
+      header.setAttribute('data-header-image', this.__headerImage)
+      if (this.__headerImageLqip) header.setAttribute('data-header-image-lqip', this.__headerImageLqip)
+    }
+    if (this.__backgroundType === 'video' && this.__headerVideo) header.setAttribute('data-header-video', this.__headerVideo)
     header.setAttribute('data-flip-layout', String(this.__flipLayout))
     header.setAttribute('data-background-color', this.__backgroundColor)
     header.setAttribute('data-background-type', this.__backgroundType)
@@ -5219,7 +5257,17 @@ export class HeaderNode extends DecoratorNode {
       const inner = document.createElement('div')
       inner.className = hasBgImage ? 'header-inner header-bg-image' : 'header-inner'
       Object.assign(inner.style, bgStyle)
-      inner.style.minHeight = heights[this.__layout] || '347px'
+      // linear is a hard cap, not a floor: `height` (not `min-height`) plus overflow:hidden
+      // so the box can never grow past its aspect-ratio-driven size even if the
+      // heading/subheading/button content needs more room than that; it clips instead of
+      // pushing the header (and the page) taller than the viewport. Every other layout uses
+      // min-height since their clamp() values are floors they're meant to grow past.
+      if (this.__layout === 'linear') {
+        inner.style.height = heights.linear
+        inner.style.overflow = 'hidden'
+      } else {
+        inner.style.minHeight = heights[this.__layout] || '347px'
+      }
       inner.style.textAlign = this.__textAlign || 'left'
       inner.style.display = 'flex'
       inner.style.flexDirection = 'column'

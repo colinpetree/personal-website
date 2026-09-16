@@ -975,11 +975,12 @@ html {
   transition: none !important;
 }
 
-/* Header block — break wide/full/split/fullscreen out of the max-w-3xl page container */
+/* Header block: break wide/full/split/fullscreen/linear out of the max-w-3xl page container */
 .blog-content header.header-wide,
 .blog-content header.header-full,
 .blog-content header.header-split,
-.blog-content header.header-fullscreen {
+.blog-content header.header-fullscreen,
+.blog-content header.header-linear {
   width: 100vw !important;
   margin-left: calc(50% - 50vw) !important;
   position: relative;
@@ -997,7 +998,8 @@ html {
 .page-header-content > header.header-wide:first-child,
 .page-header-content > header.header-full:first-child,
 .page-header-content > header.header-split:first-child,
-.page-header-content > header.header-fullscreen:first-child {
+.page-header-content > header.header-fullscreen:first-child,
+.page-header-content > header.header-linear:first-child {
   margin-top: -2.5rem;
 }
 
@@ -1116,8 +1118,8 @@ html {
 
 /* Header block — fullscreen layout heading/subheading ramp up across breakpoints
    (biggest at 2xl) instead of jumping straight to their max size at md. Matches the
-   editor's `md:text-6xl xl:text-[66px] 2xl:text-7xl` / `md:text-2xl xl:text-[27px]
-   2xl:text-3xl`. exportDOM's base inline size (60px/24px) covers md–lg. !important
+   editor's `md:text-6xl xl:text-[66px] 2xl:text-[4.6875vw]` / `md:text-2xl xl:text-[27px]
+   2xl:text-[1.953125vw]`. exportDOM's base inline size (60px/24px) covers md-lg. !important
    needed since exportDOM sets that base size as an inline style; the 2xl rule comes
    after the xl rule so it wins at 2xl+ where both match. */
 @media (min-width: 1280px) {
@@ -1128,12 +1130,41 @@ html {
     font-size: 27px !important;
   }
 }
+/* Past 2xl, text keeps growing continuously with viewport width instead of staying flat
+   at a fixed px value, so it doesn't look undersized on 1440p/4K monitors once there's
+   this much room. Slopes are chosen to be continuous with each layout's own flat size
+   right at 1536px: full/split/linear start from 60px/24px (3.90625vw = 60/1536,
+   1.5625vw = 24/1536); fullscreen starts from its own bigger 72px/30px ramp value
+   (4.6875vw = 72/1536, 1.953125vw = 30/1536). line-height stays the unitless 1.25/1.375
+   set inline, which already scales proportionally with font-size. Matches the editor's
+   `2xl:text-[...]` classes. */
 @media (min-width: 1536px) {
   .blog-content header.header-fullscreen .header-heading {
-    font-size: 72px !important;
+    font-size: 4.6875vw !important;
   }
   .blog-content header.header-fullscreen .header-subheading {
-    font-size: 30px !important;
+    font-size: 1.953125vw !important;
+  }
+  .blog-content header.header-full .header-heading,
+  .blog-content header.header-split .header-heading,
+  .blog-content header.header-linear .header-heading {
+    font-size: 3.90625vw !important;
+  }
+  .blog-content header.header-full .header-subheading,
+  .blog-content header.header-split .header-subheading,
+  .blog-content header.header-linear .header-subheading {
+    font-size: 1.5625vw !important;
+  }
+}
+
+/* Header block: linear always fills the viewport (like fullscreen) at 2xl and up,
+   instead of following its own `min(max(280px, 56.25vw), 100vh)` slope. Below 2xl that
+   slope can land short of 100vh (e.g. it only reaches 864px at exactly 1536px width), so
+   without this the background image wouldn't scale to fill the screen the way fullscreen's
+   always does once there's this much room. !important beats exportDOM's inline height. */
+@media (min-width: 1536px) {
+  .blog-content header.header-linear .header-inner {
+    height: 100vh !important;
   }
 }
 
@@ -1146,7 +1177,8 @@ html {
 @media (max-width: 1535px) {
   .blog-content header.header-wide .header-inner,
   .blog-content header.header-full .header-inner,
-  .blog-content header.header-fullscreen .header-inner {
+  .blog-content header.header-fullscreen .header-inner,
+  .blog-content header.header-linear .header-inner {
     padding-left: 160px !important;
     padding-right: 160px !important;
   }
@@ -1154,7 +1186,8 @@ html {
 @media (max-width: 1279px) {
   .blog-content header.header-wide .header-inner,
   .blog-content header.header-full .header-inner,
-  .blog-content header.header-fullscreen .header-inner {
+  .blog-content header.header-fullscreen .header-inner,
+  .blog-content header.header-linear .header-inner {
     padding-left: 96px !important;
     padding-right: 96px !important;
   }
@@ -1162,7 +1195,8 @@ html {
 @media (max-width: 1023px) {
   .blog-content header.header-wide .header-inner,
   .blog-content header.header-full .header-inner,
-  .blog-content header.header-fullscreen .header-inner {
+  .blog-content header.header-fullscreen .header-inner,
+  .blog-content header.header-linear .header-inner {
     padding-left: 56px !important;
     padding-right: 56px !important;
   }
@@ -1184,6 +1218,9 @@ html {
   .blog-content header.header-fullscreen .header-inner {
     padding: 24px 32px !important;
   }
+  .blog-content header.header-linear .header-inner {
+    padding: 24px 32px !important;
+  }
   .blog-content header.header-split {
     flex-direction: column !important;
   }
@@ -1202,10 +1239,10 @@ html {
     padding: 24px 32px !important;
     min-height: 240px !important;
   }
-  .blog-content .header-heading {
+  .blog-content header:not(.header-linear) .header-heading {
     font-size: 28px !important;
   }
-  .blog-content .header-subheading {
+  .blog-content header:not(.header-linear) .header-subheading {
     font-size: 16px !important;
   }
   /* Left-align's text column (nodes.jsx) widens from 50% to 60% on small screens — at 50%
@@ -1213,6 +1250,18 @@ html {
      header's midpoint by much. Matches the editor's `max-md:max-w-[60%]`. */
   .blog-content header[data-text-align="left"] .header-text-col {
     max-width: 60% !important;
+  }
+}
+
+/* Header block: linear shrinks its heading/subheading only below sm (640px) instead of
+   the 768px threshold every other layout uses above, matching the editor's
+   `text-[28px] sm:text-6xl` / `text-base sm:text-2xl` classes. */
+@media (max-width: 639px) {
+  .blog-content header.header-linear .header-heading {
+    font-size: 28px !important;
+  }
+  .blog-content header.header-linear .header-subheading {
+    font-size: 16px !important;
   }
 }
 
@@ -1226,6 +1275,7 @@ html {
   .blog-content header[data-text-align="left"].header-wide .header-inner,
   .blog-content header[data-text-align="left"].header-full .header-inner,
   .blog-content header[data-text-align="left"].header-fullscreen .header-inner,
+  .blog-content header[data-text-align="left"].header-linear .header-inner,
   .blog-content header[data-text-align="left"].header-split .header-split-text {
     padding-left: 24px !important;
   }

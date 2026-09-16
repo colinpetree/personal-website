@@ -316,6 +316,7 @@ export function ColorSwatchMenu({
   initialOpen = false,
   anchorEl = null,
   verticalLightness = true,
+  uploadContext,
 }) {
   const initialCustom = isValidHex(value) && !presets.map(p => p.toLowerCase()).includes(value.toLowerCase())
     ? value
@@ -407,7 +408,7 @@ export function ColorSwatchMenu({
   async function doImageUpload(file) {
     if (!file) return
     try {
-      const { filename, lqip } = await handleUploadFull(file)
+      const { filename, lqip } = await handleUploadFull(file, uploadContext)
       onImageUpload?.(filename, lqip)
       setSwatchesOpen(false)
       setImgMgmtOpen(false)
@@ -417,7 +418,7 @@ export function ColorSwatchMenu({
   async function doVideoUpload(file) {
     if (!file) return
     try {
-      const { filename } = await handleUploadFull(file)
+      const { filename } = await handleUploadFull(file, uploadContext)
       onVideoUpload?.(filename)
       setSwatchesOpen(false)
       setVidMgmtOpen(false)
