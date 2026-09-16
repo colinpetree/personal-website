@@ -12,7 +12,7 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { TableNode, TableCellNode } from '@lexical/table'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, Maximize2, Columns2, RectangleVertical, RectangleHorizontal, StretchHorizontal, Fullscreen, TriangleRight, Link, Link2, Link2Off, X, Music, FileText, Plus, ImagePlus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, GripVertical } from 'lucide-react'
+import { AlignLeft, AlignCenter, Maximize2, Columns2, RectangleVertical, RectangleHorizontal, StretchHorizontal, Fullscreen, TriangleRight, BetweenVerticalEnd, Link, Link2, Link2Off, X, Music, FileText, Plus, ImagePlus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, GripVertical } from 'lucide-react'
 import { GALLERY_MAX_IMAGES, groupImagesIntoRows, computeRowAspectRatio, aspectRatioOf } from '../../../lib/galleryLayout'
 import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
 
@@ -4362,12 +4362,13 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
       const rect = containerRef.current?.getBoundingClientRect()
       if (!rect) return
       const offsets = {
-        regular:    { rightShift: 140, overlap: 220 },
-        wide:       { rightShift: -40, overlap: 320 },
-        full:       { rightShift: -160, overlap: 380 },
-        split:      { rightShift: -160, overlap: 380 },
-        fullscreen: { rightShift: -160, overlap: 380 },
-        linear:     { rightShift: -160, overlap: 380 },
+        regular:     { rightShift: 140, overlap: 220 },
+        wide:        { rightShift: -40, overlap: 320 },
+        full:        { rightShift: -160, overlap: 380 },
+        split:       { rightShift: -160, overlap: 380 },
+        fullscreen:  { rightShift: -160, overlap: 380 },
+        linear:      { rightShift: -160, overlap: 380 },
+        'linear-split': { rightShift: -160, overlap: 380 },
       }
       const { rightShift, overlap } = offsets[layout] || offsets.regular
       let left = rect.right + window.scrollX - PANEL_WIDTH + rightShift
@@ -4381,7 +4382,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
     return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
   }, [showPanel, layout])
 
-  const isFullish = layout === 'full' || layout === 'split' || layout === 'fullscreen' || layout === 'linear'
+  const isFullish = layout === 'full' || layout === 'split' || layout === 'fullscreen' || layout === 'linear' || layout === 'linear-split'
   const outerClass = isFullish ? 'w-full' : layout === 'wide' ? 'max-w-7xl mx-auto' : 'max-w-3xl mx-auto header-regular-preview'
   const sideMargin = isFullish ? '' : 'mx-6'
   const textAlignClass   = textAlign === 'center' ? 'text-center' : 'text-left'
@@ -4405,7 +4406,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   // min-h- since they're floors, not hard caps. 2xl:h-screen forces linear to always fill
   // the viewport (like fullscreen) at that breakpoint and up, since the 56.25vw slope alone
   // can still land short of 100vh there; matches index.css's `min-width: 1536px` override.
-  const minHeightClass   = layout === 'fullscreen' ? 'min-h-screen' : layout === 'linear' ? 'h-[min(max(280px,56.25vw),100vh)] 2xl:h-screen' : layout === 'split' ? 'min-h-[clamp(300px,42vw,600px)]' : layout === 'full' ? 'min-h-[clamp(280px,38vw,551px)]' : layout === 'wide' ? 'min-h-[clamp(240px,35vw,447px)]' : 'min-h-[clamp(200px,45vw,347px)]'
+  const minHeightClass   = layout === 'fullscreen' ? 'min-h-screen' : layout === 'linear' ? 'h-[min(max(280px,56.25vw),100vh)] 2xl:h-screen' : layout === 'linear-split' ? 'h-[min(max(280px,43.75vw),100vh)]' : layout === 'split' ? 'min-h-[clamp(300px,42vw,600px)]' : layout === 'full' ? 'min-h-[clamp(280px,38vw,551px)]' : layout === 'wide' ? 'min-h-[clamp(240px,35vw,447px)]' : 'min-h-[clamp(200px,45vw,347px)]'
   // Fullscreen ramps up across breakpoints (biggest at 2xl), rather than jumping straight
   // to its max size at md like the other layouts. leading-tight/snug (unitless, so they
   // scale correctly across every size above) keep wrapped lines tight instead of
@@ -4420,16 +4421,30 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   // 1536px breakpoint: full/split/linear start from 60px/24px (3.90625vw = 60/1536,
   // 1.5625vw = 24/1536); fullscreen starts from its own bigger 72px/30px ramp value
   // (4.6875vw = 72/1536, 1.953125vw = 30/1536).
-  const headingTextClass = (layout === 'fullscreen' ? 'text-[28px] md:text-6xl xl:text-[66px] 2xl:text-[4.6875vw]' : layout === 'linear' ? 'text-[28px] sm:text-6xl 2xl:text-[3.90625vw]' : isFullish ? 'text-[28px] md:text-6xl 2xl:text-[3.90625vw]' : layout === 'wide' ? 'text-[28px] md:text-5xl' : 'text-[28px] md:text-4xl') + ' leading-tight'
-  const subTextClass     = (layout === 'fullscreen' ? 'text-base md:text-2xl xl:text-[27px] 2xl:text-[1.953125vw]' : layout === 'linear' ? 'text-base sm:text-2xl 2xl:text-[1.5625vw]' : isFullish ? 'text-base md:text-2xl 2xl:text-[1.5625vw]' : layout === 'wide' ? 'text-base md:text-[22px]' : 'text-base md:text-xl') + ' leading-snug'
+  // split and linear-split both get their own medium tier between md (768px) and lg
+  // (1024px), unlike the other isFullish layouts' flat jump straight from 28px to the full
+  // 60px/24px size at md — their text column is only half the header's width, so that full
+  // size reads oversized right as it first appears at 768px, before there's enough column
+  // width (at lg+) to comfortably hold it. 2xl vw-scaling past 1536px is unchanged,
+  // continuing from the same full-size base as the other isFullish layouts (see index.css's
+  // matching selector list).
+  const isSplitLike = layout === 'split' || layout === 'linear-split'
+  const headingTextClass = (layout === 'fullscreen' ? 'text-[28px] md:text-6xl xl:text-[66px] 2xl:text-[4.6875vw]' : layout === 'linear' ? 'text-[28px] sm:text-6xl 2xl:text-[3.90625vw]' : isSplitLike ? 'text-[28px] md:text-[40px] lg:text-6xl 2xl:text-[3.90625vw]' : isFullish ? 'text-[28px] md:text-6xl 2xl:text-[3.90625vw]' : layout === 'wide' ? 'text-[28px] md:text-5xl' : 'text-[28px] md:text-4xl') + ' leading-tight'
+  const subTextClass     = (layout === 'fullscreen' ? 'text-base md:text-2xl xl:text-[27px] 2xl:text-[1.953125vw]' : layout === 'linear' ? 'text-base sm:text-2xl 2xl:text-[1.5625vw]' : isSplitLike ? 'text-base md:text-[20px] lg:text-2xl 2xl:text-[1.5625vw]' : isFullish ? 'text-base md:text-2xl 2xl:text-[1.5625vw]' : layout === 'wide' ? 'text-base md:text-[22px]' : 'text-base md:text-xl') + ' leading-snug'
   const btnTextClass     = layout === 'fullscreen' ? 'text-xl' : isFullish ? 'text-lg' : 'text-base'
   // Wide/full/fullscreen ramp side padding up gradually across breakpoints instead of
   // jumping straight from the mobile value to the full 256px at md, which otherwise
   // squeezes the heading into a narrow column on in-between (tablet/small laptop) widths.
-  // Steps match index.css's public media queries exactly.
+  // Steps match index.css's public media queries exactly. Left-aligned full/linear/
+  // fullscreen (not wide — it's meant to stay a narrower, page-bound layout, not full-bleed
+  // — and not centered text, which stays flat like before) keeps growing past 2xl (1536px)
+  // at a sixth the rate of viewport width instead of staying pinned at 256px there, same
+  // idea as split/linear-split's own growing text-side padding.
   const paddingClass = layout === 'regular'
     ? 'px-8 md:px-20'
-    : 'px-8 md:px-14 lg:px-24 xl:px-40 2xl:px-64'
+    : (textAlign === 'left' && (layout === 'full' || layout === 'linear' || layout === 'fullscreen'))
+      ? 'px-8 md:px-14 lg:px-24 xl:px-40 min-[1536px]:px-[calc((100vw_-_1536px)/6_+_256px)]'
+      : 'px-8 md:px-14 lg:px-24 xl:px-40 2xl:px-64'
   // On small phones, a left-aligned header's left inset should match the blog post body
   // text's own left margin (BlogPostView's `px-6` = 24px) so the header's text edge lines
   // up with paragraph text below it — otherwise the header's default 32px (px-8) inset reads
@@ -4438,8 +4453,23 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   // matches the public breakpoint added in index.css.
   const leftInsetClass = textAlign === 'left' ? 'max-sm:pl-6' : ''
 
-  const hasBgImage = layout !== 'split' && backgroundType === 'image' && headerImage
-  const hasBgVideo = layout !== 'split' && backgroundType === 'video' && headerVideo
+  // Centered text in either split-style layout's text column keeps a small, constant
+  // symmetric padding at every width (no md: breakpoint, no growth) — a big fixed inset
+  // wraps centered text early for no reason, and a plain equal value on both sides is
+  // trivially centered at any width without needing any responsive logic at all.
+  // Left-aligned text keeps each layout's own asymmetric/growing inset instead (deeper on
+  // the side away from the divider) — both layouts' left padding grows past 1020px (see
+  // index.css for the matching published rules); only linear-split also drops its right
+  // padding to 0 (split keeps its fixed 48px there, unchanged).
+  const linearSplitTextPad = textAlign === 'center'
+    ? 'px-6'
+    : 'pl-8 pr-0 md:pl-24 md:pr-0 min-[1020px]:pl-[calc((100vw_-_1020px)/6_+_96px)]'
+  const splitTextPad = textAlign === 'center'
+    ? 'px-6'
+    : 'pl-8 pr-8 md:pl-24 md:pr-12 min-[1020px]:pl-[calc((100vw_-_1020px)/6_+_96px)]'
+
+  const hasBgImage = layout !== 'split' && layout !== 'linear-split' && backgroundType === 'image' && headerImage
+  const hasBgVideo = layout !== 'split' && layout !== 'linear-split' && backgroundType === 'video' && headerVideo
   // background-size: cover is set via the .header-bg-image CSS class (index.css) rather
   // than inline, so the image always crops to fill the box at every width. backgroundColor
   // is a fallback in case the image is still loading or fails.
@@ -4595,23 +4625,25 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {layout === 'split' ? (
+        {(layout === 'split' || layout === 'linear-split') ? (
           <div
             ref={containerRef}
-            className={`${sideMargin} ${minHeightClass} flex flex-col ${flipLayout ? 'md:flex-row-reverse' : 'md:flex-row'} ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+            className={`${sideMargin} ${minHeightClass} flex ${layout === 'linear-split' ? `overflow-hidden ${flipLayout ? 'flex-row-reverse' : 'flex-row'}` : `flex-col-reverse ${flipLayout ? 'md:flex-row-reverse' : 'md:flex-row'}`} ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
           >
             {/* Image/video side */}
             {/* h-[240px] (not min-h) below md so the box itself has a definite height on
                 mobile, where there's no sibling row to stretch against — min-height alone
                 doesn't establish one. The media inside is absolutely-filled via the
                 header-split-image CSS rule (index.css), so it never affects this box's own
-                size — it just crops to whatever height the box ends up with. */}
+                size — it just crops to whatever height the box ends up with. linear-split
+                never stacks, so its side is always a plain half-width column at every
+                width instead. */}
             {(() => {
               const splitHasVideo = backgroundType === 'video' && headerVideo
               const splitMedia = splitHasVideo ? headerVideo : headerImage
               return (
                 <div
-                  className={`header-split-image w-full md:w-1/2 h-[240px] md:h-auto bg-white flex items-center justify-center overflow-hidden group ${!splitMedia ? 'cursor-pointer' : ''}`}
+                  className={`header-split-image ${layout === 'linear-split' ? 'w-1/2 h-auto' : 'w-full md:w-1/2 h-[240px] md:h-auto'} bg-white flex items-center justify-center overflow-hidden group ${!splitMedia ? 'cursor-pointer' : ''}`}
                   onClick={!splitMedia ? () => splitImageInputRef.current?.click() : undefined}
                 >
                   {splitHasVideo ? (
@@ -4664,15 +4696,18 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             {/* Text side */}
             {/* min-h-[240px] matches the image side's own fixed mobile height (above) so
                 neither side collapses shorter than the other; md:min-h-0 lets desktop's
-                flex row stretch it to match the image side's height as before. */}
+                flex row stretch it to match the image side's height as before. linear-split
+                never stacks, so it's just a plain half-width column with no mobile floor. */}
             <div
-              className={`w-full md:w-1/2 min-h-[240px] md:min-h-0 relative flex flex-col justify-center gap-3 pl-8 pr-8 py-6 md:pl-24 md:pr-12 md:py-10 ${leftInsetClass}`}
+              className={`${layout === 'linear-split' ? `w-1/2 min-h-0 ${linearSplitTextPad}` : `w-full md:w-1/2 min-h-[240px] md:min-h-0 ${splitTextPad}`} relative flex flex-col justify-center gap-3 py-6 md:py-10 ${leftInsetClass}`}
               style={{ background: backgroundColor }}
             >
-              {shadowOverlay && (
-                <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />
-              )}
-              {textContent}
+              {shadowOverlay ? (
+                <>
+                  <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />
+                  <div className="relative flex flex-col gap-3">{textContent}</div>
+                </>
+              ) : textContent}
             </div>
           </div>
         ) : (
@@ -4748,6 +4783,14 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                   <Columns2 size={15} />
                 </button>
               </Tooltip>
+              <Tooltip content="Linear split">
+                <button
+                  className={`p-1.5 rounded-md transition-colors ${layout === 'linear-split' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  onClick={() => commitField('setLayout', 'linear-split')}
+                >
+                  <BetweenVerticalEnd size={15} />
+                </button>
+              </Tooltip>
               <Tooltip content="Full screen">
                 <button
                   className={`p-1.5 rounded-md transition-colors ${layout === 'fullscreen' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
@@ -4759,8 +4802,8 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             </div>
           </div>
 
-          {/* Flip Layout — split only */}
-          {layout === 'split' && (
+          {/* Flip Layout — split and linear-split only */}
+          {(layout === 'split' || layout === 'linear-split') && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-500">Flip Layout</span>
               <div
@@ -4805,13 +4848,13 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
               presetLabels={['Black', 'Gray']}
               imageFilename={headerImage}
               imageActive={backgroundType === 'image'}
-              imageHidden={layout === 'split'}
+              imageHidden={layout === 'split' || layout === 'linear-split'}
               onImageUpload={(filename, lqip) => { commitField('setHeaderImage', filename); commitField('setHeaderImageLqip', lqip || ''); commitField('setBackgroundType', 'image') }}
               onImageSelect={() => commitField('setBackgroundType', 'image')}
               onImageDelete={() => { commitField('setHeaderImage', null); commitField('setHeaderImageLqip', ''); commitField('setBackgroundType', 'color') }}
               videoFilename={headerVideo}
               videoActive={backgroundType === 'video'}
-              videoHidden={layout === 'split'}
+              videoHidden={layout === 'split' || layout === 'linear-split'}
               onVideoUpload={filename => { commitField('setHeaderVideo', filename); commitField('setBackgroundType', 'video') }}
               onVideoSelect={() => commitField('setBackgroundType', 'video')}
               onVideoDelete={() => { commitField('setHeaderVideo', null); commitField('setBackgroundType', 'color') }}
@@ -4992,7 +5035,8 @@ export class HeaderNode extends DecoratorNode {
             !node.classList?.contains('header-full') &&
             !node.classList?.contains('header-split') &&
             !node.classList?.contains('header-fullscreen') &&
-            !node.classList?.contains('header-linear')) return null
+            !node.classList?.contains('header-linear') &&
+            !node.classList?.contains('header-linear-split')) return null
         return {
           conversion: (domNode) => {
             const layout = domNode.getAttribute('data-layout') || 'regular'
@@ -5084,12 +5128,19 @@ export class HeaderNode extends DecoratorNode {
     // wide/short enough that the 16:9 slope would exceed the screen's own height, the header
     // stops growing there instead of pushing content off the page (mirrors fullscreen's
     // 100vh cap, just reached via the aspect-ratio slope instead of applying at every width).
-    const heights      = { regular: 'clamp(200px, 45vw, 347px)', wide: 'clamp(240px, 35vw, 447px)', full: 'clamp(280px, 38vw, 551px)', split: 'clamp(300px, 42vw, 600px)', fullscreen: '100vh', linear: 'min(max(280px, 56.25vw), 100vh)' }
+    // linear-split's slope (43.75vw) keeps the WHOLE header at a fixed aspect ratio as it
+    // scales — 640x280 at exactly 640px wide (280/640 = 43.75%) — rather than the 16:9
+    // full-header ratio `linear` uses (56.25vw); it's shallower since the image is only
+    // half the header's width, not the whole thing. Floor matches full width's own 280px
+    // floor (rather than linear's, since linear-split's small-screen height is meant to
+    // read the same as full width's does there) — and 43.75vw meets exactly that floor at
+    // 640px, so growth starts right there with no seam.
+    const heights      = { regular: 'clamp(200px, 45vw, 347px)', wide: 'clamp(240px, 35vw, 447px)', full: 'clamp(280px, 38vw, 551px)', split: 'clamp(300px, 42vw, 600px)', fullscreen: '100vh', linear: 'min(max(280px, 56.25vw), 100vh)', 'linear-split': 'min(max(280px, 43.75vw), 100vh)' }
     // Fullscreen's base (below xl) matches full width's size — the CSS media queries in
     // index.css (min-width: 1280px/1536px) ramp it up further at xl and 2xl.
-    const headingSizes = { regular: '36px',  wide: '48px',  full: '60px',  split: '60px',  fullscreen: '60px', linear: '60px' }
-    const subSizes     = { regular: '20px',  wide: '22px',  full: '24px',  split: '24px',  fullscreen: '24px', linear: '24px' }
-    const btnSizes     = { regular: '16px',  wide: '16px',  full: '18px',  split: '18px',  fullscreen: '20px', linear: '18px' }
+    const headingSizes = { regular: '36px',  wide: '48px',  full: '60px',  split: '60px',  fullscreen: '60px', linear: '60px', 'linear-split': '60px' }
+    const subSizes     = { regular: '20px',  wide: '22px',  full: '24px',  split: '24px',  fullscreen: '24px', linear: '24px', 'linear-split': '24px' }
+    const btnSizes     = { regular: '16px',  wide: '16px',  full: '18px',  split: '18px',  fullscreen: '20px', linear: '18px', 'linear-split': '18px' }
 
     const header = document.createElement('header')
     header.className = `header-${this.__layout}`
@@ -5115,10 +5166,18 @@ export class HeaderNode extends DecoratorNode {
     header.setAttribute('data-button-text-color-mode', this.__buttonTextColorMode)
     header.setAttribute('data-shadow-overlay', String(this.__shadowOverlay))
 
-    if (this.__layout === 'split') {
+    if (this.__layout === 'split' || this.__layout === 'linear-split') {
       header.style.display = 'flex'
       header.style.flexDirection = this.__flipLayout ? 'row-reverse' : 'row'
-      header.style.minHeight = heights.split
+      // linear-split is a hard cap, not a floor — same reasoning as linear below: `height`
+      // (not `min-height`) plus overflow:hidden so it can never grow past its
+      // aspect-ratio-driven size, it clips instead. split keeps a min-height floor.
+      if (this.__layout === 'linear-split') {
+        header.style.height = heights['linear-split']
+        header.style.overflow = 'hidden'
+      } else {
+        header.style.minHeight = heights.split
+      }
 
       const imgSide = document.createElement('div')
       imgSide.className = 'header-split-image'
@@ -5179,9 +5238,27 @@ export class HeaderNode extends DecoratorNode {
       textSide.style.display = 'flex'
       textSide.style.flexDirection = 'column'
       textSide.style.justifyContent = 'center'
-      textSide.style.padding = '40px 48px 40px 96px'
+      // linear-split's left-aligned text drops the right padding entirely (0 instead of
+      // split's 48px) so it has more room to wrap before hitting the vertical divider
+      // against the image side, at every width — not just the mobile override below. Its
+      // left padding also grows past 1020px (see index.css) for left-align only. split's
+      // own base padding (96px left / 48px right) is intentionally asymmetric for
+      // left-aligned text (a deeper inset from the image-side edge). Centered text in
+      // either layout instead keeps a small, constant, symmetric 24px on both sides at
+      // every width — trivially centered with no responsive logic needed, and without a
+      // big fixed inset wrapping the text early for no reason.
+      textSide.style.padding = this.__textAlign === 'center'
+        ? '40px 24px 40px 24px'
+        : (this.__layout === 'linear-split' ? '40px 0 40px 96px' : '40px 48px 40px 96px')
       textSide.style.textAlign = this.__textAlign || 'left'
 
+      // Text (and the shadow overlay, if enabled) must sit in its own positioned wrapper
+      // appended AFTER the overlay — a plain in-flow child paints UNDER a positioned
+      // sibling regardless of DOM order (CSS stacking: positioned elements, even with
+      // z-index:auto, paint above non-positioned in-flow content), so without this the
+      // overlay would darken the text too instead of just the background behind it.
+      // Mirrors the non-split branch's innerContentWrap below.
+      let textContentWrap = textSide
       if (this.__shadowOverlay) {
         textSide.style.position = 'relative'
         const textOverlay = document.createElement('div')
@@ -5191,15 +5268,17 @@ export class HeaderNode extends DecoratorNode {
         textOverlay.style.opacity = '0.35'
         textOverlay.style.pointerEvents = 'none'
         textSide.appendChild(textOverlay)
-      }
 
-      const textContentWrap = textSide
+        textContentWrap = document.createElement('div')
+        textContentWrap.style.position = 'relative'
+        textSide.appendChild(textContentWrap)
+      }
 
       const headingColor = resolveTextColor(this.__textColorMode, this.__backgroundColor)
 
       const headingEl = document.createElement('div')
       headingEl.className = 'header-heading'
-      headingEl.style.fontSize = headingSizes.split
+      headingEl.style.fontSize = headingSizes[this.__layout]
       headingEl.style.lineHeight = '1.25'
       headingEl.style.fontWeight = 'bold'
       headingEl.style.color = headingColor
@@ -5209,7 +5288,7 @@ export class HeaderNode extends DecoratorNode {
       if (!isBlankHtml(this.__subheading)) {
         const subEl = document.createElement('div')
         subEl.className = 'header-subheading'
-        subEl.style.fontSize = subSizes.split
+        subEl.style.fontSize = subSizes[this.__layout]
         subEl.style.lineHeight = '1.375'
         subEl.style.color = headingColor === 'white' ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)'
         subEl.innerHTML = this.__subheading
@@ -5226,7 +5305,7 @@ export class HeaderNode extends DecoratorNode {
         a.textContent = this.__buttonText
         a.style.background = this.__buttonColor
         a.style.color = resolveTextColor(this.__buttonTextColorMode, this.__buttonColor)
-        a.style.fontSize = btnSizes.split
+        a.style.fontSize = btnSizes[this.__layout]
         a.style.display = 'inline-block'
         a.style.padding = '0.5rem 1.25rem'
         a.style.borderRadius = '0.5rem'

@@ -975,12 +975,13 @@ html {
   transition: none !important;
 }
 
-/* Header block: break wide/full/split/fullscreen/linear out of the max-w-3xl page container */
+/* Header block: break wide/full/split/fullscreen/linear/linear-split out of the max-w-3xl page container */
 .blog-content header.header-wide,
 .blog-content header.header-full,
 .blog-content header.header-split,
 .blog-content header.header-fullscreen,
-.blog-content header.header-linear {
+.blog-content header.header-linear,
+.blog-content header.header-linear-split {
   width: 100vw !important;
   margin-left: calc(50% - 50vw) !important;
   position: relative;
@@ -999,7 +1000,8 @@ html {
 .page-header-content > header.header-full:first-child,
 .page-header-content > header.header-split:first-child,
 .page-header-content > header.header-fullscreen:first-child,
-.page-header-content > header.header-linear:first-child {
+.page-header-content > header.header-linear:first-child,
+.page-header-content > header.header-linear-split:first-child {
   margin-top: -2.5rem;
 }
 
@@ -1147,12 +1149,14 @@ html {
   }
   .blog-content header.header-full .header-heading,
   .blog-content header.header-split .header-heading,
-  .blog-content header.header-linear .header-heading {
+  .blog-content header.header-linear .header-heading,
+  .blog-content header.header-linear-split .header-heading {
     font-size: 3.90625vw !important;
   }
   .blog-content header.header-full .header-subheading,
   .blog-content header.header-split .header-subheading,
-  .blog-content header.header-linear .header-subheading {
+  .blog-content header.header-linear .header-subheading,
+  .blog-content header.header-linear-split .header-subheading {
     font-size: 1.5625vw !important;
   }
 }
@@ -1165,6 +1169,41 @@ html {
 @media (min-width: 1536px) {
   .blog-content header.header-linear .header-inner {
     height: 100vh !important;
+  }
+}
+
+/* Header block: full/linear/fullscreen's left-aligned side padding keeps growing past 2xl
+   (1536px) at a sixth the rate of viewport width, instead of staying flat at the fixed
+   256px inline value there — these layouts are full-bleed with no width cap, so letting
+   left-aligned text's inset keep pace (like split/linear-split's own text-side padding
+   does) avoids it looking pinned in place on very large/ultrawide screens.
+   calc((100vw - 1536px) / 6 + 256px) is continuous with the flat 256px value at 1536px.
+   wide is deliberately excluded — it's meant to read as a narrower, page-bound layout, not
+   a full-bleed one, so its padding stays flat regardless of alignment. Centered text also
+   stays flat here, matching how split/linear-split only grow for left-align. !important
+   beats exportDOM's inline value. */
+@media (min-width: 1536px) {
+  .blog-content header[data-text-align="left"].header-full .header-inner,
+  .blog-content header[data-text-align="left"].header-linear .header-inner,
+  .blog-content header[data-text-align="left"].header-fullscreen .header-inner {
+    padding-left: calc((100vw - 1536px) / 6 + 256px) !important;
+    padding-right: calc((100vw - 1536px) / 6 + 256px) !important;
+  }
+}
+
+/* Header block: split and linear-split's text-side left padding both grow at a sixth the
+   rate of viewport width past 1020px (instead of staying flat at exportDOM's 96px base) so
+   the text shifts gradually toward the header's center as it scales up on wide screens.
+   calc((100vw - 1020px) / 6 + 96px) is continuous with the 96px base exactly at 1020px
+   (the (100vw - 1020px) term is 0 there), then grows 1px for every 6px of additional
+   viewport width beyond that — no cap, since the header itself has none (both layouts are
+   full-bleed at every width). Left-align only — centered text should stay centered within
+   the column rather than drifting off-center as this grows, so it keeps the flat 96px base
+   (exportDOM's inline value, untouched here). !important beats exportDOM's inline value. */
+@media (min-width: 1020px) {
+  .blog-content header.header-split[data-text-align="left"] .header-split-text,
+  .blog-content header.header-linear-split[data-text-align="left"] .header-split-text {
+    padding-left: calc((100vw - 1020px) / 6 + 96px) !important;
   }
 }
 
@@ -1221,8 +1260,11 @@ html {
   .blog-content header.header-linear .header-inner {
     padding: 24px 32px !important;
   }
+  /* column-reverse (not column): DOM order is always image-then-text (see exportDOM), so
+     reversing the visual axis puts text on top and image below once stacked, regardless of
+     the desktop flip toggle (which only ever swaps row/row-reverse, never affects this). */
   .blog-content header.header-split {
-    flex-direction: column !important;
+    flex-direction: column-reverse !important;
   }
   .blog-content header.header-split .header-split-image,
   .blog-content header.header-split .header-split-text {
@@ -1236,8 +1278,24 @@ html {
     height: 240px !important;
   }
   .blog-content header.header-split .header-split-text {
-    padding: 24px 32px !important;
     min-height: 240px !important;
+  }
+  /* Left-align only — centered text keeps exportDOM's own small constant symmetric padding
+     (falls through untouched here) so it stays centered instead of picking up this wider,
+     asymmetric-with-the-desktop-value inset meant for left-aligned text against an edge. */
+  .blog-content header.header-split[data-text-align="left"] .header-split-text {
+    padding: 24px 32px !important;
+  }
+  /* linear-split never stacks (its sides stay 50/50 at every width, per its own hard
+     height cap above) — its text-side padding shrinks to match split's mobile value, so
+     the fixed 96px left padding (exportDOM) doesn't crowd out its half-width column.
+     Left-align only: right padding drops to 0 (unlike split's own 32px) so text can wrap
+     all the way to the column's own edge (the vertical divider against the image side)
+     before breaking, since that edge isn't a page margin the way split's right edge is
+     once it stacks. Centered text keeps symmetric padding (falls through to exportDOM's
+     own inline value) so it stays visually centered instead of drifting off-center. */
+  .blog-content header.header-linear-split[data-text-align="left"] .header-split-text {
+    padding: 24px 0 24px 32px !important;
   }
   .blog-content header:not(.header-linear) .header-heading {
     font-size: 28px !important;
@@ -1265,6 +1323,24 @@ html {
   }
 }
 
+/* Header block: split and linear-split both get a medium-size step between the 768px
+   mobile-shrink breakpoint above and lg (1024px), instead of jumping straight to the full
+   60px/24px size the other isFullish layouts use at 768px — their text column is only half
+   the header's width, so the full size reads oversized as soon as it appears, before
+   there's enough column width (at 1024px+) to comfortably hold it. Matches the editor's
+   `md:text-[40px] lg:text-6xl` / `md:text-[20px] lg:text-2xl` classes. !important beats
+   exportDOM's inline 60px/24px base. */
+@media (min-width: 769px) and (max-width: 1023px) {
+  .blog-content header.header-split .header-heading,
+  .blog-content header.header-linear-split .header-heading {
+    font-size: 40px !important;
+  }
+  .blog-content header.header-split .header-subheading,
+  .blog-content header.header-linear-split .header-subheading {
+    font-size: 20px !important;
+  }
+}
+
 /* On small phones, a left-aligned header's left inset drops further to match the blog
    post body text's own left margin (BlogPostView's `px-6` = 24px, main.jsx), so the
    header's text edge lines up with the paragraph text below it instead of sitting 8px
@@ -1276,7 +1352,8 @@ html {
   .blog-content header[data-text-align="left"].header-full .header-inner,
   .blog-content header[data-text-align="left"].header-fullscreen .header-inner,
   .blog-content header[data-text-align="left"].header-linear .header-inner,
-  .blog-content header[data-text-align="left"].header-split .header-split-text {
+  .blog-content header[data-text-align="left"].header-split .header-split-text,
+  .blog-content header[data-text-align="left"].header-linear-split .header-split-text {
     padding-left: 24px !important;
   }
 }

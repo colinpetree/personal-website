@@ -24,10 +24,10 @@ import { useLayoutEffect } from 'react'
 //
 // Two layouts, two techniques, because HeaderNode renders its image two
 // different ways (see nodes.jsx's exportDOM):
-//  - split layout uses a real <img> — same blur-up technique content images
-//    use: a blurred placeholder <img> painted OVER the real one (no z-index
-//    needed — a positioned sibling naturally paints after a non-positioned
-//    one), removed once the real img loads.
+//  - split and linear-split layouts use a real <img> — same blur-up technique
+//    content images use: a blurred placeholder <img> painted OVER the real
+//    one (no z-index needed — a positioned sibling naturally paints after a
+//    non-positioned one), removed once the real img loads.
 //  - every other layout paints the photo as a CSS background-image on
 //    .header-inner — there's no img element to hang a `load` event off, so
 //    a preloaded Image() drives a blurred placeholder <div> instead, kept
@@ -45,7 +45,7 @@ export function useHeaderImageLqip(containerRef, contentKey) {
       const lqip = header.getAttribute('data-header-image-lqip')
       if (!filename || !lqip) return
 
-      if (header.classList.contains('header-split')) {
+      if (header.classList.contains('header-split') || header.classList.contains('header-linear-split')) {
         const imgEl = header.querySelector('.header-split-image img')
         if (!imgEl) return
         const imgSide = imgEl.parentElement
