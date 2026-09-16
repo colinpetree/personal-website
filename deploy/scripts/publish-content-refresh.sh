@@ -11,7 +11,15 @@ BUILD_ROOT="$HOME/personal-website-build"
 cd "$REPO_DIR"
 VERSION="$(cat VERSION | tr -d '[:space:]')"
 _log "Building content refresh for v$VERSION (build-on-pi.sh output follows)."
-bash deploy/scripts/build-on-pi.sh   # normal git pull — builds whatever's on origin, already logs its own steps
+# normal git pull — builds whatever's on origin, already logs its own steps
+rc=0
+bash deploy/scripts/build-on-pi.sh || rc=$?
+if [ "$rc" -ne 0 ]; then
+    if [ "$rc" -eq 3 ]; then
+        _log "Skipped — another build is already in progress (will retry next cycle)."
+    fi
+    exit "$rc"
+fi
 _log "build-on-pi.sh finished."
 
 BUILD_DOMAIN="$(echo "${PRERENDER_BASE_URL:-}" | sed -E 's#^https?://##; s#/.*##')"; BUILD_DOMAIN="${BUILD_DOMAIN:-unknown}"

@@ -89,7 +89,7 @@ while true; do
         _log "No change (fingerprint unchanged: $FP)."
     else
         _log "Content changed: '$LAST' -> '$FP'. Publishing refresh."
-        if bash "$(dirname "$0")/publish-content-refresh.sh"; then
+        if BUILD_LOCK_MODE=periodic bash "$(dirname "$0")/publish-content-refresh.sh"; then
             _log "Publish succeeded."
             echo "$FP" > "$LAST_SEEN_FILE"
             # A successful publish means build-on-pi.sh just git-reset-hard'd

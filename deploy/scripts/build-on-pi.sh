@@ -12,8 +12,70 @@
 # to live inside a git checkout.
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Re-exec into a fresh session so this build's whole process tree (npm,
+# pyinstaller, the backgrounded smoke-test server, ...) shares one process
+# group distinct from whatever invoked us — the personal-website-publisher
+# systemd service's own process, a manual interactive shell, etc. That's what
+# lets a later invocation cleanly kill -TERM the entire tree of a build it's
+# interrupting below, without also killing its own caller.
+if [ -z "${BUILD_ON_PI_SESSION:-}" ]; then
+    export BUILD_ON_PI_SESSION=1
+    exec setsid --wait bash "${BASH_SOURCE[0]}" "$@"
+fi
+
+# ---- Single-build lock ----------------------------------------------------
+# Only one build may run at a time (they'd otherwise race on the same
+# backend/dist and frontend/build directories — see the rm -rf below).
+# BUILD_LOCK_MODE=interactive (the default: a manual run, or publish-release.sh)
+# always wins, interrupting whatever's running. BUILD_LOCK_MODE=periodic (set
+# only by content-watch.sh's automatic cycle) never interrupts — it backs off
+# and lets the next scheduled poll retry instead.
 BUILD_ROOT="$HOME/personal-website-build"
+mkdir -p "$BUILD_ROOT"
+LOCK_FILE="$BUILD_ROOT/build.lock"
+PID_FILE="$BUILD_ROOT/build.pid"
+LOCK_MODE="${BUILD_LOCK_MODE:-interactive}"
+
+# Sanity-check that a PID read from build.pid still actually looks like a
+# build-on-pi.sh run before signaling it — guards the (small but real) window
+# where a stale PID could have been recycled by the OS into an unrelated
+# process between that process reading the file and us acting on it.
+_looks_like_our_build() {
+    ps -o args= -p "$1" 2>/dev/null | grep -q 'build-on-pi\.sh'
+}
+
+exec 200>"$LOCK_FILE"
+if ! flock -n 200; then
+    if [ "$LOCK_MODE" = "periodic" ]; then
+        echo "==> Another build is already running — periodic build backing off until its next scheduled check."
+        exit 3   # distinct code: lock contention, not a real build failure
+    fi
+    echo "==> Another build is running — interrupting it to start this one."
+    # Loop rather than kill-once-then-block: if two interactive builds start
+    # within the same instant, a single blocking flock at the end could let
+    # the other one's *new* build win the race and make us wait behind it,
+    # which would break "interactive always wins." Keep re-asserting the
+    # interrupt for a bounded window instead.
+    for i in $(seq 1 15); do
+        OLD_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
+        if [ -n "$OLD_PID" ] && _looks_like_our_build "$OLD_PID"; then
+            kill -TERM -- "-$OLD_PID" 2>/dev/null || true
+        fi
+        if flock -n 200; then
+            break
+        fi
+        sleep 1
+    done
+    if ! flock -n 200 2>/dev/null; then
+        # Still contested after 15s of TERM — escalate to KILL once, then wait.
+        OLD_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
+        [ -n "$OLD_PID" ] && _looks_like_our_build "$OLD_PID" && kill -KILL -- "-$OLD_PID" 2>/dev/null || true
+        flock 200
+    fi
+fi
+echo $$ > "$PID_FILE"
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 cd "$REPO_DIR"
 
