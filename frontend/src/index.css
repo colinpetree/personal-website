@@ -1161,17 +1161,6 @@ html {
   }
 }
 
-/* Header block: linear always fills the viewport (like fullscreen) at 2xl and up,
-   instead of following its own `min(max(280px, 56.25vw), 100vh)` slope. Below 2xl that
-   slope can land short of 100vh (e.g. it only reaches 864px at exactly 1536px width), so
-   without this the background image wouldn't scale to fill the screen the way fullscreen's
-   always does once there's this much room. !important beats exportDOM's inline height. */
-@media (min-width: 1536px) {
-  .blog-content header.header-linear .header-inner {
-    height: 100vh !important;
-  }
-}
-
 /* Header block: full/linear/fullscreen's left-aligned side padding keeps growing past 2xl
    (1536px) at a sixth the rate of viewport width, instead of staying flat at the fixed
    256px inline value there — these layouts are full-bleed with no width cap, so letting

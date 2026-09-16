@@ -42,16 +42,15 @@ export function useFullscreenHeaderNav(containerRef, contentKey) {
 
     // 56.25vw (linear's slope) vs 100vh: mirrors the `min(max(280px, 56.25vw), 100vh)`
     // formula's own comparison; once 56.25vw reaches/exceeds the viewport height, that
-    // clamp is pinned to 100vh and the header fills the screen. At 2xl (1536px) and up,
-    // index.css forces height:100vh outright regardless of that comparison; see the
-    // matching `min-width: 1536px` rule there. linear-split has no such forced-2xl
-    // override (it's meant to keep scaling continuously with viewport width rather than
-    // jump to 100vh at a fixed breakpoint), so its own comparison uses its own 43.75vw
-    // slope (its whole-header aspect ratio — 640x280 at 640px wide — see nodes.jsx's
-    // exportDOM) with no `>= 1536` clause.
+    // clamp is pinned to 100vh and the header fills the screen. No forced breakpoint here
+    // (or in index.css/nodes.jsx) — linear and linear-split both scale continuously with
+    // viewport width and only count as "filling the screen" where their own aspect-ratio
+    // slope actually reaches 100vh, hence each comparison uses only its own slope
+    // (linear's 56.25vw full-header ratio vs. linear-split's 43.75vw — its whole-header
+    // aspect ratio, 640x280 at 640px wide — see nodes.jsx's exportDOM).
     const needsResizeListener = isLinear || isLinearSplit
     function update() {
-      const linearFillsViewport = isLinear && (window.innerWidth >= 1536 || window.innerWidth * 0.5625 >= window.innerHeight)
+      const linearFillsViewport = isLinear && window.innerWidth * 0.5625 >= window.innerHeight
       const linearSplitFillsViewport = isLinearSplit && window.innerWidth * 0.4375 >= window.innerHeight
       setState({ isOverlayHeader: isOverlay, isFullscreenHeader: isFullscreen || linearFillsViewport || linearSplitFillsViewport })
     }

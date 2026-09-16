@@ -4403,10 +4403,11 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   // aspect-ratio-driven value even if the heading/subheading/button content needs more
   // room. overflow-hidden (applied at the className site below) clips any excess instead
   // of letting the box (and the page) grow taller than intended. Every other layout keeps
-  // min-h- since they're floors, not hard caps. 2xl:h-screen forces linear to always fill
-  // the viewport (like fullscreen) at that breakpoint and up, since the 56.25vw slope alone
-  // can still land short of 100vh there; matches index.css's `min-width: 1536px` override.
-  const minHeightClass   = layout === 'fullscreen' ? 'min-h-screen' : layout === 'linear' ? 'h-[min(max(280px,56.25vw),100vh)] 2xl:h-screen' : layout === 'linear-split' ? 'h-[min(max(280px,43.75vw),100vh)]' : layout === 'split' ? 'min-h-[clamp(300px,42vw,600px)]' : layout === 'full' ? 'min-h-[clamp(280px,38vw,551px)]' : layout === 'wide' ? 'min-h-[clamp(240px,35vw,447px)]' : 'min-h-[clamp(200px,45vw,347px)]'
+  // min-h- since they're floors, not hard caps. The 56.25vw slope is a true 16:9 ratio
+  // capped at 100vh, so it already grows continuously into that cap on its own — no
+  // breakpoint needed (a prior 2xl:h-screen override forced a hard snap at 1536px and
+  // has been removed; see index.css, same rationale).
+  const minHeightClass   = layout === 'fullscreen' ? 'min-h-screen' : layout === 'linear' ? 'h-[min(max(280px,56.25vw),100vh)]' : layout === 'linear-split' ? 'h-[min(max(280px,43.75vw),100vh)]' : layout === 'split' ? 'min-h-[clamp(300px,42vw,600px)]' : layout === 'full' ? 'min-h-[clamp(280px,38vw,551px)]' : layout === 'wide' ? 'min-h-[clamp(240px,35vw,447px)]' : 'min-h-[clamp(200px,45vw,347px)]'
   // Fullscreen ramps up across breakpoints (biggest at 2xl), rather than jumping straight
   // to its max size at md like the other layouts. leading-tight/snug (unitless, so they
   // scale correctly across every size above) keep wrapped lines tight instead of
