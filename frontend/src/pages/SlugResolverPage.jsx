@@ -1,9 +1,10 @@
 import { useLoaderData } from 'react-router'
-import { buildMeta, absoluteUploadUrl, siteFallbackImage, notFoundMeta, isNavEnabled, domFallbackTitle, domFallbackMetaContent } from '../utils/meta'
+import { buildMeta, absoluteUploadUrl, siteFallbackImage, notFoundMeta, serverErrorMeta, isNavEnabled, domFallbackTitle, domFallbackMetaContent } from '../utils/meta'
 import { apiUrl, fetchSiteConfig } from '../lib/apiFetch'
 import BlogPostView from './BlogPostView'
 import PageView from './PageView'
 import NotFoundPage from './NotFoundPage'
+import ServerErrorPage from './ServerErrorPage'
 
 // The public ':slug' catch-all route — resolves a URL against
 // /api/resolve/<slug> (see backend/routes/public_resolve.py) and renders
@@ -35,6 +36,28 @@ function cacheResolvedData(key, result) {
   }
 }
 
+// Small retry for the fetch that decides notFound vs. serverError below —
+// most transient backend hiccups clear within a second, so a couple of
+// short-delayed retries avoids showing a real visitor (or baking into a
+// prerendered page) "something went wrong" for a request that would have
+// succeeded a moment later. A 404 is a real, final answer, not a failure —
+// returned immediately, never retried. Works at both build time (Node) and
+// runtime (browser) since setTimeout is available in both.
+async function fetchWithRetry(url, { retries = 2, delayMs = 300 } = {}) {
+  let lastErr
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url)
+      if (res.ok || res.status === 404) return res
+      lastErr = new Error(`HTTP ${res.status}`)
+    } catch (err) {
+      lastErr = err
+    }
+    if (attempt < retries) await new Promise((resolve) => setTimeout(resolve, delayMs))
+  }
+  throw lastErr
+}
+
 // Shared by loader (build-time prerender) and clientLoader (runtime, for any
 // slug not in the prerendered set — see clientLoader below for why both are
 // needed). config is fetched alongside purely to populate apiFetch.js's
@@ -47,39 +70,69 @@ function cacheResolvedData(key, result) {
 // parent BlogPost's updated_at and so wouldn't reliably trigger a rebuild.
 async function fetchResolvedData(slug, categorySlug) {
   const key = cacheKey(slug, categorySlug)
-  const [resolveRes, config] = await Promise.all([
-    fetch(apiUrl(`/api/resolve/${slug}`)),
-    fetchSiteConfig(),
-  ])
-  if (resolveRes.status === 404) {
-    const result = { notFound: true, kind: null, config }
+  let config = null
+  try {
+    const [resolveRes, siteConfig] = await Promise.all([
+      fetchWithRetry(apiUrl(`/api/resolve/${slug}`)),
+      fetchSiteConfig(),
+    ])
+    config = siteConfig
+    if (resolveRes.status === 404) {
+      const result = { notFound: true, kind: null, config }
+      cacheResolvedData(key, result)
+      return result
+    }
+    if (!resolveRes.ok) throw new Error(`HTTP ${resolveRes.status}`)
+    const resolved = await resolveRes.json()
+
+    if (resolved.kind === 'page') {
+      const result = { notFound: false, kind: 'page', page: resolved, config }
+      cacheResolvedData(key, result)
+      return result
+    }
+
+    // kind === 'post'
+    const adjacentUrl = `/api/blog/${slug}/adjacent${categorySlug ? `?category=${categorySlug}` : ''}`
+    // Isolated in its own try: the post itself is already successfully
+    // resolved at this point, so a failure fetching just the author byline
+    // or next/previous links shouldn't discard the whole post and fall
+    // through to the outer catch's serverError state — that would throw away
+    // valid content over two non-essential fields. A non-2xx response
+    // already degrades gracefully via the .ok ternaries below; this also
+    // covers a network-level fetch() rejection (no response to check .ok
+    // on), which the ternaries alone can't catch.
+    let blogAuthor = null
+    let adjacent = { next: null, previous: null }
+    try {
+      const [authorRes, adjacentRes] = await Promise.all([
+        fetch(apiUrl('/api/blog/author')),
+        fetch(apiUrl(adjacentUrl)),
+      ])
+      blogAuthor = authorRes.ok ? await authorRes.json() : null
+      adjacent = adjacentRes.ok ? await adjacentRes.json() : { next: null, previous: null }
+    } catch (err) {
+      console.warn(`[SlugResolverPage] Failed to fetch author/adjacent-post data for slug "${slug}": ${err.message} — rendering the post without them.`)
+    }
+
+    const result = {
+      notFound: false, kind: 'post', post: resolved,
+      blogAuthor, next: adjacent.next, previous: adjacent.previous, config,
+    }
+    cacheResolvedData(key, result)
+    return result
+  } catch (err) {
+    // Genuinely unexpected — a real backend/network problem, not a
+    // confirmed-absent slug (that's the 404 branch above, handled before this
+    // try/catch would ever see it). Distinct from notFound so the UI can show
+    // a "try again" state instead of a false 404. `config` may still be null
+    // here if the initial Promise.all itself rejected (e.g. a network-level
+    // failure) before it could resolve — every consumer already handles a
+    // null config via optional chaining, same as notFoundMeta.
+    console.warn(`[SlugResolverPage] Failed to resolve slug "${slug}": ${err.message} — showing a try-again error state instead of a false 404.`)
+    const result = { notFound: false, serverError: true, kind: null, config }
     cacheResolvedData(key, result)
     return result
   }
-  if (!resolveRes.ok) throw new Error(`Failed to resolve slug ${slug}: HTTP ${resolveRes.status}`)
-  const resolved = await resolveRes.json()
-
-  if (resolved.kind === 'page') {
-    const result = { notFound: false, kind: 'page', page: resolved, config }
-    cacheResolvedData(key, result)
-    return result
-  }
-
-  // kind === 'post'
-  const adjacentUrl = `/api/blog/${slug}/adjacent${categorySlug ? `?category=${categorySlug}` : ''}`
-  const [authorRes, adjacentRes] = await Promise.all([
-    fetch(apiUrl('/api/blog/author')),
-    fetch(apiUrl(adjacentUrl)),
-  ])
-  const blogAuthor = authorRes.ok ? await authorRes.json() : null
-  const adjacent = adjacentRes.ok ? await adjacentRes.json() : { next: null, previous: null }
-
-  const result = {
-    notFound: false, kind: 'post', post: resolved,
-    blogAuthor, next: adjacent.next, previous: adjacent.previous, config,
-  }
-  cacheResolvedData(key, result)
-  return result
 }
 
 // Runs in Node at prerender time, ONLY for slugs react-router.config.ts's
@@ -129,6 +182,7 @@ export function meta({ params, location }) {
     })
   }
   const config = cached.config
+  if (cached.serverError) return serverErrorMeta(config)
   if (cached.kind === 'post') {
     const post = cached.post
     if (!post || !isNavEnabled(config, 'blog')) return notFoundMeta(config)
@@ -176,8 +230,9 @@ export function HydrateFallback() {
 }
 
 export default function SlugResolverPage() {
-  const { notFound, kind, post, page, blogAuthor, next, previous } = useLoaderData()
+  const { notFound, serverError, kind, post, page, blogAuthor, next, previous } = useLoaderData()
 
+  if (serverError) return <ServerErrorPage />
   if (notFound || !kind) return <NotFoundPage />
   if (kind === 'post') {
     if (!post) return <NotFoundPage />

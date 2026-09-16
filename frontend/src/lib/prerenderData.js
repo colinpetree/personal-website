@@ -22,7 +22,8 @@ export function getSlugs(baseUrl) {
         blog = 'blog', projects = 'projects',
         contact = 'contact', ai_demo = 'demo', payment = 'payment',
       } = config.slugs ?? {}
-      return { blog, projects, contact, ai_demo, payment }
+      const enabled = Object.fromEntries((config.nav ?? []).map((n) => [n.key, n.enabled]))
+      return { blog, projects, contact, ai_demo, payment, enabled }
     })())
   }
   return _slugsPromises.get(baseUrl)
@@ -39,14 +40,42 @@ export function listAllPublishedSlugs(baseUrl) {
   if (!_postSlugsPromises.has(baseUrl)) {
     _postSlugsPromises.set(baseUrl, (async () => {
       const slugs = []
-      let page = 1
-      while (true) {
-        const res = await fetch(`${baseUrl}/api/blog?page=${page}&per_page=50`)
-        if (!res.ok) throw new Error(`Failed to fetch /api/blog page ${page} for prerender: HTTP ${res.status}`)
-        const data = await res.json()
-        slugs.push(...data.posts.map((p) => p.slug))
-        if (page >= data.pages) break
-        page += 1
+      try {
+        const { enabled } = await getSlugs(baseUrl)
+        if (enabled.blog === undefined) {
+          // site-config's nav list didn't even include a `blog` entry — not
+          // the same as an explicit `false`. Could mean the backend's nav
+          // shape changed without this file being updated, or the response
+          // was truncated/corrupted. Unlike an explicit disable, this is
+          // unexpected and worth a loud warning even though we still skip
+          // blog prerendering for this build rather than guessing.
+          console.warn('[prerenderData] site-config response has no "blog" entry in nav — cannot determine whether blog is enabled (this looks like an unexpected site-config shape, not routine admin behavior). Skipping blog post prerendering for this build.')
+          return slugs
+        }
+        if (!enabled.blog) {
+          // Blog disabled on purpose — backend 404s it exactly the same way
+          // a nonexistent route would (see blog.py's _require_blog_enabled),
+          // but site-config's own `nav` flag lets us tell this apart from a
+          // genuine failure. Expected/routine, not worth a warning.
+          console.log('[prerenderData] Blog is disabled — skipping blog post prerendering (expected).')
+          return slugs
+        }
+        let page = 1
+        while (true) {
+          const res = await fetch(`${baseUrl}/api/blog?page=${page}&per_page=50`)
+          if (!res.ok) throw new Error(`Failed to fetch /api/blog page ${page} for prerender: HTTP ${res.status}`)
+          const data = await res.json()
+          slugs.push(...data.posts.map((p) => p.slug))
+          if (page >= data.pages) break
+          page += 1
+        }
+      } catch (err) {
+        // Reached only when blog is enabled and the fetch still broke (or
+        // the getSlugs() call above itself failed) — a real problem, not the
+        // expected disabled-feature case, so this stays loud. Still don't
+        // fail the whole prerender build over it — return whatever pages
+        // were already fetched successfully rather than discarding them.
+        console.warn(`[prerenderData] Blog is enabled but failed to list published posts for prerender (got ${slugs.length} before the failure) — this looks like a real problem. Cause: ${err.message}`)
       }
       return slugs
     })())
@@ -65,14 +94,21 @@ export function listAllPublishedPageSlugs(baseUrl) {
   if (!_pageSlugsPromises.has(baseUrl)) {
     _pageSlugsPromises.set(baseUrl, (async () => {
       const slugs = []
-      let page = 1
-      while (true) {
-        const res = await fetch(`${baseUrl}/api/pages?page=${page}&per_page=50`)
-        if (!res.ok) throw new Error(`Failed to fetch /api/pages page ${page} for prerender: HTTP ${res.status}`)
-        const data = await res.json()
-        slugs.push(...data.items.map((p) => p.slug))
-        if (page >= data.pages) break
-        page += 1
+      try {
+        let page = 1
+        while (true) {
+          const res = await fetch(`${baseUrl}/api/pages?page=${page}&per_page=50`)
+          if (!res.ok) throw new Error(`Failed to fetch /api/pages page ${page} for prerender: HTTP ${res.status}`)
+          const data = await res.json()
+          slugs.push(...data.items.map((p) => p.slug))
+          if (page >= data.pages) break
+          page += 1
+        }
+      } catch (err) {
+        // Isolated the same way as listAllPublishedSlugs above — a failure
+        // fetching Pages shouldn't cost the rest of the site its
+        // prerendering. Keep whatever pages were already fetched.
+        console.warn(`[prerenderData] Failed to list published Pages for prerender (got ${slugs.length} before the failure) — continuing with what was fetched. Cause: ${err.message}`)
       }
       return slugs
     })())

@@ -126,6 +126,19 @@ export function notFoundMeta(config) {
   })
 }
 
+// Same noindex reasoning as notFoundMeta above — a transient-error snapshot
+// must never get indexed any more than a 404 one should, since nginx serves
+// everything as HTTP 200 (SPA fallback) regardless. Distinct from
+// notFoundMeta so a genuine backend/network failure never gets mislabeled as
+// "this page doesn't exist" — see SlugResolverPage.jsx's serverError case.
+export function serverErrorMeta(config) {
+  return buildMeta({
+    title: config?.site_title ? `Something went wrong - ${config.site_title}` : 'Something went wrong',
+    image: siteFallbackImage(config),
+    noindex: true,
+  })
+}
+
 // Whether the nav item for `key` is enabled in a /api/site-config response
 // (or an object shaped like one) — the single check every gated page's
 // meta()/component uses to decide between real content and notFoundMeta().
