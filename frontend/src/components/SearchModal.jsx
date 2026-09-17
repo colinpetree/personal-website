@@ -46,7 +46,7 @@ export default function SearchModal({ onClose }) {
             onChange={e => setQ(e.target.value)}
             placeholder="Search this site"
             autoFocus
-            className="flex-1 rounded-l-lg border border-r-0 border-gray-300 px-3 py-2 text-sm focus:outline-none"
+            className="flex-1 appearance-none rounded-l-lg rounded-r-none border border-r-0 border-gray-300 px-3 py-2 text-sm focus:outline-none"
           />
           <button
             type="submit"

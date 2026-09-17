@@ -110,7 +110,7 @@ export default function SearchPage() {
           value={inputValue}
           onChange={e => setInputValue(e.target.value)}
           placeholder="Search this site"
-          className="flex-1 rounded-l-lg border border-r-0 border-gray-300 px-4 py-2.5 text-sm focus:outline-none"
+          className="flex-1 appearance-none rounded-l-lg rounded-r-none border border-r-0 border-gray-300 px-4 py-2.5 text-sm focus:outline-none"
         />
         <button
           type="submit"
