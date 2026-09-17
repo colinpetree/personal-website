@@ -3366,7 +3366,7 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, width, 
     <div
       ref={containerRef}
       style={{ maxWidth: LINK_GROUP_WIDTH_MAX[width] || LINK_GROUP_WIDTH_MAX.narrow }}
-      className={`my-2 py-3 mx-auto px-4 rounded-xl border border-dashed border-gray-200 transition-all ${
+      className={`link-group-editor-container py-3 mx-auto px-4 rounded-xl border border-dashed border-gray-200 transition-all ${
         isSelected ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''
       }`}
       onMouseEnter={() => setIsHovered(true)}

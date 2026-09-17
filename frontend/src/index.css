@@ -433,7 +433,7 @@ html {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  margin: 1.25rem auto;
+  margin: 21px auto 0;
   max-width: 32rem;
 }
 .blog-content .link-group-item {
@@ -610,6 +610,7 @@ html {
   .blog-content h2 { font-size: 34px; line-height: 39px; margin-top: 53px; }
   .blog-content h3 { font-size: 26px; line-height: 31.75px; margin-top: 30px; }
   .blog-content p { font-size: 20px; line-height: 33.2px; margin-top: 29px; }
+  .blog-content .link-group { margin-top: 29px; }
 
   .blog-content h1 + p,
   .blog-content h2 + p,
@@ -624,8 +625,16 @@ html {
 [contenteditable="true"] h1.editor-heading { font-size: 32px; font-weight: 700; line-height: 38.5px; font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif; }
 [contenteditable="true"] h2.editor-heading { font-size: 30px; font-weight: 700; line-height: 34.5px; font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif; }
 [contenteditable="true"] h3.editor-heading { font-size: 24px; font-weight: 700; line-height: 29.25px; font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif; }
-[contenteditable="true"] p.editor-paragraph { font-size: 18px; font-weight: 400; line-height: 28.45px; color: #111827; }
+[contenteditable="true"] p.editor-paragraph { font-size: 18px; font-weight: 400; line-height: 28.45px; color: #111827; margin-top: 21px; margin-bottom: 0; }
 [contenteditable="true"] blockquote.editor-quote { font-size: 18px; line-height: 28.45px; }
+
+[contenteditable="true"] h1.editor-heading + p.editor-paragraph,
+[contenteditable="true"] h2.editor-heading + p.editor-paragraph,
+[contenteditable="true"] h3.editor-heading + p.editor-paragraph {
+  margin-top: 6px;
+}
+
+[contenteditable="true"] .link-group-editor-container { margin-top: 21px; margin-bottom: 0; }
 
 [contenteditable="true"] ul li,
 [contenteditable="true"] ol li { font-size: 14px; line-height: 24px; }
@@ -654,8 +663,16 @@ html {
   [contenteditable="true"] h1.editor-heading { font-size: 38px; line-height: 45.5px; }
   [contenteditable="true"] h2.editor-heading { font-size: 34px; line-height: 39px; }
   [contenteditable="true"] h3.editor-heading { font-size: 26px; line-height: 31.75px; }
-  [contenteditable="true"] p.editor-paragraph { font-size: 20px; line-height: 33.2px; }
+  [contenteditable="true"] p.editor-paragraph { font-size: 20px; line-height: 33.2px; margin-top: 29px; }
   [contenteditable="true"] blockquote.editor-quote { font-size: 20px; line-height: 33.2px; }
+
+  [contenteditable="true"] h1.editor-heading + p.editor-paragraph,
+  [contenteditable="true"] h2.editor-heading + p.editor-paragraph,
+  [contenteditable="true"] h3.editor-heading + p.editor-paragraph {
+    margin-top: 6px;
+  }
+
+  [contenteditable="true"] .link-group-editor-container { margin-top: 29px; }
 
   [contenteditable="true"] ul li,
   [contenteditable="true"] ol li { font-size: 16px; line-height: 28px; }
