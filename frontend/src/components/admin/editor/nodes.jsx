@@ -111,8 +111,7 @@ function measureHeaderMaxLineWidthAt100(lines) {
 // anyway would shrink text well below what the (much wider) stacked column
 // actually has room for, which is what this was built to avoid. So `split`
 // gets a second "stacked" formula for that regime, swapped in only below
-// 768px (index.css); `linear-split` never stacks and always uses the single
-// 50%-column formula above.
+// 768px (index.css).
 //
 // The stacked formula reuses this same ceiling mechanism, just with the
 // full-width geometry instead of the 50%-column one, and its own (lower)
@@ -121,6 +120,22 @@ function measureHeaderMaxLineWidthAt100(lines) {
 // within the bounded 0–768px range it rarely triggers; the formula otherwise
 // just scales continuously down to the same HEADER_FIT_MIN floor as
 // viewport width shrinks, same as normal.
+//
+// `linear-split` never stacks — its column stays a 50%-width side-by-side
+// half at every width — but its text-side padding still needs to shrink on
+// narrow phones, from the 48px-a-side desktop value down to a 12px-a-side
+// floor (see HEADER_LINEAR_SPLIT_TEXT_PAD_CSS below). Unlike `split`'s stacking, that's
+// not a real shape change at one breakpoint — it's the same 50%-column
+// geometry throughout, just with less padding eating into it as the header
+// narrows — so instead of a second breakpoint-swapped formula, its padding
+// is itself a single clamp() that scales continuously between the two
+// values, and that same clamp() expression is baked directly into its one
+// heading/subheading fit formula (buildLinearSplitFitPair) as the padTotal
+// term. Padding and font size can never drift out of step with each other
+// as a result, and there's no breakpoint for either to jump at.
+//
+// linear-split also drops the ceiling described above, but only below
+// 768px — see the comment on buildLinearSplitFitPair itself for why.
 const HEADER_FIT_MIN = 20
 const HEADER_FIT_CEILING = 75
 const HEADER_FIT_CEILING_REF_WIDTH = 1600
@@ -129,6 +144,32 @@ const HEADER_FIT_STACKED_CEILING = 45
 const HEADER_FIT_STACKED_CEILING_SLOPE_VW = HEADER_FIT_STACKED_CEILING / HEADER_FIT_CEILING_REF_WIDTH * 100
 const HEADER_FIT_SUB_RATIO = 0.4
 const HEADER_FIT_SAFETY_MARGIN = 0.96
+
+// linear-split's text-side padding (one side): a flat 48px at/above
+// HEADER_SPLIT_PAD_WIDE_REF_WIDTH, a flat 12px at/below
+// HEADER_SPLIT_PAD_NARROW_REF_WIDTH, and a straight-line interpolation
+// between the two reference widths in between — expressed as one CSS
+// clamp() so the browser does the interpolation continuously, with no
+// breakpoint jump. 12px (not the page's own 24px edge margin) is
+// deliberate: linear-split's column is already a bounded, fixed-shape box
+// half the header's own width, not the full page's edge — the no-wrap
+// heading needs the room more than it needs to visually line up with the
+// body text below it on the smallest phones. Used as the actual
+// padding-left/padding-right on linear-split's text side (below, and
+// exportDOM) and, doubled, as the padTotal term inside its own fit formula
+// (buildLinearSplitFitPair) — one string, so the two can never disagree.
+const HEADER_SPLIT_PAD_WIDE = 48
+const HEADER_SPLIT_PAD_NARROW = 12
+const HEADER_SPLIT_PAD_WIDE_REF_WIDTH = 768
+const HEADER_SPLIT_PAD_NARROW_REF_WIDTH = 375
+const HEADER_SPLIT_PAD_SLOPE_VW = (HEADER_SPLIT_PAD_WIDE - HEADER_SPLIT_PAD_NARROW)
+  / (HEADER_SPLIT_PAD_WIDE_REF_WIDTH - HEADER_SPLIT_PAD_NARROW_REF_WIDTH) * 100
+const HEADER_SPLIT_PAD_INTERCEPT_PX = HEADER_SPLIT_PAD_NARROW
+  - HEADER_SPLIT_PAD_NARROW_REF_WIDTH * (HEADER_SPLIT_PAD_SLOPE_VW / 100)
+// Built with an explicit +/- operator (rather than interpolating a possibly-negative
+// number directly after "+") so the generated calc() stays unambiguous CSS regardless
+// of the intercept's sign.
+const HEADER_LINEAR_SPLIT_TEXT_PAD_CSS = `clamp(${HEADER_SPLIT_PAD_NARROW}px, calc(${HEADER_SPLIT_PAD_SLOPE_VW.toFixed(4)}vw ${HEADER_SPLIT_PAD_INTERCEPT_PX >= 0 ? '+' : '-'} ${Math.abs(HEADER_SPLIT_PAD_INTERCEPT_PX).toFixed(2)}px), ${HEADER_SPLIT_PAD_WIDE}px)`
 
 // Shared by the editor's initial state and exportDOM, so both derive the same
 // plain-text-with-\n from a saved heading HTML string (<br> -> \n) instead of
@@ -151,7 +192,53 @@ function headerFitFormula(widthPerFontPx, widthFraction, padTotal) {
 }
 
 function headerFitCss(min, ceiling, ceilingSlopeVw, slope, intercept) {
-  return `max(${min.toFixed(2)}px, min(calc(${slope.toFixed(4)}vw - ${intercept.toFixed(2)}px), max(${ceiling.toFixed(2)}px, calc(${ceilingSlopeVw.toFixed(4)}vw))))`
+  return headerFitCssRaw(min, ceiling, ceilingSlopeVw, `calc(${slope.toFixed(4)}vw - ${intercept.toFixed(2)}px)`)
+}
+
+// Same outer floor/ceiling wrapper as headerFitCss, but for a raw available-width
+// expression that isn't a simple slope*vw-intercept line — used by
+// buildLinearSplitFitPair, whose padTotal term is itself a clamp(), not a constant.
+function headerFitCssRaw(min, ceiling, ceilingSlopeVw, rawExpr) {
+  return `max(${min.toFixed(2)}px, min(${rawExpr}, max(${ceiling.toFixed(2)}px, calc(${ceilingSlopeVw.toFixed(4)}vw))))`
+}
+
+// linear-split's heading/subheading fit formula: same 50%-column width
+// fraction as the default pair, but with HEADER_LINEAR_SPLIT_TEXT_PAD_CSS
+// (doubled, for both sides) as the padTotal term instead of a flat number —
+// so the computed font size scales continuously with that same padding
+// clamp() instead of jumping between two fixed-padding formulas at a
+// breakpoint. See the big comment above HEADER_FIT_MIN for why linear-split
+// needs this instead of reusing buildPair below.
+//
+// The ceiling is still wanted here on larger screens — same reason as the
+// default pair: without it, a very short heading (like "Colin Petree" alone)
+// would blow up to an oversized, gap-free block on a wide desktop screen just
+// because the column is wide. But that same ceiling was the reason a short
+// heading also stopped short of the padding edges on PHONE-width screens,
+// where the column is far too narrow for the ceiling to be the right call —
+// there, the box-fit formula alone should govern, uncapped, so the text
+// grows to actually fill the (already-narrower, thanks to
+// HEADER_LINEAR_SPLIT_TEXT_PAD_CSS) column. So this returns both a capped
+// pair (headingFs/subFs, same ceiling mechanism as the default pair — used
+// at md/768px and up) and an uncapped pair (headingFs/subFsUncapped, floored
+// but never capped — used below 768px), with the switch between them made in
+// nodes.jsx's headingTextClass/subTextClass (editor) and index.css (publish)
+// via the same md/768px breakpoint every other layout's mobile overrides use.
+function buildLinearSplitFitPair(widthPerFontPx) {
+  const availWidthExpr = `calc(50vw - 2 * ${HEADER_LINEAR_SPLIT_TEXT_PAD_CSS})`
+  const k = widthPerFontPx ? HEADER_FIT_SAFETY_MARGIN / widthPerFontPx : 0
+  const kSub = k * HEADER_FIT_SUB_RATIO
+  const headingRaw = `calc((${availWidthExpr}) * ${k.toFixed(6)})`
+  const subRaw = `calc((${availWidthExpr}) * ${kSub.toFixed(6)})`
+  return {
+    headingFs: headerFitCssRaw(HEADER_FIT_MIN, HEADER_FIT_CEILING, HEADER_FIT_CEILING_SLOPE_VW, headingRaw),
+    subFs: headerFitCssRaw(
+      HEADER_FIT_MIN * HEADER_FIT_SUB_RATIO, HEADER_FIT_CEILING * HEADER_FIT_SUB_RATIO, HEADER_FIT_CEILING_SLOPE_VW * HEADER_FIT_SUB_RATIO,
+      subRaw
+    ),
+    headingFsUncapped: `max(${HEADER_FIT_MIN.toFixed(2)}px, ${headingRaw})`,
+    subFsUncapped: `max(${(HEADER_FIT_MIN * HEADER_FIT_SUB_RATIO).toFixed(2)}px, ${subRaw})`,
+  }
 }
 
 // Returns ready-to-use nested CSS min()/max()/calc() strings for
@@ -163,6 +250,8 @@ function headerFitCss(min, ceiling, ceilingSlopeVw, slope, intercept) {
 function computeHeaderFitSizes(headingPlainText, layout) {
   const lines = (headingPlainText || '').split('\n')
   const widthPerFontPx = measureHeaderMaxLineWidthAt100(lines) / 100
+
+  if (layout === 'linear-split') return buildLinearSplitFitPair(widthPerFontPx)
 
   const buildPair = (widthFraction, padTotal, ceiling = HEADER_FIT_CEILING, ceilingSlopeVw = HEADER_FIT_CEILING_SLOPE_VW) => {
     const { slopeVw, interceptPx } = headerFitFormula(widthPerFontPx, widthFraction, padTotal)
@@ -4721,9 +4810,13 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
       '--hdr-heading-fs-stacked': headerFitSizes.headingFsStacked,
       '--hdr-sub-fs-stacked': headerFitSizes.subFsStacked,
     } : {}),
+    ...(headerFitSizes.headingFsUncapped ? {
+      '--hdr-heading-fs-uncapped': headerFitSizes.headingFsUncapped,
+      '--hdr-sub-fs-uncapped': headerFitSizes.subFsUncapped,
+    } : {}),
   } : undefined
-  const headingTextClass = (layout === 'fullscreen' ? 'text-[28px] md:text-6xl xl:text-[66px] 2xl:text-[4.6875vw]' : layout === 'linear' ? 'text-[28px] sm:text-6xl 2xl:text-[3.90625vw]' : layout === 'split' ? 'text-[length:var(--hdr-heading-fs-stacked)] md:text-[length:var(--hdr-heading-fs)]' : isSplitLike ? 'text-[length:var(--hdr-heading-fs)]' : isFullish ? 'text-[28px] md:text-6xl 2xl:text-[3.90625vw]' : layout === 'wide' ? 'text-[28px] md:text-5xl' : 'text-[28px] md:text-4xl') + ' leading-tight'
-  const subTextClass     = (layout === 'fullscreen' ? 'text-base md:text-2xl xl:text-[27px] 2xl:text-[1.953125vw]' : layout === 'linear' ? 'text-base sm:text-2xl 2xl:text-[1.5625vw]' : layout === 'split' ? 'text-[length:var(--hdr-sub-fs-stacked)] md:text-[length:var(--hdr-sub-fs)]' : isSplitLike ? 'text-[length:var(--hdr-sub-fs)]' : isFullish ? 'text-base md:text-2xl 2xl:text-[1.5625vw]' : layout === 'wide' ? 'text-base md:text-[22px]' : 'text-base md:text-xl') + ' leading-snug'
+  const headingTextClass = (layout === 'fullscreen' ? 'text-[28px] md:text-6xl xl:text-[66px] 2xl:text-[4.6875vw]' : layout === 'linear' ? 'text-[28px] sm:text-6xl 2xl:text-[3.90625vw]' : layout === 'split' ? 'text-[length:var(--hdr-heading-fs-stacked)] md:text-[length:var(--hdr-heading-fs)]' : layout === 'linear-split' ? 'text-[length:var(--hdr-heading-fs-uncapped)] md:text-[length:var(--hdr-heading-fs)]' : isFullish ? 'text-[28px] md:text-6xl 2xl:text-[3.90625vw]' : layout === 'wide' ? 'text-[28px] md:text-5xl' : 'text-[28px] md:text-4xl') + ' leading-tight'
+  const subTextClass     = (layout === 'fullscreen' ? 'text-base md:text-2xl xl:text-[27px] 2xl:text-[1.953125vw]' : layout === 'linear' ? 'text-base sm:text-2xl 2xl:text-[1.5625vw]' : layout === 'split' ? 'text-[length:var(--hdr-sub-fs-stacked)] md:text-[length:var(--hdr-sub-fs)]' : layout === 'linear-split' ? 'text-[length:var(--hdr-sub-fs-uncapped)] md:text-[length:var(--hdr-sub-fs)]' : isFullish ? 'text-base md:text-2xl 2xl:text-[1.5625vw]' : layout === 'wide' ? 'text-base md:text-[22px]' : 'text-base md:text-xl') + ' leading-snug'
   const btnTextClass     = layout === 'fullscreen' ? 'text-xl' : isFullish ? 'text-lg' : 'text-base'
   // Wide/full/fullscreen ramp side padding up gradually across breakpoints instead of
   // jumping straight from the mobile value to the full 256px at md, which otherwise
@@ -4749,15 +4842,23 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   const sideInsetClass = textAlign === 'left' ? 'max-sm:pl-6' : textAlign === 'right' ? 'max-sm:pr-6' : ''
 
   // Both split-style layouts use one fixed, uniform padding box at every
-  // alignment (left/center/right) and every width — no growth past any
-  // breakpoint. The box's shape must never change with alignment or text
-  // length; only the text's position within it does. 48px matches the
-  // design system's existing px-12 scale; 24px mobile matches the smallest
-  // left inset other header layouts use at their own small-phone breakpoint
-  // (index.css's max-width:640px rule) — split/linear-split's no-wrap text
-  // needs all the width it can get on narrow phones, more than the old 32px
-  // mobile value left room for.
-  const splitLikeTextPad = 'px-12 max-md:px-6'
+  // alignment (left/center/right) — the box's shape must never change with
+  // alignment or text length, only the text's position within it. 48px
+  // matches the design system's existing px-12 scale; 24px mobile matches
+  // the smallest left inset other header layouts use at their own
+  // small-phone breakpoint (index.css's max-width:640px rule) —
+  // split/linear-split's no-wrap text needs all the width it can get on
+  // narrow phones, more than the old 32px mobile value left room for.
+  //
+  // The two layouts get there differently, though: `split` stacks to a
+  // full-width column at md (768px, see minHeightClass/index.css), so its
+  // padding jumps straight from 48px to 24px right at that same breakpoint —
+  // a real shape change, not an artificial tier. `linear-split` never
+  // stacks, so instead of a breakpoint jump, its padding scales down
+  // continuously via HEADER_LINEAR_SPLIT_TEXT_PAD_CSS (applied as an inline
+  // style below, since it needs the full clamp() expression, not a Tailwind
+  // breakpoint class).
+  const splitLikeTextPad = layout === 'linear-split' ? '' : 'px-12 max-md:px-6'
 
   const hasBgImage = layout !== 'split' && layout !== 'linear-split' && backgroundType === 'image' && headerImage
   const hasBgVideo = layout !== 'split' && layout !== 'linear-split' && backgroundType === 'video' && headerVideo
@@ -4995,7 +5096,9 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                 never stacks, so it's just a plain half-width column with no mobile floor. */}
             <div
               className={`${layout === 'linear-split' ? 'w-1/2 min-h-0' : 'w-full md:w-1/2 min-h-[240px] md:min-h-0'} ${splitLikeTextPad} relative flex flex-col justify-center items-center py-6 md:py-10`}
-              style={{ background: backgroundColor }}
+              style={layout === 'linear-split'
+                ? { background: backgroundColor, paddingLeft: HEADER_LINEAR_SPLIT_TEXT_PAD_CSS, paddingRight: HEADER_LINEAR_SPLIT_TEXT_PAD_CSS }
+                : { background: backgroundColor }}
             >
               {shadowOverlay && (
                 <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />
@@ -5529,6 +5632,10 @@ export class HeaderNode extends DecoratorNode {
         header.style.setProperty('--hdr-heading-fs-stacked', fit.headingFsStacked)
         header.style.setProperty('--hdr-sub-fs-stacked', fit.subFsStacked)
       }
+      if (fit.headingFsUncapped) {
+        header.style.setProperty('--hdr-heading-fs-uncapped', fit.headingFsUncapped)
+        header.style.setProperty('--hdr-sub-fs-uncapped', fit.subFsUncapped)
+      }
     }
 
     if (this.__layout === 'split' || this.__layout === 'linear-split') {
@@ -5608,10 +5715,16 @@ export class HeaderNode extends DecoratorNode {
       // stretched sizes to its own content (shrink-to-fit) instead of the
       // column's full width.
       textSide.style.alignItems = 'center'
-      // Fixed, uniform padding at every alignment (left/center/right) and every
-      // width — the box's shape never changes with alignment or text length,
-      // only the text's position within it does.
+      // Fixed, uniform vertical padding and (for `split`) horizontal padding at
+      // every alignment (left/center/right) — the box's shape never changes with
+      // alignment or text length, only the text's position within it does.
+      // `linear-split` overrides the horizontal padding just below with its own
+      // continuously-scaling clamp() instead of this flat 48px.
       textSide.style.padding = '40px 48px'
+      if (this.__layout === 'linear-split') {
+        textSide.style.paddingLeft = HEADER_LINEAR_SPLIT_TEXT_PAD_CSS
+        textSide.style.paddingRight = HEADER_LINEAR_SPLIT_TEXT_PAD_CSS
+      }
       textSide.style.textAlign = this.__textAlign || 'left'
 
       if (this.__shadowOverlay) {

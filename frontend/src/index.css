@@ -1196,7 +1196,10 @@ html {
    --hdr-heading-fs/--hdr-sub-fs (see nodes.jsx computeHeaderFitSizes), fit to this
    heading's widest typed line; the literal clamp() here is only the fallback for posts
    published before this feature, whose <header> has no --hdr-* vars. !important beats
-   exportDOM's inline base value at every width, same as before. */
+   exportDOM's inline base value at every width, same as before. This is the >=768px
+   (md) behavior for both layouts — split overrides it below that with its own
+   full-width "stacked" formula, and linear-split with its own uncapped one (both
+   further down, in the mobile-overrides block). */
 .blog-content header.header-split .header-heading,
 .blog-content header.header-linear-split .header-heading {
   font-size: var(--hdr-heading-fs, clamp(28px, 3.90625vw, 60px)) !important;
@@ -1309,10 +1312,12 @@ html {
   }
   /* Uniform padding at every alignment (left/center/right) — the box's shape never
      changes with alignment. 24px matches the smallest left inset other header
-     layouts use at this same breakpoint (below) — split/linear-split's no-wrap
-     text needs all the width it can get on narrow phones. */
-  .blog-content header.header-split .header-split-text,
-  .blog-content header.header-linear-split .header-split-text {
+     layouts use at this same breakpoint (below) — split's no-wrap text needs
+     all the width it can get once it stacks to a full-width column here (see
+     the column-reverse rule above). linear-split never stacks, so its padding
+     instead scales continuously at every width via an inline style baked by
+     nodes.jsx (HEADER_LINEAR_SPLIT_TEXT_PAD_CSS) rather than a breakpoint cut. */
+  .blog-content header.header-split .header-split-text {
     padding: 24px !important;
   }
   .blog-content header:not(.header-linear):not(.header-split):not(.header-linear-split) .header-heading {
@@ -1321,19 +1326,33 @@ html {
   .blog-content header:not(.header-linear):not(.header-split):not(.header-linear-split) .header-subheading {
     font-size: 16px !important;
   }
-  /* linear-split is deliberately excluded here — it never stacks, so it keeps
-     using its normal (50%-column) --hdr-heading-fs/--hdr-sub-fs at every width,
-     same as the base rule above. split DOES stack at this breakpoint (see
-     .header-split's column-reverse rule above) — its text column jumps from
-     half the header's width to the whole thing, so the plain 50%-column
-     formula would shrink it well below what the now much wider stacked
-     column actually has room for. --hdr-*-fs-stacked (baked by exportDOM
-     using that full-width geometry) overrides the base rule here instead. */
+  /* split DOES stack at this breakpoint (see .header-split's column-reverse rule
+     above) — its text column jumps from half the header's width to the whole
+     thing, so the plain 50%-column formula would shrink it well below what the
+     now much wider stacked column actually has room for. --hdr-*-fs-stacked
+     (baked by exportDOM using that full-width geometry) overrides the base
+     rule here instead. */
   .blog-content header.header-split .header-heading {
     font-size: var(--hdr-heading-fs-stacked, clamp(28px, 3.90625vw, 60px)) !important;
   }
   .blog-content header.header-split .header-subheading {
     font-size: var(--hdr-sub-fs-stacked, clamp(16px, 1.5625vw, 24px)) !important;
+  }
+  /* linear-split never stacks, so its column stays the same 50%-width half
+     the base (non-tiered) rule above already assumes — but that base rule's
+     --hdr-heading-fs still carries a ceiling (see buildLinearSplitFitPair in
+     nodes.jsx) meant to stop a short heading from oversizing on a wide
+     desktop column. Below md that ceiling is the wrong call — the column is
+     already much narrower (nodes.jsx's HEADER_LINEAR_SPLIT_TEXT_PAD_CSS keeps
+     shrinking its padding continuously down to this width and past it), so
+     the ceiling would stop the heading short of the padding edges instead of
+     letting it fill the space. --hdr-*-fs-uncapped is the same box-fit
+     formula with that ceiling removed, swapped in here to match. */
+  .blog-content header.header-linear-split .header-heading {
+    font-size: var(--hdr-heading-fs-uncapped, clamp(28px, 3.90625vw, 60px)) !important;
+  }
+  .blog-content header.header-linear-split .header-subheading {
+    font-size: var(--hdr-sub-fs-uncapped, clamp(16px, 1.5625vw, 24px)) !important;
   }
   /* Left- or right-aligned text column (nodes.jsx) widens from 50% to 60% on small screens —
      at 50% narrow phone widths wrap too aggressively; 60% reads better without crossing the
