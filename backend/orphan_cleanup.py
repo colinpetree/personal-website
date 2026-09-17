@@ -126,7 +126,7 @@ def _expand_with_responsive_siblings(names):
 
 
 def _collect_referenced_filenames():
-    from models import SiteConfig, AdminAccount, BlogPost, User, Project, SiteEventLog
+    from models import SiteConfig, AdminAccount, BlogPost, Page, User, Project, SiteEventLog
 
     # favicon.ico is a fixed filename, always the current one by
     # construction (save_favicon() overwrites it in place) — never tracked
@@ -154,6 +154,14 @@ def _collect_referenced_filenames():
             referenced.add(thumbnail)
         if list_thumbnail:
             referenced.add(list_thumbnail)
+        referenced |= _extract_from_html(content_html)
+
+    # Same "all statuses" reasoning as BlogPost above — Page mirrors its
+    # draft/publish lifecycle (see models.py), and this was missing entirely
+    # until now: a freeform Page's media had no reference path into this
+    # scan at all, so it was always one grace period away from wrongly
+    # being deleted regardless of whether the page was live and in use.
+    for (content_html,) in Page.query.with_entities(Page.content_html).all():
         referenced |= _extract_from_html(content_html)
 
     # NOT User.avatar_url — that's an external Google-hosted URL, never a

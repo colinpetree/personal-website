@@ -150,6 +150,9 @@ function PickerPopup({ value, onChange, verticalLightness = true }) {
   }
 
   function handleHexInput(e) {
+    // Strips every non-hex character (not just a leading '#') so stray
+    // whitespace from a paste (e.g. " #383b3f") is filtered out here too,
+    // rather than relying on the input's maxLength to have kept it out.
     const raw = e.target.value.replace(/[^0-9a-fA-F]/g, '').slice(0, 6)
     setHexInput(raw)
     if (raw.length === 6) {
@@ -225,7 +228,11 @@ function PickerPopup({ value, onChange, verticalLightness = true }) {
           value={hexInput.toUpperCase()}
           onChange={handleHexInput}
           className="flex-1 min-w-0 text-xs font-mono border border-gray-200 rounded px-2 py-1 outline-none focus:border-blue-400"
-          maxLength={6}
+          // Generous on purpose — handleHexInput strips everything down to 6
+          // hex digits itself, so this only needs to be loose enough that the
+          // browser never truncates a paste (leading '#', stray whitespace,
+          // etc.) before that filtering gets to run.
+          maxLength={20}
           spellCheck={false}
         />
       </div>

@@ -5174,7 +5174,15 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             <span className="text-sm text-gray-500">Background</span>
             <ColorSwatchMenu
               value={backgroundColor}
-              onChange={val => { commitField('setBackgroundColor', val); commitField('setBackgroundType', 'color') }}
+              onChange={val => {
+                commitField('setBackgroundColor', val)
+                // split/linear-split show this color on the text side alongside separate
+                // media (image/video) on the other side — backgroundType there tracks which
+                // media is active, so picking a color must not clear it. Other layouts show
+                // color and media as mutually-exclusive backgrounds, so backgroundType does
+                // need to flip to 'color' there.
+                if (layout !== 'split' && layout !== 'linear-split') commitField('setBackgroundType', 'color')
+              }}
               presets={['#000000', '#f3f4f6']}
               presetLabels={['Black', 'Gray']}
               imageFilename={headerImage}
@@ -5486,15 +5494,18 @@ export class HeaderNode extends DecoratorNode {
     header.setAttribute('data-button-url', this.__buttonUrl)
     header.setAttribute('data-button-color', this.__buttonColor)
     header.setAttribute('data-text-align', this.__textAlign)
-    // Only the active media type's reference is written out here (and so round-trips back
-    // in via importDOM). backgroundType tracks which of image/video is current, and the
-    // other one (left over from switching types without deleting it) is deliberately
-    // dropped instead of lingering as an unused reference in the saved/published HTML.
-    if (this.__backgroundType === 'image' && this.__headerImage) {
+    // Both media references are written out whenever present, even the inactive one left
+    // over from switching image<->video without deleting it — a draft needs that reference
+    // to survive round-trips (importDOM, autosave) so the file isn't seen as orphaned before
+    // the admin has actually committed to discarding it. The backend strips whichever one
+    // doesn't match backgroundType at the moment a post/page is actually published/scheduled
+    // (see header_media.strip_inactive_header_media, called from admin_blog.py/admin_pages.py) —
+    // that's the one place "this media is no longer wanted" actually gets decided.
+    if (this.__headerImage) {
       header.setAttribute('data-header-image', this.__headerImage)
       if (this.__headerImageLqip) header.setAttribute('data-header-image-lqip', this.__headerImageLqip)
     }
-    if (this.__backgroundType === 'video' && this.__headerVideo) header.setAttribute('data-header-video', this.__headerVideo)
+    if (this.__headerVideo) header.setAttribute('data-header-video', this.__headerVideo)
     header.setAttribute('data-flip-layout', String(this.__flipLayout))
     if (this.__layout === 'split') header.setAttribute('data-mobile-image-above', String(this.__mobileImageAbove))
     header.setAttribute('data-background-color', this.__backgroundColor)

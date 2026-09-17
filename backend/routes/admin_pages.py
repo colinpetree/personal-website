@@ -6,6 +6,7 @@ from models import Page, BlogPost, SiteConfig, SiteEventLog
 from routes.admin_auth import admin_required
 from varnish_purge import ban_pattern
 from sanitize_html import sanitize_content_html
+from header_media import strip_inactive_header_media
 from slug_utils import slugify, unique_slug, get_reserved_slugs
 
 admin_pages_bp = Blueprint('admin_pages', __name__)
@@ -140,6 +141,12 @@ def update_page(page_id):
 
     if 'status' in data and data['status'] in ('draft', 'published'):
         page.status = data['status']
+
+    # Committing to "this is going live" is the one point where a HeaderNode's
+    # no-longer-selected image/video reference actually becomes abandoned
+    # rather than just mid-edit — see header_media.py.
+    if page.status == 'published' and page.content_html:
+        page.content_html = strip_inactive_header_media(page.content_html)
 
     page.updated_at = datetime.utcnow()
 

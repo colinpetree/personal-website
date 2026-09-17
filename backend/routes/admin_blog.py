@@ -6,6 +6,7 @@ from models import BlogPost, Comment, User, AdminAccount, SiteEventLog, SiteConf
 from routes.admin_auth import admin_required, role_at_least
 from varnish_purge import ban_pattern
 from sanitize_html import sanitize_content_html
+from header_media import strip_inactive_header_media
 from thumbnail_utils import derive_list_thumbnail
 from upload_utils import get_uploads_dir, thumbnail_variant_filename
 from slug_utils import slugify as _slugify, unique_slug as _unique_slug, get_reserved_slugs as _get_reserved_slugs
@@ -181,6 +182,12 @@ def update_post(post_id):
 
     if 'status' in data and data['status'] in ('draft', 'scheduled', 'published'):
         post.status = data['status']
+
+    # Committing to "this is going live" (now or on schedule) is the one point
+    # where a HeaderNode's no-longer-selected image/video reference actually
+    # becomes abandoned rather than just mid-edit — see header_media.py.
+    if post.status in ('scheduled', 'published') and post.content_html:
+        post.content_html = strip_inactive_header_media(post.content_html)
 
     if 'publish_date' in data:
         post.publish_date = datetime.fromisoformat(data['publish_date']) if data['publish_date'] else None

@@ -13,6 +13,7 @@ from routes.admin_auth import admin_required, role_at_least
 from email_utils import send_email, mail_configured
 from upload_utils import save_and_optimize_image, save_favicon, IMAGE_OPTIMIZE_EXTENSIONS, HEADER_IMAGE_MAX_DIM, get_app_data_dir, get_uploads_dir
 from varnish_purge import purge_all_public
+from header_media import strip_inactive_header_media
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +166,19 @@ def update_admin_config():
     for field in plain_fields:
         if field in data:
             setattr(config, field, data[field])
+
+    # These fixed feature pages (Home/Blog/Projects/Contact/Payment/AI Demo)
+    # have no draft state — a save here goes live immediately — so unlike
+    # BlogPost/Page (admin_blog.py/admin_pages.py), there's no "still editing,
+    # keep it" window to preserve. Any HeaderNode's no-longer-selected
+    # image/video reference is abandoned the moment this save happens, same
+    # as a BlogPost/Page save that results in 'published'.
+    _HEADER_BEARING_TEXT_FIELDS = ('home_text', 'blog_text', 'projects_text', 'contact_text', 'payment_text', 'ai_demo_text')
+    for field in _HEADER_BEARING_TEXT_FIELDS:
+        if field in plain_fields and field in data:
+            value = getattr(config, field)
+            if value:
+                setattr(config, field, strip_inactive_header_media(value))
 
     # Primary navigation (Pages feature, Ghost-style freeform label/url
     # pairs) — validated separately since it needs JSON (de)serialization.
