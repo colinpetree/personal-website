@@ -40,7 +40,6 @@ def _config_to_dict(config):
     """Serialize SiteConfig for the admin — includes all fields, secrets as _set flags."""
     result = {
         'site_title': config.site_title,
-        'site_description': config.site_description,
         'domain': config.domain,
         'favicon_filename': config.favicon_filename,
         'timezone': config.timezone,
@@ -152,7 +151,7 @@ def update_admin_config():
 
     # Plain fields — update if present in payload
     plain_fields = [
-        'site_title', 'site_description', 'domain', 'favicon_filename', 'timezone', 'users_enabled', 'site_title_link',
+        'site_title', 'domain', 'favicon_filename', 'timezone', 'users_enabled', 'site_title_link',
         'home_enabled', 'home_page_name', 'home_text', 'home_meta_description', 'home_scrollable_nav_enabled', 'home_page_width', 'home_font_family',
         'blog_enabled', 'blog_page_name', 'blog_slug', 'blog_text', 'blog_meta_description', 'blog_comments_enabled', 'blog_font_family',
         'projects_enabled', 'projects_page_name', 'projects_text', 'projects_meta_description', 'projects_scrollable_nav_enabled', 'projects_slug', 'projects_page_width', 'projects_font_family',

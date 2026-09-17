@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
-import { PageShell, Card, EditableCard, Field, Input, Textarea } from '../../components/admin/AdminPage'
+import { PageShell, Card, EditableCard, Field, Input } from '../../components/admin/AdminPage'
 import FileDropzone from '../../components/admin/FileDropzone'
 import AvatarCropperModal from '../../components/AvatarCropperModal'
 import HistoryModal from '../../components/admin/HistoryModal'
@@ -182,40 +182,22 @@ function AdminSettingsPageContent() {
       )}
       <div className="flex flex-col gap-6">
 
-        {/* Title & description card */}
+        {/* Title card */}
         <EditableCard
-          title="Title & description"
-          description="The details used to identify your site around the web"
-          savedValues={{ site_title: config?.site_title || '', site_description: config?.site_description || '' }}
-          onSave={values => save({ site_title: values.site_title, site_description: values.site_description })}
+          title="Title"
+          description="The name used to identify your site around the web"
+          savedValues={{ site_title: config?.site_title || '' }}
+          onSave={values => save({ site_title: values.site_title })}
         >
           {({ editing, local, set }) => editing ? (
-            <>
-              <Field label="Site Title" hint="Shown in the browser tab and navbar.">
-                <Input value={local.site_title} onChange={e => set('site_title', e.target.value)} />
-              </Field>
-              <div className="flex flex-col gap-1.5">
-                <label className="text-sm font-medium text-gray-700">Site Description</label>
-                <Textarea
-                  rows={3}
-                  value={local.site_description}
-                  onChange={e => set('site_description', e.target.value)}
-                  placeholder="Describe your site in a sentence or two…"
-                />
-                <p className="text-xs text-gray-400">A short description, used in your theme, meta data and search results</p>
-              </div>
-            </>
+            <Field label="Site Title" hint="Shown in the browser tab and navbar.">
+              <Input value={local.site_title} onChange={e => set('site_title', e.target.value)} />
+            </Field>
           ) : (
-            <>
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Site Title</p>
-                <DisplayValue value={local.site_title} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <p className="text-xs font-medium text-gray-500">Site Description</p>
-                <DisplayValue value={local.site_description} fallback="No description set" />
-              </div>
-            </>
+            <div className="flex flex-col gap-1">
+              <p className="text-xs font-medium text-gray-500">Site Title</p>
+              <DisplayValue value={local.site_title} />
+            </div>
           )}
         </EditableCard>
 

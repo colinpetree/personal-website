@@ -22,7 +22,6 @@ class SiteConfig(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     site_title = db.Column(db.String(200), nullable=False, default='My Website')
-    site_description = db.Column(db.Text, nullable=True)
     nav_order = db.Column(db.Text, nullable=True)  # JSON array of page keys, e.g. '["home","blog",...]'
 
     # Home
