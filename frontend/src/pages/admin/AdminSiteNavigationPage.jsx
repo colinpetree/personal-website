@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { GripVertical, Trash2, Plus } from 'lucide-react'
 import { useAdminConfig } from '../../hooks/useAdminConfig'
+import { useInternalLinks } from '../../hooks/useInternalLinks'
 import { PageShell, EditableCard, Field, Input } from '../../components/admin/AdminPage'
+import NavLinkAutocomplete from '../../components/admin/NavLinkAutocomplete'
 import RoleGuard from '../../components/admin/RoleGuard'
 
 // Moves the item at `from` so it lands just before what is currently index
@@ -25,6 +27,7 @@ export default function AdminSiteNavigationPage() {
 
 function AdminSiteNavigationPageContent() {
   const { config, loading, save } = useAdminConfig()
+  const { links } = useInternalLinks()
   // Drag state lives outside EditableCard's local/set — it's transient
   // interaction state, not a saved field, and only ever matters while
   // editing.
@@ -146,11 +149,11 @@ function AdminSiteNavigationPageContent() {
                         placeholder="Label"
                         className="flex-1 min-w-0 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm text-gray-900 outline-none focus:border-gray-400"
                       />
-                      <input
+                      <NavLinkAutocomplete
                         value={item.url}
-                        onChange={e => set('primary_navigation', local.primary_navigation.map((it, i) => i === index ? { ...it, url: e.target.value } : it))}
+                        onChange={val => set('primary_navigation', local.primary_navigation.map((it, i) => i === index ? { ...it, url: val } : it))}
+                        links={links}
                         placeholder="/page or https://…"
-                        className="flex-1 min-w-0 rounded-md border border-gray-300 px-2.5 py-1.5 text-sm text-gray-900 outline-none focus:border-gray-400"
                       />
                       <button
                         onClick={() => set('primary_navigation', local.primary_navigation.filter((_, i) => i !== index))}

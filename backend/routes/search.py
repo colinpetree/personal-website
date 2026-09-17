@@ -18,7 +18,7 @@ BODY_TOKEN_SCORE = 1
 BODY_TOKEN_CAP = 5
 
 
-def _section_enabled(config, section):
+def section_enabled(config, section):
     if section == 'contact':
         return bool(config.contact_enabled and config.mailgun_api_key and config.mailgun_domain)
     if section == 'ai_demo':
@@ -50,7 +50,7 @@ def _collect_docs():
     config = SiteConfig.query.first()
     if config:
         for i, section in enumerate(_STATIC_SECTIONS):
-            if not _section_enabled(config, section):
+            if not section_enabled(config, section):
                 continue
             title = getattr(config, f'{section}_page_name')
             slug = '' if section == 'home' else getattr(config, f'{section}_slug')
