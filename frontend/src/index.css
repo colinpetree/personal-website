@@ -1118,6 +1118,21 @@ html {
   color: inherit;
 }
 
+/* Header block — split/linear-split heading/subheading no longer wrap: the user
+   controls every line break explicitly (Enter and Shift+Enter both insert one), and
+   the heading's font size is computed (see HeaderNode.exportDOM/computeHeaderFitSizes
+   in nodes.jsx) to fit its widest line at the box's fixed width. pre-wrap (not nowrap)
+   is deliberate: it still respects explicit <br> line breaks, but also still wraps as
+   a safety net if the computed size is ever slightly optimistic (font substitution,
+   rounding), rather than silently overflowing the box. */
+.blog-content header.header-split .header-heading,
+.blog-content header.header-split .header-subheading,
+.blog-content header.header-linear-split .header-heading,
+.blog-content header.header-linear-split .header-subheading {
+  white-space: pre-wrap;
+  overflow-wrap: normal;
+}
+
 /* Header block — fullscreen layout heading/subheading ramp up across breakpoints
    (biggest at 2xl) instead of jumping straight to their max size at md. Matches the
    editor's `md:text-6xl xl:text-[66px] 2xl:text-[4.6875vw]` / `md:text-2xl xl:text-[27px]
@@ -1148,51 +1163,52 @@ html {
     font-size: 1.953125vw !important;
   }
   .blog-content header.header-full .header-heading,
-  .blog-content header.header-split .header-heading,
-  .blog-content header.header-linear .header-heading,
-  .blog-content header.header-linear-split .header-heading {
+  .blog-content header.header-linear .header-heading {
     font-size: 3.90625vw !important;
   }
   .blog-content header.header-full .header-subheading,
-  .blog-content header.header-split .header-subheading,
-  .blog-content header.header-linear .header-subheading,
-  .blog-content header.header-linear-split .header-subheading {
+  .blog-content header.header-linear .header-subheading {
     font-size: 1.5625vw !important;
   }
 }
 
-/* Header block: full/linear/fullscreen's left-aligned side padding keeps growing past 2xl
-   (1536px) at a sixth the rate of viewport width, instead of staying flat at the fixed
-   256px inline value there — these layouts are full-bleed with no width cap, so letting
-   left-aligned text's inset keep pace (like split/linear-split's own text-side padding
-   does) avoids it looking pinned in place on very large/ultrawide screens.
-   calc((100vw - 1536px) / 6 + 256px) is continuous with the flat 256px value at 1536px.
-   wide is deliberately excluded — it's meant to read as a narrower, page-bound layout, not
-   a full-bleed one, so its padding stays flat regardless of alignment. Centered text also
-   stays flat here, matching how split/linear-split only grow for left-align. !important
-   beats exportDOM's inline value. */
+/* Header block: split/linear-split heading/subheading scale continuously with viewport
+   width via clamp() — one smooth curve from a floor up to a ceiling, instead of separate
+   per-breakpoint values that jump at each breakpoint edge (matches how the header's own
+   height already scales via clamp() above). The clamp() itself is baked by exportDOM as
+   --hdr-heading-fs/--hdr-sub-fs (see nodes.jsx computeHeaderFitSizes), fit to this
+   heading's widest typed line; the literal clamp() here is only the fallback for posts
+   published before this feature, whose <header> has no --hdr-* vars. !important beats
+   exportDOM's inline base value at every width, same as before. */
+.blog-content header.header-split .header-heading,
+.blog-content header.header-linear-split .header-heading {
+  font-size: var(--hdr-heading-fs, clamp(28px, 3.90625vw, 60px)) !important;
+}
+.blog-content header.header-split .header-subheading,
+.blog-content header.header-linear-split .header-subheading {
+  font-size: var(--hdr-sub-fs, clamp(16px, 1.5625vw, 24px)) !important;
+}
+
+/* Header block: full/linear/fullscreen's left- or right-aligned side padding keeps growing
+   past 2xl (1536px) at a sixth the rate of viewport width, instead of staying flat at the
+   fixed 256px inline value there — these layouts are full-bleed with no width cap, so
+   letting the text's inset keep pace (like split/linear-split's own text-side padding does)
+   avoids it looking pinned in place on very large/ultrawide screens. calc((100vw - 1536px) /
+   6 + 256px) is continuous with the flat 256px value at 1536px. wide is deliberately
+   excluded — it's meant to read as a narrower, page-bound layout, not a full-bleed one, so
+   its padding stays flat regardless of alignment. Centered text also stays flat here,
+   matching how split/linear-split only grow for left/right-align. The growth itself is
+   symmetric (both padding-left and padding-right grow together), so right mirrors left
+   exactly. !important beats exportDOM's inline value. */
 @media (min-width: 1536px) {
   .blog-content header[data-text-align="left"].header-full .header-inner,
   .blog-content header[data-text-align="left"].header-linear .header-inner,
-  .blog-content header[data-text-align="left"].header-fullscreen .header-inner {
+  .blog-content header[data-text-align="left"].header-fullscreen .header-inner,
+  .blog-content header[data-text-align="right"].header-full .header-inner,
+  .blog-content header[data-text-align="right"].header-linear .header-inner,
+  .blog-content header[data-text-align="right"].header-fullscreen .header-inner {
     padding-left: calc((100vw - 1536px) / 6 + 256px) !important;
     padding-right: calc((100vw - 1536px) / 6 + 256px) !important;
-  }
-}
-
-/* Header block: split and linear-split's text-side left padding both grow at a sixth the
-   rate of viewport width past 1020px (instead of staying flat at exportDOM's 96px base) so
-   the text shifts gradually toward the header's center as it scales up on wide screens.
-   calc((100vw - 1020px) / 6 + 96px) is continuous with the 96px base exactly at 1020px
-   (the (100vw - 1020px) term is 0 there), then grows 1px for every 6px of additional
-   viewport width beyond that — no cap, since the header itself has none (both layouts are
-   full-bleed at every width). Left-align only — centered text should stay centered within
-   the column rather than drifting off-center as this grows, so it keeps the flat 96px base
-   (exportDOM's inline value, untouched here). !important beats exportDOM's inline value. */
-@media (min-width: 1020px) {
-  .blog-content header.header-split[data-text-align="left"] .header-split-text,
-  .blog-content header.header-linear-split[data-text-align="left"] .header-split-text {
-    padding-left: calc((100vw - 1020px) / 6 + 96px) !important;
   }
 }
 
@@ -1251,9 +1267,14 @@ html {
   }
   /* column-reverse (not column): DOM order is always image-then-text (see exportDOM), so
      reversing the visual axis puts text on top and image below once stacked, regardless of
-     the desktop flip toggle (which only ever swaps row/row-reverse, never affects this). */
+     the desktop flip toggle (which only ever swaps row/row-reverse, never affects this).
+     "Mobile Image Above" flips this back to plain column, which (with the same
+     image-then-text DOM order) puts the image on top instead. */
   .blog-content header.header-split {
     flex-direction: column-reverse !important;
+  }
+  .blog-content header.header-split[data-mobile-image-above="true"] {
+    flex-direction: column !important;
   }
   .blog-content header.header-split .header-split-image,
   .blog-content header.header-split .header-split-text {
@@ -1269,33 +1290,41 @@ html {
   .blog-content header.header-split .header-split-text {
     min-height: 240px !important;
   }
-  /* Left-align only — centered text keeps exportDOM's own small constant symmetric padding
-     (falls through untouched here) so it stays centered instead of picking up this wider,
-     asymmetric-with-the-desktop-value inset meant for left-aligned text against an edge. */
-  .blog-content header.header-split[data-text-align="left"] .header-split-text {
-    padding: 24px 32px !important;
+  /* Uniform padding at every alignment (left/center/right) — the box's shape never
+     changes with alignment. 24px matches the smallest left inset other header
+     layouts use at this same breakpoint (below) — split/linear-split's no-wrap
+     text needs all the width it can get on narrow phones. */
+  .blog-content header.header-split .header-split-text,
+  .blog-content header.header-linear-split .header-split-text {
+    padding: 24px !important;
   }
-  /* linear-split never stacks (its sides stay 50/50 at every width, per its own hard
-     height cap above) — its text-side padding shrinks to match split's mobile value, so
-     the fixed 96px left padding (exportDOM) doesn't crowd out its half-width column.
-     Left-align only: right padding drops to 0 (unlike split's own 32px) so text can wrap
-     all the way to the column's own edge (the vertical divider against the image side)
-     before breaking, since that edge isn't a page margin the way split's right edge is
-     once it stacks. Centered text keeps symmetric padding (falls through to exportDOM's
-     own inline value) so it stays visually centered instead of drifting off-center. */
-  .blog-content header.header-linear-split[data-text-align="left"] .header-split-text {
-    padding: 24px 0 24px 32px !important;
-  }
-  .blog-content header:not(.header-linear) .header-heading {
+  .blog-content header:not(.header-linear):not(.header-split):not(.header-linear-split) .header-heading {
     font-size: 28px !important;
   }
-  .blog-content header:not(.header-linear) .header-subheading {
+  .blog-content header:not(.header-linear):not(.header-split):not(.header-linear-split) .header-subheading {
     font-size: 16px !important;
   }
-  /* Left-align's text column (nodes.jsx) widens from 50% to 60% on small screens — at 50%
-     narrow phone widths wrap too aggressively; 60% reads better without crossing the
-     header's midpoint by much. Matches the editor's `max-md:max-w-[60%]`. */
-  .blog-content header[data-text-align="left"] .header-text-col {
+  /* linear-split is deliberately excluded here — it never stacks, so it keeps
+     using its normal (50%-column) --hdr-heading-fs/--hdr-sub-fs at every width,
+     same as the base rule above. split DOES stack at this breakpoint (see
+     .header-split's column-reverse rule above) — its text column jumps from
+     half the header's width to the whole thing, so the plain 50%-column
+     formula would shrink it well below what the now much wider stacked
+     column actually has room for. --hdr-*-fs-stacked (baked by exportDOM
+     using that full-width geometry) overrides the base rule here instead. */
+  .blog-content header.header-split .header-heading {
+    font-size: var(--hdr-heading-fs-stacked, clamp(28px, 3.90625vw, 60px)) !important;
+  }
+  .blog-content header.header-split .header-subheading {
+    font-size: var(--hdr-sub-fs-stacked, clamp(16px, 1.5625vw, 24px)) !important;
+  }
+  /* Left- or right-aligned text column (nodes.jsx) widens from 50% to 60% on small screens —
+     at 50% narrow phone widths wrap too aggressively; 60% reads better without crossing the
+     header's midpoint by much. Matches the editor's `max-md:max-w-[60%]`. The right-aligned
+     column's own `margin-left: auto` (exportDOM/nodes.jsx's `ml-auto`) still applies at this
+     width, so it keeps anchoring to the right edge as its cap widens. */
+  .blog-content header[data-text-align="left"] .header-text-col,
+  .blog-content header[data-text-align="right"] .header-text-col {
     max-width: 60% !important;
   }
 }
@@ -1312,38 +1341,27 @@ html {
   }
 }
 
-/* Header block: split and linear-split both get a medium-size step between the 768px
-   mobile-shrink breakpoint above and lg (1024px), instead of jumping straight to the full
-   60px/24px size the other isFullish layouts use at 768px — their text column is only half
-   the header's width, so the full size reads oversized as soon as it appears, before
-   there's enough column width (at 1024px+) to comfortably hold it. Matches the editor's
-   `md:text-[40px] lg:text-6xl` / `md:text-[20px] lg:text-2xl` classes. !important beats
-   exportDOM's inline 60px/24px base. */
-@media (min-width: 769px) and (max-width: 1023px) {
-  .blog-content header.header-split .header-heading,
-  .blog-content header.header-linear-split .header-heading {
-    font-size: 40px !important;
-  }
-  .blog-content header.header-split .header-subheading,
-  .blog-content header.header-linear-split .header-subheading {
-    font-size: 20px !important;
-  }
-}
-
-/* On small phones, a left-aligned header's left inset drops further to match the blog
-   post body text's own left margin (BlogPostView's `px-6` = 24px, main.jsx), so the
-   header's text edge lines up with the paragraph text below it instead of sitting 8px
-   further in than it. Centered text is unaffected — it isn't flush against an edge to
-   line up with. Matches the editor's `max-sm:pl-6` (nodes.jsx). */
+/* On small phones, a left-aligned header's left inset (or a right-aligned header's right
+   inset) drops further to match the blog post body text's own side margin (BlogPostView's
+   `px-6` = 24px, main.jsx), so the header's text edge lines up with the paragraph text below
+   it instead of sitting 8px further in than it. Centered text is unaffected — it isn't flush
+   against an edge to compare against. Matches the editor's `max-sm:pl-6`/`max-sm:pr-6`
+   (nodes.jsx). split/linear-split are excluded — their padding is now fixed and
+   alignment-agnostic at every width. */
 @media (max-width: 640px) {
   .blog-content header[data-text-align="left"].header-regular .header-inner,
   .blog-content header[data-text-align="left"].header-wide .header-inner,
   .blog-content header[data-text-align="left"].header-full .header-inner,
   .blog-content header[data-text-align="left"].header-fullscreen .header-inner,
-  .blog-content header[data-text-align="left"].header-linear .header-inner,
-  .blog-content header[data-text-align="left"].header-split .header-split-text,
-  .blog-content header[data-text-align="left"].header-linear-split .header-split-text {
+  .blog-content header[data-text-align="left"].header-linear .header-inner {
     padding-left: 24px !important;
+  }
+  .blog-content header[data-text-align="right"].header-regular .header-inner,
+  .blog-content header[data-text-align="right"].header-wide .header-inner,
+  .blog-content header[data-text-align="right"].header-full .header-inner,
+  .blog-content header[data-text-align="right"].header-fullscreen .header-inner,
+  .blog-content header[data-text-align="right"].header-linear .header-inner {
+    padding-right: 24px !important;
   }
 }
 

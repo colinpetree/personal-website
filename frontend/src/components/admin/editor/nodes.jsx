@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { createEditor, DecoratorNode, $getNodeByKey, $getRoot, $createParagraphNode, CLICK_COMMAND, KEY_DOWN_COMMAND, COMMAND_PRIORITY_LOW, COMMAND_PRIORITY_HIGH, COMMAND_PRIORITY_CRITICAL, $createNodeSelection, $setSelection } from 'lexical'
+import { createEditor, DecoratorNode, $getNodeByKey, $getRoot, $getSelection, $isRangeSelection, $isElementNode, $isLineBreakNode, $createParagraphNode, CLICK_COMMAND, KEY_DOWN_COMMAND, KEY_ARROW_DOWN_COMMAND, INSERT_LINE_BREAK_COMMAND, COMMAND_PRIORITY_LOW, COMMAND_PRIORITY_HIGH, COMMAND_PRIORITY_CRITICAL, $createNodeSelection, $setSelection } from 'lexical'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { useLexicalNodeSelection } from '@lexical/react/useLexicalNodeSelection'
 import { LexicalNestedComposer } from '@lexical/react/LexicalNestedComposer'
@@ -12,7 +12,7 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { TableNode, TableCellNode } from '@lexical/table'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, Maximize2, Columns2, RectangleVertical, RectangleHorizontal, StretchHorizontal, Fullscreen, TriangleRight, BetweenVerticalEnd, Link, Link2, Link2Off, X, Music, FileText, Plus, ImagePlus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, GripVertical } from 'lucide-react'
+import { AlignLeft, AlignCenter, AlignRight, Maximize2, Columns2, RectangleVertical, RectangleHorizontal, StretchHorizontal, Fullscreen, Scaling, Link, Link2, Link2Off, X, Music, FileText, Plus, ImagePlus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, GripVertical } from 'lucide-react'
 import { GALLERY_MAX_IMAGES, groupImagesIntoRows, computeRowAspectRatio, aspectRatioOf } from '../../../lib/galleryLayout'
 import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
 
@@ -45,6 +45,146 @@ function isBlankHtml(html) {
   const tmp = document.createElement('div')
   tmp.innerHTML = html
   return !tmp.textContent.trim()
+}
+
+// ─── Header split/linear-split width-fit font sizing ───────────────────────────
+//
+// split/linear-split headings no longer wrap — the user controls line breaks
+// explicitly (Enter/Shift+Enter both insert one), and the heading's font size
+// scales down so its widest typed line always fits the fixed-width text
+// column. This must produce identical numbers whether called from the live
+// editor (HeaderNodeComponent) or from HeaderNode.exportDOM() (a plain method
+// with no React context), so the whole calculation lives here as one
+// framework-free helper used by both.
+//
+// Font family isn't available at this level: exportDOM() is always a
+// zero-argument method (see every other node's exportDOM in this file) and
+// the post's font-family toggle is only threaded to decorators via
+// FontFamilyContext, never to node-level export — and it can change
+// independently of the header after the header was last measured anyway. So
+// instead of assuming a font, every line is measured against BOTH stacks the
+// heading/subheading can ever render in (see index.css's sans-default /
+// [data-font-family="serif"] override) and the wider of the two wins — this
+// guarantees the computed size fits no matter which font is later selected.
+const HEADER_FIT_FONT_STACKS = [
+  "bold 100px 'Source Sans 3', ui-sans-serif, system-ui, sans-serif",
+  "bold 100px 'Source Serif 4', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif",
+]
+
+let _headerFitCanvas = null
+function measureHeaderMaxLineWidthAt100(lines) {
+  if (!_headerFitCanvas) _headerFitCanvas = document.createElement('canvas')
+  const ctx = _headerFitCanvas.getContext('2d')
+  let max = 0
+  for (const font of HEADER_FIT_FONT_STACKS) {
+    ctx.font = font
+    for (const line of lines) {
+      const width = ctx.measureText(line || ' ').width
+      if (width > max) max = width
+    }
+  }
+  return max
+}
+
+// Both split-like layouts' text column is ~50% of the header's width minus
+// the fixed 96px (48px each side) desktop padding, so the fitting font size
+// is linear in viewport width: fontSize(v) = slope*v - intercept. That's a
+// single continuous curve — no per-breakpoint values that jump at each
+// breakpoint edge — floored at HEADER_FIT_MIN so very long headings don't
+// shrink below legibility, and capped at a "ceiling" so very short headings
+// don't blow up arbitrarily large.
+//
+// The ceiling itself isn't a flat cap, though: it stays flat at
+// HEADER_FIT_CEILING up to HEADER_FIT_CEILING_REF_WIDTH (matching the
+// original fixed-max look at everyday/moderately-large screen widths), then
+// keeps growing at HEADER_FIT_CEILING's own vw-equivalent rate beyond that —
+// so on very large/ultrawide screens the text keeps using the extra space
+// instead of plateauing. A short heading is governed by this ceiling; a
+// heading long enough to need less than the ceiling is governed by its own
+// box-fit formula instead, unaffected either way.
+//
+// `split` alone breaks this 50%-column assumption below 768px: it stacks to
+// a full-width column there (column-reverse, see index.css), so its actual
+// available width jumps from "half the header, minus 48px-a-side padding" to
+// "the whole header, minus 24px-a-side mobile padding" — a real, deliberate
+// shape change, not an artificial tier. Using the 50%-column formula there
+// anyway would shrink text well below what the (much wider) stacked column
+// actually has room for, which is what this was built to avoid. So `split`
+// gets a second "stacked" formula for that regime, swapped in only below
+// 768px (index.css); `linear-split` never stacks and always uses the single
+// 50%-column formula above.
+//
+// The stacked formula reuses this same ceiling mechanism, just with the
+// full-width geometry instead of the 50%-column one, and its own (lower)
+// ceiling — 75px reads too large once the column is full-width instead of
+// half — since the ceiling only ever binds for very short headings anyway,
+// within the bounded 0–768px range it rarely triggers; the formula otherwise
+// just scales continuously down to the same HEADER_FIT_MIN floor as
+// viewport width shrinks, same as normal.
+const HEADER_FIT_MIN = 20
+const HEADER_FIT_CEILING = 75
+const HEADER_FIT_CEILING_REF_WIDTH = 1600
+const HEADER_FIT_CEILING_SLOPE_VW = HEADER_FIT_CEILING / HEADER_FIT_CEILING_REF_WIDTH * 100
+const HEADER_FIT_STACKED_CEILING = 45
+const HEADER_FIT_STACKED_CEILING_SLOPE_VW = HEADER_FIT_STACKED_CEILING / HEADER_FIT_CEILING_REF_WIDTH * 100
+const HEADER_FIT_SUB_RATIO = 0.4
+const HEADER_FIT_SAFETY_MARGIN = 0.96
+
+// Shared by the editor's initial state and exportDOM, so both derive the same
+// plain-text-with-\n from a saved heading HTML string (<br> -> \n) instead of
+// each re-implementing the conversion.
+function headingHtmlToPlainText(html) {
+  if (!html) return ''
+  const tmp = document.createElement('div')
+  tmp.innerHTML = html.replace(/<br\s*\/?>/gi, '\n')
+  return tmp.textContent || ''
+}
+
+// widthFraction: the text column's width as a fraction of the header's own
+// width (0.5 for a side-by-side column, 1 for a stacked/full-width column).
+// padTotal: the column's own left+right padding (px) at that geometry.
+function headerFitFormula(widthPerFontPx, widthFraction, padTotal) {
+  return {
+    slopeVw: widthPerFontPx ? (widthFraction * 100 * HEADER_FIT_SAFETY_MARGIN) / widthPerFontPx : 0,
+    interceptPx: widthPerFontPx ? (padTotal * HEADER_FIT_SAFETY_MARGIN) / widthPerFontPx : 0,
+  }
+}
+
+function headerFitCss(min, ceiling, ceilingSlopeVw, slope, intercept) {
+  return `max(${min.toFixed(2)}px, min(calc(${slope.toFixed(4)}vw - ${intercept.toFixed(2)}px), max(${ceiling.toFixed(2)}px, calc(${ceilingSlopeVw.toFixed(4)}vw))))`
+}
+
+// Returns ready-to-use nested CSS min()/max()/calc() strings for
+// heading/subheading font-size — assigned directly to --hdr-heading-fs /
+// --hdr-sub-fs (and, for `split` only, the "stacked" mobile-geometry
+// counterparts) custom properties, so index.css and exportDOM's inline
+// fallback don't need to know anything about the underlying formula, just
+// consume the finished value.
+function computeHeaderFitSizes(headingPlainText, layout) {
+  const lines = (headingPlainText || '').split('\n')
+  const widthPerFontPx = measureHeaderMaxLineWidthAt100(lines) / 100
+
+  const buildPair = (widthFraction, padTotal, ceiling = HEADER_FIT_CEILING, ceilingSlopeVw = HEADER_FIT_CEILING_SLOPE_VW) => {
+    const { slopeVw, interceptPx } = headerFitFormula(widthPerFontPx, widthFraction, padTotal)
+    return {
+      headingFs: headerFitCss(HEADER_FIT_MIN, ceiling, ceilingSlopeVw, slopeVw, interceptPx),
+      subFs: headerFitCss(
+        HEADER_FIT_MIN * HEADER_FIT_SUB_RATIO,
+        ceiling * HEADER_FIT_SUB_RATIO,
+        ceilingSlopeVw * HEADER_FIT_SUB_RATIO,
+        slopeVw * HEADER_FIT_SUB_RATIO,
+        interceptPx * HEADER_FIT_SUB_RATIO
+      ),
+    }
+  }
+
+  const result = buildPair(0.5, 96)
+  if (layout === 'split') {
+    const stacked = buildPair(1, 48, HEADER_FIT_STACKED_CEILING, HEADER_FIT_STACKED_CEILING_SLOPE_VW)
+    result.headingFsStacked = stacked.headingFs
+    result.subFsStacked = stacked.subFs
+  }
+  return result
 }
 
 // Font Family editor setting ('default' | 'sans' | 'serif') — provided by
@@ -4182,7 +4322,41 @@ export function $createCodeBlockNode(code = '') {
 
 // ─── HeaderFieldSyncPlugin ────────────────────────────────────────────────────
 
-function HeaderFieldSyncPlugin({ parentEditor, nodeKey, setterName, initialHtml, onEnterKey }) {
+// Walks the field's single paragraph in document order and reports whether a
+// LineBreakNode appears anywhere after the caret — used to tell whether the
+// caret is on the field's last typed line. Nested inline nodes (e.g. a link)
+// are handled by locating the caret's top-level sibling within the paragraph
+// and only checking everything after it, since line breaks are always direct
+// children of the paragraph, never nested inside inline formatting.
+function $hasLineBreakAfterCaret(selection) {
+  const anchorNode = selection.anchor.getNode()
+  const root = anchorNode.getTopLevelElementOrThrow()
+  const children = root.getChildren()
+  if (children.length === 0) return false
+
+  let afterCaret
+  if ($isElementNode(anchorNode) && anchorNode.is(root)) {
+    afterCaret = children.slice(selection.anchor.offset)
+  } else {
+    let topChild = anchorNode
+    while (topChild.getParent() && !topChild.getParent().is(root)) {
+      topChild = topChild.getParent()
+    }
+    const idx = children.findIndex(c => c.is(topChild))
+    afterCaret = idx === -1 ? [] : children.slice(idx + 1)
+  }
+
+  const containsLineBreak = (nodes) => {
+    for (const n of nodes) {
+      if ($isLineBreakNode(n)) return true
+      if (typeof n.getChildren === 'function' && containsLineBreak(n.getChildren())) return true
+    }
+    return false
+  }
+  return containsLineBreak(afterCaret)
+}
+
+function HeaderFieldSyncPlugin({ parentEditor, nodeKey, setterName, initialHtml, onAdvanceKey, onPlainTextChange, noWrapMode }) {
   const [nestedEditor] = useLexicalComposerContext()
   const loaded = useRef(false)
 
@@ -4210,24 +4384,67 @@ function HeaderFieldSyncPlugin({ parentEditor, nodeKey, setterName, initialHtml,
           if (!node) return
           node[setterName](html)
         })
+        if (onPlainTextChange) onPlainTextChange($getRoot().getTextContent())
       })
     })
-  }, [nestedEditor, parentEditor, nodeKey, setterName])
+  }, [nestedEditor, parentEditor, nodeKey, setterName, onPlainTextChange])
 
   useEffect(() => {
+    // noWrapMode (split/linear-split only): text no longer wraps and the user
+    // controls every line break explicitly — both plain Enter and Shift+Enter
+    // must insert a LineBreakNode, and Down-arrow at the last line takes over
+    // the "advance to the next field/block" role instead.
+    if (noWrapMode) {
+      const unregisterArrowDown = nestedEditor.registerCommand(
+        KEY_ARROW_DOWN_COMMAND,
+        (event) => {
+          const selection = $getSelection()
+          if (!$isRangeSelection(selection) || !selection.isCollapsed()) return false
+          if ($hasLineBreakAfterCaret(selection)) return false
+          event.preventDefault()
+          if (onAdvanceKey) onAdvanceKey()
+          return true
+        },
+        COMMAND_PRIORITY_CRITICAL
+      )
+      // Plain Enter must NOT fall through to Lexical's default KEY_ENTER_COMMAND
+      // handling (registerRichText, @lexical/rich-text): that dispatches
+      // INSERT_PARAGRAPH_COMMAND for plain Enter and INSERT_LINE_BREAK_COMMAND
+      // only for Shift+Enter, splitting the field into two paragraphs instead
+      // of inserting a line break — invisible on screen (paragraph margins are
+      // zeroed) but breaks $hasLineBreakAfterCaret (which only looks at the
+      // current paragraph) and the exportDOM/editor line-measurement match
+      // (headingHtmlToPlainText only converts <br> to \n, not </p><p>).
+      // Intercepted here at KEY_DOWN_COMMAND/CRITICAL — same mechanism as the
+      // arrow-down handler above — because a KEY_DOWN_COMMAND listener
+      // returning true stops Lexical's internal handler from ever dispatching
+      // the more specific KEY_ENTER_COMMAND for this keydown.
+      const unregisterEnter = nestedEditor.registerCommand(
+        KEY_DOWN_COMMAND,
+        (event) => {
+          if (event.key !== 'Enter') return false
+          event.preventDefault()
+          nestedEditor.dispatchCommand(INSERT_LINE_BREAK_COMMAND, false)
+          return true
+        },
+        COMMAND_PRIORITY_CRITICAL
+      )
+      return () => { unregisterArrowDown(); unregisterEnter() }
+    }
+    // Every other layout keeps today's behavior: Shift+Enter falls through
+    // so Lexical's default line-break handling can insert a soft line break,
+    // while plain Enter advances to the next field/block instead of wrapping.
     return nestedEditor.registerCommand(
       KEY_DOWN_COMMAND,
       (event) => {
-        // Shift+Enter falls through so Lexical's default line-break handling (RichTextPlugin)
-        // can insert a soft line break instead of advancing to the next field/block.
         if (event.key !== 'Enter' || event.shiftKey) return false
         event.preventDefault()
-        if (onEnterKey) onEnterKey()
+        if (onAdvanceKey) onAdvanceKey()
         return true
       },
       COMMAND_PRIORITY_CRITICAL
     )
-  }, [nestedEditor, onEnterKey])
+  }, [nestedEditor, onAdvanceKey, noWrapMode])
 
   return null
 }
@@ -4285,9 +4502,9 @@ function HeaderBgVideo({ src, className, style }) {
   return <span ref={anchorRef} style={{ display: 'none' }} />
 }
 
-function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, headerVideo, flipLayout, backgroundType, textColorMode, buttonTextColorMode, shadowOverlay, nodeKey, editor }) {
+function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, headerVideo, flipLayout, mobileImageAbove, backgroundType, textColorMode, buttonTextColorMode, shadowOverlay, nodeKey, editor }) {
   const fontFamily = useContext(FontFamilyContext)
-  const PANEL_WIDTH = 280
+  const PANEL_WIDTH = 320
   const containerRef = useRef(null)
   const headingContainerRef = useRef(null)
   const subheadingContainerRef = useRef(null)
@@ -4302,6 +4519,12 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   const [panelPos, setPanelPos] = useState(null)
   const [localButtonText, setLocalButtonText] = useState(buttonText)
   const [localButtonUrl, setLocalButtonUrl] = useState(buttonUrl)
+  // split/linear-split only — the heading's plain text (with \n for each typed
+  // line break), used to compute the width-fit font size below. Initialized
+  // from the saved `heading` HTML (converting <br> to \n) rather than '', so
+  // an existing long heading is sized correctly the moment the editor opens,
+  // instead of only after the user's next keystroke re-syncs it.
+  const [headingPlainText, setHeadingPlainText] = useState(() => headingHtmlToPlainText(heading))
 
   useEffect(() => { setLocalButtonText(buttonText) }, [buttonText])
   useEffect(() => { setLocalButtonUrl(buttonUrl) }, [buttonUrl])
@@ -4335,6 +4558,33 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
       COMMAND_PRIORITY_LOW
     )
   }, [editor, setSelected, clearSelection])
+
+  // CLICK_COMMAND above only fires for clicks Lexical's own click handling
+  // sees (inside the editor's contenteditable root); clicking somewhere else
+  // entirely on the page (outside the whole editor) never reaches it, so
+  // isSelected/headingFocused/subheadingFocused/panelFocused could all stay
+  // stuck true and leave the settings panel open indefinitely. A document-
+  // level mousedown listener closes it explicitly whenever the click lands
+  // outside this header's own box — the same pattern other decorator nodes
+  // in this file already use for their own floating popovers (e.g.
+  // CalloutNodeComponent's emoji picker). bgPickerOpen/btnPickerOpen are
+  // deliberately left alone here: their ColorSwatchMenu popovers render via
+  // their own separate createPortal (outside this container's DOM subtree)
+  // and already manage their own outside-click close, so treating an
+  // in-progress color-pick as an "outside" click here would fight it.
+  useEffect(() => {
+    if (!showPanel) return
+    function handleOutside(e) {
+      if (containerRef.current?.contains(e.target)) return
+      if (bgPickerOpen || btnPickerOpen) return
+      clearSelection()
+      setHeadingFocused(false)
+      setSubheadingFocused(false)
+      setPanelFocused(false)
+    }
+    document.addEventListener('mousedown', handleOutside)
+    return () => document.removeEventListener('mousedown', handleOutside)
+  }, [showPanel, clearSelection, bgPickerOpen, btnPickerOpen])
 
   useEffect(() => {
     if (!isSelected) return
@@ -4371,7 +4621,28 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
         'linear-split': { rightShift: -160, overlap: 380 },
       }
       const { rightShift, overlap } = offsets[layout] || offsets.regular
-      let left = rect.right + window.scrollX - PANEL_WIDTH + rightShift
+      const containerLeft = rect.left + window.scrollX
+      const containerRight = rect.right + window.scrollX
+      const isSplitLikeLayout = layout === 'split' || layout === 'linear-split'
+      let left
+      if (isSplitLikeLayout) {
+        // Text alignment doesn't matter here — the panel instead floats over
+        // whichever half is the IMAGE side (DOM order is always image-then-
+        // text; flipLayout swaps row/row-reverse), so it can never cover the
+        // text regardless of left/center/right, and follows the image side
+        // when Flip Layout is toggled.
+        const halfWidth = (containerRight - containerLeft) / 2
+        const imageRight = flipLayout ? containerRight : containerLeft + halfWidth
+        left = imageRight - PANEL_WIDTH + rightShift
+      } else {
+        left = containerRight - PANEL_WIDTH + rightShift
+        // These offsets were tuned assuming the panel's usual bottom-right spot sits over
+        // empty space — true for left/center-aligned text, but right-aligned text now sits
+        // flush against that same right edge, so the panel would cover it instead. Mirroring
+        // the whole computed position across the container's own horizontal center moves the
+        // panel to the equivalent bottom-left spot for right-aligned text.
+        if (textAlign === 'right') left = containerLeft + containerRight - left - PANEL_WIDTH
+      }
       left = Math.max(8, Math.min(left, window.innerWidth + window.scrollX - PANEL_WIDTH - 8))
       const top = rect.bottom + window.scrollY - overlap
       setPanelPos({ top, left })
@@ -4380,19 +4651,24 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
     window.addEventListener('scroll', calc, true)
     window.addEventListener('resize', calc)
     return () => { window.removeEventListener('scroll', calc, true); window.removeEventListener('resize', calc) }
-  }, [showPanel, layout])
+  }, [showPanel, layout, textAlign, flipLayout])
 
   const isFullish = layout === 'full' || layout === 'split' || layout === 'fullscreen' || layout === 'linear' || layout === 'linear-split'
   const outerClass = isFullish ? 'w-full' : layout === 'wide' ? 'max-w-7xl mx-auto' : 'max-w-3xl mx-auto header-regular-preview'
   const sideMargin = isFullish ? '' : 'mx-6'
-  const textAlignClass   = textAlign === 'center' ? 'text-center' : 'text-left'
+  const textAlignClass   = textAlign === 'center' ? 'text-center' : textAlign === 'right' ? 'text-right' : 'text-left'
   // Non-split layouts only — split's text side is already a fixed 50%-width column. Caps
-  // the text block to half the header's width when left-aligned so it wraps like a real
-  // column instead of stretching full-width (which reads as center-but-off). Applies at
-  // every width, including mobile — left-aligned text shouldn't cross the header's
+  // the text block to half the header's width when left- or right-aligned so it wraps like
+  // a real column instead of stretching full-width (which reads as center-but-off). Applies
+  // at every width, including mobile — left/right-aligned text shouldn't cross the header's
   // midpoint. Widens to 60% below md (768px) since 50% wraps too aggressively on narrow
-  // phones; matches index.css's mobile `.header-text-col` override.
-  const textColClass = textAlign === 'left' ? 'max-w-[50%] max-md:max-w-[60%]' : 'max-w-full'
+  // phones; matches index.css's mobile `.header-text-col` override. The parent is a flex
+  // column with default align-items:stretch, so left-aligned text (capped below the full
+  // width) naturally anchors to the left edge with no extra positioning — right-aligned
+  // text needs `ml-auto` to push that same capped box to the opposite edge instead.
+  const textColClass = textAlign === 'left' ? 'max-w-[50%] max-md:max-w-[60%]'
+    : textAlign === 'right' ? 'max-w-[50%] max-md:max-w-[60%] ml-auto'
+    : 'max-w-full'
   // Unconditional (no md: prefix) so the editor's mobile preview matches exportDOM's
   // public HTML, which sets this same min-height as an inline style at every width —
   // previously the editor used a smaller mobile-only floor, so the header collapsed
@@ -4430,44 +4706,58 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   // continuing from the same full-size base as the other isFullish layouts (see index.css's
   // matching selector list).
   const isSplitLike = layout === 'split' || layout === 'linear-split'
-  const headingTextClass = (layout === 'fullscreen' ? 'text-[28px] md:text-6xl xl:text-[66px] 2xl:text-[4.6875vw]' : layout === 'linear' ? 'text-[28px] sm:text-6xl 2xl:text-[3.90625vw]' : isSplitLike ? 'text-[28px] md:text-[40px] lg:text-6xl 2xl:text-[3.90625vw]' : isFullish ? 'text-[28px] md:text-6xl 2xl:text-[3.90625vw]' : layout === 'wide' ? 'text-[28px] md:text-5xl' : 'text-[28px] md:text-4xl') + ' leading-tight'
-  const subTextClass     = (layout === 'fullscreen' ? 'text-base md:text-2xl xl:text-[27px] 2xl:text-[1.953125vw]' : layout === 'linear' ? 'text-base sm:text-2xl 2xl:text-[1.5625vw]' : isSplitLike ? 'text-base md:text-[20px] lg:text-2xl 2xl:text-[1.5625vw]' : isFullish ? 'text-base md:text-2xl 2xl:text-[1.5625vw]' : layout === 'wide' ? 'text-base md:text-[22px]' : 'text-base md:text-xl') + ' leading-snug'
+  // split/linear-split: heading font size is computed from the widest typed
+  // line (see computeHeaderFitSizes) instead of a static per-layout value —
+  // baked as CSS custom properties (below) so the editor and exportDOM's
+  // published output share one calculation and can never drift apart.
+  const headerFitSizes = useMemo(
+    () => (isSplitLike ? computeHeaderFitSizes(headingPlainText, layout) : null),
+    [isSplitLike, headingPlainText, layout]
+  )
+  const headerFitStyle = headerFitSizes ? {
+    '--hdr-heading-fs': headerFitSizes.headingFs,
+    '--hdr-sub-fs': headerFitSizes.subFs,
+    ...(headerFitSizes.headingFsStacked ? {
+      '--hdr-heading-fs-stacked': headerFitSizes.headingFsStacked,
+      '--hdr-sub-fs-stacked': headerFitSizes.subFsStacked,
+    } : {}),
+  } : undefined
+  const headingTextClass = (layout === 'fullscreen' ? 'text-[28px] md:text-6xl xl:text-[66px] 2xl:text-[4.6875vw]' : layout === 'linear' ? 'text-[28px] sm:text-6xl 2xl:text-[3.90625vw]' : layout === 'split' ? 'text-[length:var(--hdr-heading-fs-stacked)] md:text-[length:var(--hdr-heading-fs)]' : isSplitLike ? 'text-[length:var(--hdr-heading-fs)]' : isFullish ? 'text-[28px] md:text-6xl 2xl:text-[3.90625vw]' : layout === 'wide' ? 'text-[28px] md:text-5xl' : 'text-[28px] md:text-4xl') + ' leading-tight'
+  const subTextClass     = (layout === 'fullscreen' ? 'text-base md:text-2xl xl:text-[27px] 2xl:text-[1.953125vw]' : layout === 'linear' ? 'text-base sm:text-2xl 2xl:text-[1.5625vw]' : layout === 'split' ? 'text-[length:var(--hdr-sub-fs-stacked)] md:text-[length:var(--hdr-sub-fs)]' : isSplitLike ? 'text-[length:var(--hdr-sub-fs)]' : isFullish ? 'text-base md:text-2xl 2xl:text-[1.5625vw]' : layout === 'wide' ? 'text-base md:text-[22px]' : 'text-base md:text-xl') + ' leading-snug'
   const btnTextClass     = layout === 'fullscreen' ? 'text-xl' : isFullish ? 'text-lg' : 'text-base'
   // Wide/full/fullscreen ramp side padding up gradually across breakpoints instead of
   // jumping straight from the mobile value to the full 256px at md, which otherwise
   // squeezes the heading into a narrow column on in-between (tablet/small laptop) widths.
-  // Steps match index.css's public media queries exactly. Left-aligned full/linear/
-  // fullscreen (not wide — it's meant to stay a narrower, page-bound layout, not full-bleed
-  // — and not centered text, which stays flat like before) keeps growing past 2xl (1536px)
-  // at a sixth the rate of viewport width instead of staying pinned at 256px there, same
-  // idea as split/linear-split's own growing text-side padding.
+  // Steps match index.css's public media queries exactly. Left- or right-aligned full/
+  // linear/fullscreen (not wide — it's meant to stay a narrower, page-bound layout, not
+  // full-bleed — and not centered text, which stays flat like before) keeps growing past
+  // 2xl (1536px) at a sixth the rate of viewport width instead of staying pinned at 256px
+  // there, same idea as split/linear-split's own growing text-side padding. The growth
+  // itself is symmetric (px-* sets both left and right padding equally), so right mirrors
+  // left exactly — just triggered by the opposite alignment.
   const paddingClass = layout === 'regular'
     ? 'px-8 md:px-20'
-    : (textAlign === 'left' && (layout === 'full' || layout === 'linear' || layout === 'fullscreen'))
+    : ((textAlign === 'left' || textAlign === 'right') && (layout === 'full' || layout === 'linear' || layout === 'fullscreen'))
       ? 'px-8 md:px-14 lg:px-24 xl:px-40 min-[1536px]:px-[calc((100vw_-_1536px)/6_+_256px)]'
       : 'px-8 md:px-14 lg:px-24 xl:px-40 2xl:px-64'
-  // On small phones, a left-aligned header's left inset should match the blog post body
-  // text's own left margin (BlogPostView's `px-6` = 24px) so the header's text edge lines
-  // up with paragraph text below it — otherwise the header's default 32px (px-8) inset reads
-  // as misaligned against the narrower page margin. Centered text keeps the 32px inset (it
-  // isn't flush against an edge to compare against). max-sm: (below Tailwind's 640px `sm`)
-  // matches the public breakpoint added in index.css.
-  const leftInsetClass = textAlign === 'left' ? 'max-sm:pl-6' : ''
+  // On small phones, a left-aligned header's left inset (and a right-aligned header's right
+  // inset) should match the blog post body text's own side margin (BlogPostView's `px-6` =
+  // 24px) so the header's text edge lines up with paragraph text below it — otherwise the
+  // header's default 32px (px-8) inset reads as misaligned against the narrower page margin.
+  // Centered text keeps the 32px inset (it isn't flush against an edge to compare against).
+  // max-sm: (below Tailwind's 640px `sm`) matches the public breakpoint added in index.css.
+  const sideInsetClass = textAlign === 'left' ? 'max-sm:pl-6' : textAlign === 'right' ? 'max-sm:pr-6' : ''
 
-  // Centered text in either split-style layout's text column keeps a small, constant
-  // symmetric padding at every width (no md: breakpoint, no growth) — a big fixed inset
-  // wraps centered text early for no reason, and a plain equal value on both sides is
-  // trivially centered at any width without needing any responsive logic at all.
-  // Left-aligned text keeps each layout's own asymmetric/growing inset instead (deeper on
-  // the side away from the divider) — both layouts' left padding grows past 1020px (see
-  // index.css for the matching published rules); only linear-split also drops its right
-  // padding to 0 (split keeps its fixed 48px there, unchanged).
-  const linearSplitTextPad = textAlign === 'center'
-    ? 'px-6'
-    : 'pl-8 pr-0 md:pl-24 md:pr-0 min-[1020px]:pl-[calc((100vw_-_1020px)/6_+_96px)]'
-  const splitTextPad = textAlign === 'center'
-    ? 'px-6'
-    : 'pl-8 pr-8 md:pl-24 md:pr-12 min-[1020px]:pl-[calc((100vw_-_1020px)/6_+_96px)]'
+  // Both split-style layouts use one fixed, uniform padding box at every
+  // alignment (left/center/right) and every width — no growth past any
+  // breakpoint. The box's shape must never change with alignment or text
+  // length; only the text's position within it does. 48px matches the
+  // design system's existing px-12 scale; 24px mobile matches the smallest
+  // left inset other header layouts use at their own small-phone breakpoint
+  // (index.css's max-width:640px rule) — split/linear-split's no-wrap text
+  // needs all the width it can get on narrow phones, more than the old 32px
+  // mobile value left room for.
+  const splitLikeTextPad = 'px-12 max-md:px-6'
 
   const hasBgImage = layout !== 'split' && layout !== 'linear-split' && backgroundType === 'image' && headerImage
   const hasBgVideo = layout !== 'split' && layout !== 'linear-split' && backgroundType === 'video' && headerVideo
@@ -4519,7 +4809,9 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             nodeKey={nodeKey}
             setterName="setHeading"
             initialHtml={heading}
-            onEnterKey={() => subheadingEditor.getRootElement()?.focus()}
+            noWrapMode={isSplitLike}
+            onAdvanceKey={() => subheadingEditor.getRootElement()?.focus()}
+            onPlainTextChange={isSplitLike ? setHeadingPlainText : undefined}
           />
         </LexicalNestedComposer>
       </div>
@@ -4560,7 +4852,8 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             nodeKey={nodeKey}
             setterName="setSubheading"
             initialHtml={subheading}
-            onEnterKey={() => {
+            noWrapMode={isSplitLike}
+            onAdvanceKey={() => {
               editor.update(() => {
                 const node = $getNodeByKey(nodeKey)
                 if (!node) return
@@ -4629,7 +4922,8 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
         {(layout === 'split' || layout === 'linear-split') ? (
           <div
             ref={containerRef}
-            className={`${sideMargin} ${minHeightClass} flex ${layout === 'linear-split' ? `overflow-hidden ${flipLayout ? 'flex-row-reverse' : 'flex-row'}` : `flex-col-reverse ${flipLayout ? 'md:flex-row-reverse' : 'md:flex-row'}`} ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+            style={headerFitStyle}
+            className={`${sideMargin} ${minHeightClass} flex ${layout === 'linear-split' ? `overflow-hidden ${flipLayout ? 'flex-row-reverse' : 'flex-row'}` : `${mobileImageAbove ? 'flex-col' : 'flex-col-reverse'} ${flipLayout ? 'md:flex-row-reverse' : 'md:flex-row'}`} ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
           >
             {/* Image/video side */}
             {/* h-[240px] (not min-h) below md so the box itself has a definite height on
@@ -4700,22 +4994,26 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                 flex row stretch it to match the image side's height as before. linear-split
                 never stacks, so it's just a plain half-width column with no mobile floor. */}
             <div
-              className={`${layout === 'linear-split' ? `w-1/2 min-h-0 ${linearSplitTextPad}` : `w-full md:w-1/2 min-h-[240px] md:min-h-0 ${splitTextPad}`} relative flex flex-col justify-center gap-3 py-6 md:py-10 ${leftInsetClass}`}
+              className={`${layout === 'linear-split' ? 'w-1/2 min-h-0' : 'w-full md:w-1/2 min-h-[240px] md:min-h-0'} ${splitLikeTextPad} relative flex flex-col justify-center items-center py-6 md:py-10`}
               style={{ background: backgroundColor }}
             >
-              {shadowOverlay ? (
-                <>
-                  <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />
-                  <div className="relative flex flex-col gap-3">{textContent}</div>
-                </>
-              ) : textContent}
+              {shadowOverlay && (
+                <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />
+              )}
+              {/* Heading/subheading/button share one shrink-wrapped box (not
+                  stretched to the column's full width) — combined with the
+                  parent's items-center above, this centers the whole group in
+                  the split side whenever the text doesn't max out the
+                  available width, while each field's own text-align still
+                  governs how its lines sit within this shared box. */}
+              <div className={`w-fit max-w-full flex flex-col gap-3 ${shadowOverlay ? 'relative' : ''}`}>{textContent}</div>
             </div>
           </div>
         ) : (
           <div
             ref={containerRef}
             style={bgStyle}
-            className={`${shadowOverlay || hasBgVideo || layout === 'linear' ? 'relative overflow-hidden' : ''} ${hasBgImage ? 'header-bg-image' : ''} ${sideMargin} ${minHeightClass} ${paddingClass} ${leftInsetClass} py-6 md:py-10 flex flex-col justify-center ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
+            className={`${shadowOverlay || hasBgVideo || layout === 'linear' ? 'relative overflow-hidden' : ''} ${hasBgImage ? 'header-bg-image' : ''} ${sideMargin} ${minHeightClass} ${paddingClass} ${sideInsetClass} py-6 md:py-10 flex flex-col justify-center ${showRing ? 'ring-2 ring-blue-500' : isHovered ? 'ring-1 ring-blue-300' : ''}`}
           >
             {hasBgVideo && (
               <HeaderBgVideo src={headerVideo} className="header-bg-video" />
@@ -4734,7 +5032,18 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
 
       {showPanel && panelPos && createPortal(
         <div
-          style={{ position: 'absolute', top: panelPos.top, left: panelPos.left, zIndex: 9999, width: PANEL_WIDTH }}
+          // maxHeight + overflowY: the panel is portaled to document.body and
+          // positioned with plain position:absolute (viewport-relative math via
+          // scrollX/scrollY), so an unbounded-height panel whose bottom lands
+          // past the viewport literally grows the document's own scroll height
+          // — on top of whatever inner scroll container the admin editor page
+          // already has, that's the double scrollbar. Capping height and
+          // scrolling internally instead keeps the panel from ever doing that,
+          // regardless of how tall its content gets or how far down `top`
+          // (see the layout effect above) ends up placing it — e.g. on a
+          // short viewport where the panel's usual spot still leaves it
+          // taller than the visible screen.
+          style={{ position: 'absolute', top: panelPos.top, left: panelPos.left, zIndex: 9999, width: PANEL_WIDTH, maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}
           className="bg-white border border-gray-200 rounded-xl shadow-xl py-4 px-4 flex flex-col gap-3"
           onMouseDown={e => { e.preventDefault(); e.stopPropagation() }}
           onFocus={() => setPanelFocused(true)}
@@ -4768,14 +5077,6 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                   <Maximize2 size={15} />
                 </button>
               </Tooltip>
-              <Tooltip content="Linear">
-                <button
-                  className={`p-1.5 rounded-md transition-colors ${layout === 'linear' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                  onClick={() => commitField('setLayout', 'linear')}
-                >
-                  <TriangleRight size={15} />
-                </button>
-              </Tooltip>
               <Tooltip content="Split">
                 <button
                   className={`p-1.5 rounded-md transition-colors ${layout === 'split' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
@@ -4784,20 +5085,28 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                   <Columns2 size={15} />
                 </button>
               </Tooltip>
-              <Tooltip content="Linear split">
-                <button
-                  className={`p-1.5 rounded-md transition-colors ${layout === 'linear-split' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
-                  onClick={() => commitField('setLayout', 'linear-split')}
-                >
-                  <BetweenVerticalEnd size={15} />
-                </button>
-              </Tooltip>
               <Tooltip content="Full screen">
                 <button
                   className={`p-1.5 rounded-md transition-colors ${layout === 'fullscreen' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   onClick={() => commitField('setLayout', 'fullscreen')}
                 >
                   <Fullscreen size={15} />
+                </button>
+              </Tooltip>
+              <Tooltip content="Linear">
+                <button
+                  className={`p-1.5 rounded-md transition-colors ${layout === 'linear' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  onClick={() => commitField('setLayout', 'linear')}
+                >
+                  <Scaling size={15} />
+                </button>
+              </Tooltip>
+              <Tooltip content="Linear split">
+                <button
+                  className={`p-1.5 rounded-md transition-colors ${layout === 'linear-split' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  onClick={() => commitField('setLayout', 'linear-split')}
+                >
+                  <Columns2 size={15} />
                 </button>
               </Tooltip>
             </div>
@@ -4816,13 +5125,26 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             </div>
           )}
 
+          {/* Mobile Image Above — split only; linear-split never stacks, so this has no effect there */}
+          {layout === 'split' && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500">Mobile Image Above</span>
+              <div
+                onClick={() => commitField('setMobileImageAbove', !mobileImageAbove)}
+                className={`relative w-7 h-4 rounded-full cursor-pointer transition-colors ${mobileImageAbove ? 'bg-blue-500' : 'bg-gray-300'}`}
+              >
+                <span className={`absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow transition-transform ${mobileImageAbove ? 'translate-x-3' : ''}`} />
+              </div>
+            </div>
+          )}
+
           {/* Alignment */}
           <div className="flex items-center justify-between">
             <span className="text-sm text-gray-500">Alignment</span>
             <div className="flex gap-0.5 bg-gray-100 rounded-lg p-0.5">
               <Tooltip content="Align left">
                 <button
-                  className={`p-1.5 rounded-md transition-colors ${textAlign !== 'center' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  className={`p-1.5 rounded-md transition-colors ${textAlign === 'left' || !textAlign ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   onClick={() => commitField('setTextAlign', 'left')}
                 >
                   <AlignLeft size={15} />
@@ -4834,6 +5156,14 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                   onClick={() => commitField('setTextAlign', 'center')}
                 >
                   <AlignCenter size={15} />
+                </button>
+              </Tooltip>
+              <Tooltip content="Align right">
+                <button
+                  className={`p-1.5 rounded-md transition-colors ${textAlign === 'right' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  onClick={() => commitField('setTextAlign', 'right')}
+                >
+                  <AlignRight size={15} />
                 </button>
               </Tooltip>
             </div>
@@ -4980,7 +5310,7 @@ export class HeaderNode extends DecoratorNode {
   static getType() { return 'header' }
 
   static clone(node) {
-    return new HeaderNode(node.__layout, node.__textAlign, node.__heading, node.__subheading, node.__backgroundColor, node.__buttonEnabled, node.__buttonText, node.__buttonUrl, node.__buttonColor, node.__headerImage, node.__headerImageLqip, node.__flipLayout, node.__backgroundType, node.__textColorMode, node.__buttonTextColorMode, node.__shadowOverlay, node.__headerVideo, node.__key)
+    return new HeaderNode(node.__layout, node.__textAlign, node.__heading, node.__subheading, node.__backgroundColor, node.__buttonEnabled, node.__buttonText, node.__buttonUrl, node.__buttonColor, node.__headerImage, node.__headerImageLqip, node.__flipLayout, node.__backgroundType, node.__textColorMode, node.__buttonTextColorMode, node.__shadowOverlay, node.__headerVideo, node.__mobileImageAbove, node.__key)
   }
 
   static importJSON(data) {
@@ -5002,6 +5332,7 @@ export class HeaderNode extends DecoratorNode {
       data.buttonTextColorMode || 'auto',
       data.shadowOverlay || false,
       data.headerVideo || null,
+      data.mobileImageAbove || false,
     )
   }
 
@@ -5025,6 +5356,7 @@ export class HeaderNode extends DecoratorNode {
       buttonTextColorMode: this.__buttonTextColorMode,
       shadowOverlay: this.__shadowOverlay,
       headerVideo: this.__headerVideo,
+      mobileImageAbove: this.__mobileImageAbove,
     }
   }
 
@@ -5061,7 +5393,8 @@ export class HeaderNode extends DecoratorNode {
             const buttonTextColorMode = domNode.getAttribute('data-button-text-color-mode') || 'auto'
             const shadowOverlay = domNode.getAttribute('data-shadow-overlay') === 'true'
             const headerVideo = domNode.getAttribute('data-header-video') || null
-            return { node: new HeaderNode(layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, headerImageLqip, flipLayout, backgroundType, textColorMode, buttonTextColorMode, shadowOverlay, headerVideo) }
+            const mobileImageAbove = domNode.getAttribute('data-mobile-image-above') === 'true'
+            return { node: new HeaderNode(layout, textAlign, heading, subheading, backgroundColor, buttonEnabled, buttonText, buttonUrl, buttonColor, headerImage, headerImageLqip, flipLayout, backgroundType, textColorMode, buttonTextColorMode, shadowOverlay, headerVideo, mobileImageAbove) }
           },
           priority: 2,
         }
@@ -5069,7 +5402,7 @@ export class HeaderNode extends DecoratorNode {
     }
   }
 
-  constructor(layout = 'regular', textAlign = 'left', heading = '', subheading = '', backgroundColor = '#000000', buttonEnabled = false, buttonText = '', buttonUrl = '', buttonColor = '#ffffff', headerImage = null, headerImageLqip = '', flipLayout = false, backgroundType = 'color', textColorMode = 'auto', buttonTextColorMode = 'auto', shadowOverlay = false, headerVideo = null, key) {
+  constructor(layout = 'regular', textAlign = 'left', heading = '', subheading = '', backgroundColor = '#000000', buttonEnabled = false, buttonText = '', buttonUrl = '', buttonColor = '#ffffff', headerImage = null, headerImageLqip = '', flipLayout = false, backgroundType = 'color', textColorMode = 'auto', buttonTextColorMode = 'auto', shadowOverlay = false, headerVideo = null, mobileImageAbove = false, key) {
     super(key)
     this.__layout = layout
     this.__textAlign = textAlign
@@ -5088,6 +5421,7 @@ export class HeaderNode extends DecoratorNode {
     this.__buttonTextColorMode = buttonTextColorMode
     this.__shadowOverlay = shadowOverlay
     this.__headerVideo = headerVideo
+    this.__mobileImageAbove = mobileImageAbove
   }
 
   createDOM() {
@@ -5116,6 +5450,7 @@ export class HeaderNode extends DecoratorNode {
   setButtonTextColorMode(val) { this.getWritable().__buttonTextColorMode = val }
   setShadowOverlay(val) { this.getWritable().__shadowOverlay = val }
   setHeaderVideo(val) { this.getWritable().__headerVideo = val }
+  setMobileImageAbove(val) { this.getWritable().__mobileImageAbove = val }
 
   exportDOM() {
     // Non-fullscreen heights scale continuously with viewport width via clamp() instead of
@@ -5161,11 +5496,29 @@ export class HeaderNode extends DecoratorNode {
     }
     if (this.__backgroundType === 'video' && this.__headerVideo) header.setAttribute('data-header-video', this.__headerVideo)
     header.setAttribute('data-flip-layout', String(this.__flipLayout))
+    if (this.__layout === 'split') header.setAttribute('data-mobile-image-above', String(this.__mobileImageAbove))
     header.setAttribute('data-background-color', this.__backgroundColor)
     header.setAttribute('data-background-type', this.__backgroundType)
     header.setAttribute('data-text-color-mode', this.__textColorMode)
     header.setAttribute('data-button-text-color-mode', this.__buttonTextColorMode)
     header.setAttribute('data-shadow-overlay', String(this.__shadowOverlay))
+
+    // split/linear-split: bake this heading's width-fit font size as a
+    // ready-made CSS clamp(...) string in a custom property on <header>
+    // itself, consumed by index.css's single (non-tiered) rule — which falls
+    // back to its own clamp() when this is absent, e.g. on a post published
+    // before this feature, whose <header> has no --hdr-* vars. Computed via
+    // the same computeHeaderFitSizes() helper the live editor uses, so
+    // publish output can never drift from what the editor showed.
+    if (this.__layout === 'split' || this.__layout === 'linear-split') {
+      const fit = computeHeaderFitSizes(headingHtmlToPlainText(this.__heading), this.__layout)
+      header.style.setProperty('--hdr-heading-fs', fit.headingFs)
+      header.style.setProperty('--hdr-sub-fs', fit.subFs)
+      if (fit.headingFsStacked) {
+        header.style.setProperty('--hdr-heading-fs-stacked', fit.headingFsStacked)
+        header.style.setProperty('--hdr-sub-fs-stacked', fit.subFsStacked)
+      }
+    }
 
     if (this.__layout === 'split' || this.__layout === 'linear-split') {
       header.style.display = 'flex'
@@ -5239,27 +5592,17 @@ export class HeaderNode extends DecoratorNode {
       textSide.style.display = 'flex'
       textSide.style.flexDirection = 'column'
       textSide.style.justifyContent = 'center'
-      // linear-split's left-aligned text drops the right padding entirely (0 instead of
-      // split's 48px) so it has more room to wrap before hitting the vertical divider
-      // against the image side, at every width — not just the mobile override below. Its
-      // left padding also grows past 1020px (see index.css) for left-align only. split's
-      // own base padding (96px left / 48px right) is intentionally asymmetric for
-      // left-aligned text (a deeper inset from the image-side edge). Centered text in
-      // either layout instead keeps a small, constant, symmetric 24px on both sides at
-      // every width — trivially centered with no responsive logic needed, and without a
-      // big fixed inset wrapping the text early for no reason.
-      textSide.style.padding = this.__textAlign === 'center'
-        ? '40px 24px 40px 24px'
-        : (this.__layout === 'linear-split' ? '40px 0 40px 96px' : '40px 48px 40px 96px')
+      // Centers the text group (below) horizontally within the column whenever
+      // it doesn't max out the available width — a flex item that isn't
+      // stretched sizes to its own content (shrink-to-fit) instead of the
+      // column's full width.
+      textSide.style.alignItems = 'center'
+      // Fixed, uniform padding at every alignment (left/center/right) and every
+      // width — the box's shape never changes with alignment or text length,
+      // only the text's position within it does.
+      textSide.style.padding = '40px 48px'
       textSide.style.textAlign = this.__textAlign || 'left'
 
-      // Text (and the shadow overlay, if enabled) must sit in its own positioned wrapper
-      // appended AFTER the overlay — a plain in-flow child paints UNDER a positioned
-      // sibling regardless of DOM order (CSS stacking: positioned elements, even with
-      // z-index:auto, paint above non-positioned in-flow content), so without this the
-      // overlay would darken the text too instead of just the background behind it.
-      // Mirrors the non-split branch's innerContentWrap below.
-      let textContentWrap = textSide
       if (this.__shadowOverlay) {
         textSide.style.position = 'relative'
         const textOverlay = document.createElement('div')
@@ -5269,31 +5612,47 @@ export class HeaderNode extends DecoratorNode {
         textOverlay.style.opacity = '0.35'
         textOverlay.style.pointerEvents = 'none'
         textSide.appendChild(textOverlay)
-
-        textContentWrap = document.createElement('div')
-        textContentWrap.style.position = 'relative'
-        textSide.appendChild(textContentWrap)
       }
+
+      // Heading/subheading/button all share one box, sized to fit its own
+      // content rather than stretched to the column's full width — combined
+      // with alignItems:center above, this centers the whole group (not just
+      // each line) in the split side whenever text doesn't max out the
+      // available width, while each field's own text-align still governs how
+      // its lines sit within this shared box. Also doubles as the "paint
+      // above the shadow overlay" positioned wrapper when one is enabled — a
+      // plain in-flow child paints UNDER a positioned sibling regardless of
+      // DOM order, so without this the overlay would darken the text too
+      // instead of just the background behind it. Mirrors the non-split
+      // branch's innerContentWrap below.
+      const textGroup = document.createElement('div')
+      textGroup.style.maxWidth = '100%'
+      if (this.__shadowOverlay) textGroup.style.position = 'relative'
+      textSide.appendChild(textGroup)
 
       const headingColor = resolveTextColor(this.__textColorMode, this.__backgroundColor)
 
       const headingEl = document.createElement('div')
       headingEl.className = 'header-heading'
-      headingEl.style.fontSize = headingSizes[this.__layout]
+      // var(...) with the old flat static value as fallback — this is only
+      // the pre-CSS-override base layer; index.css's own !important rule
+      // (with its own clamp() fallback) is what actually governs old posts'
+      // responsive sizing when --hdr-heading-fs is absent.
+      headingEl.style.fontSize = `var(--hdr-heading-fs, ${headingSizes[this.__layout]})`
       headingEl.style.lineHeight = '1.25'
       headingEl.style.fontWeight = 'bold'
       headingEl.style.color = headingColor
       headingEl.innerHTML = this.__heading
-      textContentWrap.appendChild(headingEl)
+      textGroup.appendChild(headingEl)
 
       if (!isBlankHtml(this.__subheading)) {
         const subEl = document.createElement('div')
         subEl.className = 'header-subheading'
-        subEl.style.fontSize = subSizes[this.__layout]
+        subEl.style.fontSize = `var(--hdr-sub-fs, ${subSizes[this.__layout]})`
         subEl.style.lineHeight = '1.375'
         subEl.style.color = headingColor === 'white' ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)'
         subEl.innerHTML = this.__subheading
-        textContentWrap.appendChild(subEl)
+        textGroup.appendChild(subEl)
       }
 
       if (this.__buttonEnabled) {
@@ -5313,7 +5672,7 @@ export class HeaderNode extends DecoratorNode {
         a.style.fontWeight = '500'
         a.style.textDecoration = 'none'
         btnWrap.appendChild(a)
-        textContentWrap.appendChild(btnWrap)
+        textGroup.appendChild(btnWrap)
       }
 
       header.appendChild(imgSide)
@@ -5398,16 +5757,20 @@ export class HeaderNode extends DecoratorNode {
 
       const headingColor = resolveTextColor(this.__textColorMode, this.__backgroundColor)
 
-      // Text content sits in its own column, capped to half the header's width when
-      // left-aligned so left align wraps like a real column instead of stretching edge to
-      // edge (which read as center-but-off for anything but very long text). Centered text
-      // is unaffected — full width, same as before. innerContentWrap is a flex column with
+      // Text content sits in its own column, capped to half the header's width when left-
+      // or right-aligned so it wraps like a real column instead of stretching edge to edge
+      // (which read as center-but-off for anything but very long text). Centered text is
+      // unaffected — full width, same as before. innerContentWrap is a flex column with
       // default align-items:stretch, so a max-width here naturally left-anchors the column
-      // without needing any extra positioning. This 50% is the base/desktop value; index.css
-      // widens it to 60% below 768px (narrower phones wrap too tightly at 50%).
+      // without needing any extra positioning; right-aligned text needs an auto left-margin
+      // to push that same capped column to the opposite edge instead. This 50% is the
+      // base/desktop value; index.css widens it to 60% below 768px (narrower phones wrap
+      // too tightly at 50%).
       const textCol = document.createElement('div')
       textCol.className = 'header-text-col'
-      textCol.style.maxWidth = (this.__textAlign || 'left') === 'left' ? '50%' : '100%'
+      const textColSided = this.__textAlign === 'left' || this.__textAlign === 'right'
+      textCol.style.maxWidth = textColSided ? '50%' : '100%'
+      if (this.__textAlign === 'right') textCol.style.marginLeft = 'auto'
       innerContentWrap.appendChild(textCol)
 
       const headingEl = document.createElement('div')
@@ -5470,6 +5833,7 @@ export class HeaderNode extends DecoratorNode {
         headerImage={this.__headerImage}
         headerVideo={this.__headerVideo}
         flipLayout={this.__flipLayout}
+        mobileImageAbove={this.__mobileImageAbove}
         backgroundType={this.__backgroundType}
         textColorMode={this.__textColorMode}
         buttonTextColorMode={this.__buttonTextColorMode}
