@@ -10,7 +10,7 @@ Description=Run personal-website-media-cleanup daily
 # restic backup's 1800s timeout + restic forget/prune's 1800s timeout =
 # 03:00 + 6000s ≈ 04:40 UTC absolute latest. 05:00 (+ up to 600s here)
 # leaves real margin past that.
-OnCalendar=*-*-* 05:00:00
+OnCalendar=*-*-* 05:00:00 UTC
 RandomizedDelaySec=600
 Persistent=true
 
