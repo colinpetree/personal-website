@@ -22,15 +22,27 @@
 # build that just doesn't want the AI demo section on that particular site.
 set -euo pipefail
 
-# Re-exec into a fresh session, same reasoning as build-on-pi.sh's own
-# re-exec (see its comment): this is what lets a later interactive run's
-# TERM/KILL escalation (lib/build-lock.sh) reach this script's ENTIRE process
-# tree as one group — including the build-on-pi.sh + npm/pyinstaller/
-# smoke-test-server descendants it spawns below, once this script (not
-# build-on-pi.sh) is the one holding the lock for the whole run.
+# Re-exec into a fresh process group — see build-on-pi.sh's own comment for
+# the full reasoning, including why this is `set -m` (job control) and NOT
+# `setsid`. The earlier setsid-based version of this re-exec was confirmed
+# broken by hand on real hardware: Ctrl-C only killed the thin wrapper left
+# behind in the original session, while the actual release kept building,
+# committing, and pushing to completion in the background, completely
+# ignoring the interrupt — because setsid detaches into a new SESSION, which
+# is what the tty's Ctrl-C delivery actually keys off, not just a process
+# group. `set -m` gives this script's whole process tree — including the
+# build-on-pi.sh + npm/pyinstaller/smoke-test-server descendants it spawns
+# below — one shared process group for a later interactive run's TERM/KILL
+# escalation (lib/build-lock.sh) to target as a unit, once this script (not
+# build-on-pi.sh) is the one holding the lock for the whole run, WITHOUT
+# detaching from the terminal — so a human's own Ctrl-C still reaches this
+# same tree normally, including while paused at the confirmation prompt
+# below.
 if [ -z "${PUBLISH_RELEASE_SESSION:-}" ]; then
     export PUBLISH_RELEASE_SESSION=1
-    exec setsid --wait bash "${BASH_SOURCE[0]}" "$@"
+    set -m
+    bash "${BASH_SOURCE[0]}" "$@"
+    exit $?
 fi
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

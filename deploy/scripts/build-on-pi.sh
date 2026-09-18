@@ -12,15 +12,38 @@
 # to live inside a git checkout.
 set -euo pipefail
 
-# Re-exec into a fresh session so this build's whole process tree (npm,
-# pyinstaller, the backgrounded smoke-test server, ...) shares one process
-# group distinct from whatever invoked us — the personal-website-publisher
-# systemd service's own process, a manual interactive shell, etc. That's what
-# lets a later invocation cleanly kill -TERM the entire tree of a build it's
-# interrupting below, without also killing its own caller.
+# Re-exec into a fresh PROCESS GROUP (not a new session) so this build's
+# whole process tree (npm, pyinstaller, the backgrounded smoke-test server,
+# ...) shares one process group distinct from whatever invoked us — the
+# personal-website-publisher systemd service's own process, a manual
+# interactive shell, etc. That's what lets a later invocation cleanly
+# kill -TERM the entire tree of a build it's interrupting below, without
+# also killing its own caller.
+#
+# Deliberately `set -m` (job control), not `setsid` — setsid was tried first
+# and confirmed BROKEN by hand on real hardware: it puts the child in a
+# whole new SESSION, which detaches it from the terminal's controlling-
+# terminal/job-control machinery entirely. Ctrl-C's SIGINT is delivered by
+# the tty driver to whichever process group the terminal considers
+# foreground, and a detached session is never that — the result was Ctrl-C
+# only killing the thin `setsid --wait` wrapper left behind in the ORIGINAL
+# session, while the actual build kept running to completion as an orphaned
+# background session, completely ignoring the interrupt. `set -m` gives the
+# same "one killable process group" property without that detachment: bash
+# puts the foreground job it launches into its own new process group but
+# keeps it inside the SAME session, so a controlling terminal (if there is
+# one) still hands that new group foreground status and Ctrl-C reaches it
+# normally. `-m` is a shell OPTION local to this process — it does not
+# propagate into the child bash process's own environment, so nothing
+# further down this tree (this script's own later `bash build-on-pi.sh`
+# calls from publish-release.sh, npm, pyinstaller, ...) gets ANOTHER nested
+# process group of its own; everything stays flat inside this one, which is
+# exactly what a single `kill -TERM -- -pgid` needs to reach it all at once.
 if [ -z "${BUILD_ON_PI_SESSION:-}" ]; then
     export BUILD_ON_PI_SESSION=1
-    exec setsid --wait bash "${BASH_SOURCE[0]}" "$@"
+    set -m
+    bash "${BASH_SOURCE[0]}" "$@"
+    exit $?
 fi
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
