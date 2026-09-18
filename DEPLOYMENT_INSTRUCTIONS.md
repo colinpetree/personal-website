@@ -99,7 +99,20 @@ sudo bash bootstrap.sh --domain <domain>
 `--domain` is optional here (you can set it later via `install.sh --domain`
 or the admin UI instead), but providing it now lets `install.sh` obtain the
 TLS certificate automatically in the next step. `--no-ai` is also optional —
-pass it if this site shouldn't enable the AI Implementations demo section.
+pass it if this site shouldn't enable the AI Implementations demo section
+(this is the backend half — it sets `ENABLE_AI_DEMOS=false` in the generated
+`.env`, which disables the AI demo routes entirely. It only takes effect
+here, on a fresh box with no `.env` yet; see step 5 below for the frontend
+half and for making this permanent across future automated rebuilds).
+
+**(Optional) [Prod] If `.env` already existed (re-running `bootstrap.sh`, or
+you forgot `--no-ai` the first time)**, `--no-ai` has no effect (`bootstrap.sh`
+prints a NOTE and leaves the existing `.env` untouched) — set it directly
+instead and restart:
+```bash
+sudo sed -i 's/^ENABLE_AI_DEMOS=.*/ENABLE_AI_DEMOS=false/' /opt/personal-website/data/.env
+sudo systemctl restart personal-website
+```
 
 This installs Postgres/nginx/Varnish/ufw/restic, creates the `personalweb`
 system user, generates `$DATA_DIR/.env` with fresh secrets, and configures
@@ -164,6 +177,24 @@ prerender pages against the live site:
 ```bash
 echo "PRERENDER_BASE_URL=https://<domain>" >> ~/.personal-website-build.env
 ```
+
+**(Optional) [Pi] If this site shouldn't include the AI Implementations demo
+section, make that permanent now.** `bootstrap.sh --no-ai` in step 3 only
+covers the backend (disables the AI demo routes) and only applies once, on a
+box with no `.env` yet. The frontend half — whether the AI demo pages are
+actually built into the site — is controlled per-build by
+`VITE_ENABLE_AI_DEMOS`, and every future automated content refresh
+(`personal-website-publisher` on the Pi) re-sources
+`~/.personal-website-build.env` from scratch with no memory of past flags.
+Passing `--no-ai` to `publish-release.sh` by hand only excludes AI demos from
+that one release — the next automatic content-only rebuild would silently
+re-enable them unless this is set here too:
+```bash
+echo "VITE_ENABLE_AI_DEMOS=false" >> ~/.personal-website-build.env
+```
+With both this and `bootstrap.sh --no-ai` done, the AI demo section stays
+off across every future release and automated rebuild, on both frontend and
+backend.
 
 From here on, publishing a new release is just:
 ```bash
