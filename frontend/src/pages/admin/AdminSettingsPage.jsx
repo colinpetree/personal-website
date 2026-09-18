@@ -136,6 +136,12 @@ function AdminSettingsPageContent() {
   const [faviconSaved, setFaviconSaved] = useState(false)
   const [faviconError, setFaviconError] = useState('')
 
+  const [socialImageFile, setSocialImageFile] = useState(null)
+  const [socialImageCropSrc, setSocialImageCropSrc] = useState(null)
+  const [socialImageUploading, setSocialImageUploading] = useState(false)
+  const [socialImageSaved, setSocialImageSaved] = useState(false)
+  const [socialImageError, setSocialImageError] = useState('')
+
   function closeFaviconCropper() {
     if (faviconCropSrc) URL.revokeObjectURL(faviconCropSrc)
     setFaviconCropSrc(null)
@@ -165,6 +171,38 @@ function AdminSettingsPageContent() {
       setFaviconError(err.message || 'Upload failed')
     } finally {
       setFaviconUploading(false)
+    }
+  }
+
+  function closeSocialImageCropper() {
+    if (socialImageCropSrc) URL.revokeObjectURL(socialImageCropSrc)
+    setSocialImageCropSrc(null)
+  }
+
+  function handleSocialImageCropped(blob) {
+    setSocialImageFile(new File([blob], 'social-image.png', { type: 'image/png' }))
+    setSocialImageSaved(false)
+    closeSocialImageCropper()
+  }
+
+  async function handleSocialImageSave() {
+    if (!socialImageFile) return
+    setSocialImageUploading(true)
+    setSocialImageError('')
+    try {
+      const fd = new FormData()
+      fd.append('file', socialImageFile)
+      const res = await fetch('/api/admin/upload', { method: 'POST', credentials: 'include', body: fd })
+      if (!res.ok) throw new Error('Upload failed')
+      const { filename } = await res.json()
+      await save({ social_image_filename: filename })
+      setSocialImageFile(null)
+      setSocialImageSaved(true)
+      setTimeout(() => setSocialImageSaved(false), 2500)
+    } catch (err) {
+      setSocialImageError(err.message || 'Upload failed')
+    } finally {
+      setSocialImageUploading(false)
     }
   }
 
@@ -267,6 +305,52 @@ function AdminSettingsPageContent() {
               onCropped={handleFaviconCropped}
               cropShape="rect"
               title="Crop your site icon"
+            />
+          )}
+        </Card>
+
+        {/* Social image card */}
+        <Card>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">Social image</h2>
+              <p className="text-xs text-gray-400 mt-0.5">Shown as the link preview image in iMessage, Slack, and other social previews, for any page without its own image. Ideally 1200x630px (1.91:1).</p>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {socialImageSaved && <span className="text-xs text-gray-400">Saved</span>}
+              {!socialImageSaved && (
+                <button
+                  onClick={handleSocialImageSave}
+                  disabled={!socialImageFile || socialImageUploading}
+                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                    socialImageUploading
+                      ? 'bg-white text-gray-500 cursor-default'
+                      : socialImageFile
+                        ? 'bg-[#30cf43] text-white hover:brightness-95'
+                        : 'bg-gray-100 text-gray-400 cursor-default'
+                  }`}
+                >
+                  {socialImageUploading ? 'Uploading...' : 'Upload'}
+                </button>
+              )}
+            </div>
+          </div>
+          <FileDropzone
+            accept={{ 'image/png': [], 'image/jpeg': [], 'image/gif': [], 'image/webp': [] }}
+            onFile={f => setSocialImageCropSrc(URL.createObjectURL(f))}
+            file={socialImageFile}
+            currentUrl={config?.social_image_filename ? `/api/uploads/${config.social_image_filename}` : null}
+          />
+          {socialImageError && <p className="text-xs text-red-500">{socialImageError}</p>}
+          {socialImageCropSrc && (
+            <AvatarCropperModal
+              imageSrc={socialImageCropSrc}
+              onCancel={closeSocialImageCropper}
+              onCropped={handleSocialImageCropped}
+              cropShape="rect"
+              aspect={1200 / 630}
+              outputWidth={1200}
+              title="Crop your social image"
             />
           )}
         </Card>

@@ -70,6 +70,7 @@ def get_site_config():
     return jsonify({
         'site_title': config.site_title,
         'favicon_filename': config.favicon_filename,
+        'social_image_filename': config.social_image_filename,
         # Not a secret — it's the site's own public hostname, visible in every
         # visitor's URL bar already. Needed by the frontend to build absolute
         # og:image URLs (Open Graph/Twitter Card scrapers fetch images

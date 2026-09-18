@@ -113,9 +113,10 @@ def _extract_from_html(html_text):
 def _expand_with_responsive_siblings(names):
     """Any referenced {base}.webp implies {base}_400w/_800w/_1200w.webp are
     also live, even when nothing literally references them — confirmed
-    avatar_filename/thumbnail_filename/image_filename/favicon_filename all
-    discard the srcset and store only the base filename, so the variants
-    exist on disk with no literal reference anywhere except this rule."""
+    avatar_filename/thumbnail_filename/image_filename/favicon_filename/
+    social_image_filename all discard the srcset and store only the base
+    filename, so the variants exist on disk with no literal reference
+    anywhere except this rule."""
     expanded = set(names)
     for name in names:
         if name.endswith('.webp') and not any(name.endswith(f'_{w}w.webp') for w in (400, 800, 1200)):
@@ -137,6 +138,8 @@ def _collect_referenced_filenames():
     if config:
         if config.favicon_filename:
             referenced.add(config.favicon_filename)
+        if config.social_image_filename:
+            referenced.add(config.social_image_filename)
         for field in _SITECONFIG_TEXT_FIELDS:
             referenced |= _extract_from_html(getattr(config, field))
 

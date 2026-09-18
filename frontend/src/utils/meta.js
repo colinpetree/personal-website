@@ -43,18 +43,20 @@ export function absoluteUploadUrl(config, relativeUrl) {
   return `https://${config.domain}${relativeUrl}`
 }
 
-// Site-wide fallback og:image (the favicon) for any page that doesn't have
-// a more specific image of its own (a blog post's thumbnail, etc.) — a
-// small square favicon isn't an ideal share-preview image, but it beats no
-// image at all. Every page below has its own `config` (see fetchSiteConfig
-// in apiFetch.js) to call this with, rather than relying on root.jsx's own
-// meta() to supply it — react-router's per-route meta REPLACES rather than
-// merges (a route with its own meta() export doesn't inherit the parent's
-// at all), confirmed empirically: root's favicon-based image silently
-// never appeared on any page that defined its own meta(), i.e. every page.
+// Site-wide fallback og:image (the dedicated social share image, NOT the
+// favicon — a small square icon makes an ugly link preview in iMessage/
+// Safari/Slack/etc., see AdminSettingsPage's "Social image" card) for any
+// page that doesn't have a more specific image of its own (a blog post's
+// thumbnail, etc.). Every page below has its own `config` (see
+// fetchSiteConfig in apiFetch.js) to call this with, rather than relying on
+// root.jsx's own meta() to supply it — react-router's per-route meta
+// REPLACES rather than merges (a route with its own meta() export doesn't
+// inherit the parent's at all), confirmed empirically: root's image
+// silently never appeared on any page that defined its own meta(), i.e.
+// every page.
 export function siteFallbackImage(config) {
-  return config?.favicon_filename
-    ? absoluteUploadUrl(config, `/api/uploads/${config.favicon_filename}`)
+  return config?.social_image_filename
+    ? absoluteUploadUrl(config, `/api/uploads/${config.social_image_filename}`)
     : null
 }
 

@@ -102,6 +102,7 @@ class SiteConfig(db.Model):
     # Site-wide
     domain = db.Column(db.String(255), nullable=True)
     favicon_filename = db.Column(db.String(255), nullable=True)
+    social_image_filename = db.Column(db.String(255), nullable=True)
     timezone = db.Column(db.String(100), nullable=False, default='Etc/UTC')
     users_enabled = db.Column(db.Boolean, nullable=False, default=False)
     blog_comments_enabled = db.Column(db.Boolean, nullable=False, default=True)

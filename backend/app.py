@@ -235,6 +235,9 @@ def _migrate_schema():
                 'ALTER TABLE site_config ADD COLUMN about_migrated BOOLEAN NOT NULL DEFAULT FALSE'
             ))
 
+        if 'social_image_filename' not in config_columns:
+            conn.execute(text('ALTER TABLE site_config ADD COLUMN social_image_filename VARCHAR(255)'))
+
 
 def _seed_pages_and_nav():
     """One-time, idempotent data seeding for the Pages feature — run once
