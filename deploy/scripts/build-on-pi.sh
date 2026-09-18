@@ -23,83 +23,41 @@ if [ -z "${BUILD_ON_PI_SESSION:-}" ]; then
     exec setsid --wait bash "${BASH_SOURCE[0]}" "$@"
 fi
 
-# ---- Single-build lock ----------------------------------------------------
-# Only one build may run at a time (they'd otherwise race on the same
-# backend/dist and frontend/build directories — see the rm -rf below).
-# BUILD_LOCK_MODE=interactive (the default: a manual run, or publish-release.sh)
-# always wins, interrupting whatever's running. BUILD_LOCK_MODE=periodic (set
-# only by content-watch.sh's automatic cycle) never interrupts — it backs off
-# and lets the next scheduled poll retry instead.
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD_ROOT="$HOME/personal-website-build"
 mkdir -p "$BUILD_ROOT"
-LOCK_FILE="$BUILD_ROOT/build.lock"
-PID_FILE="$BUILD_ROOT/build.pid"
-LOCK_MODE="${BUILD_LOCK_MODE:-interactive}"
 
-# Sanity-check that a PID read from build.pid still actually looks like a
-# build-on-pi.sh run before signaling it — guards the (small but real) window
-# where a stale PID could have been recycled by the OS into an unrelated
-# process between that process reading the file and us acting on it.
-_looks_like_our_build() {
-    ps -o args= -p "$1" 2>/dev/null | grep -q 'build-on-pi\.sh'
-}
-
-exec 200>"$LOCK_FILE"
-if ! flock -n 200; then
-    if [ "$LOCK_MODE" = "periodic" ]; then
-        echo "==> Another build is already running — periodic build backing off until its next scheduled check."
-        exit 3   # distinct code: lock contention, not a real build failure
-    fi
-    echo "==> Another build is running — interrupting it to start this one."
-    # Loop rather than kill-once-then-block: if two interactive builds start
-    # within the same instant, a single blocking flock at the end could let
-    # the other one's *new* build win the race and make us wait behind it,
-    # which would break "interactive always wins." Keep re-asserting the
-    # interrupt for a bounded window instead.
-    for i in $(seq 1 15); do
-        OLD_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
-        if [ -n "$OLD_PID" ] && _looks_like_our_build "$OLD_PID"; then
-            kill -TERM -- "-$OLD_PID" 2>/dev/null || true
-        fi
-        if flock -n 200; then
-            break
-        fi
-        sleep 1
-    done
-    if ! flock -n 200 2>/dev/null; then
-        # Still contested after 15s of TERM — escalate to KILL once, then wait.
-        OLD_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
-        [ -n "$OLD_PID" ] && _looks_like_our_build "$OLD_PID" && kill -KILL -- "-$OLD_PID" 2>/dev/null || true
-        flock 200
-    fi
+# ---- Single-build lock ----------------------------------------------------
+# publish-release.sh acquires this SAME lock itself, up front, for its whole
+# run (see deploy/scripts/lib/build-lock.sh) and sets LOCK_ALREADY_HELD=1
+# before calling this script as a subprocess — skip re-acquiring it here in
+# that case, since a second `exec 200>` on the same lock file from a child
+# process would open its own fresh, unlocked file description and either
+# deadlock against, or wrongly contend with, the parent's already-held lock.
+if [ -z "${LOCK_ALREADY_HELD:-}" ]; then
+    # shellcheck source=lib/build-lock.sh
+    source "$REPO_DIR/deploy/scripts/lib/build-lock.sh"
 fi
-echo $$ > "$PID_FILE"
-
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 cd "$REPO_DIR"
 
-# publish-release.sh sets SKIP_GIT_SYNC=1 when it calls this script — it has
-# already written a (deliberately uncommitted, until the build succeeds)
-# version bump to VERSION and needs the working tree left exactly as-is; a
-# git reset --hard here would silently discard that bump.
-if [ -n "${SKIP_GIT_SYNC:-}" ]; then
-    echo "==> SKIP_GIT_SYNC set — building working tree as-is"
-elif [ -d .git ]; then
-    echo "==> Pulling latest from origin"
-    git fetch origin
-    git reset --hard "origin/$(git rev-parse --abbrev-ref HEAD)"
+if [ -n "${ASSEMBLE_ONLY:-}" ]; then
+    echo "==> ASSEMBLE_ONLY set — skipping git sync/build/smoke test, packaging whatever's already built"
 else
-    echo "WARNING: $REPO_DIR is not a git checkout — building whatever is on disk as-is."
+    # publish-release.sh no longer needs to protect an uncommitted VERSION
+    # bump here — it now decides/writes the bump AFTER this build succeeds
+    # (see its own comments), so a plain git sync is always safe at this point.
+    if [ -d .git ]; then
+        echo "==> Pulling latest from origin"
+        git fetch origin
+        git reset --hard "origin/$(git rev-parse --abbrev-ref HEAD)"
+    else
+        echo "WARNING: $REPO_DIR is not a git checkout — building whatever is on disk as-is."
+    fi
+
+    VERSION="$(cat VERSION | tr -d '[:space:]')"
+    echo "==> Building v$VERSION from $REPO_DIR"
 fi
-
-VERSION="$(cat VERSION | tr -d '[:space:]')"
-echo "==> Building v$VERSION from $REPO_DIR"
-
-# ---- Frontend ---------------------------------------------------------
-echo "==> Building frontend"
-cd "$REPO_DIR/frontend"
-npm ci
 
 # PRERENDER_BASE_URL: the live production domain, used only at build time to
 # fetch already-published content (site-config, blog posts) for static
@@ -114,6 +72,9 @@ npm ci
 # generic/template build profile — see PLAN.md) is a supported, expected
 # state — prerender() degrades gracefully to zero prerendered routes,
 # matching pre-SSG pure-CSR build output exactly.
+#
+# Needed even in ASSEMBLE_ONLY mode, just for BUILD_DOMAIN/STAGING below —
+# computed unconditionally rather than only inside the build steps.
 PI_BUILD_ENV="$HOME/.personal-website-build.env"
 # Only source the Pi-local env file if the caller hasn't already forced
 # PRERENDER_BASE_URL itself — ${VAR+x} tests "is this set at all" (even to
@@ -140,91 +101,113 @@ BUILD_DOMAIN="${BUILD_DOMAIN:-$(echo "${PRERENDER_BASE_URL:-}" | sed -E 's#^http
 BUILD_DOMAIN="${BUILD_DOMAIN:-unknown}"
 STAGING="$BUILD_ROOT/release-staging-$BUILD_DOMAIN"
 
-if [ -z "${PRERENDER_BASE_URL:-}" ]; then
+if [ -n "${ASSEMBLE_ONLY:-}" ]; then
+    : # nothing further to build — skip straight to assembly below
+elif [ -z "${PRERENDER_BASE_URL:-}" ]; then
     echo "==> PRERENDER_BASE_URL not set (see $PI_BUILD_ENV) — building with zero prerendered routes."
 else
     echo "==> Prerendering against $PRERENDER_BASE_URL"
 fi
 
-# The Pi has ~900MB RAM; V8 auto-scales its default old-space heap ceiling
-# down from detected physical memory, capping around ~460MB here regardless
-# of the ~1.8GB swap already configured and mostly unused — the build was
-# dying at that self-imposed ceiling, not an actual physical memory limit.
-# Raising it explicitly lets V8 spill into swap instead of aborting early.
-NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=2048" npm run build
+if [ -z "${ASSEMBLE_ONLY:-}" ]; then
+    # ---- Frontend -----------------------------------------------------
+    echo "==> Building frontend"
+    cd "$REPO_DIR/frontend"
+    npm ci
 
-# ---- Backend ------------------------------------------------------------
-echo "==> Building backend (PyInstaller onedir)"
-cd "$REPO_DIR/backend"
+    # The Pi has ~900MB RAM; V8 auto-scales its default old-space heap ceiling
+    # down from detected physical memory, capping around ~460MB here regardless
+    # of the ~1.8GB swap already configured and mostly unused — the build was
+    # dying at that self-imposed ceiling, not an actual physical memory limit.
+    # Raising it explicitly lets V8 spill into swap instead of aborting early.
+    NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=2048" npm run build
 
-VENV_DIR="$BUILD_ROOT/venv"
-if [ ! -d "$VENV_DIR" ]; then
-    python3 -m venv "$VENV_DIR"
-fi
-# shellcheck source=/dev/null
-source "$VENV_DIR/bin/activate"
-pip install --upgrade pip
-pip install -r requirements.txt pyinstaller
+    # ---- Backend ------------------------------------------------------------
+    echo "==> Building backend (PyInstaller onedir)"
+    cd "$REPO_DIR/backend"
 
-rm -rf build dist
-pyinstaller pyinstaller.spec --distpath dist --workpath build --noconfirm
-
-FROZEN_BIN="$REPO_DIR/backend/dist/server/server"
-if [ ! -x "$FROZEN_BIN" ]; then
-    echo "BUILD FAILED: frozen binary not found at $FROZEN_BIN"
-    exit 1
-fi
-
-# ---- Smoke test -----------------------------------------------------------
-# 1. Credential-free import check — catches missing PyInstaller hidden
-#    imports for the dependencies flagged in pyinstaller.spec, without
-#    needing live Anthropic/Stripe/etc credentials during the build.
-echo "==> Smoke test: dependency imports"
-"$FROZEN_BIN" --check-imports
-
-# 2. Actually boot the app end to end against a throwaway SQLite DB (no
-#    Postgres required on the Pi) and hit a real route through gunicorn.
-echo "==> Smoke test: boot + HTTP request"
-SMOKE_DB="$(mktemp -u).db"
-SMOKE_DATA_DIR="$(mktemp -d)"
-export DATABASE_URL="sqlite:///$SMOKE_DB"
-export SECRET_KEY="smoke-test"
-export ENCRYPTION_KEY="$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
-export APP_DATA_DIR="$SMOKE_DATA_DIR"
-export GUNICORN_BIND="127.0.0.1:8099"
-export GUNICORN_WORKERS="1"
-export ENABLE_AI_DEMOS="false"
-
-"$FROZEN_BIN" &
-SMOKE_PID=$!
-trap 'kill $SMOKE_PID 2>/dev/null || true; rm -f "$SMOKE_DB"; rm -rf "$SMOKE_DATA_DIR"' EXIT
-
-for i in $(seq 1 15); do
-    # Read the actual HTTP status code rather than relying on curl's own
-    # success/failure exit code — the smoke DB is never seeded (seed.py
-    # doesn't run), so /api/site-config correctly 404s with "Site not
-    # configured", and that 404 is still proof the whole stack booted and is
-    # routing requests. curl reports "000" when it got no response at all
-    # (connection refused/reset), which is the only real failure case here.
-    HTTP_CODE="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8099/api/site-config" 2>/dev/null || true)"
-    if [ -n "$HTTP_CODE" ] && [ "$HTTP_CODE" != "000" ]; then
-        echo "Smoke test OK — server responded (HTTP $HTTP_CODE)."
-        break
+    VENV_DIR="$BUILD_ROOT/venv"
+    if [ ! -d "$VENV_DIR" ]; then
+        python3 -m venv "$VENV_DIR"
     fi
-    if [ "$i" -eq 15 ]; then
-        echo "BUILD FAILED: server did not respond to /api/site-config within 15s"
+    # shellcheck source=/dev/null
+    source "$VENV_DIR/bin/activate"
+    pip install --upgrade pip
+    pip install -r requirements.txt pyinstaller
+
+    rm -rf build dist
+    pyinstaller pyinstaller.spec --distpath dist --workpath build --noconfirm
+
+    FROZEN_BIN="$REPO_DIR/backend/dist/server/server"
+    if [ ! -x "$FROZEN_BIN" ]; then
+        echo "BUILD FAILED: frozen binary not found at $FROZEN_BIN"
         exit 1
     fi
-    sleep 1
-done
 
-kill $SMOKE_PID 2>/dev/null || true
-wait $SMOKE_PID 2>/dev/null || true
-trap - EXIT
-rm -f "$SMOKE_DB"
-rm -rf "$SMOKE_DATA_DIR"
+    # ---- Smoke test -----------------------------------------------------------
+    # 1. Credential-free import check — catches missing PyInstaller hidden
+    #    imports for the dependencies flagged in pyinstaller.spec, without
+    #    needing live Anthropic/Stripe/etc credentials during the build.
+    echo "==> Smoke test: dependency imports"
+    "$FROZEN_BIN" --check-imports
+
+    # 2. Actually boot the app end to end against a throwaway SQLite DB (no
+    #    Postgres required on the Pi) and hit a real route through gunicorn.
+    echo "==> Smoke test: boot + HTTP request"
+    SMOKE_DB="$(mktemp -u).db"
+    SMOKE_DATA_DIR="$(mktemp -d)"
+    export DATABASE_URL="sqlite:///$SMOKE_DB"
+    export SECRET_KEY="smoke-test"
+    export ENCRYPTION_KEY="$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
+    export APP_DATA_DIR="$SMOKE_DATA_DIR"
+    export GUNICORN_BIND="127.0.0.1:8099"
+    export GUNICORN_WORKERS="1"
+    export ENABLE_AI_DEMOS="false"
+
+    "$FROZEN_BIN" &
+    SMOKE_PID=$!
+    trap 'kill $SMOKE_PID 2>/dev/null || true; rm -f "$SMOKE_DB"; rm -rf "$SMOKE_DATA_DIR"' EXIT
+
+    for i in $(seq 1 15); do
+        # Read the actual HTTP status code rather than relying on curl's own
+        # success/failure exit code — the smoke DB is never seeded (seed.py
+        # doesn't run), so /api/site-config correctly 404s with "Site not
+        # configured", and that 404 is still proof the whole stack booted and is
+        # routing requests. curl reports "000" when it got no response at all
+        # (connection refused/reset), which is the only real failure case here.
+        HTTP_CODE="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8099/api/site-config" 2>/dev/null || true)"
+        if [ -n "$HTTP_CODE" ] && [ "$HTTP_CODE" != "000" ]; then
+            echo "Smoke test OK — server responded (HTTP $HTTP_CODE)."
+            break
+        fi
+        if [ "$i" -eq 15 ]; then
+            echo "BUILD FAILED: server did not respond to /api/site-config within 15s"
+            exit 1
+        fi
+        sleep 1
+    done
+
+    kill $SMOKE_PID 2>/dev/null || true
+    wait $SMOKE_PID 2>/dev/null || true
+    trap - EXIT
+    rm -f "$SMOKE_DB"
+    rm -rf "$SMOKE_DATA_DIR"
+fi
 
 # ---- Assemble the release tarball ------------------------------------------
+if [ -n "${SKIP_ASSEMBLE:-}" ]; then
+    echo "==> SKIP_ASSEMBLE set — build + smoke test succeeded, skipping tarball assembly"
+    exit 0
+fi
+
+# Re-read VERSION fresh from disk rather than trusting a variable captured
+# earlier in this script — in ASSEMBLE_ONLY mode nothing above set it at all,
+# and even in a normal run publish-release.sh's bump path (which calls this
+# script twice: once with SKIP_ASSEMBLE=1 for the build, then again with
+# ASSEMBLE_ONLY=1 after deciding/writing the real version) needs this exact
+# assembly step to reflect whatever's on disk *right now*, not whatever was
+# true earlier in a since-finished process.
+VERSION="$(cat "$REPO_DIR/VERSION" | tr -d '[:space:]')"
 echo "==> Assembling release v$VERSION"
 RELEASE_NAME="personal-website-v$VERSION"
 RELEASE_DIR="$STAGING/$RELEASE_NAME"

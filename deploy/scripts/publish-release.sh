@@ -22,6 +22,17 @@
 # build that just doesn't want the AI demo section on that particular site.
 set -euo pipefail
 
+# Re-exec into a fresh session, same reasoning as build-on-pi.sh's own
+# re-exec (see its comment): this is what lets a later interactive run's
+# TERM/KILL escalation (lib/build-lock.sh) reach this script's ENTIRE process
+# tree as one group — including the build-on-pi.sh + npm/pyinstaller/
+# smoke-test-server descendants it spawns below, once this script (not
+# build-on-pi.sh) is the one holding the lock for the whole run.
+if [ -z "${PUBLISH_RELEASE_SESSION:-}" ]; then
+    export PUBLISH_RELEASE_SESSION=1
+    exec setsid --wait bash "${BASH_SOURCE[0]}" "$@"
+fi
+
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 BUMP=""   # empty = no bump, the default — must be explicitly requested now
@@ -95,6 +106,7 @@ fi
 
 cd "$REPO_DIR"
 CURRENT="$(cat VERSION | tr -d '[:space:]')"
+CURRENT_AT_START="$CURRENT"   # preserved for a post-build drift comparison further down
 
 if [ -n "$BUMP" ]; then
     IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
@@ -140,44 +152,106 @@ else
     read -r -p "Press Enter to continue, or Ctrl+C to cancel... "
 fi
 
+# ---- Acquire the shared build/publish lock for this ENTIRE run ------------
+# From here through the final git push, this script holds exclusive control
+# of the repo checkout and build root (see lib/build-lock.sh) — not just
+# during the build. That's what stops a concurrent automatic run (content-
+# watch.sh's upstream-VERSION check, or another periodic content refresh)
+# from resetting this checkout's git state out from under an in-progress
+# bump's not-yet-pushed commit. Acquired only after the confirmation prompt
+# above, so a human sitting at that prompt isn't needlessly holding the lock.
+BUILD_ROOT="$HOME/personal-website-build"
+mkdir -p "$BUILD_ROOT"
+# shellcheck source=lib/build-lock.sh
+source "$REPO_DIR/deploy/scripts/lib/build-lock.sh"
+
+# Told to every build-on-pi.sh subprocess below: LOCK_ALREADY_HELD stops it
+# from trying to acquire its own (separate, conflicting) copy of the lock
+# this script just acquired; BUILD_ON_PI_SESSION stops it from re-execing
+# into its OWN new session, which would otherwise escape the process group
+# this script's own re-exec (above) set up for TERM/KILL delivery.
+export LOCK_ALREADY_HELD=1
+export BUILD_ON_PI_SESSION=1
+
+# ---- Build first; decide the version only after it (and its smoke test)
+# ---- actually succeeds -----------------------------------------------------
+# Nothing below this point has touched VERSION or git history yet, so a
+# build failure here leaves the working tree exactly as it started — no
+# revert logic needed for this step, unlike the version write further down.
+echo "==> Building (git sync + frontend + backend + smoke test)"
+if ! SKIP_ASSEMBLE=1 bash deploy/scripts/build-on-pi.sh; then
+    echo "Build failed."
+    exit 1
+fi
+
 if [ -n "$BUMP" ]; then
-    # Write the bump but deliberately do NOT commit/tag yet — if the rebuild
-    # below fails (the exact case its smoke test exists to catch), a commit or
-    # tag created here would be left orphaned, colliding with the next attempt.
-    # Committing only after a successful build keeps a failed run fully
-    # recoverable with nothing more than `git checkout -- VERSION`.
+    # Re-read CURRENT: the git sync inside the build above could have moved
+    # it (e.g. a fork tracking colinpetree/personal-website as `origin` that
+    # also happens to pass a bump flag — unusual, but this keeps the bump
+    # math correct even then instead of bumping from a now-stale value).
+    CURRENT="$(cat VERSION | tr -d '[:space:]')"
+    if [ "$CURRENT" != "$CURRENT_AT_START" ]; then
+        echo "==> VERSION advanced during git sync before this bump: $CURRENT_AT_START -> $CURRENT"
+    fi
+    IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+    case "$BUMP" in
+        major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+        minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+        patch) PATCH=$((PATCH + 1)) ;;
+    esac
+    NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+    TAG="v$NEW_VERSION"
+
+    # Revert this uncommitted bump on ANY exit from here on (build/assembly
+    # failure, Ctrl-C, an unexpected error under `set -e`) unless we make it
+    # far enough below to actually commit it — covers every early-exit path,
+    # not just the one explicit failure branch a plain `git checkout --
+    # VERSION` in an `if` block would.
+    BUMP_COMMITTED=false
+    trap '[ "$BUMP_COMMITTED" = true ] || git checkout -- VERSION 2>/dev/null || true' EXIT
     echo "==> Bumping VERSION (uncommitted): $CURRENT -> $NEW_VERSION"
     echo "$NEW_VERSION" > VERSION
-
-    echo "==> Rebuilding with the bumped version"
-    if ! SKIP_GIT_SYNC=1 bash deploy/scripts/build-on-pi.sh; then
-        echo "Build failed — reverting the uncommitted VERSION bump."
-        git checkout -- VERSION
-        exit 1
-    fi
 else
-    # No uncommitted VERSION change to protect, so this can use build-on-pi.sh's
-    # normal git-sync path (pull latest from origin) instead of SKIP_GIT_SYNC.
-    echo "==> Rebuilding v$CURRENT (no version bump)"
-    if ! bash deploy/scripts/build-on-pi.sh; then
-        echo "Build failed."
-        exit 1
+    # No bump requested — TAG reflects whatever VERSION already is now that
+    # the build's git sync has run (unchanged for colinpetree's own Pi;
+    # possibly advanced for a fork tracking colinpetree/personal-website
+    # directly as `origin` and picking up an upstream release it never
+    # bumped itself).
+    NEW_VERSION="$(cat VERSION | tr -d '[:space:]')"
+    if [ "$NEW_VERSION" != "$CURRENT" ]; then
+        echo "==> VERSION advanced during git sync: $CURRENT -> $NEW_VERSION"
     fi
+    TAG="v$NEW_VERSION"
+fi
+
+echo "==> Assembling release $TAG"
+if ! ASSEMBLE_ONLY=1 bash deploy/scripts/build-on-pi.sh; then
+    echo "Assembly failed."
+    exit 1
 fi
 
 TARBALL="$STAGING/personal-website-$TAG.tar.gz"
 SHA_FILE="$TARBALL.sha256"
 if [ ! -f "$TARBALL" ]; then
     echo "Expected tarball not found: $TARBALL"
-    [ -n "$BUMP" ] && git checkout -- VERSION
     exit 1
 fi
 
 if [ -n "$BUMP" ]; then
-    echo "==> Build succeeded — committing and tagging $TAG"
+    echo "==> Committing, tagging, and pushing $TAG"
     git add VERSION
     git commit -m "Release $TAG"
     git tag "$TAG"
+    BUMP_COMMITTED=true   # the EXIT trap above no longer reverts VERSION
+    # Push immediately — before the gh upload below, which can take a while
+    # for a multi-MB tarball — so the commit+tag spend as little time as
+    # possible sitting local-only. The lock held since before the build is
+    # what actually closes the race (nothing else can touch this checkout
+    # while this script holds it); pushing promptly on top of that also
+    # protects against anything outside this locking scheme, e.g. a human
+    # inspecting/running git commands against this checkout by hand.
+    git push origin "HEAD:$(git rev-parse --abbrev-ref HEAD)"
+    git push origin "$TAG"
 fi
 
 echo "==> Publishing $TAG to $RELEASES_REPO"
@@ -185,11 +259,5 @@ gh release create "$TAG" "$TARBALL" "$SHA_FILE" \
     --repo "$RELEASES_REPO" \
     --title "$TAG" \
     --notes "Release $TAG. See the main repo's git history for changes."
-
-if [ -n "$BUMP" ]; then
-    echo "==> Pushing source repo commit + tag"
-    git push origin "HEAD:$(git rev-parse --abbrev-ref HEAD)"
-    git push origin "$TAG"
-fi
 
 echo "==> Published $TAG"

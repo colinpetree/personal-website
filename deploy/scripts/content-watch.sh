@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
 # Long-running loop. Polls the tracked site's Last-Modified header on
 # /api/content-version and publishes a content-only refresh when it changes.
+# Also checks origin for an upstream VERSION bump (see the "version check"
+# section below) and publishes a real code release when one shows up — this
+# is what lets a fork that never runs publish-release.sh itself (just admin-
+# panel content edits) still pick up colinpetree/personal-website's own
+# tagged releases automatically. Both checks share this one polling cadence
+# deliberately, to keep self-hosters from needing a second systemd unit.
 # Interval is re-read from a plain-text file every cycle.
 set -uo pipefail   # not -e: one failed poll/publish must not kill the loop
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 _log() { echo "[content-watch] $*"; }   # journalctl already timestamps every
                                           # captured line — no need to add
@@ -69,6 +77,52 @@ _log "Starting. Tracking $SITE_URL, checking every $(cat "$INTERVAL_FILE")s."
 
 while true; do
     _check_gh_health
+
+    # ---- version check (upstream code release) ----------------------------
+    # For colinpetree's own Pi, `origin` IS the checkout that
+    # publish-release.sh commits+pushes to by hand, so by the time this cycle
+    # runs again the local VERSION file already matches origin — this is a
+    # no-op there. For a fork/self-hoster who cloned colinpetree/personal-
+    # website directly as `origin` and never runs publish-release.sh
+    # themselves, this is what notices a new upstream tag and builds+publishes
+    # it as a real release to THEIR OWN releases repo, same gh auth their
+    # content refreshes already require.
+    if [ -d "$REPO_DIR/.git" ]; then
+        BRANCH="$(git -C "$REPO_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+        if [ -n "$BRANCH" ] && git -C "$REPO_DIR" fetch origin >/dev/null 2>&1; then
+            UPSTREAM_VERSION="$(git -C "$REPO_DIR" show "origin/$BRANCH:VERSION" 2>/dev/null | tr -d '[:space:]')"
+            LOCAL_VERSION="$(cat "$REPO_DIR/VERSION" 2>/dev/null | tr -d '[:space:]')"
+            if [ -n "$UPSTREAM_VERSION" ] && [ "$UPSTREAM_VERSION" != "$LOCAL_VERSION" ]; then
+                _log "Upstream VERSION changed: $LOCAL_VERSION -> $UPSTREAM_VERSION. Publishing a code release."
+                if BUILD_LOCK_MODE=periodic bash "$(dirname "$0")/publish-release.sh" -y; then
+                    _log "Release published."
+                    # Snapshot the current content fingerprint too, so the
+                    # content-change check below doesn't immediately fire a
+                    # redundant content-only rebuild right after this restart
+                    # — the release build just baked in whatever content was
+                    # live anyway.
+                    FP_AFTER_RELEASE="$(curl -sI --connect-timeout 10 --max-time 30 "$SITE_URL/api/content-version" 2>/dev/null | grep -i '^last-modified:' | tr -d '\r' || true)"
+                    [ -n "$FP_AFTER_RELEASE" ] && echo "$FP_AFTER_RELEASE" > "$LAST_SEEN_FILE"
+                    _log "Restarting self to pick up any code this release shipped."
+                    systemctl --user restart --no-block personal-website-publisher
+                    exit 0
+                else
+                    RC=$?
+                    if [ "$RC" -eq 3 ]; then
+                        _log "Skipped — another build is already in progress (will retry next cycle)."
+                    else
+                        _log "publish-release.sh FAILED (exit $RC) — will retry next cycle."
+                    fi
+                fi
+            else
+                _log "No upstream version change (local $LOCAL_VERSION)."
+            fi
+        else
+            _log "git fetch origin failed or not on a branch — skipping version check this cycle."
+        fi
+    else
+        _log "$REPO_DIR is not a git checkout — skipping version check this cycle."
+    fi
 
     _log "Polling $SITE_URL/api/content-version"
     HTTP_CODE="$(curl -sI --connect-timeout 10 --max-time 30 -o /tmp/content-watch-headers.$$ -w '%{http_code}' "$SITE_URL/api/content-version" 2>/dev/null || echo 000)"
