@@ -102,8 +102,24 @@ if [ -z "${RESTIC_PASSWORD:-}" ]; then
 fi
 
 TODAY="$(date -u +%Y-%m-%d)"
-LATEST_SNAPSHOT_DATE="$(RESTIC_PASSWORD="$RESTIC_PASSWORD" restic -r "$BACKUP_PULL_LOCAL_DIR" snapshots --last --json 2>/dev/null \
-    | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d[0]["time"][:10] if d else "")' 2>/dev/null)"
+LATEST_SNAPSHOT_TIME="$(RESTIC_PASSWORD="$RESTIC_PASSWORD" restic -r "$BACKUP_PULL_LOCAL_DIR" snapshots --last --json 2>/dev/null \
+    | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d[0]["time"] if d else "")' 2>/dev/null)"
+# restic's JSON time field preserves the snapshotting machine's own local UTC
+# offset (e.g. production's -07:00) rather than normalizing to UTC — slicing
+# it directly would compare a local calendar date against TODAY's UTC date
+# and false-positive whenever they diverge (every night between UTC midnight
+# and local midnight for a negative-offset zone). Let `date -u -d` do the
+# actual UTC conversion instead.
+# `date -d ""` treats an empty string as "now" and succeeds instead of
+# erroring, so an empty LATEST_SNAPSHOT_TIME (no snapshots, or the JSON parse
+# above failed) must be checked explicitly rather than left to fall through
+# to `date` — otherwise a genuinely unreadable repo would silently read back
+# as "confirmed dated $TODAY" instead of alerting.
+if [ -z "$LATEST_SNAPSHOT_TIME" ]; then
+    LATEST_SNAPSHOT_DATE=""
+else
+    LATEST_SNAPSHOT_DATE="$(date -u -d "$LATEST_SNAPSHOT_TIME" +%Y-%m-%d 2>/dev/null)"
+fi
 
 if [ -z "$LATEST_SNAPSHOT_DATE" ]; then
     _alert "backup-pull: rsync succeeded but 'restic snapshots' could not be read afterward — repo may be corrupt or RESTIC_PASSWORD may be wrong."
