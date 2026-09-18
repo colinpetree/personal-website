@@ -4,13 +4,28 @@
 # tarball as a GitHub Release on the SEPARATE releases repo given by
 # --releases-repo.
 #
-# Usage: publish-release.sh [--patch|--minor|--major] [--releases-repo <owner>/<repo>] [--no-target] [--no-ai] [-y|--yes]
+# Usage: publish-release.sh [--patch|--minor|--major] [--releases-repo <owner>/<repo>] [--no-target] [--no-ai] [--upstream-sync] [-y|--yes]
 # With no bump flag, VERSION is left untouched — this rebuilds and publishes
 # the CURRENT version to --releases-repo. That's the normal way to publish
 # the same code state to more than one repo (e.g. a real site's dist repo and
 # the no-prerender template dist repo): call this once per target repo, only
 # passing a bump flag on whichever call should actually advance the version.
 # Defaults to no bump, publishing to colinpetree/personal-website-dist-<domain>.
+#
+# A no-bump call that actually produces real prerendered pages (a working
+# PRERENDER_BASE_URL, not --no-target) is published under a DATED tag
+# (v$VERSION-content-<timestamp>, same convention publish-content-refresh.sh
+# already uses) instead of a bare v$VERSION tag — republishing under an
+# unchanged, already-used tag either fails outright (gh release create: tag
+# exists) or, if it didn't, would never be recognized as new by
+# update-watch.sh's tag-string comparison. This is what lets you test a real,
+# unbumped code change against production and have it actually get installed,
+# without permanently advancing VERSION or affecting forks tracking this repo
+# as origin. Pass --upstream-sync ONLY to replicate content-watch.sh's own
+# automatic "adopt an upstream release this checkout never published itself"
+# behavior by hand — it forces a bare, clean tag unconditionally, since that
+# VERSION is guaranteed never to have been tagged from this checkout before.
+# Every other no-bump call should leave --upstream-sync off.
 #
 # --no-target forces a no-prerender build regardless of what PRERENDER_BASE_URL
 # is set to in ~/.personal-website-build.env, and defaults the target repo to
@@ -51,6 +66,7 @@ BUMP=""   # empty = no bump, the default — must be explicitly requested now
 NO_TARGET=false
 NO_AI=false
 ASSUME_YES=false
+UPSTREAM_SYNC=false
 RELEASES_REPO_ARG=""
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -60,6 +76,7 @@ while [ $# -gt 0 ]; do
         --bump) BUMP="$2"; shift 2 ;;
         --no-target) NO_TARGET=true; shift ;;
         --no-ai) NO_AI=true; shift ;;
+        --upstream-sync) UPSTREAM_SYNC=true; shift ;;
         -y|--yes) ASSUME_YES=true; shift ;;
         --releases-repo) RELEASES_REPO_ARG="$2"; shift 2 ;;
         *) echo "Unknown argument: $1"; exit 1 ;;
@@ -70,6 +87,17 @@ case "$BUMP" in
     major|minor|patch|"") ;;
     *) echo "Invalid --bump: $BUMP (expected patch|minor|major)"; exit 1 ;;
 esac
+
+# --upstream-sync only ever means "this is a no-bump call, tag it clean
+# regardless of prerender output" — combining it with a real bump would
+# otherwise silently no-op (the bump branch never consults $UPSTREAM_SYNC),
+# which is worth catching explicitly rather than leaving as a footgun for
+# whoever calls this by hand later. Nothing today ever hits this (only
+# content-watch.sh passes the flag, and never with a bump).
+if [ -n "$BUMP" ] && [ "$UPSTREAM_SYNC" = true ]; then
+    echo "--upstream-sync is only valid without a bump flag"
+    exit 1
+fi
 
 # --no-target implies --no-ai — see the usage comment above.
 [ "$NO_TARGET" = true ] && NO_AI=true
@@ -224,8 +252,8 @@ if [ -n "$BUMP" ]; then
     echo "==> Bumping VERSION (uncommitted): $CURRENT -> $NEW_VERSION"
     echo "$NEW_VERSION" > VERSION
 else
-    # No bump requested — TAG reflects whatever VERSION already is now that
-    # the build's git sync has run (unchanged for colinpetree's own Pi;
+    # No bump requested — VERSION reflects whatever's already on disk now
+    # that the build's git sync has run (unchanged for colinpetree's own Pi;
     # possibly advanced for a fork tracking colinpetree/personal-website
     # directly as `origin` and picking up an upstream release it never
     # bumped itself).
@@ -233,7 +261,47 @@ else
     if [ "$NEW_VERSION" != "$CURRENT" ]; then
         echo "==> VERSION advanced during git sync: $CURRENT -> $NEW_VERSION"
     fi
-    TAG="v$NEW_VERSION"
+
+    if [ "$UPSTREAM_SYNC" = true ]; then
+        # content-watch.sh's own automatic call (or a human replicating it by
+        # hand) — always a bare tag, see the usage comment above for why.
+        TAG="v$NEW_VERSION"
+    else
+        # Manual no-bump call — either the documented "publish the same code
+        # to a second repo" use case, or testing a real unbumped code change
+        # against production. Detect whether this build actually produced
+        # real prerendered pages by counting the HTML files it emitted: a
+        # degraded build (PRERENDER_BASE_URL unset, unreachable, or
+        # --no-target) always emits exactly one index.html (the pure-SPA
+        # shell); a real prerender always emits at least 4 (/, blog,
+        # projects, contact, plus any posts/pages — see
+        # frontend/react-router.config.ts's prerender()). No explicit
+        # --no-target check is needed: it naturally falls into the "1 file"
+        # case on its own.
+        #
+        # The assignment's own failure is neutralized with `|| HTML_COUNT=0`
+        # rather than gated by a single `[ -d ... ]` pre-check: this script
+        # has `set -euo pipefail`, so ANY `find | wc -l` failure — not just a
+        # missing directory, but e.g. a permission error mid-traversal too —
+        # would otherwise abort this entire publish (pipefail propagates
+        # find's nonzero exit even though wc -l itself still prints a count).
+        # A pre-check only guards the one failure mode; this neutralizes all
+        # of them uniformly and falls back to the safe "treat as degraded,
+        # clean tag" outcome. This directory is expected to always exist and
+        # be readable by the time this code runs (produced by the earlier
+        # SKIP_ASSEMBLE=1 build above, which would already have aborted this
+        # script under `set -e` if the build itself had failed) — this is
+        # belt-and-suspenders, not an expected trigger path.
+        HTML_COUNT="$(find "$REPO_DIR/frontend/build/client" -type f -name '*.html' 2>/dev/null | wc -l | tr -d ' ')" || HTML_COUNT=0
+        if [ "${HTML_COUNT:-0}" -gt 1 ]; then
+            # Same tag convention publish-content-refresh.sh already uses —
+            # this is what makes a same-version republish both unique and
+            # recognizable as new to update-watch.sh's tag-string comparison.
+            TAG="v${NEW_VERSION}-content-$(date -u +%Y%m%d%H%M%S)"
+        else
+            TAG="v$NEW_VERSION"
+        fi
+    fi
 fi
 
 echo "==> Assembling release $TAG"
@@ -242,7 +310,15 @@ if ! ASSEMBLE_ONLY=1 bash deploy/scripts/build-on-pi.sh; then
     exit 1
 fi
 
-TARBALL="$STAGING/personal-website-$TAG.tar.gz"
+# build-on-pi.sh's assembly step (RELEASE_NAME="personal-website-v$VERSION")
+# names the tarball after the BARE version only — it has no concept of $TAG
+# at all, so it never appends "-content-<timestamp>" or anything else. Must
+# match that naming here exactly, independent of what $TAG ended up being
+# (which can now diverge from v$NEW_VERSION per the dated-tag branch above)
+# — same pattern publish-content-refresh.sh already uses correctly. $TAG is
+# still used everywhere else below (git tag, git push, gh release create's
+# tag argument and --title) — only this file-lookup line differs from it.
+TARBALL="$STAGING/personal-website-v$NEW_VERSION.tar.gz"
 SHA_FILE="$TARBALL.sha256"
 if [ ! -f "$TARBALL" ]; then
     echo "Expected tarball not found: $TARBALL"

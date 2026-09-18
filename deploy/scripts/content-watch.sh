@@ -94,7 +94,7 @@ while true; do
             LOCAL_VERSION="$(cat "$REPO_DIR/VERSION" 2>/dev/null | tr -d '[:space:]')"
             if [ -n "$UPSTREAM_VERSION" ] && [ "$UPSTREAM_VERSION" != "$LOCAL_VERSION" ]; then
                 _log "Upstream VERSION changed: $LOCAL_VERSION -> $UPSTREAM_VERSION. Publishing a code release."
-                if BUILD_LOCK_MODE=periodic bash "$(dirname "$0")/publish-release.sh" -y; then
+                if BUILD_LOCK_MODE=periodic bash "$(dirname "$0")/publish-release.sh" -y --upstream-sync; then
                     _log "Release published."
                     # Snapshot the current content fingerprint too, so the
                     # content-change check below doesn't immediately fire a
