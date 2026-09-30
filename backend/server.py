@@ -72,8 +72,10 @@ Usage:
                                   # without touching disk/state. Sends a watcher
                                   # alert (source=media-cleanup) and exits non-zero
                                   # on an unexpected failure or if the circuit
-                                  # breaker (ORPHAN_MEDIA_MAX_PER_RUN) aborts the
-                                  # run — otherwise always exits 0.
+                                  # breaker aborts the run (reference scan
+                                  # looks unhealthy vs. its recent history,
+                                  # or — cold start only — a high volume
+                                  # backstop) — otherwise always exits 0.
 """
 import os
 import sys
@@ -428,10 +430,17 @@ def main():
                 sys.exit(1)
 
             if result['aborted']:
-                message = (f"Refused to run — would have touched "
-                           f"{result['would_flag'] + result['would_delete']} files "
-                           f"(flag {result['would_flag']}, delete {result['would_delete']}), exceeding the "
-                           f"ORPHAN_MEDIA_MAX_PER_RUN cap of {result['cap']}.")
+                if result['reason'] == 'reference_drop':
+                    message = (f"Refused to run — the reference scan found only {result['referenced_count']} "
+                               f"referenced files, well below the recent high-water mark of "
+                               f"{result['high_water_mark']} (this run would have flagged "
+                               f"{result['would_flag']}/deleted {result['would_delete']}). This looks like the "
+                               f"reference-scanning logic broke rather than a genuine drop in real content.")
+                else:
+                    message = (f"Refused to run — no referenced-count history yet (cold start) and this run "
+                               f"would have touched {result['would_flag'] + result['would_delete']} files "
+                               f"(flag {result['would_flag']}, delete {result['would_delete']}), exceeding the "
+                               f"fallback ORPHAN_MEDIA_MAX_PER_RUN_FLOOR/_PERCENT cap of {result['cap']}.")
                 print(f'ABORTED: {message}')
                 send_watcher_alert('media-cleanup', message)
                 sys.exit(1)

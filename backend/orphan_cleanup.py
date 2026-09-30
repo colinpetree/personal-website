@@ -10,10 +10,33 @@ A file is never deleted the first run it looks unreferenced — it's recorded
 as a "candidate" with a timestamp, and only actually removed once it's been
 continuously unreferenced across ORPHAN_MEDIA_GRACE_DAYS worth of runs. If it
 becomes referenced again before then (a recreated post, a restored image),
-its candidacy is cancelled immediately. A circuit breaker refuses to touch
-anything at all if a single run would flag-or-delete more than
-ORPHAN_MEDIA_MAX_PER_RUN files, since that's a much more likely sign of a bug
-in the reference-scanning logic than of a genuine bulk cleanup."""
+its candidacy is cancelled immediately.
+
+The circuit breaker deliberately does NOT count how many files would be
+flagged/deleted — orphan volume alone was tried (a flat cap, then a
+floor/percent-of-disk cap) and rejected: deleting many truly-unreferenced
+files in one run is fine at any volume, since a post/page can never reuse an
+old upload, and normal editing (upload many drafts, keep a few, abandon the
+rest) can legitimately orphan the large majority of everything on disk in a
+single day. A volume-based check can't tell that apart from the actual
+danger case (the reference-scanning query logic silently breaking and
+returning too few rows — a dropped DB connection, a bad migration, a filter
+bug — which also looks like "most of the library is suddenly orphaned").
+
+Instead, the breaker watches whether the reference SCAN itself still looks
+healthy: it tracks the highest `len(referenced)` seen across the last
+ORPHAN_MEDIA_REFERENCED_HISTORY_WINDOW successful runs (a high-water mark,
+not just the immediately-previous run, so a bug that erodes the count by a
+little every day can't quietly drag the baseline down with it) and aborts
+if the current run's referenced count falls below
+ORPHAN_MEDIA_MIN_REFERENCED_RATIO of that mark. This is orphan-count-
+agnostic — it only cares whether the files known to still be in use are
+still being found. The high-water mark only applies once it reaches
+ORPHAN_MEDIA_MIN_REFERENCED_FLOOR; a brand-new/low-content site (or a state
+file that was just lost — see _load_state) has no meaningful history yet to
+compare against, so a much higher, rarely-hit floor/percent-of-disk volume
+cap (ORPHAN_MEDIA_MAX_PER_RUN_FLOOR / _PERCENT) applies instead, purely to
+bound worst-case blast radius during that cold-start window."""
 import html.parser
 import json
 import logging
@@ -23,9 +46,20 @@ import time
 logger = logging.getLogger(__name__)
 
 DEFAULT_GRACE_DAYS = 7
-DEFAULT_MAX_PER_RUN = 20
+DEFAULT_MAX_PER_RUN_FLOOR = 500
+DEFAULT_MAX_PER_RUN_PERCENT = 50
+DEFAULT_REFERENCED_HISTORY_WINDOW = 30
+DEFAULT_MIN_REFERENCED_RATIO = 0.5
+DEFAULT_MIN_REFERENCED_FLOOR = 5
 
 STATE_FILENAME = 'orphan-media-state.json'
+
+# Reserved key inside the state file for the referenced-count history,
+# alongside the flat filename -> first-unreferenced-timestamp candidate
+# entries. Uploaded filenames are UUID-based (see upload_utils) plus a
+# handful of fixed names (favicon.ico, ...), so a leading-underscore key
+# can't collide with a real filename.
+_META_KEY = '_meta'
 
 # Every attribute, on any tag, that the Lexical editor's node set (nodes.jsx)
 # is known to use for an uploaded-file reference: img[src|srcset],
@@ -219,7 +253,11 @@ def run_orphan_cleanup(dry_run=False):
     from upload_utils import get_app_data_dir, get_uploads_dir
 
     grace_seconds = int(os.getenv('ORPHAN_MEDIA_GRACE_DAYS', str(DEFAULT_GRACE_DAYS))) * 86400
-    max_per_run = int(os.getenv('ORPHAN_MEDIA_MAX_PER_RUN', str(DEFAULT_MAX_PER_RUN)))
+    max_per_run_floor = int(os.getenv('ORPHAN_MEDIA_MAX_PER_RUN_FLOOR', str(DEFAULT_MAX_PER_RUN_FLOOR)))
+    max_per_run_percent = float(os.getenv('ORPHAN_MEDIA_MAX_PER_RUN_PERCENT', str(DEFAULT_MAX_PER_RUN_PERCENT)))
+    history_window = int(os.getenv('ORPHAN_MEDIA_REFERENCED_HISTORY_WINDOW', str(DEFAULT_REFERENCED_HISTORY_WINDOW)))
+    min_referenced_ratio = float(os.getenv('ORPHAN_MEDIA_MIN_REFERENCED_RATIO', str(DEFAULT_MIN_REFERENCED_RATIO)))
+    min_referenced_floor = int(os.getenv('ORPHAN_MEDIA_MIN_REFERENCED_FLOOR', str(DEFAULT_MIN_REFERENCED_FLOOR)))
 
     uploads_dir = get_uploads_dir()
     state_path = os.path.join(get_app_data_dir(), STATE_FILENAME)
@@ -230,7 +268,13 @@ def run_orphan_cleanup(dry_run=False):
         for name in os.listdir(uploads_dir):
             if os.path.isfile(os.path.join(uploads_dir, name)):
                 on_disk.add(name)
-    state = _load_state(state_path)
+
+    raw_state = _load_state(state_path)
+    meta = raw_state.get(_META_KEY) or {}
+    referenced_history = meta.get('referenced_history') or []
+    # Candidate entries are everything in the state file except the
+    # reserved meta key — see _META_KEY's comment above.
+    state = {k: v for k, v in raw_state.items() if k != _META_KEY}
 
     now = time.time()
     unreferenced = on_disk - referenced
@@ -246,17 +290,47 @@ def run_orphan_cleanup(dry_run=False):
     to_flag_new = [f for f in unreferenced if f not in state]
     to_delete = [f for f in unreferenced if f in state and (now - state[f]) >= grace_seconds]
 
-    total_actions = len(to_flag_new) + len(to_delete)
-    if total_actions > max_per_run:
-        logger.warning('orphan_cleanup: would touch %d files this run (flag %d, delete %d), exceeding '
-                        'ORPHAN_MEDIA_MAX_PER_RUN=%d — aborting without changing anything.',
-                        total_actions, len(to_flag_new), len(to_delete), max_per_run)
-        return {
-            'aborted': True,
-            'would_flag': len(to_flag_new),
-            'would_delete': len(to_delete),
-            'cap': max_per_run,
-        }
+    # Primary check: does the reference scan itself still look healthy?
+    # Compares against the highest referenced-count seen recently (not just
+    # the last run), so a bug that erodes it a little at a time can't drag
+    # the baseline down with it. Orphan/deletion volume plays no part here.
+    high_water_mark = max(referenced_history) if referenced_history else 0
+    if high_water_mark >= min_referenced_floor:
+        min_referenced = int(high_water_mark * min_referenced_ratio)
+        if len(referenced) < min_referenced:
+            logger.warning('orphan_cleanup: reference scan found only %d referenced files, below %d '
+                            '(%.0f%% of the recent high-water mark of %d) — aborting without changing '
+                            'anything, this looks like the reference-scanning logic broke rather than a '
+                            'genuine drop in real content.',
+                            len(referenced), min_referenced, min_referenced_ratio * 100, high_water_mark)
+            return {
+                'aborted': True,
+                'reason': 'reference_drop',
+                'referenced_count': len(referenced),
+                'high_water_mark': high_water_mark,
+                'would_flag': len(to_flag_new),
+                'would_delete': len(to_delete),
+            }
+    else:
+        # Cold start (new site, or the state file/history was just lost) —
+        # not enough history yet to trust the primary check, so fall back to
+        # a much higher, rarely-hit volume cap purely to bound worst-case
+        # blast radius until real history accumulates.
+        max_per_run = max(max_per_run_floor, int(len(on_disk) * max_per_run_percent / 100))
+        total_actions = len(to_flag_new) + len(to_delete)
+        if total_actions > max_per_run:
+            logger.warning('orphan_cleanup: no referenced-count history yet (cold start) and this run would '
+                            'touch %d files (flag %d, delete %d), exceeding the fallback cap of %d '
+                            '(max(floor=%d, %d%% of %d files on disk)) — aborting without changing anything.',
+                            total_actions, len(to_flag_new), len(to_delete), max_per_run, max_per_run_floor,
+                            max_per_run_percent, len(on_disk))
+            return {
+                'aborted': True,
+                'reason': 'volume_backstop',
+                'would_flag': len(to_flag_new),
+                'would_delete': len(to_delete),
+                'cap': max_per_run,
+            }
 
     flagged, deleted = [], []
     cleared = sorted(referenced_again)
@@ -282,6 +356,12 @@ def run_orphan_cleanup(dry_run=False):
                 logger.exception('orphan_cleanup: failed to delete %s — leaving its candidate entry in '
                                   'place for the next run.', f)
 
+        referenced_history.append(len(referenced))
+        # Not referenced_history[-history_window:] — when history_window is
+        # 0 (or negative), Python's -0 == 0 makes that slice the WHOLE list
+        # (list[-0:] == list[0:]), the opposite of "keep nothing."
+        trimmed_history = referenced_history[-history_window:] if history_window > 0 else []
+        state[_META_KEY] = {'referenced_history': trimmed_history}
         _save_state(state_path, state)
     else:
         flagged = to_flag_new

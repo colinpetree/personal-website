@@ -464,7 +464,9 @@ if [ "$FIRST_INSTALL" = true ]; then
     echo "   8. Orphan media cleanup IS already enabled"
     echo "      (personal-website-media-cleanup.timer) — deletes uploaded files no"
     echo "      longer referenced anywhere, after a grace period. No action needed"
-    echo "      unless you want to tune ORPHAN_MEDIA_GRACE_DAYS/ORPHAN_MEDIA_MAX_PER_RUN"
+    echo "      unless you want to tune ORPHAN_MEDIA_GRACE_DAYS or the circuit"
+    echo "      breaker's ORPHAN_MEDIA_MIN_REFERENCED_RATIO/_FLOOR/"
+    echo "      _REFERENCED_HISTORY_WINDOW/_MAX_PER_RUN_FLOOR/_PERCENT settings"
     echo "      in $DATA_DIR/.env. See deploy/BACKUP.md."
     echo "=========================================================================="
 fi

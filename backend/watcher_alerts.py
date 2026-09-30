@@ -30,10 +30,10 @@ _SOURCE_INFO = {
                 'renewal has stalled.'),
     'media-cleanup': ('orphan media cleanup needs attention',
                        'Check `journalctl -u personal-website-media-cleanup` on the server for details — this '
-                       'fires either on an unexpected error, or when a single run would have touched more '
-                       'files than ORPHAN_MEDIA_MAX_PER_RUN allows (a safety cap, not necessarily a real '
-                       'problem — but worth a manual `--cleanup-orphan-media --dry-run` look before raising '
-                       'the cap or letting it proceed).'),
+                       'fires on an unexpected error, or when the reference scan itself looks unhealthy (found '
+                       'far fewer referenced files than its recent history, or — during cold start only — a '
+                       'huge volume cap was exceeded). Not a limit on legitimate cleanup volume — worth a '
+                       'manual `--cleanup-orphan-media --dry-run` look before investigating further.'),
     'dependency-audit': ('monthly dependency audit report',
                          'This is a routine report sent every run, not necessarily a failure, see the '
                          'pip-audit/npm audit output above for whether any vulnerabilities were actually '
