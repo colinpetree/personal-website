@@ -8,24 +8,24 @@
 #   git clone git@github.com:<owner>/<repo>.git ~/src/personal-website
 #
 # Build scratch space (venv, release tarballs) is kept out of the source
-# tree entirely, in ~/personal-website-build — no reason for build artifacts
+# tree entirely, in ~/personal-website-build - no reason for build artifacts
 # to live inside a git checkout.
 set -euo pipefail
 
 # Re-exec into a fresh PROCESS GROUP (not a new session) so this build's
 # whole process tree (npm, pyinstaller, the backgrounded smoke-test server,
-# ...) shares one process group distinct from whatever invoked us — the
+# ...) shares one process group distinct from whatever invoked us - the
 # personal-website-publisher systemd service's own process, a manual
 # interactive shell, etc. That's what lets a later invocation cleanly
 # kill -TERM the entire tree of a build it's interrupting below, without
 # also killing its own caller.
 #
-# Deliberately `set -m` (job control), not `setsid` — setsid was tried first
+# Deliberately `set -m` (job control), not `setsid` - setsid was tried first
 # and confirmed BROKEN by hand on real hardware: it puts the child in a
 # whole new SESSION, which detaches it from the terminal's controlling-
 # terminal/job-control machinery entirely. Ctrl-C's SIGINT is delivered by
 # the tty driver to whichever process group the terminal considers
-# foreground, and a detached session is never that — the result was Ctrl-C
+# foreground, and a detached session is never that - the result was Ctrl-C
 # only killing the thin `setsid --wait` wrapper left behind in the ORIGINAL
 # session, while the actual build kept running to completion as an orphaned
 # background session, completely ignoring the interrupt. `set -m` gives the
@@ -33,7 +33,7 @@ set -euo pipefail
 # puts the foreground job it launches into its own new process group but
 # keeps it inside the SAME session, so a controlling terminal (if there is
 # one) still hands that new group foreground status and Ctrl-C reaches it
-# normally. `-m` is a shell OPTION local to this process — it does not
+# normally. `-m` is a shell OPTION local to this process - it does not
 # propagate into the child bash process's own environment, so nothing
 # further down this tree (this script's own later `bash build-on-pi.sh`
 # calls from publish-release.sh, npm, pyinstaller, ...) gets ANOTHER nested
@@ -53,7 +53,7 @@ mkdir -p "$BUILD_ROOT"
 # ---- Single-build lock ----------------------------------------------------
 # publish-release.sh acquires this SAME lock itself, up front, for its whole
 # run (see deploy/scripts/lib/build-lock.sh) and sets LOCK_ALREADY_HELD=1
-# before calling this script as a subprocess — skip re-acquiring it here in
+# before calling this script as a subprocess - skip re-acquiring it here in
 # that case, since a second `exec 200>` on the same lock file from a child
 # process would open its own fresh, unlocked file description and either
 # deadlock against, or wrongly contend with, the parent's already-held lock.
@@ -65,17 +65,17 @@ fi
 cd "$REPO_DIR"
 
 if [ -n "${ASSEMBLE_ONLY:-}" ]; then
-    echo "==> ASSEMBLE_ONLY set — skipping git sync/build/smoke test, packaging whatever's already built"
+    echo "==> ASSEMBLE_ONLY set - skipping git sync/build/smoke test, packaging whatever's already built"
 else
     # publish-release.sh no longer needs to protect an uncommitted VERSION
-    # bump here — it now decides/writes the bump AFTER this build succeeds
+    # bump here - it now decides/writes the bump AFTER this build succeeds
     # (see its own comments), so a plain git sync is always safe at this point.
     if [ -d .git ]; then
         echo "==> Pulling latest from origin"
         git fetch origin
         git reset --hard "origin/$(git rev-parse --abbrev-ref HEAD)"
     else
-        echo "WARNING: $REPO_DIR is not a git checkout — building whatever is on disk as-is."
+        echo "WARNING: $REPO_DIR is not a git checkout - building whatever is on disk as-is."
     fi
 
     VERSION="$(cat VERSION | tr -d '[:space:]')"
@@ -86,35 +86,35 @@ fi
 # fetch already-published content (site-config, blog posts) for static
 # prerendering (react-router.config.ts's prerender()). Lives in a small
 # untracked env file on the Pi build box (never in the repo, never in
-# backend/.env.example — production's domain is DB-only per architecture
+# backend/.env.example - production's domain is DB-only per architecture
 # decision, this is a build-time-only, Pi-local convenience var, analogous
 # to how PI_HOST is documented as a one-time local setup value rather than
 # repo config).
 #
 # Unset (e.g. the very first build, before any prod site is live, or the
-# generic/template build profile — see PLAN.md) is a supported, expected
-# state — prerender() degrades gracefully to zero prerendered routes,
+# generic/template build profile - see PLAN.md) is a supported, expected
+# state - prerender() degrades gracefully to zero prerendered routes,
 # matching pre-SSG pure-CSR build output exactly.
 #
-# Needed even in ASSEMBLE_ONLY mode, just for BUILD_DOMAIN/STAGING below —
+# Needed even in ASSEMBLE_ONLY mode, just for BUILD_DOMAIN/STAGING below - 
 # computed unconditionally rather than only inside the build steps.
 PI_BUILD_ENV="$HOME/.personal-website-build.env"
 # Only source the Pi-local env file if the caller hasn't already forced
-# PRERENDER_BASE_URL itself — ${VAR+x} tests "is this set at all" (even to
+# PRERENDER_BASE_URL itself - ${VAR+x} tests "is this set at all" (even to
 # an empty string), unlike ${VAR:-} which tests "set and non-empty". This is
 # what lets publish-release.sh's --no-target explicitly export
 # PRERENDER_BASE_URL="" to force a no-prerender build regardless of what's
-# in the file — without this check, sourcing the file here would silently
+# in the file - without this check, sourcing the file here would silently
 # clobber that override with whatever it normally contains. Normal callers
 # (a bare manual run, or content-watch.sh's chain) never pre-set it, so this
-# is a no-op for them — the file gets sourced exactly as before.
+# is a no-op for them - the file gets sourced exactly as before.
 if [ -z "${PRERENDER_BASE_URL+x}" ] && [ -f "$PI_BUILD_ENV" ]; then
     # shellcheck source=/dev/null
     set -a; source "$PI_BUILD_ENV"; set +a
 fi
 
 # Staging directory is scoped by the domain being built for, not hardcoded
-# to one — lets this Pi build for a second domain later without one domain's
+# to one - lets this Pi build for a second domain later without one domain's
 # staging artifacts colliding with another's. BUILD_DOMAIN itself can also
 # be forced by the caller (same --no-target case, which sets it to
 # "template" rather than letting it fall through to the generic "unknown"),
@@ -125,9 +125,9 @@ BUILD_DOMAIN="${BUILD_DOMAIN:-unknown}"
 STAGING="$BUILD_ROOT/release-staging-$BUILD_DOMAIN"
 
 if [ -n "${ASSEMBLE_ONLY:-}" ]; then
-    : # nothing further to build — skip straight to assembly below
+    : # nothing further to build - skip straight to assembly below
 elif [ -z "${PRERENDER_BASE_URL:-}" ]; then
-    echo "==> PRERENDER_BASE_URL not set (see $PI_BUILD_ENV) — building with zero prerendered routes."
+    echo "==> PRERENDER_BASE_URL not set (see $PI_BUILD_ENV) - building with zero prerendered routes."
 else
     echo "==> Prerendering against $PRERENDER_BASE_URL"
 fi
@@ -140,7 +140,7 @@ if [ -z "${ASSEMBLE_ONLY:-}" ]; then
 
     # The Pi has ~900MB RAM; V8 auto-scales its default old-space heap ceiling
     # down from detected physical memory, capping around ~460MB here regardless
-    # of the ~1.8GB swap already configured and mostly unused — the build was
+    # of the ~1.8GB swap already configured and mostly unused - the build was
     # dying at that self-imposed ceiling, not an actual physical memory limit.
     # Raising it explicitly lets V8 spill into swap instead of aborting early.
     NODE_OPTIONS="${NODE_OPTIONS:-} --max-old-space-size=2048" npm run build
@@ -150,13 +150,24 @@ if [ -z "${ASSEMBLE_ONLY:-}" ]; then
     cd "$REPO_DIR/backend"
 
     VENV_DIR="$BUILD_ROOT/venv"
-    if [ ! -d "$VENV_DIR" ]; then
-        python3 -m venv "$VENV_DIR"
-    fi
+    # Recreated from scratch on every build. `pip install -r` never upgrades a
+    # package that's already installed and still satisfies its range, so a
+    # reused venv kept vulnerable transitive dependencies (Pillow, certifi,
+    # urllib3, ...) frozen into every release long after requirements.txt
+    # allowed, or even required, the fixed versions. pip's own wheel cache
+    # keeps the full reinstall cheap. Nothing else uses this venv, and the
+    # build lock above guarantees no other build is mid-install in it.
+    rm -rf "$VENV_DIR"
+    python3 -m venv "$VENV_DIR"
     # shellcheck source=/dev/null
     source "$VENV_DIR/bin/activate"
     pip install --upgrade pip
     pip install -r requirements.txt pyinstaller
+    # The exact package set this release's frozen binary is built from.
+    # dependency-audit.sh audits this file, so its monthly report reflects
+    # what production actually runs rather than a fresh resolve of
+    # requirements.txt.
+    pip freeze > "$BUILD_ROOT/last-build-requirements.txt"
 
     rm -rf build dist
     pyinstaller pyinstaller.spec --distpath dist --workpath build --noconfirm
@@ -168,7 +179,7 @@ if [ -z "${ASSEMBLE_ONLY:-}" ]; then
     fi
 
     # ---- Smoke test -----------------------------------------------------------
-    # 1. Credential-free import check — catches missing PyInstaller hidden
+    # 1. Credential-free import check - catches missing PyInstaller hidden
     #    imports for the dependencies flagged in pyinstaller.spec, without
     #    needing live Anthropic/Stripe/etc credentials during the build.
     echo "==> Smoke test: dependency imports"
@@ -193,14 +204,14 @@ if [ -z "${ASSEMBLE_ONLY:-}" ]; then
 
     for i in $(seq 1 15); do
         # Read the actual HTTP status code rather than relying on curl's own
-        # success/failure exit code — the smoke DB is never seeded (seed.py
+        # success/failure exit code - the smoke DB is never seeded (seed.py
         # doesn't run), so /api/site-config correctly 404s with "Site not
         # configured", and that 404 is still proof the whole stack booted and is
         # routing requests. curl reports "000" when it got no response at all
         # (connection refused/reset), which is the only real failure case here.
         HTTP_CODE="$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8099/api/site-config" 2>/dev/null || true)"
         if [ -n "$HTTP_CODE" ] && [ "$HTTP_CODE" != "000" ]; then
-            echo "Smoke test OK — server responded (HTTP $HTTP_CODE)."
+            echo "Smoke test OK - server responded (HTTP $HTTP_CODE)."
             break
         fi
         if [ "$i" -eq 15 ]; then
@@ -219,12 +230,12 @@ fi
 
 # ---- Assemble the release tarball ------------------------------------------
 if [ -n "${SKIP_ASSEMBLE:-}" ]; then
-    echo "==> SKIP_ASSEMBLE set — build + smoke test succeeded, skipping tarball assembly"
+    echo "==> SKIP_ASSEMBLE set - build + smoke test succeeded, skipping tarball assembly"
     exit 0
 fi
 
 # Re-read VERSION fresh from disk rather than trusting a variable captured
-# earlier in this script — in ASSEMBLE_ONLY mode nothing above set it at all,
+# earlier in this script - in ASSEMBLE_ONLY mode nothing above set it at all,
 # and even in a normal run publish-release.sh's bump path (which calls this
 # script twice: once with SKIP_ASSEMBLE=1 for the build, then again with
 # ASSEMBLE_ONLY=1 after deciding/writing the real version) needs this exact
@@ -245,7 +256,7 @@ mkdir -p "$RELEASE_DIR/frontend"
 # doesn't need to change.
 cp -r "$REPO_DIR/frontend/build/client" "$RELEASE_DIR/frontend/dist"
 
-# Always bundle every migration file, not just those since the previous tag —
+# Always bundle every migration file, not just those since the previous tag - 
 # install.sh's schema_migrations table already tracks per-file applied state,
 # so re-shipping an already-applied file is a safe no-op. Diffing against the
 # previous tag instead used to silently drop any migration whose release got
@@ -275,7 +286,7 @@ cp "$REPO_DIR/deploy/scripts/health-watch.sh" "$RELEASE_DIR/deploy/"
 cp "$REPO_DIR/deploy/scripts/media-cleanup.sh" "$RELEASE_DIR/deploy/"
 if [ "${VITE_ENABLE_AI_DEMOS:-}" = "false" ]; then
     # Template builds (publish-release.sh --no-target) already exclude the AI
-    # demo pages from the frontend bundle via this same flag — this defaults
+    # demo pages from the frontend bundle via this same flag - this defaults
     # a fresh install of this specific tarball away from opting into the
     # backend routes too, since ENABLE_AI_DEMOS is otherwise a runtime
     # setting on whichever server installs it, not something build time can
@@ -294,7 +305,7 @@ date -u +%Y-%m-%dT%H:%M:%SZ > "$RELEASE_DIR/PRERENDERED_AT"
 TARBALL="$STAGING/$RELEASE_NAME.tar.gz"
 tar -czf "$TARBALL" -C "$STAGING" "$RELEASE_NAME"
 # Run from inside $STAGING so the checksum file records a bare relative
-# filename — install.sh's `sha256sum -c` on the production server needs that
+# filename - install.sh's `sha256sum -c` on the production server needs that
 # (an absolute Pi-local path would never match there). No path-rewriting
 # needed this way, unlike computing the hash from an absolute path first.
 (cd "$STAGING" && { sha256sum "$RELEASE_NAME.tar.gz" || shasum -a 256 "$RELEASE_NAME.tar.gz"; } > "$RELEASE_NAME.tar.gz.sha256")

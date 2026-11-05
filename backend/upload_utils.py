@@ -6,14 +6,25 @@ from flask import current_app
 
 IMAGE_OPTIMIZE_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 
+# Pillow decoders each Image.open() call below may use. Image.open() picks a
+# decoder by sniffing the file's bytes, not its extension, so without this a
+# crafted TIFF/GIF/BMP/EPS/etc. renamed to .png would still reach that format's
+# decoder, and most of Pillow's memory-safety CVEs live in exactly those rarely
+# needed decoders. Anything else now fails as an unidentified image, which every
+# caller already handles as an unsupported/corrupt upload. Must stay in step
+# with IMAGE_OPTIMIZE_EXTENSIONS (and admin_config.FAVICON_EXTENSIONS, which
+# also allows gif).
+PIL_IMAGE_FORMATS = ('PNG', 'JPEG', 'WEBP')
+PIL_FAVICON_FORMATS = PIL_IMAGE_FORMATS + ('GIF',)
+
 # Long-edge cap for the "full-size" image optimize_image() produces. Nothing
 # on the site ever displays a content image wider than ~1200 CSS px (the
-# gallery's own max width) — 2400 covers that at 2x device-pixel-ratio with
+# gallery's own max width) - 2400 covers that at 2x device-pixel-ratio with
 # headroom to spare. Without this cap, a modern phone/scanner image (e.g. a
-# 48-50MP source, ~5800x8700px — not unusual, and confirmed in this repo's
+# 48-50MP source, ~5800x8700px - not unusual, and confirmed in this repo's
 # own uploads/ directory) was being WebP-encoded at FULL original resolution:
 # ~5.3s of pure CPU time for that one encode alone (measured directly against
-# a real uploaded file), vs. ~0.4s once capped to 2400px — a >10x difference,
+# a real uploaded file), vs. ~0.4s once capped to 2400px - a >10x difference,
 # and the dominant cost of the whole optimize_image() call (decode + all
 # three responsive-variant resizes/encodes + the LQIP combined took well
 # under 1s). That's what made multi-image gallery uploads feel broken even
@@ -34,7 +45,7 @@ HEADER_IMAGE_MAX_DIM = 3840
 
 
 def get_app_data_dir():
-    """Persistent runtime data directory — defaults to the Flask app's own
+    """Persistent runtime data directory - defaults to the Flask app's own
     root (today's behavior, for local dev) but is overridable via
     APP_DATA_DIR so a versioned release/PyInstaller bundle can point uploads,
     certbot_domain.txt, etc. at a stable location that survives upgrades."""
@@ -72,15 +83,15 @@ def optimize_image(input_path, uploads_dir, base_name, max_dim=MAX_IMAGE_DIM):
     """
     from PIL import Image
 
-    img = Image.open(input_path)
+    img = Image.open(input_path, formats=PIL_IMAGE_FORMATS)
 
-    # For an oversized JPEG source (the common case — phone/camera photos),
+    # For an oversized JPEG source (the common case - phone/camera photos),
     # ask libjpeg to decode at a reduced scale up front via its own fast DCT
     # scaling, instead of fully decoding at native resolution only to
     # immediately throw most of that detail away in the resize below. Must
     # be called before anything else touches pixel data. draft() only
     # supports power-of-2 scale factors and treats its target as a minimum,
-    # so this is a coarse pre-scale — the resize below still does the exact,
+    # so this is a coarse pre-scale - the resize below still does the exact,
     # high-quality LANCZOS scale down to max_dim.
     if img.format == 'JPEG':
         img.draft('RGB', (max_dim, max_dim))
@@ -104,7 +115,7 @@ def optimize_image(input_path, uploads_dir, base_name, max_dim=MAX_IMAGE_DIM):
     webp_filename = f'{base_name}.webp'
     img.save(os.path.join(uploads_dir, webp_filename), 'WEBP', quality=82)
 
-    # Responsive variants — skip a breakpoint that isn't actually smaller than
+    # Responsive variants - skip a breakpoint that isn't actually smaller than
     # the (now-capped) source instead of re-encoding an identical duplicate
     # file under a different name for no benefit.
     srcset_parts = []
@@ -140,7 +151,7 @@ def save_and_optimize_image(file, uploads_dir, max_dim=MAX_IMAGE_DIM):
     max_dim overrides the default long-edge cap; see optimize_image().
 
     Returns (filename, srcset, lqip, width, height). Raises on
-    unsupported/corrupt images — caller is responsible for catching and
+    unsupported/corrupt images - caller is responsible for catching and
     returning an error response.
     """
     os.makedirs(uploads_dir, exist_ok=True)
@@ -164,7 +175,7 @@ def save_and_optimize_avatar(file, uploads_dir):
     (nav bar, comment threads, admin lists), so unlike optimize_image() this
     skips the srcset variants and LQIP a full-size blog image needs.
 
-    Returns the WebP filename. Raises on unsupported/corrupt images — caller
+    Returns the WebP filename. Raises on unsupported/corrupt images - caller
     is responsible for catching and returning an error response.
     """
     from PIL import Image
@@ -175,7 +186,7 @@ def save_and_optimize_avatar(file, uploads_dir):
     tmp_path = os.path.join(uploads_dir, f'{base_name}_tmp.{ext}')
     file.save(tmp_path)
     try:
-        img = Image.open(tmp_path)
+        img = Image.open(tmp_path, formats=PIL_IMAGE_FORMATS)
         if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
             img = img.convert('RGBA')
         elif img.mode != 'RGB':
@@ -198,11 +209,11 @@ def save_and_optimize_avatar(file, uploads_dir):
 def save_favicon(file, uploads_dir):
     """Saves an uploaded favicon image as a WebP (for the <link rel="icon">
     tag, which browsers prefer when present) and also overwrites a
-    fixed-name favicon.ico alongside it — served at the domain root for
+    fixed-name favicon.ico alongside it - served at the domain root for
     browsers, crawlers, and tools that request /favicon.ico directly without
     ever parsing the page's <link> tags.
 
-    Returns the WebP filename. Raises on unsupported/corrupt images — caller
+    Returns the WebP filename. Raises on unsupported/corrupt images - caller
     is responsible for catching and returning an error response.
     """
     from PIL import Image
@@ -213,7 +224,7 @@ def save_favicon(file, uploads_dir):
     tmp_path = os.path.join(uploads_dir, f'{base_name}_tmp.{ext}')
     file.save(tmp_path)
     try:
-        img = Image.open(tmp_path)
+        img = Image.open(tmp_path, formats=PIL_FAVICON_FORMATS)
         if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
             img = img.convert('RGBA')
         elif img.mode != 'RGB':
@@ -222,7 +233,7 @@ def save_favicon(file, uploads_dir):
         webp_filename = f'{base_name}.webp'
         img.save(os.path.join(uploads_dir, webp_filename), 'WEBP', quality=82)
 
-        # Standard multi-resolution ICO — browsers/OSes pick whichever size
+        # Standard multi-resolution ICO - browsers/OSes pick whichever size
         # fits (tab icon, bookmark, taskbar, ...). Capped to the source
         # image's own size so a smaller-than-60px upload doesn't upscale.
         max_dim = min(img.width, img.height)

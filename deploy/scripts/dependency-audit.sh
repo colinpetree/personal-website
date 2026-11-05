@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs ON THE PI, monthly (see deploy/systemd/personal-website-dependency-audit.timer,
 # a systemctl --user unit, same convention as personal-website-backup-pull.service).
-# Audits backend (pip-audit against backend/requirements.txt) and frontend
+# Audits backend (pip-audit against the exact package set the last release was
+# built from, plus a fresh resolve of backend/requirements.txt) and frontend
 # (npm audit against frontend/package-lock.json) for known vulnerabilities,
 # then emails the combined report through production's pre-shared-secret-gated
 # /api/watcher-alert route, the same mechanism backup-pull.sh/content-watch.sh
@@ -15,13 +16,15 @@ _log() { echo "[dependency-audit] $*"; }   # journalctl already timestamps every
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BUILD_ROOT="$HOME/personal-website-build"
-# Deliberately a SEPARATE venv from build-on-pi.sh's own $BUILD_ROOT/venv -
-# this script re-installs requirements.txt into it every run, and doing that
-# against the real build venv risks corrupting/blocking an in-progress
-# publish-release.sh build if the two ever overlap on this Pi's limited
-# hardware. A dedicated venv costs a little extra disk/time but can never
-# collide with a real build.
+# Holds only pip-audit itself, never the app's own requirements. It used to
+# get requirements.txt installed into it and then audited, but a reused venv
+# never upgrades packages that still satisfy their ranges, so that audited a
+# drifting, stale package set that matched neither production nor a fresh
+# build (and mixed in pip-audit's own dependencies as noise). Kept separate
+# from build-on-pi.sh's $BUILD_ROOT/venv, which that script deletes and
+# recreates on every build.
 VENV_DIR="$BUILD_ROOT/audit-venv"
+SHIPPED_REQS="$BUILD_ROOT/last-build-requirements.txt"   # written by build-on-pi.sh
 
 PI_BUILD_ENV="$HOME/.personal-website-build.env"   # same file content-watch.sh/backup-pull.sh
                                                      # already use for WATCHER_ALERT_SECRET/PRERENDER_BASE_URL
@@ -43,23 +46,38 @@ echo "== Backend (pip-audit) ==" >> "$REPORT"
 BACKEND_OK=0
 if [ -f "$REPO_DIR/backend/requirements.txt" ]; then
     cd "$REPO_DIR/backend"
-    if [ ! -d "$VENV_DIR" ]; then
-        python3 -m venv "$VENV_DIR"
-    fi
+    # Recreated each run so pip-audit itself is always current.
+    rm -rf "$VENV_DIR"
+    python3 -m venv "$VENV_DIR"
     # shellcheck source=/dev/null
     source "$VENV_DIR/bin/activate"
-    if pip install --quiet --upgrade pip \
-        && pip install --quiet -r requirements.txt \
-        && pip install --quiet pip-audit; then
+    if pip install --quiet --upgrade pip && pip install --quiet pip-audit; then
         BACKEND_OK=1
         # pip-audit exits non-zero both when it finds vulnerabilities AND on
         # a genuine tool failure, BACKEND_OK above already reflects whether
         # the tooling itself installed correctly, so we don't try to
         # re-derive that distinction from this exit code too. Either way the
         # output (findings or an error message) lands in the report.
-        pip-audit >> "$REPORT" 2>&1
+
+        # 1. What production runs: the pip freeze of the last release build.
+        #    Every line is an exact pin, so --no-deps/--disable-pip audits it
+        #    as-is without resolving or installing anything.
+        echo "-- Shipped in the last release build --" >> "$REPORT"
+        if [ -f "$SHIPPED_REQS" ]; then
+            echo "(package set from the build on $(date -u -r "$SHIPPED_REQS" +%Y-%m-%d) UTC)" >> "$REPORT"
+            pip-audit -r "$SHIPPED_REQS" --no-deps --disable-pip >> "$REPORT" 2>&1
+        else
+            echo "$SHIPPED_REQS not found, no release has been built since this check was added." >> "$REPORT"
+        fi
+        echo >> "$REPORT"
+
+        # 2. What the NEXT build would ship: a fresh resolve of
+        #    requirements.txt in pip-audit's own throwaway environment. If
+        #    this is clean but (1) is not, publishing a new release fixes it.
+        echo "-- Fresh resolve of requirements.txt (next build) --" >> "$REPORT"
+        pip-audit -r requirements.txt >> "$REPORT" 2>&1
     else
-        echo "pip-audit could not run, installing requirements.txt/pip-audit into $VENV_DIR failed." >> "$REPORT"
+        echo "pip-audit could not run, installing pip-audit into $VENV_DIR failed." >> "$REPORT"
     fi
     deactivate 2>/dev/null || true
 else
