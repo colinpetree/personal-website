@@ -4,7 +4,7 @@ worker process. Read-only: connects with X-MCP-Readonly and a toolset
 restriction so no write-capable tool is ever exposed, on top of the GitHub
 token itself being scoped read-only to a single repo.
 
-The `mcp` SDK's ClientSession/streamablehttp_client are async context
+The `mcp` SDK's ClientSession/streamable_http_client are async context
 managers, but Flask routes in this app are synchronous. This module bridges
 the two with a background thread that runs its own asyncio event loop and
 keeps the MCP session alive via `run_forever()`; routes call the sync
@@ -28,7 +28,7 @@ import threading
 from contextlib import AsyncExitStack
 
 from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
+from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
 MCP_URL = 'https://api.githubcopilot.com/mcp/'
 
@@ -64,7 +64,12 @@ async def _connect():
         'X-MCP-Readonly': 'true',
         'X-MCP-Toolsets': 'repos,pull_requests',
     }
-    read, write, _ = await stack.enter_async_context(streamablehttp_client(MCP_URL, headers=headers))
+    # mcp 2.x takes headers only through the HTTP client it's handed. The SDK's
+    # own factory keeps its recommended MCP timeouts (long read for the SSE
+    # stream); the transport refuses any redirect off api.githubcopilot.com, so
+    # the token can't be forwarded to another host. Entered first so it closes last.
+    http_client = await stack.enter_async_context(create_mcp_http_client(headers=headers))
+    read, write = await stack.enter_async_context(streamable_http_client(MCP_URL, http_client=http_client))
     session = await stack.enter_async_context(ClientSession(read, write))
     await session.initialize()
     _session = session
@@ -145,5 +150,5 @@ def get_anthropic_tools():
     return [{
         'name': t.name,
         'description': t.description or '',
-        'input_schema': t.inputSchema,
+        'input_schema': t.input_schema,
     } for t in tools]

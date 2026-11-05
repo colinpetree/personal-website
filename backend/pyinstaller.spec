@@ -3,7 +3,7 @@
 # Builds the onedir bundle for backend/server.py. Run from backend/:
 #   pyinstaller pyinstaller.spec --distpath dist --workpath build --noconfirm
 #
-# --onedir (not --onefile), deliberately — see deploy plan §1. --onefile
+# --onedir (not --onefile), deliberately - see deploy plan §1. --onefile
 # re-extracts its whole payload to a temp dir on every process start, which
 # is slow on SD-card-class storage and bad under systemd's Restart=on-failure.
 
@@ -14,12 +14,12 @@ datas = []
 binaries = []
 hiddenimports = []
 
-# Known PyInstaller friction points for this dependency set — static import
+# Known PyInstaller friction points for this dependency set - static import
 # analysis misses these because they're loaded dynamically (cffi/OpenSSL
 # bindings, lazily-registered image codecs, class-path-string worker
 # selection, etc). See deploy plan §1 for the reasoning behind each one.
 for pkg in ('cryptography', 'psycopg2', 'Pillow', 'anthropic', 'voyageai',
-            'stripe', 'mcp', 'pydantic', 'pydantic_core', 'anyio',
+            'stripe', 'mcp', 'httpx2', 'pydantic', 'pydantic_core', 'anyio',
             'bleach', 'tinycss2'):
     d, b, h = collect_all(pkg)
     datas += d
@@ -33,9 +33,9 @@ hiddenimports += collect_submodules('gunicorn')
 # as a *data file* or outbound HTTPS calls fail cert verification once frozen.
 datas += collect_data_files('certifi')
 
-# Bundle the app's static reference data (e.g. the RAG demo's sample PDF) —
+# Bundle the app's static reference data (e.g. the RAG demo's sample PDF) -
 # read-only content served via current_app.root_path, not runtime-writable
-# state (that goes through APP_DATA_DIR — see upload_utils.get_app_data_dir).
+# state (that goes through APP_DATA_DIR - see upload_utils.get_app_data_dir).
 datas += [(os.path.join(SPECPATH, 'data'), 'data')]
 
 a = Analysis(

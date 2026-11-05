@@ -31,7 +31,7 @@ const SYSTEM_PROMPT_PRESETS = [
 ]
 
 // Minimal markdown -> React renderer (headings, bold/italic/inline code, lists,
-// paragraphs) — enough to render Claude's typical formatting without a new dependency.
+// paragraphs) - enough to render Claude's typical formatting without a new dependency.
 function renderInline(text) {
   const parts = []
   const regex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g
@@ -82,7 +82,7 @@ function parseMarkdownBlocks(text) {
     const olMatch = trimmed.match(/^\d+\.\s+(.*)/)
     // While streaming, a block-prefix character (#, -, 1.) can arrive on its own,
     // one tick before the space that completes it. Rendering it as literal text in
-    // that instant just to replace it a moment later reads as a flash — skip it and
+    // that instant just to replace it a moment later reads as a flash - skip it and
     // wait for it to resolve into a real heading/list item (or plain text, if the
     // marker is never followed by a space at all).
     const isPendingBlockPrefix = /^(#{1,3}|[-*]|\d+\.)$/.test(trimmed)
@@ -162,7 +162,6 @@ export default function ConversationBasicsPage() {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [systemPrompt, setSystemPrompt] = useState('')
-  const [temperature, setTemperature] = useState(1.0)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const [panelOpen, setPanelOpen] = useState(false)
@@ -174,7 +173,7 @@ export default function ConversationBasicsPage() {
   // A real user scroll (wheel/touch, caught below) turns this off immediately. The
   // generic 'scroll' event fires for our own programmatic scrolls too, so it's only
   // allowed to turn autoFollow back *on* (when the user scrolls back near the bottom
-  // themselves) — never used to detect "scrolled away," which is why the wheel/touch
+  // themselves) - never used to detect "scrolled away," which is why the wheel/touch
   // listeners exist separately.
   const autoFollowRef = useRef(true)
   const programmaticScrollRef = useRef(false)
@@ -186,7 +185,7 @@ export default function ConversationBasicsPage() {
     if (!isNavEnabled(config, 'ai_demo')) {
       setNotFoundDocumentHead(config)
       // Cleared on unmount (client-side nav away), not just on the next
-      // render here — this tag is a raw DOM mutation outside React's own
+      // render here - this tag is a raw DOM mutation outside React's own
       // meta rendering, so nothing else in the app knows to remove it. Left
       // in place, it would silently noindex whatever page the visitor lands
       // on next, even a fully enabled one with no robots tag of its own.
@@ -243,7 +242,7 @@ export default function ConversationBasicsPage() {
       programmaticScrollRef.current = false
     } else {
       // A real user scroll is in progress. During a slow/gradual scroll, every
-      // intermediate tick can briefly read as "close to the bottom" — so don't decide
+      // intermediate tick can briefly read as "close to the bottom" - so don't decide
       // off any single event. Wait for the gesture to settle, then judge only the
       // final resting position.
       clearTimeout(scrollEndTimerRef.current)
@@ -292,7 +291,7 @@ export default function ConversationBasicsPage() {
     requestAnimationFrame(() => scrollToBottom())
 
     // The network delivers text in whatever chunk sizes the server/browser happen to
-    // buffer — sometimes the whole reply arrives in one piece. To make the streaming
+    // buffer - sometimes the whole reply arrives in one piece. To make the streaming
     // visible regardless of chunking, the full text is accumulated in `fullText` and
     // revealed to the UI a few characters at a time on a fixed timer, independent of
     // when the underlying chunks actually arrive.
@@ -333,7 +332,7 @@ export default function ConversationBasicsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ messages: history, system: systemPrompt, temperature }),
+        body: JSON.stringify({ messages: history, system: systemPrompt }),
         signal: controller.signal,
       })
 
@@ -444,7 +443,7 @@ export default function ConversationBasicsPage() {
 
         <div className="absolute inset-x-0 bottom-0 px-6 pb-6 pt-10 pointer-events-none">
           {/* Stops short of the scrollbar (measured above) so the fade doesn't paint
-              over — and visually wash out — the messages column's own scrollbar. */}
+              over - and visually wash out - the messages column's own scrollbar. */}
           <div
             className="absolute inset-y-0 left-0 bg-gradient-to-t from-white via-white/85 to-transparent"
             style={{ right: scrollbarWidth }}
@@ -520,7 +519,7 @@ export default function ConversationBasicsPage() {
         </Link>
         <h1 className="text-2xl font-bold text-gray-900 mt-3 mb-2">Conversation</h1>
         <p className="text-gray-500 text-sm mb-6">
-          Streaming chat with a custom system prompt and temperature control.
+          Streaming chat with a custom system prompt.
         </p>
 
         <div className="flex flex-col gap-5 relative">
@@ -554,28 +553,6 @@ export default function ConversationBasicsPage() {
                 </button>
               ))}
             </div>
-          </div>
-
-          <div className="flex flex-col gap-1.5">
-            <Tooltip content="Higher values make responses more random and creative; lower values make them more focused and deterministic.">
-              <label className="text-sm font-medium text-gray-700" htmlFor="temperature">Temperature</label>
-            </Tooltip>
-            <div className="flex items-center gap-3">
-              <input
-                id="temperature"
-                type="range"
-                min="0"
-                max="1"
-                step="0.1"
-                value={temperature}
-                onChange={e => setTemperature(parseFloat(e.target.value))}
-                className="flex-1"
-              />
-              <span className="text-sm text-gray-500 w-8">{temperature.toFixed(1)}</span>
-            </div>
-            <p className="text-xs text-gray-400">
-              Higher values make responses more random and creative. Lower values make them more focused and deterministic.
-            </p>
           </div>
         </div>
       </div>

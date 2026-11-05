@@ -96,7 +96,7 @@ fi
 # state - prerender() degrades gracefully to zero prerendered routes,
 # matching pre-SSG pure-CSR build output exactly.
 #
-# Needed even in ASSEMBLE_ONLY mode, just for BUILD_DOMAIN/STAGING below - 
+# Needed even in ASSEMBLE_ONLY mode, just for BUILD_DOMAIN/STAGING below -
 # computed unconditionally rather than only inside the build steps.
 PI_BUILD_ENV="$HOME/.personal-website-build.env"
 # Only source the Pi-local env file if the caller hasn't already forced
@@ -157,6 +157,13 @@ if [ -z "${ASSEMBLE_ONLY:-}" ]; then
     # allowed, or even required, the fixed versions. pip's own wheel cache
     # keeps the full reinstall cheap. Nothing else uses this venv, and the
     # build lock above guarantees no other build is mid-install in it.
+    # requirements.txt needs 3.11+ (SQLAlchemy 2.1, python-dateutil 4). Checked
+    # up front because an older python3 otherwise fails deep inside pip with a
+    # misleading "no matching distribution" error.
+    if ! python3 -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
+        echo "BUILD FAILED: python3 is $(python3 --version 2>&1), backend/requirements.txt needs Python 3.11 or newer."
+        exit 1
+    fi
     rm -rf "$VENV_DIR"
     python3 -m venv "$VENV_DIR"
     # shellcheck source=/dev/null
@@ -256,7 +263,7 @@ mkdir -p "$RELEASE_DIR/frontend"
 # doesn't need to change.
 cp -r "$REPO_DIR/frontend/build/client" "$RELEASE_DIR/frontend/dist"
 
-# Always bundle every migration file, not just those since the previous tag - 
+# Always bundle every migration file, not just those since the previous tag -
 # install.sh's schema_migrations table already tracks per-file applied state,
 # so re-shipping an already-applied file is a safe no-op. Diffing against the
 # previous tag instead used to silently drop any migration whose release got

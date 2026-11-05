@@ -44,7 +44,7 @@ def _stream_response(generator, mimetype):
     # forwarding it to the client. Without it, nginx's proxy_buffering (on by
     # default) collects the whole upstream response into buffers and only
     # flushes in bursts, which on a slow/complex demo answer shows up as a
-    # long pause followed by a sudden jump of text — confirmed by nginx
+    # long pause followed by a sudden jump of text - confirmed by nginx
     # holding text/plain and application/json (both in gzip_types) through
     # its gzip filter too, which flushes on its own buffer-fill schedule.
     return Response(stream_with_context(generator), mimetype=mimetype, headers={'X-Accel-Buffering': 'no'})
@@ -73,7 +73,7 @@ def _ai_demo_page_enabled():
 
 def ai_demo_page_enabled_required(f):
     # A disabled AI demo page must be indistinguishable from one that never
-    # existed — every route here 404s the same way once the admin has
+    # existed - every route here 404s the same way once the admin has
     # turned the page off, rather than staying reachable by direct API call
     # (the frontend route already 404s too, see AIDemoPage.jsx and each
     # ai-demos/*.jsx page's own nav-enabled check).
@@ -297,10 +297,6 @@ def conversation_chat():
     data = request.get_json(silent=True) or {}
     messages = data.get('messages')
     system = (data.get('system') or '').strip()[:MAX_SYSTEM_CHARS]
-    try:
-        temperature = max(0.0, min(1.0, float(data.get('temperature', 1.0))))
-    except (TypeError, ValueError):
-        temperature = 1.0
 
     if not isinstance(messages, list) or not messages or len(messages) > MAX_MESSAGES:
         return jsonify({'error': 'Invalid conversation.'}), 400
@@ -314,7 +310,6 @@ def conversation_chat():
             kwargs = {
                 'model': MODEL,
                 'max_tokens': MAX_TOKENS,
-                'temperature': temperature,
                 'messages': messages,
             }
             if system:
@@ -487,7 +482,7 @@ MCP_UNAVAILABLE_MESSAGE = 'The GitHub MCP demo is not configured on this server.
 
 def _run_mcp_tool(name, tool_input):
     result = mcp_runtime.call_tool(name, tool_input)
-    if result.isError:
+    if result.is_error:
         text = next((c.text for c in result.content if c.type == 'text'), 'Tool error.')
         raise RuntimeError(text)
     return '\n'.join(c.text for c in result.content if c.type == 'text')

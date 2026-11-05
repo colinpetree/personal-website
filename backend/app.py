@@ -7,9 +7,21 @@ import os
 
 load_dotenv()
 
+
+def _database_uri():
+    # SQLAlchemy 2.1 resolves a bare postgresql:// URL to psycopg (v3), but this
+    # app ships psycopg2, so name the driver here. Not in .env: backup.sh and
+    # restore.sh hand the same DATABASE_URL to pg_dump/pg_restore, which only
+    # accept the plain libpq form.
+    url = os.getenv('DATABASE_URL')
+    if url and url.startswith('postgresql://'):
+        url = 'postgresql+psycopg2://' + url[len('postgresql://'):]
+    return url
+
+
 def create_app():
     app = Flask(__name__)
-    app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+    app.config['SQLALCHEMY_DATABASE_URI'] = _database_uri()
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
     # Validate pooled connections before use and recycle them proactively —
     # without this, a connection silently killed by an idle timeout (AWS's

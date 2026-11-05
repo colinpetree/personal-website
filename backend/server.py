@@ -1,10 +1,10 @@
-"""Production entrypoint — boots the Flask app under an embedded gunicorn,
+"""Production entrypoint - boots the Flask app under an embedded gunicorn,
 instead of the Flask dev server used by app.py's __main__ block. This is
 what backend/pyinstaller.spec packages, not app.py.
 
 gunicorn is POSIX-only (imports fcntl) and cannot run on Windows at all, so
 every gunicorn-dependent import in this module is deferred into the
-functions that need it — this keeps `--check-imports` usable cross-platform
+functions that need it - this keeps `--check-imports` usable cross-platform
 (e.g. for a quick sanity build on Windows before waiting on the Pi) even
 though the app itself can only ever actually run on Linux.
 
@@ -15,17 +15,17 @@ Usage:
                                   # traffic over to a new release)
     server --check-imports       # imports every dependency PyInstaller is known
                                   # to have trouble bundling (see pyinstaller.spec)
-                                  # and exits non-zero if any fail — a fast,
+                                  # and exits non-zero if any fail - a fast,
                                   # credential-free smoke test for missing hidden
                                   # imports, run by deploy/scripts/build-on-pi.sh
                                   # right after the frozen binary is built.
     server --seed-initial-data   # creates the first Profile/SiteConfig/AdminAccount
                                   # rows on a brand-new database, then exits. No-op
                                   # if any of the three already exist (safe to call
-                                  # unconditionally — creates tables itself if
+                                  # unconditionally - creates tables itself if
                                   # needed). AdminAccount always uses
                                   # admin@example.com with a freshly random
-                                  # password, printed once to stdout — save it
+                                  # password, printed once to stdout - save it
                                   # from the install output. Optionally reads
                                   # SITE_DOMAIN from the environment to pre-fill
                                   # SiteConfig.domain.
@@ -42,7 +42,7 @@ Usage:
                                   # recipient). Reads DEPLOY_REPORT_* env vars set
                                   # by install.sh (status, release/previous version,
                                   # domain, timestamp, health-check diagnostics on
-                                  # failure). Always exits 0 and never raises —
+                                  # failure). Always exits 0 and never raises -
                                   # silently does nothing if Mailgun/forward_email
                                   # isn't configured or sending fails, so a broken
                                   # mail setup can never break a deploy.
@@ -52,7 +52,7 @@ Usage:
                                   # install.sh right after a successful cutover, so
                                   # a Pi-built release's content is never left
                                   # behind Varnish's 60s safety-net TTL. Always
-                                  # exits 0 — purge_all_public() never raises.
+                                  # exits 0 - purge_all_public() never raises.
     server --send-watcher-alert   # emails the admin when a watcher loop (Pi or
                                   # production, see deploy/scripts/content-watch.sh
                                   # /update-watch.sh) has been unable to reach gh/
@@ -60,7 +60,7 @@ Usage:
                                   # WATCHER_ALERT_MESSAGE from the environment.
                                   # Unlike --send-deploy-report, this DOES signal
                                   # failure via its exit code (0 = actually sent,
-                                  # 1 = not sent) — the caller uses that to decide
+                                  # 1 = not sent) - the caller uses that to decide
                                   # whether to stop retrying, so a silently-assumed
                                   # success here would defeat the whole feature.
     server --cleanup-orphan-media [--dry-run]
@@ -74,8 +74,8 @@ Usage:
                                   # on an unexpected failure or if the circuit
                                   # breaker aborts the run (reference scan
                                   # looks unhealthy vs. its recent history,
-                                  # or — cold start only — a high volume
-                                  # backstop) — otherwise always exits 0.
+                                  # or - cold start only - a high volume
+                                  # backstop) - otherwise always exits 0.
 """
 import os
 import sys
@@ -83,11 +83,11 @@ import sys
 _CHECK_IMPORT_MODULES = (
     # gunicorn.app.base (not bare 'gunicorn') so this actually exercises the
     # worker-class submodules --collect-submodules gunicorn is meant to catch
-    # — importing just the top-level package would succeed even with those
+    # - importing just the top-level package would succeed even with those
     # missing.
     'gunicorn.app.base', 'cryptography', 'psycopg2', 'PIL', 'certifi',
-    'anthropic', 'voyageai', 'stripe', 'mcp', 'pydantic', 'anyio',
-    'bleach', 'tinycss2',
+    'anthropic', 'voyageai', 'stripe', 'mcp', 'mcp.client.streamable_http',
+    'httpx2', 'pydantic', 'anyio', 'bleach', 'tinycss2',
 )
 
 
@@ -115,23 +115,23 @@ def run_migrations(app):
     """Runs db.create_all() + the hand-rolled column patcher + any pending
     .sql migrations + one-time data seeding. Must be called once in
     gunicorn's master process before workers are forked (see main() below)
-    — never from a post_fork hook, or concurrent workers would race on the
+    - never from a post_fork hook, or concurrent workers would race on the
     same CREATE TABLE/INSERT statements.
 
-    This is THE production migration entrypoint — deploy/scripts/install.sh
+    This is THE production migration entrypoint - deploy/scripts/install.sh
     calls `server.py --migrate-only` (-> this function) on every install/
     update, after --seed-initial-data has already run (install.sh runs them
     in that order), so by the time this runs a SiteConfig row is guaranteed
     to exist on both a fresh install and an upgrade. Any new one-time,
     ORM-backed data migration (like _seed_pages_and_nav below) needs to be
     called from here, not just from backend/app.py's `if __name__ ==
-    '__main__':` block — that block only ever runs for local `python
+    '__main__':` block - that block only ever runs for local `python
     app.py` dev usage, never in production."""
     from app import _migrate_schema, _seed_pages_and_nav
     from extensions import db
     from schema_migrations import run_pending_migrations
 
-    # Explicit env var rather than a __file__-relative guess — under
+    # Explicit env var rather than a __file__-relative guess - under
     # PyInstaller onedir freezing, __file__ semantics for the frozen module
     # aren't something to gamble a silent no-op on. install.sh/systemd both
     # set this to the release's sibling migrations/ dir; the fallback below
@@ -149,11 +149,11 @@ def run_migrations(app):
 
 def db_is_fresh(app):
     """True iff `schema_migrations` doesn't exist yet in the target database
-    — a reliable, read-only signal that this database has never been through
+    - a reliable, read-only signal that this database has never been through
     run_pending_migrations()/seed_known_migrations() before, independent of
     whether *this server* has installed a release before. install.sh uses
     this (not its own FIRST_INSTALL, which only reflects local systemd-unit
-    presence) to decide whether to seed legacy migrations / initial data —
+    presence) to decide whether to seed legacy migrations / initial data -
     otherwise resetting/replacing the database while the systemd unit is
     still installed would silently skip both, leaving the site permanently
     unconfigured with no admin account."""
@@ -168,14 +168,14 @@ _DEFAULT_ADMIN_EMAIL = 'admin@example.com'
 
 def seed_initial_data(app):
     """Creates the first Profile/SiteConfig/AdminAccount rows on a brand-new
-    database — the production equivalent of backend/seed.py, which is dev-only
+    database - the production equivalent of backend/seed.py, which is dev-only
     and isn't bundled into the PyInstaller release. Deliberately conservative:
     only acts when a table is completely empty, so re-running this on every
     install (like --seed-known-migrations) is always a safe no-op past the
     first. Never overwrites or reads back existing rows.
 
     AdminAccount gets a freshly random one-time password (printed once here,
-    never stored anywhere else) rather than a static known default — a fixed
+    never stored anywhere else) rather than a static known default - a fixed
     admin@example.com/admin credential would be live and guessable the moment
     the box is reachable, for however long it takes the operator to notice
     and change it. A self-service password-change flow already exists in the
@@ -185,7 +185,7 @@ def seed_initial_data(app):
 
     with app.app_context():
         # Self-sufficient rather than trusting a prior --seed-known-migrations
-        # call to have created these tables first — db.create_all() is a
+        # call to have created these tables first - db.create_all() is a
         # cheap no-op for tables that already exist, so this is safe to call
         # unconditionally every time, including standalone/out-of-order runs.
         db.create_all()
@@ -200,7 +200,7 @@ def seed_initial_data(app):
 
         if not SiteConfig.query.first():
             # Every non-home page gets an <h1> of its own nav label as a
-            # starter — visibly "there's a page here" instead of a blank
+            # starter - visibly "there's a page here" instead of a blank
             # editor when an admin opens it for the first time. Home is
             # deliberately excluded (welcome text reads fine without a
             # redundant "Home" heading above it).
@@ -240,12 +240,12 @@ def seed_initial_data(app):
             db.session.commit()
             print('')
             print('==========================================================================')
-            print(f' Admin account created — email: {_DEFAULT_ADMIN_EMAIL}  password: {initial_password}')
-            print(' This password is shown here ONCE and is not stored anywhere else — save it')
+            print(f' Admin account created - email: {_DEFAULT_ADMIN_EMAIL}  password: {initial_password}')
+            print(' This password is shown here ONCE and is not stored anywhere else - save it')
             print(' now. Log in and change it via the admin profile menu when convenient.')
             print('==========================================================================')
         else:
-            print('AdminAccount already exists — not creating another.')
+            print('AdminAccount already exists - not creating another.')
 
 
 def _format_disk_usage(raw):
@@ -262,7 +262,7 @@ def send_deploy_report(app):
     """Emails a success/failure report for the deploy that just ran, reusing
     the site's own Mailgun settings (same config the public contact form
     uses) and its forward_email as the recipient. Every fact comes from
-    DEPLOY_REPORT_* env vars set by install.sh — this function has no
+    DEPLOY_REPORT_* env vars set by install.sh - this function has no
     knowledge of the deploy process itself, only what it's told.
 
     Deliberately silent on any failure (unconfigured Mailgun, bad
@@ -303,7 +303,7 @@ def send_deploy_report(app):
                 stage = os.getenv('DEPLOY_REPORT_STAGE', 'unknown')
                 rolled_back = os.getenv('DEPLOY_REPORT_ROLLED_BACK', 'false') == 'true'
                 subject = f'[Deploy] {domain}: {label} FAILED at {stage}'
-                subject += f' — rolled back to {previous}' if rolled_back else ' — NO ROLLBACK AVAILABLE'
+                subject += f' - rolled back to {previous}' if rolled_back else ' - NO ROLLBACK AVAILABLE'
                 lines.append(f'Failed stage: {stage}')
                 lines.append(f'Rolled back: {"yes, to " + previous if rolled_back else "no"}')
                 health_error = os.getenv('DEPLOY_REPORT_HEALTH_ERROR')
@@ -315,7 +315,7 @@ def send_deploy_report(app):
                     # can split a multi-byte UTF-8 character mid-sequence. Python
                     # decodes env vars with surrogateescape, so the broken bytes
                     # load fine here but would raise UnicodeEncodeError deep
-                    # inside requests' strict-UTF-8 body encoding later — right
+                    # inside requests' strict-UTF-8 body encoding later - right
                     # when this diagnostic-heavy failure email matters most.
                     # Re-encoding with surrogateescape/decoding with replace
                     # swaps any such fragment for U+FFFD instead of failing.
@@ -351,7 +351,7 @@ def _run_gunicorn(app):
     from gunicorn.app.base import BaseApplication
 
     class _GunicornApp(BaseApplication):
-        """Standard "embed gunicorn" pattern — avoids depending on the
+        """Standard "embed gunicorn" pattern - avoids depending on the
         `gunicorn` console script being on PATH, which matters once this is
         frozen into a PyInstaller bundle."""
 
@@ -413,7 +413,7 @@ def main():
         with app.app_context():
             sent = send_watcher_alert(os.getenv('WATCHER_ALERT_SOURCE', 'production'),
                                        os.getenv('WATCHER_ALERT_MESSAGE', 'gh calls have been failing.'))
-        sys.exit(0 if sent else 1)   # exit code, not a bare `return` — update-watch.sh
+        sys.exit(0 if sent else 1)   # exit code, not a bare `return` - update-watch.sh
                                        # branches on this to decide whether the outage
                                        # was actually alerted or needs retrying
 
@@ -431,13 +431,13 @@ def main():
 
             if result['aborted']:
                 if result['reason'] == 'reference_drop':
-                    message = (f"Refused to run — the reference scan found only {result['referenced_count']} "
+                    message = (f"Refused to run - the reference scan found only {result['referenced_count']} "
                                f"referenced files, well below the recent high-water mark of "
                                f"{result['high_water_mark']} (this run would have flagged "
                                f"{result['would_flag']}/deleted {result['would_delete']}). This looks like the "
                                f"reference-scanning logic broke rather than a genuine drop in real content.")
                 else:
-                    message = (f"Refused to run — no referenced-count history yet (cold start) and this run "
+                    message = (f"Refused to run - no referenced-count history yet (cold start) and this run "
                                f"would have touched {result['would_flag'] + result['would_delete']} files "
                                f"(flag {result['would_flag']}, delete {result['would_delete']}), exceeding the "
                                f"fallback ORPHAN_MEDIA_MAX_PER_RUN_FLOOR/_PERCENT cap of {result['cap']}.")
