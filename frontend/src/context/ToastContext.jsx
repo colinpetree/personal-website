@@ -23,6 +23,11 @@ let nextId = 0
 // (optionally a link, e.g. "View on site").
 export function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([])
+  // The portal needs document.body, which doesn't exist while prerendering.
+  // Rendering it only after mount also keeps the browser's first render
+  // identical to the prerendered HTML, so hydration matches.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true) }, [])
 
   const addToast = useCallback((input) => {
     const toast = typeof input === 'string' ? { message: input } : input
@@ -38,7 +43,7 @@ export function ToastProvider({ children }) {
   return (
     <ToastContext.Provider value={{ addToast, removeToast }}>
       {children}
-      {createPortal(
+      {mounted && createPortal(
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 z-[100] pointer-events-none">
           {toasts.map(toast => (
             <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />

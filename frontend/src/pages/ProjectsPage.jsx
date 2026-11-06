@@ -51,19 +51,6 @@ export async function clientLoader() {
 }
 clientLoader.hydrate = true
 
-function ProjectCardSkeleton() {
-  return (
-    <div className="border border-gray-200 rounded-lg overflow-hidden animate-pulse">
-      <div className="w-full h-48 bg-gray-100" />
-      <div className="p-5 flex flex-col gap-2">
-        <div className="h-5 bg-gray-100 rounded w-2/3" />
-        <div className="h-3 bg-gray-100 rounded w-full" />
-        <div className="h-3 bg-gray-100 rounded w-4/5" />
-      </div>
-    </div>
-  )
-}
-
 // data.config would be the natural source here, but this route's component
 // also calls useLoaderData() — confirmed that combination makes meta()'s
 // `data` param unreliable at prerender time (see getCachedSiteConfig in
@@ -85,17 +72,9 @@ export function meta() {
   return buildMeta({ title, description, image })
 }
 
-// Shown only while clientLoader is resolving on a hard load with nothing
-// prerendered yet.
-export function HydrateFallback() {
-  return (
-    <main className="max-w-4xl mx-auto px-6 pt-10 pb-16">
-      <div className="grid gap-6 sm:grid-cols-2">
-        {Array.from({ length: 4 }).map((_, i) => <ProjectCardSkeleton key={i} />)}
-      </div>
-    </main>
-  )
-}
+// No HydrateFallback here on purpose: with clientLoader.hydrate = true it
+// would replace this route's prerendered content in the static HTML (see the
+// note in root.jsx).
 
 export default function ProjectsPage() {
   const { config } = useSiteConfig()

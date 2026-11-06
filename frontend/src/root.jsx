@@ -1,5 +1,5 @@
 import { Outlet, Scripts, Links, Meta, ScrollRestoration, useLoaderData } from 'react-router'
-import { StrictMode } from 'react'
+import { StrictMode, useEffect, useRef, useState } from 'react'
 import { AdminAuthProvider } from './context/AdminAuthContext'
 import { UserAuthProvider } from './context/UserAuthContext'
 import { SiteConfigProvider } from './context/SiteConfigContext'
@@ -23,12 +23,37 @@ export async function loader() {
 export async function clientLoader() {
   return fetchSiteConfig()
 }
-clientLoader.hydrate = true
 
-// Shown only while clientLoader resolves on a hard load with nothing
-// prerendered yet — covers the whole tree (Navbar + page content both read
-// site-config from context), so kept intentionally blank rather than
-// guessing at a page-specific skeleton.
+// True only in the browser on the SPA fallback shell (__spa-fallback.html,
+// served for paths that weren't prerendered), never while prerendering and
+// never on a prerendered page.
+//
+// Why not just `true`: when a route has clientLoader.hydrate === true AND a
+// HydrateFallback export, React Router throws away that route's prerendered
+// loader data, both while prerendering and again in the browser
+// (shouldHydrateRouteLoader / getHydrationData in react-router's dist), and
+// writes the fallback into the static HTML instead of the page. For root
+// that blanked the body of every prerendered page, so crawlers that don't
+// run JavaScript saw nothing.
+//
+// Why root still has a HydrateFallback: without one, React Router uses its
+// built-in root fallback, which (react-router always loads its development
+// build in Node at prerender time) puts a "Hey developer" console.log
+// inline script into __spa-fallback.html; scripts/inject-csp-hashes.mjs
+// rightly refuses to hash an unknown inline script and fails the build.
+//
+// So: prerendered pages render from the build-time config and Root() below
+// refreshes it once after mount, while the SPA fallback shell (where there
+// is no usable build-time config) still runs this clientLoader on first load.
+const IN_SPA_FALLBACK = typeof window !== 'undefined' && window.__reactRouterContext?.isSpaMode === true
+clientLoader.hydrate = IN_SPA_FALLBACK
+
+// Shown only on the SPA fallback shell while clientLoader resolves (see
+// above), covering the whole tree since Navbar and page content both read
+// site-config from context; kept blank rather than guessing at a skeleton.
+// Prerendered routes (SlugResolverPage, BlogPage, ProjectsPage, HomePage,
+// ContactPage) must not export a HydrateFallback, for the same reason: they
+// all set clientLoader.hydrate = true.
 export function HydrateFallback() {
   return <main className="min-h-screen bg-white" />
 }
@@ -86,12 +111,32 @@ export function Layout({ children }) {
 
 export default function Root() {
   const configData = useLoaderData()
+  // On a prerendered page configData is the build-time snapshot (see
+  // IN_SPA_FALLBACK above), so fetch the live config once after mount. Done
+  // in an effect, after hydration, so the first render still matches the
+  // prerendered HTML. On the SPA fallback shell the clientLoader already
+  // fetched it live.
+  //
+  // The fetched copy is tied to the configData it replaced: once React
+  // Router revalidates root (a search-param change, a form submission),
+  // configData becomes a new object and that newer value wins instead of
+  // being masked by the copy fetched on first load.
+  const [fresh, setFresh] = useState(null)
+  const initialConfigRef = useRef(configData)
+  useEffect(() => {
+    if (IN_SPA_FALLBACK) return undefined
+    let cancelled = false
+    const base = initialConfigRef.current
+    fetchSiteConfig().then(config => { if (!cancelled && config) setFresh({ base, config }) })
+    return () => { cancelled = true }
+  }, [])
+  const config = fresh && fresh.base === configData ? fresh.config : configData
   return (
     <StrictMode>
       <TooltipProvider>
         <AdminAuthProvider>
           <UserAuthProvider>
-            <SiteConfigProvider config={configData}>
+            <SiteConfigProvider config={config}>
               <Outlet />
             </SiteConfigProvider>
           </UserAuthProvider>
