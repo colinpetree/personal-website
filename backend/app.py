@@ -85,6 +85,7 @@ def create_app():
     from routes.pages import pages_bp
     from routes.admin_pages import admin_pages_bp
     from routes.admin_internal_links import admin_internal_links_bp
+    from routes.admin_docs import admin_docs_bp
     from routes.public_resolve import public_resolve_bp
     from routes.auth import auth_bp
     from routes.user import user_bp
@@ -109,6 +110,7 @@ def create_app():
     app.register_blueprint(pages_bp)
     app.register_blueprint(admin_pages_bp)
     app.register_blueprint(admin_internal_links_bp)
+    app.register_blueprint(admin_docs_bp)
     app.register_blueprint(public_resolve_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)

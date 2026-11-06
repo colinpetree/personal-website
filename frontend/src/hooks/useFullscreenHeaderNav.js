@@ -23,7 +23,14 @@ import { useNavOverlay } from '../context/NavOverlayContext'
 // callers like FullscreenHeaderNav should show the same scroll-down hint.
 // Full-width/split headers don't fill the viewport, so the hint would be
 // misleading there.
-export function useFullscreenHeaderNav(containerRef, contentKey) {
+//
+// `inDocs`: the page is wrapped in DocsLayout, so the header sits in the
+// column beside the docs sidebar instead of spanning the window. The navbar
+// never overlays there (its white text would vanish over the white
+// sidebar), and "fills the screen" is measured against the docs column
+// (.docs-content) width rather than window.innerWidth, matching the cqw
+// overrides in index.css.
+export function useFullscreenHeaderNav(containerRef, contentKey, { inDocs = false } = {}) {
   const nav = useNavOverlay()
   const [state, setState] = useState({ isOverlayHeader: false, isFullscreenHeader: false })
 
@@ -38,7 +45,7 @@ export function useFullscreenHeaderNav(containerRef, contentKey) {
       || isLinear
       || isLinearSplit
 
-    if (nav) nav.setOverlay(isOverlay)
+    if (nav) nav.setOverlay(isOverlay && !inDocs)
 
     // 56.25vw (linear's slope) vs 100vh: mirrors the `min(max(280px, 56.25vw), 100vh)`
     // formula's own comparison; once 56.25vw reaches/exceeds the viewport height, that
@@ -50,9 +57,11 @@ export function useFullscreenHeaderNav(containerRef, contentKey) {
     // aspect ratio, 640x280 at 640px wide — see nodes.jsx's exportDOM).
     const needsResizeListener = isLinear || isLinearSplit
     function update() {
-      const linearFillsViewport = isLinear && window.innerWidth * 0.5625 >= window.innerHeight
-      const linearSplitFillsViewport = isLinearSplit && window.innerWidth * 0.4375 >= window.innerHeight
-      setState({ isOverlayHeader: isOverlay, isFullscreenHeader: isFullscreen || linearFillsViewport || linearSplitFillsViewport })
+      const docsColumn = inDocs ? containerRef.current?.closest('.docs-content') : null
+      const width = docsColumn ? docsColumn.clientWidth : window.innerWidth
+      const linearFillsViewport = isLinear && width * 0.5625 >= window.innerHeight
+      const linearSplitFillsViewport = isLinearSplit && width * 0.4375 >= window.innerHeight
+      setState({ isOverlayHeader: isOverlay && !inDocs, isFullscreenHeader: isFullscreen || linearFillsViewport || linearSplitFillsViewport })
     }
     update()
 
@@ -62,7 +71,7 @@ export function useFullscreenHeaderNav(containerRef, contentKey) {
       if (needsResizeListener) window.removeEventListener('resize', update)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [containerRef, contentKey, nav])
+  }, [containerRef, contentKey, nav, inDocs])
 
   return state
 }

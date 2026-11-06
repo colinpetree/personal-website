@@ -71,6 +71,9 @@ const PAGES_NAV_ITEM = { standalone: true, to: '/admin/pages', label: 'Pages' }
 // AdminSiteNavigationPage.jsx's own RoleGuard minRole="editor".
 const SITE_NAVIGATION_NAV_ITEM = { standalone: true, to: '/admin/navigation', label: 'Site Navigation' }
 
+// Editor+ only, same as Site Navigation (and admin_docs.py's role_at_least).
+const DOCS_NAV_ITEM = { standalone: true, to: '/admin/docs', label: 'Docs' }
+
 function getFilteredNavGroups(role) {
   if (role === 'contributor') {
     return [
@@ -86,7 +89,7 @@ function getFilteredNavGroups(role) {
 
   const navGroups = buildNavGroups()
   // Metrics is editor+ (same threshold as its route's RoleGuard).
-  const withMetrics = [{ label: 'Metrics', items: METRICS_NAV_ITEMS }, SITE_NAVIGATION_NAV_ITEM, PAGES_NAV_ITEM, ...navGroups]
+  const withMetrics = [{ label: 'Metrics', items: METRICS_NAV_ITEMS }, SITE_NAVIGATION_NAV_ITEM, PAGES_NAV_ITEM, DOCS_NAV_ITEM, ...navGroups]
 
   if (role === 'editor') {
     // "System Settings" (Site Settings, Staff Accounts, Users) is hidden

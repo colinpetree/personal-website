@@ -6,6 +6,8 @@ import GalleryLightboxController from '../components/GalleryLightboxController'
 import HeaderImageLqip from '../components/HeaderImageLqip'
 import ContentLqip from '../components/ContentLqip'
 import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
+import DocsLayout from '../components/docs/DocsLayout'
+import DocsPageNav from '../components/docs/DocsPageNav'
 // Presentational component, rendered by SlugResolverPage.jsx once
 // /api/resolve/<slug> has confirmed `kind === 'page'`. Modeled directly on
 // AboutPage.jsx's render body (About is a regular Page now, migrated by the
@@ -19,8 +21,12 @@ export default function PageView({ page }) {
   // Page.query instead of a fixed KNOWN_PAGE_KEYS whitelist, since an
   // arbitrary admin-created page slug can never be a member of a fixed set.
   useTrackPageView('custom_page', page.slug)
+  // Set by /api/resolve when this page belongs to a docs section (see
+  // public_resolve.py's _docs_dict). The <main> below is identical either
+  // way; DocsLayout only wraps it with the sidebar.
+  const docs = page.docs || null
 
-  return (
+  const main = (
     <main className={`mx-auto px-6 pt-10 pb-16 ${page.page_width === 'narrow' ? 'max-w-[524px]' : 'max-w-3xl'}`}>
       {page.content_html ? (
         <>
@@ -38,11 +44,19 @@ export default function PageView({ page }) {
           <GalleryLightboxController containerRef={contentRef} contentKey={page.content_html} />
           <HeaderImageLqip containerRef={contentRef} contentKey={page.content_html} />
           <ContentLqip containerRef={contentRef} contentKey={page.content_html} />
-          <FullscreenHeaderNav containerRef={contentRef} contentKey={page.content_html} />
+          <FullscreenHeaderNav containerRef={contentRef} contentKey={page.content_html} inDocs={!!docs} />
         </>
       ) : (
         <p className="text-gray-400">This page has no content yet.</p>
       )}
+      {docs && <DocsPageNav previous={docs.previous} next={docs.next} />}
     </main>
+  )
+
+  if (!docs) return main
+  return (
+    <DocsLayout docs={docs} currentSlug={page.slug}>
+      {main}
+    </DocsLayout>
   )
 }

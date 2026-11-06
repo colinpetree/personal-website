@@ -91,12 +91,15 @@ function RevertDialog({ onClose, onConfirm, saving }) {
 
 // ── Delete Confirmation Dialog ────────────────────────────────────────────────
 
-function DeleteDialog({ onClose, onConfirm, deleting }) {
+function DeleteDialog({ onClose, onConfirm, deleting, docsSectionName }) {
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-xl shadow-lg w-full max-w-sm p-6 flex flex-col gap-4">
         <h3 className="font-semibold text-gray-900">Delete page?</h3>
         <p className="text-sm text-gray-500">This will permanently delete the page.</p>
+        {docsSectionName && (
+          <p className="text-sm text-gray-500">It will also be removed from the "{docsSectionName}" docs section.</p>
+        )}
         <div className="flex gap-3 justify-end">
           <button onClick={onClose} className="text-sm text-gray-500 hover:text-gray-700 px-3 py-1.5">Cancel</button>
           <button
@@ -816,6 +819,7 @@ export default function AdminPageEditorPage() {
           onClose={() => setDeleteDialog(false)}
           onConfirm={handleDelete}
           deleting={deleting}
+          docsSectionName={page?.docs_section?.name}
         />
       )}
 

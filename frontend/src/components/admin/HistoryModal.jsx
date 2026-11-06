@@ -47,6 +47,7 @@ const FILTER_ACTIONS = [
 const FILTER_AREAS = [
   { key: 'Post', label: 'Posts' },
   { key: 'Page', label: 'Pages' },
+  { key: 'Docs', label: 'Docs' },
   { key: 'Settings,User', label: 'Settings and staff' },
 ]
 
@@ -57,7 +58,7 @@ export default function HistoryModal({ onClose, initialAdminId = null }) {
 
   // Filters
   const [filterActions, setFilterActions] = useState({ added: false, edited: false, deleted: false })
-  const [filterAreas, setFilterAreas] = useState({ Post: false, Page: false, 'Settings,User': false })
+  const [filterAreas, setFilterAreas] = useState({ Post: false, Page: false, Docs: false, 'Settings,User': false })
   const [filterOpen, setFilterOpen] = useState(false)
   const filterRef = useRef(null)
 

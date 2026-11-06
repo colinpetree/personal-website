@@ -1,6 +1,6 @@
 ---
 name: content-update-triggers
-description: Inventory of every admin action that bumps updated_at on SiteConfig, Profile, Project, a published BlogPost, or a published Page — the five tables /api/content-version fingerprints to decide whether the Pi's content-watch.sh should trigger a full prerender rebuild (see the auto-publish-system skill for how that pipeline works end to end). Invoke whenever adding or modifying an admin route/model that writes to one of these five tables, when asked "does X trigger a rebuild", or when reviewing whether a new admin feature/page needs to be added to this list.
+description: Inventory of every admin action that bumps updated_at on SiteConfig, Profile, Project, a published BlogPost, a published Page, or a DocsSection, the six tables /api/content-version fingerprints to decide whether the Pi's content-watch.sh should trigger a full prerender rebuild (see the auto-publish-system skill for how that pipeline works end to end). Invoke whenever adding or modifying an admin route/model that writes to one of these six tables, when asked "does X trigger a rebuild", or when reviewing whether a new admin feature/page needs to be added to this list.
 ---
 
 # What triggers a content-version change (and therefore a prerender rebuild)
@@ -15,10 +15,11 @@ max(
     Project.updated_at,
     BlogPost.updated_at,        # WHERE status == 'published' only
     Page.updated_at,            # WHERE status == 'published' only
+    DocsSection.updated_at,
 )
 ```
 
-All five columns are `db.Column(..., onupdate=datetime.utcnow)` (`backend/models.py`)
+All six columns are `db.Column(..., onupdate=datetime.utcnow)` (`backend/models.py`)
 — any ORM-level write to a row in one of these tables bumps its `updated_at`
 automatically, with no explicit code needed at the call site. `content-watch.sh`
 on the Pi polls this header every ~30 min; a change kicks off a full rebuild
@@ -28,7 +29,7 @@ on the Pi polls this header every ~30 min; a change kicks off a full rebuild
 features land.
 
 **This list needs to be reviewed whenever a new admin-editable model or route
-is added.** If a new feature writes to one of the four tables above, it
+is added.** If a new feature writes to one of the tables above, it
 already triggers a rebuild automatically (no wiring needed) — just add it to
 the relevant section below. If a new feature introduces a **new** table that
 should also affect public prerendered content, it needs to be added to the
@@ -136,6 +137,29 @@ that spectrum).
   also bumps `Page.updated_at` (column default), so upgrading to this
   feature itself triggers one rebuild, which is expected (the newly-migrated
   About page needs to actually get prerendered).
+
+## DocsSection: triggers on every section save or delete
+
+The docs sidebar (section name, labels, page titles/slugs, order) and the
+next/previous links are part of each member page's `/api/resolve` payload,
+so they are baked into that page's prerendered HTML (`public_resolve.py`'s
+`_docs_dict`). See `backend/routes/admin_docs.py`.
+
+- `POST /api/admin/docs`: create. Inserts a row, so it moves the
+  fingerprint even though a new empty section changes no public page (one
+  harmless extra rebuild).
+- `PUT /api/admin/docs/<id>`: rename and/or replace the item list. Sets
+  `section.updated_at` unconditionally, even when only draft pages changed
+  (no visible change, harmless rebuild).
+- `DELETE /api/admin/docs/<id>`: removes the row from the `MAX()`, so it
+  explicitly bumps `SiteConfig.updated_at`, the same trick as `delete_page`.
+- **Page-side changes are already covered by the Page section above:**
+  publishing a draft that is in a section bumps its `Page.updated_at`;
+  unpublishing or deleting a published page bumps `SiteConfig`. Renaming or
+  re-slugging a published member page bumps `Page.updated_at`, which
+  rebuilds every sibling page's sidebar too (full-site rebuild).
+- `DELETE /api/admin/pages/<id>` on a page in a section also deletes its
+  `DocsItem` and bumps that section's `updated_at`.
 
 ## Profile — currently dead weight in the fingerprint
 
