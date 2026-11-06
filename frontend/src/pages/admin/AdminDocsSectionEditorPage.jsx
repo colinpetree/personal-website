@@ -1,9 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { Fragment, useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
-import { ArrowLeft, GripVertical, Pencil, Check, Trash2, Plus, X, ExternalLink } from 'lucide-react'
+import { ArrowLeft, GripVertical, Pencil, Check, Trash2, Plus, X, ExternalLink, EyeOff, MoreHorizontal } from 'lucide-react'
 import { PageShell, EditableCard } from '../../components/admin/AdminPage'
 import DocsPagePicker from '../../components/admin/DocsPagePicker'
 import RoleGuard from '../../components/admin/RoleGuard'
+import Popover from '../../components/ui/Popover'
+import { Tooltip } from '../../components/ui/Tooltip'
 
 // Same helper as AdminSiteNavigationPage.jsx/AdminBlogCategoriesPage.jsx:
 // moves the item at `from` so it lands just before what is currently index
@@ -35,6 +37,8 @@ function toRows(items, keyById) {
   })
 }
 
+const LABEL_HIDDEN = 'Hidden on site: no published pages below'
+
 // Mirrors public_resolve.py's _docs_dict(): draft pages are hidden on the
 // public site, and so is a label with no published page under it before
 // the next label. Returns a Map of row index -> reason it's hidden.
@@ -44,7 +48,7 @@ function hiddenReasons(rows, pagesById) {
   let labelHasPublished = false
   function closeLabel() {
     if (labelIndex !== null && !labelHasPublished) {
-      reasons.set(labelIndex, 'Hidden on site: no published pages below')
+      reasons.set(labelIndex, LABEL_HIDDEN)
     }
   }
   rows.forEach((row, index) => {
@@ -65,9 +69,30 @@ function hiddenReasons(rows, pagesById) {
   return reasons
 }
 
-function HiddenNote({ reason }) {
+// For each row: whether it sits under a label (shown indented as that
+// label's child), and whether it's the last row of a label's group (where
+// that label's "Add page" button goes).
+function groupInfo(rows) {
+  let seenLabel = false
+  return rows.map((row, index) => {
+    if (row.kind === 'label') seenLabel = true
+    const next = rows[index + 1]
+    return {
+      child: row.kind === 'page' && seenLabel,
+      groupEnd: seenLabel && (!next || next.kind === 'label'),
+    }
+  })
+}
+
+function HiddenIcon({ reason, compact = false }) {
   if (!reason) return null
-  return <span className="shrink-0 text-xs text-gray-400">{reason}</span>
+  return (
+    <Tooltip content={reason}>
+      <span className={`shrink-0 inline-flex self-center text-gray-400 ${compact ? 'p-0.5' : 'p-1.5'}`} aria-label={reason}>
+        <EyeOff size={14} />
+      </span>
+    </Tooltip>
+  )
 }
 
 export default function AdminDocsSectionEditorPage() {
@@ -323,7 +348,13 @@ function AdminDocsSectionEditorPageContent() {
         {({ editing, local, set }) => {
           const rows = local.rows
           const reasons = hiddenReasons(rows, pagesById)
+          const groups = groupInfo(rows)
           const updateRow = (index, patch) => set('rows', rows.map((r, i) => i === index ? { ...r, ...patch } : r))
+          const insertPage = at => set('rows', [
+            ...rows.slice(0, at),
+            { _key: newRowKey(), kind: 'page', page_id: null },
+            ...rows.slice(at),
+          ])
 
           if (!editing) {
             return rows.length === 0 ? (
@@ -333,15 +364,15 @@ function AdminDocsSectionEditorPageContent() {
                 {rows.map((row, index) => {
                   if (row.kind === 'label') {
                     return (
-                      <div key={row._key} className={`flex items-baseline gap-3 ${index > 0 ? 'mt-2' : ''}`}>
+                      <div key={row._key} className={`flex items-center gap-1 ${index > 0 ? 'mt-2' : ''}`}>
                         <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{row.label}</p>
-                        <HiddenNote reason={reasons.get(index)} />
+                        <HiddenIcon reason={reasons.get(index)} compact />
                       </div>
                     )
                   }
                   const page = pagesById.get(row.page_id)
                   return (
-                    <div key={row._key} className="flex items-baseline gap-2 pl-3 min-w-0">
+                    <div key={row._key} className={`flex items-baseline gap-2 min-w-0 ${groups[index].child ? 'pl-5' : ''}`}>
                       <p className="text-sm text-gray-900 truncate">{page?.title ?? 'Missing page'}</p>
                       {page && (
                         <a
@@ -353,7 +384,7 @@ function AdminDocsSectionEditorPageContent() {
                           /{page.slug}{page.status === 'published' && <ExternalLink size={11} />}
                         </a>
                       )}
-                      <HiddenNote reason={reasons.get(index)} />
+                      <HiddenIcon reason={reasons.get(index)} compact />
                     </div>
                   )
                 })}
@@ -368,14 +399,17 @@ function AdminDocsSectionEditorPageContent() {
           return (
             <>
               {rows.length === 0 ? (
-                <p className="text-sm text-gray-400">Nothing here yet. Add a page or a section label below.</p>
+                <p className="text-sm text-gray-400">Nothing here yet. Add a section label or a page below.</p>
               ) : (
                 <div className="flex flex-col gap-1" onDragOver={handleContainerDragOver} onDrop={() => handleDrop(rows, set)}>
                   {rows.map((row, index) => {
                     const exclude = new Set(inOtherSection)
                     usedHere.forEach(pid => { if (pid !== row.page_id) exclude.add(pid) })
+                    const { child, groupEnd } = groups[index]
+                    const remove = () => set('rows', rows.filter((_, i) => i !== index))
                     return (
-                      <div key={row._key} className="flex flex-col gap-1">
+                      <Fragment key={row._key}>
+                      <div className={`flex flex-col gap-1 ${child ? 'ml-8' : ''}`}>
                         {dragIndex !== null && dropIndex === index && (
                           <div className="h-0.5 rounded-full bg-gray-900 mx-1" />
                         )}
@@ -420,18 +454,44 @@ function AdminDocsSectionEditorPageContent() {
                               excludeIds={exclude}
                             />
                           )}
-                          <button
-                            onClick={() => set('rows', rows.filter((_, i) => i !== index))}
-                            className="flex-shrink-0 text-gray-400 hover:text-red-500 p-1.5 rounded hover:bg-red-50 transition-colors"
-                            aria-label={row.kind === 'label' ? 'Remove label' : 'Remove page'}
+                          <HiddenIcon reason={reasons.get(index)} />
+                          {/* Delete sits behind a menu so a stray click can't
+                              remove a row; there's no confirmation step. */}
+                          <Popover
+                            align="end"
+                            panelClassName="!min-w-[140px]"
+                            trigger={
+                              <button
+                                type="button"
+                                className="flex-shrink-0 text-gray-400 hover:text-gray-600 p-1.5 rounded hover:bg-gray-100 transition-colors"
+                                aria-label={row.kind === 'label' ? 'Label options' : 'Page options'}
+                              >
+                                <MoreHorizontal size={16} />
+                              </button>
+                            }
                           >
-                            <Trash2 size={14} />
-                          </button>
+                            {({ close }) => (
+                              <button
+                                type="button"
+                                onClick={() => { close(); remove() }}
+                                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                              >
+                                <Trash2 size={14} /> Delete
+                              </button>
+                            )}
+                          </Popover>
                         </div>
-                        {reasons.get(index) && (
-                          <p className="pl-9 sm:pl-[5.75rem] -mt-0.5 text-xs text-gray-400">{reasons.get(index)}</p>
-                        )}
                       </div>
+                      {groupEnd && (
+                        <button
+                          type="button"
+                          onClick={() => insertPage(index + 1)}
+                          className="ml-8 self-start inline-flex items-center gap-1.5 px-1 py-1 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+                        >
+                          <Plus size={15} /> Add page
+                        </button>
+                      )}
+                      </Fragment>
                     )
                   })}
                   {dragIndex !== null && dropIndex === rows.length && (
@@ -442,16 +502,16 @@ function AdminDocsSectionEditorPageContent() {
 
               <div className="flex items-center gap-4">
                 <button
-                  onClick={() => set('rows', [...rows, { _key: newRowKey(), kind: 'page', page_id: null }])}
-                  className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
-                >
-                  <Plus size={15} /> Add page
-                </button>
-                <button
                   onClick={() => set('rows', [...rows, { _key: newRowKey(), kind: 'label', label: '' }])}
                   className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
                 >
                   <Plus size={15} /> Add label
+                </button>
+                <button
+                  onClick={() => insertPage(rows.length)}
+                  className="inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                >
+                  <Plus size={15} /> Add page
                 </button>
               </div>
             </>
