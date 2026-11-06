@@ -5,42 +5,73 @@ import { Menu, X } from 'lucide-react'
 // Sidebar list shared by the desktop aside and the mobile drawer. The
 // active page comes from `currentSlug` (the resolved page), not
 // useLocation(), so the prerendered HTML and hydration always agree.
+// Splits the flat item list into blocks: a label, or a run of consecutive
+// pages. Each run gets its own vertical rule, so a label breaks the rule.
+function toBlocks(items) {
+  const blocks = []
+  items.forEach(item => {
+    if (item.kind === 'label') {
+      blocks.push({ kind: 'label', label: item.label })
+    } else {
+      const last = blocks[blocks.length - 1]
+      if (last?.kind === 'pages') last.pages.push(item)
+      else blocks.push({ kind: 'pages', pages: [item] })
+    }
+  })
+  return blocks
+}
+
 function DocsNavList({ docs, currentSlug, onNavigate }) {
+  const blocks = toBlocks(docs.items)
   return (
     <nav aria-label="Documentation" className="text-sm">
-      <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-gray-900">{docs.section_name}</p>
-      <ul className="border-l border-gray-200">
-        {docs.items.map((item, index) => {
-          if (item.kind === 'label') {
-            return (
-              <li key={`label-${index}`} className={`pl-5 pb-1.5 text-xs font-semibold text-gray-900 ${index > 0 ? 'pt-4' : ''}`}>
-                {item.label}
-              </li>
-            )
-          }
-          const active = item.slug === currentSlug
+      {blocks.map((block, index) => {
+        if (block.kind === 'label') {
           return (
-            <li key={item.slug} className="relative">
-              {/* Short tick off the vertical rule, or the active dot. */}
-              {active ? (
-                <span aria-hidden="true" className="absolute -left-[4.5px] top-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-blue-600 ring-2 ring-blue-100" />
-              ) : (
-                <span aria-hidden="true" className="absolute left-0 top-1/2 h-px w-2.5 bg-gray-200" />
-              )}
-              <Link
-                to={`/${item.slug}`}
-                onClick={onNavigate}
-                aria-current={active ? 'page' : undefined}
-                className={`block py-1.5 pl-5 pr-2 leading-snug transition-colors ${
-                  active ? 'font-medium text-blue-600' : 'text-gray-500 hover:text-gray-900'
-                }`}
-              >
-                {item.title}
-              </Link>
-            </li>
+            <p key={`label-${index}`} className={`pb-2 font-semibold text-gray-900 ${index > 0 ? 'pt-5' : ''}`}>
+              {block.label}
+            </p>
           )
-        })}
-      </ul>
+        }
+        return (
+          <ul key={`pages-${index}`}>
+            {block.pages.map((page, pageIndex) => {
+              const active = page.slug === currentSlug
+              const first = pageIndex === 0
+              const last = pageIndex === block.pages.length - 1
+              return (
+                <li key={page.slug} className="relative">
+                  {/* This row's piece of the vertical rule. It starts just
+                      above the first tick and stops just below the last, so
+                      it doesn't run the full padding of the end rows. */}
+                  <span
+                    aria-hidden="true"
+                    className={`absolute left-0 w-px bg-gray-200 ${
+                      first ? 'top-[calc(50%-0.5rem)]' : 'top-0'
+                    } ${last ? 'bottom-[calc(50%-0.5rem)]' : 'bottom-0'}`}
+                  />
+                  {/* Short tick off the vertical rule; the active page gets
+                      a blue dot on the end of its tick. */}
+                  <span aria-hidden="true" className="absolute left-0 top-1/2 h-px w-4 bg-gray-200" />
+                  {active && (
+                    <span aria-hidden="true" className="absolute left-4 top-1/2 -translate-x-1/2 -translate-y-1/2 h-2 w-2 rounded-full bg-blue-600 ring-2 ring-blue-100" />
+                  )}
+                  <Link
+                    to={`/${page.slug}`}
+                    onClick={onNavigate}
+                    aria-current={active ? 'page' : undefined}
+                    className={`block py-1.5 pl-7 pr-2 leading-snug transition-colors ${
+                      active ? 'font-medium text-blue-600' : 'text-gray-500 hover:text-gray-900'
+                    }`}
+                  >
+                    {page.title}
+                  </Link>
+                </li>
+              )
+            })}
+          </ul>
+        )
+      })}
     </nav>
   )
 }
@@ -88,7 +119,7 @@ export default function DocsLayout({ docs, currentSlug, children }) {
           aria-expanded={drawerOpen}
         >
           <Menu size={18} strokeWidth={1.75} className="shrink-0 text-gray-500" />
-          <span className="truncate font-medium">{currentTitle || docs.section_name}</span>
+          <span className="truncate font-medium">{currentTitle || 'Menu'}</span>
         </button>
       </div>
 
@@ -112,9 +143,7 @@ export default function DocsLayout({ docs, currentSlug, children }) {
 
       <div className="lg:max-w-6xl lg:mx-auto lg:px-6 lg:flex">
         <aside className="hidden lg:block w-60 shrink-0 border-r border-gray-100">
-          {/* -ml-2/pl-2: room for the active dot, which sits half outside the
-              rule, without the scroll container clipping it. */}
-          <div className="sticky top-16 max-h-[calc(100vh-4rem)] overflow-y-auto py-10 pr-6 -ml-2 pl-2">
+          <div className="sticky top-16 max-h-[calc(100vh-4rem)] overflow-y-auto py-10 pr-6">
             <DocsNavList docs={docs} currentSlug={currentSlug} />
           </div>
         </aside>

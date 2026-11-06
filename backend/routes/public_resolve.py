@@ -56,8 +56,9 @@ def _docs_dict(page):
     index = next((n for n, p in enumerate(pages) if p['slug'] == page.slug), None)
     previous = pages[index - 1] if index is not None and index > 0 else None
     next_page = pages[index + 1] if index is not None and index + 1 < len(pages) else None
+    # The section's name is only for organizing sections in the admin, so
+    # it isn't sent; a visible heading is added as a label item instead.
     return {
-        'section_name': section.name,
         'items': items,
         'previous': {'title': previous['title'], 'slug': previous['slug']} if previous else None,
         'next': {'title': next_page['title'], 'slug': next_page['slug']} if next_page else None,
