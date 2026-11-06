@@ -1,5 +1,5 @@
 import { useLoaderData } from 'react-router'
-import { buildMeta, absoluteUploadUrl, siteFallbackImage, notFoundMeta, serverErrorMeta, isNavEnabled, domFallbackTitle, domFallbackMetaContent } from '../utils/meta'
+import { buildMeta, absoluteUploadUrl, siteFallbackImage, notFoundMeta, serverErrorMeta, isNavEnabled, domFallbackMeta } from '../utils/meta'
 import { apiUrl, fetchSiteConfig } from '../lib/apiFetch'
 import BlogPostView from './BlogPostView'
 import PageView from './PageView'
@@ -167,21 +167,17 @@ export function meta({ params, location }) {
   // synchronously on the very first hydrate pass, before
   // clientLoader.hydrate's own fetchResolvedData has resolved and populated
   // this cache — an UNFETCHED slug (no entry at all) is not the same thing
-  // as a CONFIRMED 404. Falling back to domFallbackTitle()/
-  // domFallbackMetaContent() instead reads whatever the browser's own
+  // as a CONFIRMED 404. Falling back to domFallbackMeta() instead
+  // reads whatever the browser's own
   // parser already put in the DOM from the server-rendered page —
   // guaranteed to equal the server's exact value with zero network wait —
   // so the unfetched-yet case matches the server regardless of whether the
   // slug ultimately turns out to be a page, a post, or neither.
   if (cached === undefined) {
-    return buildMeta({
-      title: domFallbackTitle(),
-      description: domFallbackMetaContent('meta[name="description"]'),
-      image: domFallbackMetaContent('meta[property="og:image"]'),
-      // Also from the DOM: a Page is prerendered as "website" and a post as
-      // "article", and a hard-coded value mismatched one of them on hydrate.
-      type: domFallbackMetaContent('meta[property="og:type"]') ?? 'article',
-    })
+    // Copies every prerendered head tag, og:type and robots included: a Page
+    // is prerendered as "website" and a post as "article", and a hard-coded
+    // value mismatched one of them on hydrate.
+    return domFallbackMeta()
   }
   const config = cached.config
   if (cached.serverError) return serverErrorMeta(config)

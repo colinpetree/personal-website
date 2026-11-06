@@ -9,4 +9,9 @@
 // BlogPostPageClientOnly.jsx. `meta` is exempt from that restriction (it's
 // not in react-router's SERVER_ONLY_ROUTE_EXPORTS list), so it's re-exported
 // unconditionally alongside clientLoader.
-export { default, clientLoader, HydrateFallback, meta } from './SlugResolverPage.jsx'
+//
+// No HydrateFallback: SlugResolverPage.jsx no longer exports one (see the
+// note in root.jsx). With nothing prerendered for this route it's always
+// served by the SPA fallback shell, where React Router only uses root's
+// HydrateFallback anyway.
+export { default, clientLoader, meta } from './SlugResolverPage.jsx'

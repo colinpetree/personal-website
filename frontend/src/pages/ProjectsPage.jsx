@@ -3,7 +3,7 @@ import { useLoaderData } from 'react-router'
 import { ExternalLink } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { useTrackPageView } from '../hooks/useTrackPageView'
-import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled, domFallbackTitle, domFallbackMetaContent } from '../utils/meta'
+import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled, domFallbackTitle, domFallbackMetaContent, domFallbackMeta } from '../utils/meta'
 import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
 import ScrollableHeaderNav from '../components/ScrollableHeaderNav'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
@@ -63,6 +63,8 @@ clientLoader.hydrate = true
 // network wait.
 export function meta() {
   const config = getCachedSiteConfig()
+  // No config yet: copy the prerendered head as-is (see BlogPage's meta()).
+  if (!config) return domFallbackMeta()
   if (!isNavEnabled(config, 'projects')) return notFoundMeta(config)
   const title = config?.site_title
     ? `${config.projects_page_name ?? 'Projects'} - ${config.site_title}`

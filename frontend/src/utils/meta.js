@@ -115,6 +115,23 @@ export function buildMeta({ title, description, image, type = 'website', noindex
   return tags
 }
 
+// The whole prerendered head, read back from the DOM, for a meta() call
+// that runs before this route's site config has loaded (the first client
+// hydrate pass; see domFallbackTitle above). Mirrors every tag buildMeta()
+// can emit, including og:type and robots, so the first client render
+// matches the prerendered <head> exactly whichever branch produced it:
+// e.g. a disabled Blog page is prerendered with notFoundMeta()'s noindex,
+// and a partial fallback without it was a hydration mismatch.
+export function domFallbackMeta() {
+  return buildMeta({
+    title: domFallbackTitle(),
+    description: domFallbackMetaContent('meta[name="description"]'),
+    image: domFallbackMetaContent('meta[property="og:image"]'),
+    type: domFallbackMetaContent('meta[property="og:type"]') ?? 'website',
+    noindex: domFallbackMetaContent('meta[name="robots"]') === 'noindex',
+  })
+}
+
 // Shared "this page doesn't exist" meta — used by NotFoundPage.jsx's own
 // route meta() AND by every gated page's meta() when its SiteConfig
 // `*_enabled` flag is off, so a disabled page's title/og tags never reveal

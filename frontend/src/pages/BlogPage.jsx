@@ -3,7 +3,7 @@ import { Link, useLoaderData } from 'react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { useTrackPageView } from '../hooks/useTrackPageView'
-import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled, domFallbackTitle, domFallbackMetaContent } from '../utils/meta'
+import { buildMeta, siteFallbackImage, notFoundMeta, isNavEnabled, domFallbackTitle, domFallbackMetaContent, domFallbackMeta } from '../utils/meta'
 import { apiUrl, fetchSiteConfig, getCachedSiteConfig } from '../lib/apiFetch'
 import CategoryFilterBar from '../components/CategoryFilterBar'
 import CodeBlockCopyToast from '../components/CodeBlockCopyToast'
@@ -88,6 +88,9 @@ clientLoader.hydrate = true
 // network wait, not just a same-shaped guess.
 export function meta() {
   const config = getCachedSiteConfig()
+  // No config yet: copy the prerendered head as-is. isNavEnabled(null)
+  // reads as enabled, which mismatched a prerendered disabled-blog 404.
+  if (!config) return domFallbackMeta()
   if (!isNavEnabled(config, 'blog')) return notFoundMeta(config)
   const title = config?.site_title
     ? `${config.blog_page_name ?? 'Blog'} - ${config.site_title}`
