@@ -1,5 +1,5 @@
 import { Fragment, useState, useEffect, useRef } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useBlocker, useNavigate, useParams } from 'react-router'
 import { ArrowLeft, GripVertical, Pencil, Check, Trash2, Plus, X, ExternalLink, EyeOff, MoreHorizontal } from 'lucide-react'
 import { PageShell, EditableCard } from '../../components/admin/AdminPage'
 import DocsPagePicker from '../../components/admin/DocsPagePicker'
@@ -124,6 +124,34 @@ function AdminDocsSectionEditorPageContent() {
   const [dropIndex, setDropIndex] = useState(null)
   const renameInputRef = useRef(null)
   const cancelingRenameRef = useRef(false)
+  const [hasUnsaved, setHasUnsaved] = useState(false)
+  // Set right before navigating away after deleting the section, so that
+  // navigation isn't held up by the unsaved-changes check.
+  const leavingRef = useRef(false)
+
+  // Closing the tab, reloading, or typing a new URL: the browser shows its
+  // own built-in "Leave site?" dialog when beforeunload is cancelled.
+  useEffect(() => {
+    if (!hasUnsaved) return
+    function onBeforeUnload(e) {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [hasUnsaved])
+
+  // In-app navigation (sidebar, back link, browser back button) never
+  // unloads the page, so beforeunload can't catch it. Block it and ask with
+  // the browser's native confirm dialog instead.
+  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
+    hasUnsaved && !leavingRef.current && currentLocation.pathname !== nextLocation.pathname
+  )
+  useEffect(() => {
+    if (blocker.state !== 'blocked') return
+    if (window.confirm('Leave this page? Changes you made may not be saved.')) blocker.proceed()
+    else blocker.reset()
+  }, [blocker])
 
   useEffect(() => {
     Promise.all([
@@ -205,6 +233,7 @@ function AdminDocsSectionEditorPageContent() {
     try {
       const res = await fetch(`/api/admin/docs/${section.id}`, { method: 'DELETE', credentials: 'include' })
       if (res.ok) {
+        leavingRef.current = true
         navigate('/admin/docs', { state: { deleted: true } })
         return
       }
@@ -344,6 +373,7 @@ function AdminDocsSectionEditorPageContent() {
         description="Shown in this order in the docs sidebar. Labels group the pages below them."
         savedValues={{ rows: toRows(section.items, rowKeysRef.current) }}
         onSave={handleSave}
+        onDirtyChange={setHasUnsaved}
       >
         {({ editing, local, set }) => {
           const rows = local.rows
