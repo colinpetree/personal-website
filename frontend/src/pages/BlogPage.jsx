@@ -97,16 +97,9 @@ export function meta() {
   return buildMeta({ title, description, image })
 }
 
-// Shown only while clientLoader resolves on a hard load with nothing
-// prerendered yet — reuses the same skeleton already used for the
-// page-2+ pagination loading state below.
-export function HydrateFallback() {
-  return (
-    <main className="max-w-2xl mx-auto px-6 pt-10 pb-16">
-      <BlogListSkeleton />
-    </main>
-  )
-}
+// No HydrateFallback here on purpose: with clientLoader.hydrate = true it
+// would replace this route's prerendered content in the static HTML (see the
+// note in root.jsx).
 
 export default function BlogPage() {
   const { config } = useSiteConfig()

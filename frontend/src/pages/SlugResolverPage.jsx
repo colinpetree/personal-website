@@ -178,7 +178,9 @@ export function meta({ params, location }) {
       title: domFallbackTitle(),
       description: domFallbackMetaContent('meta[name="description"]'),
       image: domFallbackMetaContent('meta[property="og:image"]'),
-      type: 'article',
+      // Also from the DOM: a Page is prerendered as "website" and a post as
+      // "article", and a hard-coded value mismatched one of them on hydrate.
+      type: domFallbackMetaContent('meta[property="og:type"]') ?? 'article',
     })
   }
   const config = cached.config
@@ -212,22 +214,9 @@ export function meta({ params, location }) {
   return notFoundMeta(config)
 }
 
-// Shown only while clientLoader is resolving on a hard load of a slug that
-// wasn't prerendered (a prerendered page/post's real content is already in
-// the HTML and renders immediately; this never appears for those).
-export function HydrateFallback() {
-  return (
-    <main className="max-w-3xl mx-auto px-6 pt-10 pb-16 animate-pulse">
-      <div className="h-10 bg-gray-100 rounded w-5/6 mb-3" />
-      <div className="h-10 bg-gray-100 rounded w-2/3 mb-6" />
-      <div className="flex flex-col gap-3">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <div key={i} className={`h-4 bg-gray-100 rounded ${i % 5 === 4 ? 'w-2/3' : 'w-full'}`} />
-        ))}
-      </div>
-    </main>
-  )
-}
+// No HydrateFallback here on purpose: with clientLoader.hydrate = true it
+// would replace this route's prerendered content in the static HTML (see the
+// note in root.jsx).
 
 export default function SlugResolverPage() {
   const { notFound, serverError, kind, post, page, blogAuthor, next, previous } = useLoaderData()
