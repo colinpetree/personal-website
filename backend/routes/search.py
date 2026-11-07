@@ -2,14 +2,16 @@ import math
 
 from flask import Blueprint, current_app, jsonify, request
 
-from models import BlogPost, SiteConfig
+from models import BlogPost, Page, SiteConfig
 from routes.blog import _promote_scheduled
 from text_utils import make_snippet, strip_html
 
 search_bp = Blueprint('search', __name__)
 
-# (section key, needs full ENABLE_AI_DEMOS gate)
-_STATIC_SECTIONS = ['home', 'blog', 'projects', 'about', 'contact', 'ai_demo', 'payment']
+# Fixed-route sections whose text lives on SiteConfig. 'about' is not here:
+# it was migrated into a freeform Page (see app.py), and its old about_text
+# column is a frozen pre-migration copy that must not be indexed.
+_STATIC_SECTIONS = ['home', 'blog', 'projects', 'contact', 'ai_demo', 'payment']
 
 TITLE_TOKEN_SCORE = 10
 TITLE_EXACT_BONUS = 5
@@ -44,6 +46,24 @@ def _collect_docs():
             'plain_body': strip_html(post.content_html),
             'plain_meta': post.meta_description or '',
             'url': f'/{post.slug}',
+            'sort_key': i,
+        })
+
+    # Freeform CMS Pages (including Docs pages). Published only: drafts are
+    # not publicly reachable, so they must not leak through search either.
+    pages = (
+        Page.query
+        .filter_by(status='published')
+        .order_by(Page.updated_at.desc())
+        .all()
+    )
+    for i, page in enumerate(pages):
+        docs.append({
+            'type': 'page',
+            'title': page.title,
+            'plain_body': strip_html(page.content_html),
+            'plain_meta': page.meta_description or '',
+            'url': f'/{page.slug}',
             'sort_key': i,
         })
 
