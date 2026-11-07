@@ -2,7 +2,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 from extensions import db
-from models import Page, BlogPost, SiteConfig, SiteEventLog
+from models import Page, BlogPost, SiteConfig, SiteEventLog, DocsItem, DocsSection
 from routes.admin_auth import admin_required
 from varnish_purge import ban_pattern
 from sanitize_html import sanitize_content_html
@@ -37,7 +37,21 @@ def _ban_public_caches():
     ban_pattern('^/api/resolve')
 
 
-def _page_to_dict(page, include_content=False):
+def _docs_sections_by_page(page_ids=None):
+    """page_id -> {id, name} of the DocsSection it belongs to, for the
+    "Docs" badge on the admin pages list (and the delete warning)."""
+    query = (
+        DocsItem.query
+        .join(DocsSection, DocsItem.section_id == DocsSection.id)
+        .add_columns(DocsSection.id, DocsSection.name)
+        .filter(DocsItem.page_id.isnot(None))
+    )
+    if page_ids is not None:
+        query = query.filter(DocsItem.page_id.in_(page_ids))
+    return {item.page_id: {'id': sid, 'name': name} for item, sid, name in query.all()}
+
+
+def _page_to_dict(page, include_content=False, docs_section=None):
     d = {
         'id': page.id,
         'title': page.title,
@@ -50,6 +64,7 @@ def _page_to_dict(page, include_content=False):
         'author_id': page.author_id,
         'created_at': page.created_at.isoformat() + 'Z',
         'updated_at': page.updated_at.isoformat() + 'Z',
+        'docs_section': docs_section,
     }
     if include_content:
         d['content_html'] = page.content_html
@@ -60,7 +75,8 @@ def _page_to_dict(page, include_content=False):
 @admin_required
 def list_pages():
     pages = Page.query.order_by(Page.updated_at.desc()).all()
-    return jsonify([_page_to_dict(p) for p in pages])
+    sections = _docs_sections_by_page()
+    return jsonify([_page_to_dict(p, docs_section=sections.get(p.id)) for p in pages])
 
 
 @admin_pages_bp.route('/api/admin/pages', methods=['POST'])
@@ -86,7 +102,8 @@ def create_page():
 @admin_required
 def get_page(page_id):
     page = Page.query.get_or_404(page_id)
-    return jsonify(_page_to_dict(page, include_content=True))
+    docs_section = _docs_sections_by_page([page.id]).get(page.id)
+    return jsonify(_page_to_dict(page, include_content=True, docs_section=docs_section))
 
 
 @admin_pages_bp.route('/api/admin/pages/<int:page_id>', methods=['PUT'])
@@ -184,6 +201,12 @@ def delete_page(page_id):
 
     was_published = page.status == 'published'
     _log('Page', 'deleted', page.title, subject_is_bold=True)
+    # Removed explicitly so the section's updated_at can be bumped, and so
+    # this never depends on the database enforcing the FK's ON DELETE CASCADE.
+    docs_item = DocsItem.query.filter_by(page_id=page.id).first()
+    if docs_item:
+        docs_item.section.updated_at = datetime.utcnow()
+        db.session.delete(docs_item)
     db.session.delete(page)
 
     # Same reasoning as admin_blog.py's delete_post: deleting a published

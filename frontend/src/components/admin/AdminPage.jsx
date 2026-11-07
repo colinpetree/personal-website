@@ -8,7 +8,7 @@ export function Card({ children, className = '' }) {
   )
 }
 
-export function EditableCard({ title, description, savedValues, onSave, children }) {
+export function EditableCard({ title, description, savedValues, onSave, onDirtyChange, children }) {
   const [editing, setEditing] = useState(false)
   const [local, setLocal] = useState(savedValues)
   const [saving, setSaving] = useState(false)
@@ -21,6 +21,12 @@ export function EditableCard({ title, description, savedValues, onSave, children
   }, [savedKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const isDirty = JSON.stringify(local) !== savedKey
+
+  // Lets a page guard against leaving with unsaved edits (optional).
+  const hasUnsaved = editing && isDirty
+  useEffect(() => {
+    onDirtyChange?.(hasUnsaved)
+  }, [hasUnsaved]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function set(field, value) {
     setLocal(l => ({ ...l, [field]: value }))

@@ -1694,3 +1694,136 @@ table.blog-table th .editor-paragraph.is-cursor-para:has(> br:only-child)::befor
 .blog-content .toggle-body > p:first-child {
   margin-top: 0;
 }
+
+/* ── Docs pages (components/docs/DocsLayout.jsx) ─────────────────────────────
+   On a page inside a docs section, the docs sidebar takes width away from the
+   page, so "full width" means the docs column, not the whole window. Every
+   breakout and vw-based size the page content uses is re-declared here
+   against --docs-w, the docs column's width. It's computed in plain CSS
+   (not cqw / container-type, which would make the column the containing block
+   for position:fixed children like ScrollableHeaderNav):
+   - below lg the column is the whole window (sidebar is a drawer), so 100vw;
+   - lg+ it's the navbar's max-w-6xl column (72rem) minus its px-6 padding
+     (2 x 1.5rem) and the w-60 sidebar (15rem).
+   Typography is untouched: only widths, breakout offsets, and header heights
+   and side padding change. Non-docs pages never match any of this. */
+.docs-content {
+  --docs-w: 100vw;
+  /* Safety net: anything still sized against the window is clipped at the
+     column edge instead of sliding under the sidebar or scrolling sideways. */
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+@media (min-width: 1024px) {
+  .docs-content {
+    --docs-w: calc(min(100vw, 72rem) - 18rem);
+  }
+}
+
+/* Full-bleed header layouts (see the ".blog-content header.header-wide, ..." rule) */
+.docs-content .blog-content header.header-wide,
+.docs-content .blog-content header.header-full,
+.docs-content .blog-content header.header-split,
+.docs-content .blog-content header.header-fullscreen,
+.docs-content .blog-content header.header-linear,
+.docs-content .blog-content header.header-linear-split {
+  width: var(--docs-w) !important;
+  margin-left: calc(50% - var(--docs-w) / 2) !important;
+}
+
+/* Narrow-page breakouts for regular headers/figures */
+.docs-content .page-header-content[data-page-width="narrow"] header.header-regular,
+.docs-content .page-header-content[data-page-width="narrow"] figure[data-width="regular"],
+.docs-content .page-header-content[data-page-width="narrow"] figure.kg-width-regular {
+  width: var(--docs-w) !important;
+  max-width: var(--docs-w) !important;
+  margin-left: calc(50% - var(--docs-w) / 2) !important;
+  margin-right: calc(50% - var(--docs-w) / 2) !important;
+}
+
+/* Wide/full images, videos and galleries: exportDOM writes their width as an
+   inline style (nodes.jsx), so match on the serialized style attribute. */
+.docs-content .blog-content figure[style*="calc(100vw - 2rem)"],
+.docs-content .blog-content figure[style*="calc(100vw-2rem)"],
+.docs-content .blog-content figure.gallery {
+  width: min(1040px, calc(var(--docs-w) - 2rem)) !important;
+}
+.docs-content .blog-content figure[style*="min(1040px, 100vw)"],
+.docs-content .blog-content figure[style*="min(1040px,100vw)"] {
+  width: min(1040px, var(--docs-w)) !important;
+}
+.docs-content .blog-content figure[style*="width: 100vw"],
+.docs-content .blog-content figure[style*="width:100vw"] {
+  width: var(--docs-w) !important;
+}
+
+/* Wide tables */
+.docs-content .blog-content .blog-table-wrapper-wide {
+  width: min(80rem, calc(var(--docs-w) - 2rem));
+}
+.docs-content .blog-content table.blog-table-wide {
+  max-width: min(80rem, calc(var(--docs-w) - 2rem));
+}
+
+/* Header heights: same clamp() formulas exportDOM writes inline (nodes.jsx's
+   `heights` map), with vw swapped for the docs column width. Fullscreen fills
+   the screen below the navbar, which stays solid on docs pages (see
+   useFullscreenHeaderNav's inDocs). */
+.docs-content .blog-content header.header-regular .header-inner {
+  min-height: clamp(200px, calc(var(--docs-w) * 0.45), 347px) !important;
+}
+.docs-content .blog-content header.header-wide .header-inner {
+  min-height: clamp(240px, calc(var(--docs-w) * 0.35), 447px) !important;
+}
+.docs-content .blog-content header.header-full .header-inner {
+  min-height: clamp(280px, calc(var(--docs-w) * 0.38), 551px) !important;
+}
+.docs-content .blog-content header.header-fullscreen .header-inner {
+  min-height: calc(100vh - 4rem) !important;
+}
+.docs-content .blog-content header.header-linear .header-inner {
+  height: min(max(280px, calc(var(--docs-w) * 0.5625)), 100vh) !important;
+}
+.docs-content .blog-content header.header-split {
+  min-height: clamp(300px, calc(var(--docs-w) * 0.42), 600px) !important;
+}
+.docs-content .blog-content header.header-linear-split {
+  height: min(max(280px, calc(var(--docs-w) * 0.4375)), 100vh) !important;
+}
+
+/* lg+: the docs column is at most ~54rem wide, about a tablet's width, so the
+   header text padding and heading sizes stay at their tablet (<1024px) values
+   instead of ramping up with the window. Below lg the column is the window, so
+   the normal rules already apply. */
+@media (min-width: 1024px) {
+  .docs-content .blog-content header.header-wide .header-inner,
+  .docs-content .blog-content header.header-full .header-inner,
+  .docs-content .blog-content header.header-fullscreen .header-inner,
+  .docs-content .blog-content header.header-linear .header-inner,
+  .docs-content .blog-content header[data-text-align].header-full .header-inner,
+  .docs-content .blog-content header[data-text-align].header-linear .header-inner,
+  .docs-content .blog-content header[data-text-align].header-fullscreen .header-inner {
+    padding-left: 56px !important;
+    padding-right: 56px !important;
+  }
+  .docs-content .blog-content header.header-fullscreen .header-heading,
+  .docs-content .blog-content header.header-full .header-heading,
+  .docs-content .blog-content header.header-linear .header-heading {
+    font-size: 60px !important;
+  }
+  .docs-content .blog-content header.header-fullscreen .header-subheading,
+  .docs-content .blog-content header.header-full .header-subheading,
+  .docs-content .blog-content header.header-linear .header-subheading {
+    font-size: 24px !important;
+  }
+}
+
+/* Small screens: the sticky docs bar (~41px) sits under the 64px navbar, so
+   heading jumps (ScrollableHeaderNav, #hash links) land below both. */
+@media (max-width: 1023px) {
+  /* !important beats ScrollableHeaderNav's inline 5rem, which only clears
+     the navbar. */
+  .docs-content .blog-content :is(h1, h2, h3, h4, header)[id] {
+    scroll-margin-top: 7rem !important;
+  }
+}

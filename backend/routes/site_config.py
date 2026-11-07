@@ -6,7 +6,7 @@ from email.utils import format_datetime
 from flask import Blueprint, jsonify, current_app, request
 from sqlalchemy import func
 from extensions import db
-from models import SiteConfig, Profile, Project, BlogPost, Page
+from models import SiteConfig, Profile, Project, BlogPost, Page, DocsSection
 
 site_config_bp = Blueprint('site_config', __name__)
 logger = logging.getLogger(__name__)
@@ -129,6 +129,9 @@ def get_content_version():
         db.session.query(func.max(Project.updated_at)).scalar(),
         db.session.query(func.max(BlogPost.updated_at)).filter(BlogPost.status == 'published').scalar(),
         db.session.query(func.max(Page.updated_at)).filter(Page.status == 'published').scalar(),
+        # Docs section name/order is baked into every member page's sidebar.
+        # Deleting a section bumps SiteConfig instead (see admin_docs.py).
+        db.session.query(func.max(DocsSection.updated_at)).scalar(),
     ]
     latest = max((c for c in candidates if c is not None), default=None)
     resp = current_app.response_class(status=204)

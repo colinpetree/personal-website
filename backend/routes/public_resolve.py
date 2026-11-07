@@ -1,6 +1,6 @@
 from datetime import datetime
 from flask import Blueprint, jsonify, abort
-from models import Page, BlogPost, BlogCategory, SiteConfig
+from models import Page, BlogPost, BlogCategory, SiteConfig, DocsItem
 
 public_resolve_bp = Blueprint('public_resolve', __name__)
 
@@ -17,6 +17,51 @@ def _page_dict(page):
         'page_width': page.page_width,
         'font_family': page.font_family,
         'updated_at': page.updated_at.isoformat() + 'Z',
+        'docs': _docs_dict(page),
+    }
+
+
+def _docs_dict(page):
+    """The docs sidebar + next/previous links for a page that belongs to a
+    DocsSection, or None. Only published pages are listed (drafts stay in
+    the section but are hidden), and a label is only listed when at least
+    one published page sits under it before the next label."""
+    membership = DocsItem.query.filter_by(page_id=page.id).first()
+    # section is None only for an orphaned row (should never happen); render
+    # the page without a sidebar rather than failing the whole request.
+    if not membership or not membership.section:
+        return None
+    section = membership.section
+    rows = (
+        DocsItem.query
+        .outerjoin(Page, DocsItem.page_id == Page.id)
+        .add_columns(Page.title, Page.slug, Page.status)
+        .filter(DocsItem.section_id == section.id)
+        .order_by(DocsItem.order)
+        .all()
+    )
+
+    items = []
+    pending_label = None
+    for item, title, slug, status in rows:
+        if item.kind == 'label':
+            pending_label = {'kind': 'label', 'label': item.label}
+        elif status == 'published':
+            if pending_label:
+                items.append(pending_label)
+                pending_label = None
+            items.append({'kind': 'page', 'title': title, 'slug': slug})
+
+    pages = [i for i in items if i['kind'] == 'page']
+    index = next((n for n, p in enumerate(pages) if p['slug'] == page.slug), None)
+    previous = pages[index - 1] if index is not None and index > 0 else None
+    next_page = pages[index + 1] if index is not None and index + 1 < len(pages) else None
+    # The section's name is only for organizing sections in the admin, so
+    # it isn't sent; a visible heading is added as a label item instead.
+    return {
+        'items': items,
+        'previous': {'title': previous['title'], 'slug': previous['slug']} if previous else None,
+        'next': {'title': next_page['title'], 'slug': next_page['slug']} if next_page else None,
     }
 
 

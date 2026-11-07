@@ -234,6 +234,44 @@ class Page(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class DocsSection(db.Model):
+    """A named, ordered documentation system made of Pages (see
+    routes/admin_docs.py). A Page that's in a section gets the docs sidebar
+    and next/previous links on the public site (see public_resolve.py).
+    updated_at is part of get_content_version()'s fingerprint, since the
+    section's name and order are baked into every member page's prerender."""
+    __tablename__ = 'docs_section'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # No passive_deletes: the ORM deletes the items itself, so a section
+    # delete never depends on the database enforcing ON DELETE CASCADE.
+    items = db.relationship(
+        'DocsItem', backref='section', order_by='DocsItem.order',
+        cascade='all, delete-orphan',
+    )
+
+
+class DocsItem(db.Model):
+    """One row in a DocsSection: either a text label (kind='label') or a
+    link to a Page (kind='page'). page_id is unique, so a page can belong to
+    at most one section. Draft pages may be included; the public site just
+    hides them (and any label left with no published pages under it)."""
+    __tablename__ = 'docs_item'
+
+    id = db.Column(db.Integer, primary_key=True)
+    section_id = db.Column(db.Integer, db.ForeignKey('docs_section.id', ondelete='CASCADE'), nullable=False, index=True)
+    kind = db.Column(db.String(10), nullable=False)  # label | page
+    label = db.Column(db.String(300), nullable=True)
+    page_id = db.Column(db.Integer, db.ForeignKey('page.id', ondelete='CASCADE'), nullable=True, unique=True)
+    order = db.Column(db.Integer, nullable=False, default=0)
+
+    page = db.relationship('Page')
+
+
 class User(db.Model):
     __tablename__ = 'user'
 

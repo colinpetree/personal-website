@@ -4,6 +4,7 @@ import { ExternalLink, Pencil, X } from 'lucide-react'
 import { PageShell } from '../../components/admin/AdminPage'
 import { useToast } from '../../context/ToastContext'
 import { useAdminAuth } from '../../context/AdminAuthContext'
+import { Tooltip } from '../../components/ui/Tooltip'
 
 function formatDate(iso) {
   if (!iso) return '—'
@@ -138,6 +139,11 @@ export default function AdminPagesListPage() {
                 <div className="flex flex-col sm:flex-row sm:items-baseline gap-0 sm:gap-2">
                   <p className="text-sm font-medium text-gray-900 truncate">{page.title}</p>
                   <p className="text-xs text-gray-400 shrink-0">/{page.slug}</p>
+                  {page.docs_section && (
+                    <Tooltip content={`In docs section: ${page.docs_section.name}`}>
+                      <span className="self-start sm:self-auto shrink-0 rounded-full bg-blue-50 px-2 py-px text-[11px] font-medium text-blue-600">Docs</span>
+                    </Tooltip>
+                  )}
                 </div>
                 <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">Updated {formatDate(page.updated_at)}</p>
                 <div className="mt-0.5">
