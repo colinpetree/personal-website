@@ -22,6 +22,19 @@ const PRESET_AMOUNTS = [3, 9, 15, 25]
 const MESSAGE_MAX_LEN = 500
 const NAME_MAX_LEN = 100
 const GUEST_PORTAL_GENERIC_MESSAGE = "If that email has an active subscription, we've sent a management link."
+const SERVICE_UNAVAILABLE_MESSAGE = 'The payment service is unavailable right now. Please try again later.'
+
+// The server can answer with a non-JSON body (e.g. a proxy or Cloudflare
+// error page). Treat that as "no data" instead of throwing, so the caller
+// shows a service-unavailable message rather than a misleading
+// "Network error" meant for requests that never reached the server.
+async function readJson(res) {
+  try {
+    return await res.json()
+  } catch {
+    return {}
+  }
+}
 
 // clientLoader ONLY, no bare `loader` here. This route is deliberately
 // excluded from react-router.config.ts's prerender() (session-gated/write-
@@ -158,12 +171,12 @@ export default function PaymentPage() {
           display_name: !user ? (guestName.trim() || undefined) : undefined,
         }),
       })
-      const data = await res.json()
+      const data = await readJson(res)
       if (res.ok && data.client_secret) {
         setClientSecret(data.client_secret)
         setStep('checkout')
       } else {
-        setError(data.error || 'Something went wrong. Please try again.')
+        setError(data.error || (res.ok ? 'Something went wrong. Please try again.' : SERVICE_UNAVAILABLE_MESSAGE))
         setSubmitting(false)
       }
     } catch {
@@ -180,11 +193,11 @@ export default function PaymentPage() {
         method: 'POST',
         credentials: 'include',
       })
-      const data = await res.json()
+      const data = await readJson(res)
       if (res.ok && data.url) {
         window.location.href = data.url
       } else {
-        setManageError(data.error || 'Something went wrong. Please try again.')
+        setManageError(data.error || (res.ok ? 'Something went wrong. Please try again.' : SERVICE_UNAVAILABLE_MESSAGE))
         setManageLoading(false)
       }
     } catch {

@@ -11,6 +11,34 @@ from email_utils import send_email, mail_configured
 
 payment_bp = Blueprint('payment', __name__)
 
+# Status for "Stripe refused the request". Deliberately a 4xx, not 502:
+# Cloudflare sits in front of production and replaces any origin 502 with its
+# own HTML error page, which made the payment page report a misleading
+# "Network error".
+STRIPE_ERROR_STATUS = 400
+
+
+def _stripe_error_response(e, action, fallback_message):
+    """Log a Stripe failure in full and return a visitor-safe JSON response.
+
+    StripeError.user_message is just Stripe's raw message for every error
+    type (stripe/_error.py), i.e. developer text such as "Invalid API Key
+    provided: sk_live_****1234" or "No such customer: cus_...". Only card
+    errors are written for the customer to read, so only those are passed
+    through; everything else shows a generic message, and the real reason
+    goes to the server log (journalctl -u personal-website) along with
+    Stripe's request ID for looking it up in the Dashboard's request logs.
+    """
+    current_app.logger.warning(
+        'Stripe %s failed: %s (http_status=%s, code=%s, request_id=%s): %s',
+        action, type(e).__name__, e.http_status, e.code, e.request_id, e,
+    )
+    if isinstance(e, stripe.error.CardError) and e.user_message:
+        message = e.user_message
+    else:
+        message = fallback_message
+    return jsonify({'error': message}), STRIPE_ERROR_STATUS
+
 MIN_AMOUNT = 1
 MAX_AMOUNT = 100000
 
@@ -33,11 +61,11 @@ def create_checkout_session():
         return jsonify({'error': 'Payments are not available.'}), 503
 
     # Admin session takes priority, matching post_comment()'s and me()'s
-    # precedence — if both a stale public-User session and an admin session
+    # precedence - if both a stale public-User session and an admin session
     # are present in the same browser, staff are attributed as themselves.
     admin = current_user if current_user.is_authenticated else None
     # A staff member paying while only signed into /admin has no User row to
-    # attribute to — fall back to their admin identity below so the payment
+    # attribute to - fall back to their admin identity below so the payment
     # log doesn't show them as Anonymous.
     user = None if admin else get_current_user()
     data = request.get_json(silent=True) or {}
@@ -55,7 +83,7 @@ def create_checkout_session():
         return jsonify({'error': f'Amount must be between ${MIN_AMOUNT} and ${MAX_AMOUNT}.'}), 400
 
     message = (data.get('message') or '').strip()[:MESSAGE_MAX_LEN] or None
-    # display_name only means anything for guests — signed-in users are identified via User.name,
+    # display_name only means anything for guests - signed-in users are identified via User.name,
     # and signed-in admins via their own full_name below.
     if user:
         display_name = None
@@ -78,7 +106,7 @@ def create_checkout_session():
     origin = request.headers.get('Origin') or (
         f'https://{config.domain}' if config.domain else request.host_url.rstrip('/')
     )
-    # {CHECKOUT_SESSION_ID} is a literal Stripe template placeholder — substituted
+    # {CHECKOUT_SESSION_ID} is a literal Stripe template placeholder - substituted
     # server-side by Stripe once the session completes, not by this f-string.
     return_url = f'{origin}/{config.payment_slug}?status=return&session_id={{CHECKOUT_SESSION_ID}}'
 
@@ -88,10 +116,12 @@ def create_checkout_session():
     if display_name:
         metadata['display_name'] = display_name
 
+    # No payment_method_types: Stripe API 2026-10-28 (stripe-python 16) rejects
+    # it outright. Which payment methods Checkout offers is now set in the
+    # Stripe Dashboard (Settings > Payment methods), not in code.
     session_params = {
         'mode': mode,
         'ui_mode': 'embedded_page',
-        'payment_method_types': ['card'],
         'line_items': [{'price_data': price_data, 'quantity': 1}],
         'return_url': return_url,
     }
@@ -102,7 +132,7 @@ def create_checkout_session():
         session_params['customer_email'] = admin.email
 
     if not user and not admin and mode == 'payment':
-        # customer_creation is only settable in payment/setup mode — subscription
+        # customer_creation is only settable in payment/setup mode - subscription
         # mode always creates a Customer on its own. Skipped for admins, same as
         # for signed-in users, to keep customer_email paired the same known-good
         # way it already is for the user path (customer_email + client_reference_id,
@@ -117,7 +147,7 @@ def create_checkout_session():
     try:
         session = stripe.checkout.Session.create(**session_params)
     except stripe.error.StripeError as e:
-        return jsonify({'error': e.user_message or 'Could not start checkout. Please try again.'}), 502
+        return _stripe_error_response(e, 'checkout session create', 'Could not start checkout. Please try again.')
 
     return jsonify({'client_secret': session.client_secret})
 
@@ -136,7 +166,7 @@ def checkout_session_status():
     try:
         session = stripe.checkout.Session.retrieve(session_id)
     except stripe.error.StripeError as e:
-        return jsonify({'error': e.user_message or 'Could not retrieve checkout session.'}), 502
+        return _stripe_error_response(e, 'checkout session retrieve', 'Could not retrieve checkout session.')
 
     return jsonify({'status': session.status, 'payment_status': session.payment_status})
 
@@ -171,7 +201,7 @@ def manage_subscription():
             return_url=return_url,
         )
     except stripe.error.StripeError as e:
-        return jsonify({'error': e.user_message or 'Could not open the billing portal. Please try again.'}), 502
+        return _stripe_error_response(e, 'billing portal session create', 'Could not open the billing portal. Please try again.')
 
     return jsonify({'url': portal_session.url})
 
@@ -188,7 +218,7 @@ def guest_portal_link():
         return jsonify({'error': 'A valid email is required.'}), 400
 
     # IP-based throttling, mirroring the LoginAttempt pattern used for admin
-    # login lockout — always record the attempt so the window is accurate,
+    # login lockout - always record the attempt so the window is accurate,
     # regardless of whether a match is found below.
     ip = request.remote_addr or 'unknown'
     window_start = datetime.utcnow() - GUEST_PORTAL_WINDOW
@@ -200,7 +230,7 @@ def guest_portal_link():
     db.session.add(PortalLinkRequest(ip_address=ip))
     db.session.commit()
 
-    # Never reveal whether the email matched — same generic response either way,
+    # Never reveal whether the email matched - same generic response either way,
     # and any failure below (Stripe error, mail failure) is swallowed silently
     # rather than surfaced, so the response can't be used to distinguish outcomes.
     if recent_attempts < GUEST_PORTAL_MAX_PER_IP:
@@ -233,7 +263,7 @@ def guest_portal_link():
                     )
         except Exception:
             # Never let the failure change the response shape (that would leak
-            # whether the email matched) — but still log it, otherwise a broken
+            # whether the email matched) - but still log it, otherwise a broken
             # Stripe key or mail config fails silently forever with no trace.
             current_app.logger.exception('guest_portal_link: failed to create portal session or send email')
 
@@ -259,7 +289,7 @@ def stripe_webhook():
 
     if event_type == 'checkout.session.completed':
         session = event['data']['object']
-        # StripeObject has no .get() — attribute access with a default (via
+        # StripeObject has no .get() - attribute access with a default (via
         # getattr) is the only safe way to read a possibly-absent field.
         customer_details = getattr(session, 'customer_details', None)
         metadata = getattr(session, 'metadata', None)
@@ -285,13 +315,13 @@ def stripe_webhook():
                 .first()
             )
             if prior:
-                # A renewal isn't a new act of commenting — carry forward who they
+                # A renewal isn't a new act of commenting - carry forward who they
                 # are, but not the message that accompanied the original payment.
                 _record_payment(
                     stripe_object_id=invoice['id'],
                     user_id=prior.user_id,
                     stripe_customer_id=getattr(invoice, 'customer', None),
-                    stripe_subscription_id=getattr(invoice, 'subscription', None),
+                    stripe_subscription_id=_invoice_subscription_id(invoice),
                     amount=(getattr(invoice, 'amount_paid', None) or 0) / 100,
                     mode='subscription',
                     email=prior.email,
@@ -302,12 +332,25 @@ def stripe_webhook():
     return jsonify({'received': True})
 
 
+def _invoice_subscription_id(invoice):
+    # Stripe API 2025-03-31 moved Invoice.subscription to
+    # Invoice.parent.subscription_details.subscription. Which shape a webhook
+    # delivers depends on the API version set on the webhook endpoint in the
+    # Stripe Dashboard, not on this code, so accept both.
+    legacy = getattr(invoice, 'subscription', None)
+    if legacy:
+        return legacy
+    parent = getattr(invoice, 'parent', None)
+    details = getattr(parent, 'subscription_details', None) if parent else None
+    return getattr(details, 'subscription', None) if details else None
+
+
 def _record_payment(stripe_object_id, user_id, stripe_customer_id, stripe_subscription_id, amount, mode,
                      email=None, display_name=None, message=None):
     if not stripe_object_id:
         return
     if Payment.query.filter_by(stripe_object_id=stripe_object_id).first():
-        return  # already recorded — idempotent against webhook retries
+        return  # already recorded - idempotent against webhook retries
 
     resolved_name = None
     if user_id:
