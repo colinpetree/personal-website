@@ -14,7 +14,7 @@ import { isValidEmail } from '../utils/isValidEmail'
 
 const INITIAL = { name: '', email: '', subject: '', message: '' }
 
-// Purely for meta() below — see HomePage.jsx for why this route needs its
+// Purely for meta() below, see HomePage.jsx for why this route needs its
 // own directly-awaited config fetch. Page body still reads from context.
 export async function loader() {
   return fetchSiteConfig()
@@ -24,6 +24,13 @@ export async function clientLoader() {
   return fetchSiteConfig()
 }
 clientLoader.hydrate = true
+
+// Tells Navbar what this page renders first (see Navbar.jsx's
+// useRouteNavOverlay). Must match the render gate below: enabled, then
+// contact_text.
+export const handle = {
+  navOverlayHtml: ({ config }) => (isNavEnabled(config, 'contact') ? config?.contact_text || null : null),
+}
 
 export function meta({ data }) {
   if (!isNavEnabled(data, 'contact')) return notFoundMeta(data)
@@ -58,7 +65,7 @@ export default function ContactPage() {
 
   function handleChange(e) {
     setForm(f => ({ ...f, [e.target.name]: e.target.value }))
-    // The invalid-email error and its red border must clear together — only
+    // The invalid-email error and its red border must clear together, only
     // editing the email field itself should dismiss that particular error.
     // A different (e.g. server/network) error isn't tied to one field, so it
     // still clears on any edit.

@@ -1,4 +1,4 @@
-/* Self-hosted webfonts (latin subset only) — see tailwind.config.js fontFamily
+/* Self-hosted webfonts (latin subset only), see tailwind.config.js fontFamily
    for how these back the font-sans/font-serif/font-mono utility classes. */
 @import '@fontsource/source-sans-3/latin-400.css';
 @import '@fontsource/source-sans-3/latin-500.css';
@@ -19,7 +19,7 @@
 @tailwind utilities;
 
 /* Soft elevation for small preview thumbnails (blog list, post nav) and for
-   the optional "Drop shadow" toggle on ImageNode figures — reads as the
+   the optional "Drop shadow" toggle on ImageNode figures, reads as the
    image floating above the page, and keeps a light-edged image (e.g. a
    screenshot of a white UI) from blending into a white background. */
 .thumb-shadow {
@@ -214,7 +214,7 @@ html {
   display: none;
 }
 
-/* Payment comments scroll area scrollbar — hidden until scrolled, fades out when idle */
+/* Payment comments scroll area scrollbar, hidden until scrolled, fades out when idle */
 .payment-comments-scroll {
   scrollbar-color: transparent transparent;
   transition: scrollbar-color 0.3s ease;
@@ -267,11 +267,11 @@ html {
 
 /* Typography plugin's default figure margin fights the explicit vertical margin
    our image/video nodes set themselves (both in the editor and in exported
-   HTML) — reset just the vertical margin wherever Lexical content renders (not
+   HTML), reset just the vertical margin wherever Lexical content renders (not
    just the public .blog-content output), leaving horizontal centering
    (mx-auto) alone. Wrapped in :where() (zero specificity, same trick the
    typography plugin itself uses for every rule it generates) so this only
-   beats the plugin's own zero-specificity default — a real utility class like
+   beats the plugin's own zero-specificity default, a real utility class like
    `my-4`/`my-6` set directly on the figure (the editor's live render; exported
    HTML instead sets margin inline, which always wins regardless) still wins.
    A plain `.prose figure { margin: 0 }` selector has real specificity and was
@@ -282,7 +282,7 @@ html {
   margin-bottom: 0;
 }
 
-/* No :where() here (unlike the figure rule above) — nothing in this codebase
+/* No :where() here (unlike the figure rule above), nothing in this codebase
    ever sets an intentional margin utility directly on an <img>/<video> inside
    a figure (only the figure itself gets my-4/my-6), so there's no legitimate
    editor spacing to protect, and real specificity is needed to reliably beat
@@ -295,7 +295,7 @@ html {
   margin: 0;
 }
 
-/* Placeholder background while images load — no forced aspect-ratio since we
+/* Placeholder background while images load, no forced aspect-ratio since we
    don't track each image's real dimensions, and forcing one distorts images
    that aren't that shape (e.g. portrait photos get squashed into 16:9). */
 .blog-content figure:not(.gallery) img {
@@ -305,7 +305,7 @@ html {
 }
 
 /* Standalone (non-gallery) ImageNode figures open the lightbox on click,
-   same as gallery images — [data-width] is the attribute unique to
+   same as gallery images, [data-width] is the attribute unique to
    ImageNode's own exported figures (VideoNode/AudioNode/HeaderNode/embeds
    don't set it). A linked image already shows a pointer cursor from its
    wrapping <a>, so this is harmless to apply unconditionally. */
@@ -343,7 +343,7 @@ html {
 }
 
 /* Single-image galleries: true aspect ratio always, capped height, centered
-   (letterboxed) instead of cropped/stretched — matches Ghost CMS at every
+   (letterboxed) instead of cropped/stretched, matches Ghost CMS at every
    breakpoint, mobile included. */
 .blog-content figure.gallery .gallery-row--single {
   justify-content: center;
@@ -369,7 +369,7 @@ html {
 }
 
 /* A linked image's whole figure (including its caption) is wrapped in an
-   <a> so the image itself is clickable — but the caption shouldn't look
+   <a> so the image itself is clickable, but the caption shouldn't look
    like a link (blue + underlined) just because it's technically inside one.
    The image stays clickable regardless; this only resets the caption's text
    styling back to normal. */
@@ -383,7 +383,7 @@ html {
    margin-top-only rhythm scaled to the responsive font-size, the hr's
    spacing comes from the editor's DividerNode wrapper (the outer
    max-w-3xl/mx-auto/my-6 div plus the inner mx-6/py-8 div: 1.5rem +
-   2rem = 56px on each side, fixed — it doesn't scale with viewport).
+   2rem = 56px on each side, fixed, it doesn't scale with viewport).
    Matching that fixed 56px here (instead of the 21px/29px text rhythm)
    is what keeps the divider's vertical spacing the same in the editor
    and on the public site. */
@@ -474,7 +474,7 @@ html {
 }
 /* Icon is taken out of flex flow and pinned to the left edge so the text can be
    centered against the button's full width instead of the space left over
-   after the icon — otherwise the text visually skews right of true center. */
+   after the icon, otherwise the text visually skews right of true center. */
 /* Fixed-size slot so every icon type (brand badge, generic svg, emoji) occupies the
    same footprint and lines up in the same column across every link in the group,
    regardless of an individual icon's or emoji glyph's own natural dimensions. */
@@ -517,7 +517,7 @@ html {
   box-sizing: border-box;
   /* Reserves the icon's own footprint (0.75rem offset + 2.25rem width, see
      .link-group-icon) on the left, and the same amount on the right so the
-     reserved space is symmetric — this keeps short text exactly centered on
+     reserved space is symmetric, this keeps short text exactly centered on
      the button (matching left/right insets cancel out) while guaranteeing a
      wrapped second/third line can never run under the icon, since the text's
      own box now stops short of it entirely. */
@@ -527,7 +527,7 @@ html {
   overflow-wrap: break-word;
   word-break: break-word;
   /* Clamps to exactly 2 whole lines instead of letting a long label keep
-     growing the button — no ellipsis, just a hard cutoff. Uses the
+     growing the button, no ellipsis, just a hard cutoff. Uses the
      line-clamp box model (not max-height) so no partial 3rd line ever
      peeks through: max-height can only approximate a line count, since any
      buffer generous enough to avoid clipping descenders also leaves enough
@@ -538,7 +538,7 @@ html {
   -webkit-box-orient: vertical;
   overflow: hidden;
   /* Most link text (e.g. "GitHub") has no descenders, so centering the line
-     box leaves the visible glyphs looking high — nudge down to optically
+     box leaves the visible glyphs looking high, nudge down to optically
      center the actual letterforms instead of the abstract line box. */
   transform: translateY(0.05em);
 }
@@ -643,7 +643,7 @@ html {
 [contenteditable="true"] table.blog-table { font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif; }
 [contenteditable="true"] table.blog-table p.editor-paragraph { font-size: 14px; line-height: 22.5px; }
 
-/* Font Family editor setting, 'serif' mode — h1/h2/h3 and the table are
+/* Font Family editor setting, 'serif' mode, h1/h2/h3 and the table are
    hard-coded sans-serif above regardless of the ambient font (see the
    comment there), so this is the only place that needs to win them back to
    serif; 'sans' mode needs no override since they're already sans, and
@@ -683,10 +683,10 @@ html {
    public-site equivalent): every top-level block in the editor already
    gets a fixed max-w-3xl (48rem) reading-column cap baked in via theme.js
    (paragraphs, headings, lists, quotes, buttons, link groups, etc. all
-   share that literal Tailwind class) — shrink that cap to 524px here so
+   share that literal Tailwind class), shrink that cap to 524px here so
    the WYSIWYG canvas matches. Header's own "Regular" width option reuses
    the same max-w-3xl class for its wrapper, but per the public behavior
-   it must NOT narrow — .header-regular-preview marks that wrapper so it
+   it must NOT narrow, .header-regular-preview marks that wrapper so it
    can be excluded. Image/Video size themselves via inline styles, not
    this class, so they're already unaffected. */
 .content-narrow-preview .max-w-3xl {
@@ -699,7 +699,7 @@ html {
 /* Blog page header content: .page-header-content strips the editor's baked-in
    max-w-3xl on the public site and inherits the real <main> width instead
    (max-w-2xl/42rem, see BlogPage.jsx), so the shipped output is already
-   correct — only the editor's own typing column still previews at the old
+   correct, only the editor's own typing column still previews at the old
    48rem. Scope it down to match what will actually render. */
 .content-2xl-preview .max-w-3xl {
   max-width: 42rem !important;
@@ -708,7 +708,7 @@ html {
 /* Audio/File/YouTube/Vimeo/Spotify all size themselves via an inline
    max-width:740px style rather than the max-w-3xl class above (and,
    unlike Header/Image/Video, are meant to actually shrink with the page's
-   Narrow setting rather than ignore it) — .media-regular-preview marks
+   Narrow setting rather than ignore it), .media-regular-preview marks
    their wrapper so this can override that inline style directly. An
    !important author rule beats a plain inline style regardless of
    selector specificity, so this doesn't need to out-specificity it. */
@@ -758,7 +758,7 @@ html {
 /* Narrow page width (524px, for linktree-style pages) is meant to narrow
    the reading column of text/buttons only. Header/Image/Video blocks left
    at their "Regular" size should keep rendering at the site's normal
-   ~48rem content width instead of shrinking down to 524px — only an
+   ~48rem content width instead of shrinking down to 524px, only an
    explicit "Narrow" choice on the block itself (its own 524px width
    option, image/video only) or the paragraph text should actually be
    that narrow. Break the outer wrapper back out of the 524px container to
@@ -816,7 +816,7 @@ html {
 }
 
 /* The tightened "heading + p" margin above is meant for in-body subheadings,
-   not the page title — a paragraph right after the title should use the
+   not the page title, a paragraph right after the title should use the
    normal paragraph spacing, same as if no heading preceded it. */
 .page-header-content h1:first-child + p {
   margin-top: 21px;
@@ -841,11 +841,11 @@ html {
 [contenteditable="true"] li:has(> ol) { list-style-type: none; }
 
 /* exportDOM (@lexical/list) normally removes these wrapper <li> by merging their nested
-   list into the previous sibling <li> — but that merge only happens when a previous sibling
+   list into the previous sibling <li>, but that merge only happens when a previous sibling
    exists. An item indented with no sibling at that depth (e.g. Tab pressed repeatedly on a
    lone item) has no sibling to merge into, so the empty wrapper leaks into content_html and
    each level renders its own marker, stacking multiple markers on one line. Same suppression
-   as the editor rule above, applied to the public output for this edge case — but scoped to
+   as the editor rule above, applied to the public output for this edge case, but scoped to
    :only-child, since (unlike the editor's live DOM) a merged parent <li> here legitimately
    holds both its own text AND a nested list as siblings, and must keep its own marker. */
 .blog-content li:has(> ul:only-child),
@@ -909,7 +909,7 @@ html {
   content: none;
 }
 
-/* Callout block — align emoji baseline with the first text line. exportDOM sets line-height:1.625
+/* Callout block, align emoji baseline with the first text line. exportDOM sets line-height:1.625
    on the emoji span, making its box ~32px vs the text's ~26px; flex-start then puts the text
    center above the emoji center. baseline aligns the glyph baseline with the first line of text,
    matching the editor's appearance for both single-line and multi-line callouts. */
@@ -937,18 +937,18 @@ html {
   text-decoration: underline;
 }
 
-/* Header block — background image always crops to fill the box (never shrinks and
+/* Header block, background image always crops to fill the box (never shrinks and
    letterboxes) at any width. Unscoped (not .blog-content-prefixed) so it applies in the
    admin editor preview too, which shares this stylesheet. */
 .header-bg-image {
   background-size: cover;
 }
 
-/* Header block — background video always crops to fill the box (never letterboxes),
+/* Header block, background video always crops to fill the box (never letterboxes),
    matching .header-bg-image's cover behavior. Absolutely positioned within the
    (relatively positioned) header-inner/split-image container it's rendered inside.
    margin:0 !important overrides @tailwindcss/typography's ".prose video" margin
-   (2em top/bottom) — without it the video sat 32px below its inset:0 top, leaving
+   (2em top/bottom), without it the video sat 32px below its inset:0 top, leaving
    a gap of the black header background above it and clipping 32px off the bottom
    against header-inner's overflow:hidden, i.e. a "letterboxed" look at both edges. */
 .header-bg-video {
@@ -960,7 +960,7 @@ html {
   margin: 0 !important;
 }
 
-/* Header block — split layout's image/video side crops via absolute-fill,
+/* Header block, split layout's image/video side crops via absolute-fill,
    exactly like .header-bg-image/.header-bg-video do for the other layouts,
    so the media can never grow the header's box (its height comes only from
    the header's own min-height plus the text side's content). Shared between
@@ -980,16 +980,52 @@ html {
 }
 
 /* Navbar.jsx: momentarily kills every transition inside the navbar (itself
-   and every descendant — nav links, search/hamburger buttons, the site
+   and every descendant, nav links, search/hamburger buttons, the site
    title) right when a page's transparent/solid state is first determined,
    so landing on a new page snaps straight to the right colors instead of
    visibly crossfading from the previous page's. Toggled via direct DOM
    writes, not a Tailwind/React class, so the disable is guaranteed to land
-   in the same paint as the color change — see the comment above where it's
+   in the same paint as the color change, see the comment above where it's
    applied. */
 .navbar-no-transition,
 .navbar-no-transition * {
   transition: none !important;
+}
+
+/* Navbar.jsx: the prerendered navbar on an overlay-header page is always the
+   transparent top-of-page version, since the HTML can't know where the page
+   will be scrolled. Until hydration removes `.navbar-prehydrate` (forever,
+   for visitors without JavaScript), these scroll-driven animations stand in
+   for Navbar's own `window.scrollY > 10` check: past 10px of scroll the bar
+   turns white with its gray rule and the text turns the solid navbar's
+   grays (gray-900 title, gray-500 links and icon buttons), so white text is
+   never left over the page body. Each animation holds its first keyframe
+   (the element's own transparent-state style) before 10px and its last one
+   after 11px. Browsers without scroll timelines skip the whole block and
+   keep the transparent bar until hydration, as before. Scoped to the top
+   bar (`> div`) so the mobile menu panel keeps its own colors. */
+@supports (animation-timeline: scroll()) {
+  @keyframes navbar-prehydrate-bar {
+    to { background-color: #fff; border-bottom-color: rgb(229 231 235); }
+  }
+  @keyframes navbar-prehydrate-item {
+    to { color: rgb(107 114 128); }
+  }
+  @keyframes navbar-prehydrate-title {
+    to { color: rgb(17 24 39); }
+  }
+  .navbar-prehydrate,
+  .navbar-prehydrate > div :is(a, button, span),
+  .navbar-prehydrate > div > a:first-child {
+    animation-duration: auto;
+    animation-timing-function: linear;
+    animation-fill-mode: both;
+    animation-timeline: scroll(root);
+    animation-range: 10px 11px;
+  }
+  .navbar-prehydrate { animation-name: navbar-prehydrate-bar; }
+  .navbar-prehydrate > div :is(a, button, span) { animation-name: navbar-prehydrate-item; }
+  .navbar-prehydrate > div > a:first-child { animation-name: navbar-prehydrate-title; }
 }
 
 /* Header block: break wide/full/split/fullscreen/linear/linear-split out of the max-w-3xl page container */
@@ -1006,12 +1042,13 @@ html {
 
 /* A leading header of ANY layout should sit flush against the navbar rather
    than leaving the page-header-content pages' shared `pt-10` (2.5rem) gap
-   above it — that gap belongs to plain-text-led pages (see the page-title
+   above it. That gap belongs to plain-text-led pages (see the page-title
    h1:first-child rule above), not header blocks, which already supply their
-   own internal padding. Full width/full screen/split are additionally
-   special: see useFullscreenHeaderNav, which overlays Navbar transparently
-   on top of those three layouts specifically — regular/wide stay flush too
-   but leave Navbar in its normal solid state. */
+   own internal padding. Full/split/fullscreen/linear/linear-split are
+   additionally special: Navbar overlays them transparently (decided during
+   render from the route's handle, see utils/headerLayout.js and Navbar.jsx's
+   useRouteNavOverlay); regular/wide stay flush too but leave Navbar in its
+   normal solid state. */
 .page-header-content > header.header-regular:first-child,
 .page-header-content > header.header-wide:first-child,
 .page-header-content > header.header-full:first-child,
@@ -1022,11 +1059,11 @@ html {
   margin-top: -2.5rem;
 }
 
-/* Same flush treatment in the admin content-page editor (AdminPageContentEditor.jsx
-   — Home/About/Projects/Contact/Payment/AI Demo pages, marked by
+/* Same flush treatment in the admin content-page editor (AdminPageContentEditor.jsx:
+   Home/About/Projects/Contact/Payment/AI Demo pages, marked by
    .content-page-editor-scroll), so the editor matches the public site. No
    navbar-overlay concern here (that's a public-site-only Navbar behavior), so
-   unlike the public-site rule above there's no per-layout distinction — every
+   unlike the public-site rule above there's no per-layout distinction, every
    layout (regular/wide/full/split/fullscreen) gets the same flush treatment
    via one shared .header-block-editor marker class (nodes.jsx) instead of the
    exported header-* layout classes, since the editor's live decorator view
@@ -1046,7 +1083,7 @@ html {
 /* Same flush treatment for AdminPageEditorPage.jsx's custom-Pages editor. The
    gray title bar there stands in for the navbar, so the pt-10 gap being
    cancelled here is the one on .page-editor-content (wrapping RichTextEditor,
-   sitting below the title bar) rather than the scroll container itself —
+   sitting below the title bar) rather than the scroll container itself,
    see the comment above the .content-page-editor-scroll rules for why three
    sources of top gap need cancelling. */
 .page-editor-content:has([contenteditable] > span:first-child > .header-block-editor) {
@@ -1061,7 +1098,7 @@ html {
 
 /* A leading h1/h2/h3 (not a HeaderNode block, just a plain heading as the
    page's first node) shouldn't carry theme.js's mt-6/mt-5/mt-4 top margin
-   either — same reasoning as .page-header-content h1:first-child on the
+   either, same reasoning as .page-header-content h1:first-child on the
    public site: the scroll container's own pt-10 already supplies the top
    gap, so the heading's own margin would double it up. !important beats
    theme.js's Tailwind utility class. */
@@ -1094,13 +1131,13 @@ html {
   font-family: 'Source Sans 3', ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Font Family editor setting, 'serif' mode — every element above (plus
+/* Font Family editor setting, 'serif' mode, every element above (plus
    headings and figcaption) is hard-coded sans-serif regardless of the
    ambient body font, so 'serif' mode must explicitly win them back. 'sans'
    mode needs no override here: it's applied by swapping the page wrapper's
    own font-serif -> font-sans class (see HomePage.jsx etc.), which already
    makes every ambient/inheriting element (p, blockquote, lists, links)
-   sans — the elements below are already sans by default and stay that way.
+   sans, the elements below are already sans by default and stay that way.
    'default' renders no data-font-family="serif" match, so nothing changes. */
 .blog-content[data-font-family="serif"] h1,
 .blog-content[data-font-family="serif"] h2,
@@ -1121,7 +1158,7 @@ html {
   font-family: 'Source Serif 4', ui-serif, Georgia, Cambria, "Times New Roman", Times, serif !important;
 }
 
-/* Header block — reset prose margins on nested paragraphs. Also reset
+/* Header block, reset prose margins on nested paragraphs. Also reset
    font-size/weight/line-height, since .blog-content p (above) sets those
    flat on every <p> and would otherwise stomp the inline font-size/weight
    the header's own heading/subheading div carries per layout width. */
@@ -1135,7 +1172,7 @@ html {
   color: inherit;
 }
 
-/* Header block — split/linear-split heading/subheading no longer wrap: the user
+/* Header block, split/linear-split heading/subheading no longer wrap: the user
    controls every line break explicitly (Enter and Shift+Enter both insert one), and
    the heading's font size is computed (see HeaderNode.exportDOM/computeHeaderFitSizes
    in nodes.jsx) to fit its widest line at the box's fixed width. pre-wrap (not nowrap)
@@ -1150,7 +1187,7 @@ html {
   overflow-wrap: normal;
 }
 
-/* Header block — fullscreen layout heading/subheading ramp up across breakpoints
+/* Header block, fullscreen layout heading/subheading ramp up across breakpoints
    (biggest at 2xl) instead of jumping straight to their max size at md. Matches the
    editor's `md:text-6xl xl:text-[66px] 2xl:text-[4.6875vw]` / `md:text-2xl xl:text-[27px]
    2xl:text-[1.953125vw]`. exportDOM's base inline size (60px/24px) covers md-lg. !important
@@ -1190,14 +1227,14 @@ html {
 }
 
 /* Header block: split/linear-split heading/subheading scale continuously with viewport
-   width via clamp() — one smooth curve from a floor up to a ceiling, instead of separate
+   width via clamp(), one smooth curve from a floor up to a ceiling, instead of separate
    per-breakpoint values that jump at each breakpoint edge (matches how the header's own
    height already scales via clamp() above). The clamp() itself is baked by exportDOM as
    --hdr-heading-fs/--hdr-sub-fs (see nodes.jsx computeHeaderFitSizes), fit to this
    heading's widest typed line; the literal clamp() here is only the fallback for posts
    published before this feature, whose <header> has no --hdr-* vars. !important beats
    exportDOM's inline base value at every width, same as before. This is the >=768px
-   (md) behavior for both layouts — split overrides it below that with its own
+   (md) behavior for both layouts, split overrides it below that with its own
    full-width "stacked" formula, and linear-split with its own uncapped one (both
    further down, in the mobile-overrides block). */
 .blog-content header.header-split .header-heading,
@@ -1211,11 +1248,11 @@ html {
 
 /* Header block: full/linear/fullscreen's left- or right-aligned side padding keeps growing
    past 2xl (1536px) at a sixth the rate of viewport width, instead of staying flat at the
-   fixed 256px inline value there — these layouts are full-bleed with no width cap, so
+   fixed 256px inline value there, these layouts are full-bleed with no width cap, so
    letting the text's inset keep pace (like split/linear-split's own text-side padding does)
    avoids it looking pinned in place on very large/ultrawide screens. calc((100vw - 1536px) /
    6 + 256px) is continuous with the flat 256px value at 1536px. wide is deliberately
-   excluded — it's meant to read as a narrower, page-bound layout, not a full-bleed one, so
+   excluded, it's meant to read as a narrower, page-bound layout, not a full-bleed one, so
    its padding stays flat regardless of alignment. Centered text also stays flat here,
    matching how split/linear-split only grow for left/right-align. The growth itself is
    symmetric (both padding-left and padding-right grow together), so right mirrors left
@@ -1232,7 +1269,7 @@ html {
   }
 }
 
-/* Header block — wide/full/fullscreen side padding ramps down in steps below the
+/* Header block, wide/full/fullscreen side padding ramps down in steps below the
    2xl breakpoint (where the JS-set inline 256px value applies) instead of jumping
    straight to the mobile override at 768px, so the heading isn't squeezed into a
    narrow column on in-between (tablet/small laptop) widths. Mirrors the editor's
@@ -1266,7 +1303,7 @@ html {
   }
 }
 
-/* Header block — mobile responsive overrides */
+/* Header block, mobile responsive overrides */
 @media (max-width: 768px) {
   .blog-content header.header-regular .header-inner {
     padding: 24px 32px !important;
@@ -1302,7 +1339,7 @@ html {
   }
   /* height (not min-height): the media inside is absolutely-positioned (see
      .header-split-image above), so it never contributes to this box's own
-     height — on mobile there's no sibling row to flex-stretch against
+     height, on mobile there's no sibling row to flex-stretch against
      either, so without an explicit height the box collapses to 0. */
   .blog-content header.header-split .header-split-image {
     height: 240px !important;
@@ -1310,9 +1347,9 @@ html {
   .blog-content header.header-split .header-split-text {
     min-height: 240px !important;
   }
-  /* Uniform padding at every alignment (left/center/right) — the box's shape never
+  /* Uniform padding at every alignment (left/center/right), the box's shape never
      changes with alignment. 24px matches the smallest left inset other header
-     layouts use at this same breakpoint (below) — split's no-wrap text needs
+     layouts use at this same breakpoint (below), split's no-wrap text needs
      all the width it can get once it stacks to a full-width column here (see
      the column-reverse rule above). linear-split never stacks, so its padding
      instead scales continuously at every width via an inline style baked by
@@ -1327,7 +1364,7 @@ html {
     font-size: 16px !important;
   }
   /* split DOES stack at this breakpoint (see .header-split's column-reverse rule
-     above) — its text column jumps from half the header's width to the whole
+     above), its text column jumps from half the header's width to the whole
      thing, so the plain 50%-column formula would shrink it well below what the
      now much wider stacked column actually has room for. --hdr-*-fs-stacked
      (baked by exportDOM using that full-width geometry) overrides the base
@@ -1339,10 +1376,10 @@ html {
     font-size: var(--hdr-sub-fs-stacked, clamp(16px, 1.5625vw, 24px)) !important;
   }
   /* linear-split never stacks, so its column stays the same 50%-width half
-     the base (non-tiered) rule above already assumes — but that base rule's
+     the base (non-tiered) rule above already assumes, but that base rule's
      --hdr-heading-fs still carries a ceiling (see buildLinearSplitFitPair in
      nodes.jsx) meant to stop a short heading from oversizing on a wide
-     desktop column. Below md that ceiling is the wrong call — the column is
+     desktop column. Below md that ceiling is the wrong call, the column is
      already much narrower (nodes.jsx's HEADER_LINEAR_SPLIT_TEXT_PAD_CSS keeps
      shrinking its padding continuously down to this width and past it), so
      the ceiling would stop the heading short of the padding edges instead of
@@ -1354,7 +1391,7 @@ html {
   .blog-content header.header-linear-split .header-subheading {
     font-size: var(--hdr-sub-fs-uncapped, clamp(16px, 1.5625vw, 24px)) !important;
   }
-  /* Left- or right-aligned text column (nodes.jsx) widens from 50% to 60% on small screens —
+  /* Left- or right-aligned text column (nodes.jsx) widens from 50% to 60% on small screens,
      at 50% narrow phone widths wrap too aggressively; 60% reads better without crossing the
      header's midpoint by much. Matches the editor's `max-md:max-w-[60%]`. The right-aligned
      column's own `margin-left: auto` (exportDOM/nodes.jsx's `ml-auto`) still applies at this
@@ -1380,9 +1417,9 @@ html {
 /* On small phones, a left-aligned header's left inset (or a right-aligned header's right
    inset) drops further to match the blog post body text's own side margin (BlogPostView's
    `px-6` = 24px, main.jsx), so the header's text edge lines up with the paragraph text below
-   it instead of sitting 8px further in than it. Centered text is unaffected — it isn't flush
+   it instead of sitting 8px further in than it. Centered text is unaffected, it isn't flush
    against an edge to compare against. Matches the editor's `max-sm:pl-6`/`max-sm:pr-6`
-   (nodes.jsx). split/linear-split are excluded — their padding is now fixed and
+   (nodes.jsx). split/linear-split are excluded, their padding is now fixed and
    alignment-agnostic at every width. */
 @media (max-width: 640px) {
   .blog-content header[data-text-align="left"].header-regular .header-inner,
@@ -1401,7 +1438,7 @@ html {
   }
 }
 
-/* ─── Tables — shared by the editor and the public blog ─────────────────────
+/* ─── Tables, shared by the editor and the public blog ─────────────────────
    The table's pixel width is set inline (sum of column widths) so column
    drag-resize is deterministic; table-layout: fixed makes the <colgroup>
    widths authoritative. Tailwind Typography styles tables via zero-specificity
@@ -1414,7 +1451,7 @@ table.blog-table {
   margin-bottom: 1.5rem;
 }
 /* Scrollable wrapper (new format): overflow-x: auto lets tables keep their
-   natural column widths on mobile — users scroll horizontally instead of
+   natural column widths on mobile, users scroll horizontally instead of
    squishing. Legacy bare tables (posts saved before this change) still use
    the rules below this block. */
 .blog-table-wrapper {
@@ -1460,7 +1497,7 @@ table.blog-table {
 [contenteditable] .blog-table-scroll-wrapper table.blog-table-regular {
   max-width: none;
 }
-/* Wide tables: replace the 50%/translateX centering trick with margin:auto — this centers
+/* Wide tables: replace the 50%/translateX centering trick with margin:auto, this centers
    the table when it fits the wrapper and left-aligns (no bidirectional overflow) when it
    needs to scroll. */
 [contenteditable] .blog-table-scroll-wrapper table.blog-table-wide {
@@ -1477,7 +1514,7 @@ table.blog-table {
   margin-left: 0.4rem;
   margin-right: 0.4rem;
 }
-/* Thin scrollbar matching code-block style — both editor wrapper and public page wrapper */
+/* Thin scrollbar matching code-block style, both editor wrapper and public page wrapper */
 .blog-table-scroll-wrapper::-webkit-scrollbar,
 .blog-table-wrapper::-webkit-scrollbar {
   height: 4px;
@@ -1599,7 +1636,7 @@ table.blog-table th .editor-paragraph.is-cursor-para:has(> br:only-child)::befor
   z-index: 2;
 }
 
-/* Header button — reset prose link styles */
+/* Header button, reset prose link styles */
 .blog-content .header-btn {
   display: inline-block !important;
   position: relative;
@@ -1658,7 +1695,7 @@ table.blog-table th .editor-paragraph.is-cursor-para:has(> br:only-child)::befor
 .blog-content .toggle[open] > summary.toggle-summary::after {
   transform: rotate(-180deg);
 }
-/* Category filter bar — hide the scrollbar entirely, it looks out of place on a badge row */
+/* Category filter bar, hide the scrollbar entirely, it looks out of place on a badge row */
 .category-filter-scroll {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -1667,7 +1704,7 @@ table.blog-table th .editor-paragraph.is-cursor-para:has(> br:only-child)::befor
   display: none;
 }
 
-/* Admin sidebar nav — hide the scrollbar entirely; still scrolls via wheel/
+/* Admin sidebar nav, hide the scrollbar entirely; still scrolls via wheel/
    touch/keyboard, just without a visible track cluttering the dark sidebar. */
 .admin-sidebar-scroll {
   -webkit-overflow-scrolling: touch;
@@ -1686,7 +1723,7 @@ table.blog-table th .editor-paragraph.is-cursor-para:has(> br:only-child)::befor
    margin, matching the editor's tight appearance), but .blog-content p's
    margin-top: 21px rule (an unlayered author rule) beats that Tailwind
    utility regardless of specificity since Tailwind's utilities live in
-   @layer utilities — only visible on the public site since the editor
+   @layer utilities, only visible on the public site since the editor
    never applies that rule to begin with. Reinstate the zero top margin on
    the first paragraph in each area so it doesn't get a stray gap under
    the summary label / top of the body. */
@@ -1768,7 +1805,7 @@ table.blog-table th .editor-paragraph.is-cursor-para:has(> br:only-child)::befor
 /* Header heights: same clamp() formulas exportDOM writes inline (nodes.jsx's
    `heights` map), with vw swapped for the docs column width. Fullscreen fills
    the screen below the navbar, which stays solid on docs pages (see
-   useFullscreenHeaderNav's inDocs). */
+   SlugResolverPage.jsx's handle). */
 .docs-content .blog-content header.header-regular .header-inner {
   min-height: clamp(200px, calc(var(--docs-w) * 0.45), 347px) !important;
 }

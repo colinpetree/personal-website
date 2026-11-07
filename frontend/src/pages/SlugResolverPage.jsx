@@ -6,7 +6,7 @@ import PageView from './PageView'
 import NotFoundPage from './NotFoundPage'
 import ServerErrorPage from './ServerErrorPage'
 
-// The public ':slug' catch-all route — resolves a URL against
+// The public ':slug' catch-all route, resolves a URL against
 // /api/resolve/<slug> (see backend/routes/public_resolve.py) and renders
 // either a Page or a BlogPost through the matching presentational view.
 // Pages and blog posts share one top-level slug namespace, so this replaced
@@ -14,7 +14,7 @@ import ServerErrorPage from './ServerErrorPage'
 // admin-creatable thing (see the Pages feature plan, wave 3).
 
 // Slug-keyed cache of the last fetchResolvedData() result, read
-// synchronously by meta() below — same reason BlogPostPage.jsx's
+// synchronously by meta() below, same reason BlogPostPage.jsx's
 // _resolvedPostData existed: this route's component also calls
 // useLoaderData(), and that combination makes meta()'s own `data` param
 // come back undefined at prerender time (confirmed empirically, same issue
@@ -36,11 +36,11 @@ function cacheResolvedData(key, result) {
   }
 }
 
-// Small retry for the fetch that decides notFound vs. serverError below —
+// Small retry for the fetch that decides notFound vs. serverError below,
 // most transient backend hiccups clear within a second, so a couple of
 // short-delayed retries avoids showing a real visitor (or baking into a
 // prerendered page) "something went wrong" for a request that would have
-// succeeded a moment later. A 404 is a real, final answer, not a failure —
+// succeeded a moment later. A 404 is a real, final answer, not a failure,
 // returned immediately, never retried. Works at both build time (Node) and
 // runtime (browser) since setTimeout is available in both.
 async function fetchWithRetry(url, { retries = 2, delayMs = 300 } = {}) {
@@ -59,11 +59,11 @@ async function fetchWithRetry(url, { retries = 2, delayMs = 300 } = {}) {
 }
 
 // Shared by loader (build-time prerender) and clientLoader (runtime, for any
-// slug not in the prerendered set — see clientLoader below for why both are
+// slug not in the prerendered set, see clientLoader below for why both are
 // needed). config is fetched alongside purely to populate apiFetch.js's
 // getCachedSiteConfig() cache in time for meta().
 //
-// Deliberately does NOT fetch a post's comments — see the equivalent note
+// Deliberately does NOT fetch a post's comments, see the equivalent note
 // that used to live on BlogPostPage.jsx's fetchPostData: comments are always
 // loaded client-side by BlogPostView's own effect, never baked into a
 // prerendered snapshot, since moderating/deleting a comment doesn't bump its
@@ -96,7 +96,7 @@ async function fetchResolvedData(slug, categorySlug) {
     // Isolated in its own try: the post itself is already successfully
     // resolved at this point, so a failure fetching just the author byline
     // or next/previous links shouldn't discard the whole post and fall
-    // through to the outer catch's serverError state — that would throw away
+    // through to the outer catch's serverError state, that would throw away
     // valid content over two non-essential fields. A non-2xx response
     // already degrades gracefully via the .ok ternaries below; this also
     // covers a network-level fetch() rejection (no response to check .ok
@@ -111,7 +111,7 @@ async function fetchResolvedData(slug, categorySlug) {
       blogAuthor = authorRes.ok ? await authorRes.json() : null
       adjacent = adjacentRes.ok ? await adjacentRes.json() : { next: null, previous: null }
     } catch (err) {
-      console.warn(`[SlugResolverPage] Failed to fetch author/adjacent-post data for slug "${slug}": ${err.message} — rendering the post without them.`)
+      console.warn(`[SlugResolverPage] Failed to fetch author/adjacent-post data for slug "${slug}": ${err.message}, rendering the post without them.`)
     }
 
     const result = {
@@ -121,14 +121,14 @@ async function fetchResolvedData(slug, categorySlug) {
     cacheResolvedData(key, result)
     return result
   } catch (err) {
-    // Genuinely unexpected — a real backend/network problem, not a
+    // Genuinely unexpected, a real backend/network problem, not a
     // confirmed-absent slug (that's the 404 branch above, handled before this
     // try/catch would ever see it). Distinct from notFound so the UI can show
     // a "try again" state instead of a false 404. `config` may still be null
     // here if the initial Promise.all itself rejected (e.g. a network-level
-    // failure) before it could resolve — every consumer already handles a
+    // failure) before it could resolve, every consumer already handles a
     // null config via optional chaining, same as notFoundMeta.
-    console.warn(`[SlugResolverPage] Failed to resolve slug "${slug}": ${err.message} — showing a try-again error state instead of a false 404.`)
+    console.warn(`[SlugResolverPage] Failed to resolve slug "${slug}": ${err.message}, showing a try-again error state instead of a false 404.`)
     const result = { notFound: false, serverError: true, kind: null, config }
     cacheResolvedData(key, result)
     return result
@@ -142,7 +142,7 @@ export async function loader({ params, request }) {
   return fetchResolvedData(params.slug, categorySlug)
 }
 
-// Runs in the browser — required in addition to loader, not redundant with
+// Runs in the browser, required in addition to loader, not redundant with
 // it: under ssr:false, `loader` only works for prerendered paths. A page or
 // post published after the last prerender build resolves correctly this way
 // instead of erroring. clientLoader.hydrate=true makes this run on the very
@@ -155,7 +155,7 @@ clientLoader.hydrate = true
 
 // og:image needs an absolute URL, and site_title falls back to config since
 // a 404'd/unloaded slug has no title of its own to show. Reads
-// _resolvedData via params.slug rather than the `data` param — params come
+// _resolvedData via params.slug rather than the `data` param, params come
 // from route matching (reliable), not loader data (confirmed unreliable in
 // meta() here, see _resolvedData's own comment above).
 export function meta({ params, location }) {
@@ -166,11 +166,11 @@ export function meta({ params, location }) {
   // comment, preserved here): react-router calls this route's meta()
   // synchronously on the very first hydrate pass, before
   // clientLoader.hydrate's own fetchResolvedData has resolved and populated
-  // this cache — an UNFETCHED slug (no entry at all) is not the same thing
+  // this cache, an UNFETCHED slug (no entry at all) is not the same thing
   // as a CONFIRMED 404. Falling back to domFallbackMeta() instead
   // reads whatever the browser's own
-  // parser already put in the DOM from the server-rendered page —
-  // guaranteed to equal the server's exact value with zero network wait —
+  // parser already put in the DOM from the server-rendered page,
+  // guaranteed to equal the server's exact value with zero network wait,
   // so the unfetched-yet case matches the server regardless of whether the
   // slug ultimately turns out to be a page, a post, or neither.
   if (cached === undefined) {
@@ -200,7 +200,7 @@ export function meta({ params, location }) {
     if (!page) return notFoundMeta(config)
     return buildMeta({
       // "{title} - {site_title}", same as every other fixed page (Blog,
-      // Projects, Contact, ...) — blog posts are the one exception that
+      // Projects, Contact, ...), blog posts are the one exception that
       // keep their own exclusive tab title with no site name suffix.
       title: config?.site_title ? `${page.title} - ${config.site_title}` : page.title,
       description: page.meta_description,
@@ -208,6 +208,21 @@ export function meta({ params, location }) {
     })
   }
   return notFoundMeta(config)
+}
+
+// Tells Navbar what this page renders first (see Navbar.jsx's
+// useRouteNavOverlay). Must match the render branches below and PageView:
+// only a found Page with content, and never a docs page (DocsLayout keeps
+// the navbar solid, since white navbar text would vanish over the white
+// sidebar). Blog posts render their title above the content, so a header in
+// a post is never at the top of the page and never overlaid.
+export const handle = {
+  navOverlayHtml: ({ data }) => {
+    if (!data || data.serverError || data.notFound || data.kind !== 'page') return null
+    const page = data.page
+    if (!page || page.docs) return null
+    return page.content_html || null
+  },
 }
 
 // No HydrateFallback here on purpose: with clientLoader.hydrate = true it

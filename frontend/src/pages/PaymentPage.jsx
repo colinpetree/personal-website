@@ -23,14 +23,14 @@ const MESSAGE_MAX_LEN = 500
 const NAME_MAX_LEN = 100
 const GUEST_PORTAL_GENERIC_MESSAGE = "If that email has an active subscription, we've sent a management link."
 
-// clientLoader ONLY — no bare `loader` here. This route is deliberately
+// clientLoader ONLY, no bare `loader` here. This route is deliberately
 // excluded from react-router.config.ts's prerender() (session-gated/write-
 // heavy), so a `loader` export would trip react-router's ssr:false
 // validation (a route with `loader` must have at least one prerendered
-// path for its route id — see BlogPostPage.jsx/routes.ts for the same
+// path for its route id, see BlogPostPage.jsx/routes.ts for the same
 // constraint hit and fixed elsewhere). clientLoader.hydrate=true still
 // gets this real config data before the first render, same as everywhere
-// else — just via the client-only path since there's no prerendering to
+// else, just via the client-only path since there's no prerendering to
 // race against here.
 export async function clientLoader() {
   return fetchSiteConfig()
@@ -39,6 +39,13 @@ clientLoader.hydrate = true
 
 export function HydrateFallback() {
   return <main className="min-h-screen bg-white" />
+}
+
+// Tells Navbar what this page renders first (see Navbar.jsx's
+// useRouteNavOverlay). Must match the render gate below: enabled, then
+// payment_text.
+export const handle = {
+  navOverlayHtml: ({ config }) => (isNavEnabled(config, 'payment') ? config?.payment_text || null : null),
 }
 
 export function meta({ data }) {
@@ -218,7 +225,7 @@ export default function PaymentPage() {
 
     function onWheel(e) {
       if (step === 'checkout') return
-      if (e.ctrlKey) return // pinch-zoom / ctrl+wheel zoom — let the browser handle it
+      if (e.ctrlKey) return // pinch-zoom / ctrl+wheel zoom, let the browser handle it
       if (window.innerWidth < 1024) return
       const commentsEl = commentsRef.current
       if (!commentsEl || commentsEl.contains(e.target)) return
@@ -490,7 +497,7 @@ export default function PaymentPage() {
         )}
         {returnStatus === 'incomplete' && (
           <div className="mb-6 rounded-lg bg-gray-50 border border-gray-200 px-6 py-5 flex items-start justify-between gap-4">
-            <p className="text-gray-700">Checkout wasn't completed — no charge was made.</p>
+            <p className="text-gray-700">Checkout wasn't completed. No charge was made.</p>
             <button onClick={dismissReturnStatus} className="text-gray-500 hover:text-gray-700 text-base">Dismiss</button>
           </div>
         )}

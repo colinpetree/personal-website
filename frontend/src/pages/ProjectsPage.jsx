@@ -15,7 +15,7 @@ import NotFoundPage from './NotFoundPage'
 
 // fetchSiteConfig() runs alongside the project fetch purely to populate
 // getCachedSiteConfig()'s cache in time for meta() below (see its usage
-// there for why) — its resolved value isn't otherwise part of this route's
+// there for why), its resolved value isn't otherwise part of this route's
 // own data (the component reads config from context, not this).
 function trackProjectClick(projectId) {
   fetch('/api/analytics/track-project-click', {
@@ -40,7 +40,7 @@ export async function loader() {
   return fetchProjects()
 }
 
-// Required in addition to loader — under ssr:false, loader only runs for
+// Required in addition to loader, under ssr:false, loader only runs for
 // prerendered paths (no server exists to run it otherwise, and no .data
 // file exists for an unprerendered route). clientLoader.hydrate=true makes
 // this run in-browser on the very first hard load too, covering both the
@@ -52,15 +52,22 @@ export async function clientLoader() {
 clientLoader.hydrate = true
 
 // data.config would be the natural source here, but this route's component
-// also calls useLoaderData() — confirmed that combination makes meta()'s
+// also calls useLoaderData(), confirmed that combination makes meta()'s
 // `data` param unreliable at prerender time (see getCachedSiteConfig in
 // apiFetch.js). Read the synchronous cache instead.
-// See BlogPage.jsx's meta() for the full explanation — same
+// See BlogPage.jsx's meta() for the full explanation, same
 // getCachedSiteConfig()-can-be-null-on-first-client-hydrate race, same fix:
 // fall back to whatever the browser's own parser already put in the DOM
 // from the server-rendered page instead of a placeholder, so the very
 // first client render matches the server's exact value with zero
 // network wait.
+// Tells Navbar what this page renders first (see Navbar.jsx's
+// useRouteNavOverlay). Must match the render gate below: enabled, then
+// projects_text.
+export const handle = {
+  navOverlayHtml: ({ config }) => (isNavEnabled(config, 'projects') ? config?.projects_text || null : null),
+}
+
 export function meta() {
   const config = getCachedSiteConfig()
   // No config yet: copy the prerendered head as-is (see BlogPage's meta()).

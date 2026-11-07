@@ -9,10 +9,10 @@ import GalleryLightboxController from '../components/GalleryLightboxController'
 import HeaderImageLqip from '../components/HeaderImageLqip'
 import ContentLqip from '../components/ContentLqip'
 import FullscreenHeaderNav from '../components/FullscreenHeaderNav'
-// Purely for meta() below — the page body still reads config from context
+// Purely for meta() below, the page body still reads config from context
 // via useSiteConfig(), fed by root's own loader. This separate fetch exists
 // because meta() can't reliably reach root's data through `matches` during
-// prerendering (confirmed unreliable — see root.jsx); it needs its own
+// prerendering (confirmed unreliable, see root.jsx); it needs its own
 // directly-awaited copy, shared/memoized with every other page via
 // fetchSiteConfig() so it's not a redundant network call per page.
 export async function loader() {
@@ -23,6 +23,13 @@ export async function clientLoader() {
   return fetchSiteConfig()
 }
 clientLoader.hydrate = true
+
+// Tells Navbar what this page renders first, so it can overlay a leading
+// full/split/fullscreen/linear header during render (see Navbar.jsx's
+// useRouteNavOverlay). Must match the render gate below: home_text only.
+export const handle = {
+  navOverlayHtml: ({ config }) => config?.home_text || null,
+}
 
 export function meta({ data }) {
   return buildMeta({
@@ -35,7 +42,7 @@ export function meta({ data }) {
 export default function HomePage() {
   const { config } = useSiteConfig()
   const contentRef = useRef(null)
-  // home_text presence is the page's own "has content" gate — home_enabled
+  // home_text presence is the page's own "has content" gate, home_enabled
   // only controls whether it shows in the nav, not whether it's public (see
   // site_config.py's get_site_config), so it's tracked whenever it renders.
   useTrackPageView('page', config?.home_text ? 'home' : null)

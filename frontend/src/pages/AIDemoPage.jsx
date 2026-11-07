@@ -30,7 +30,7 @@ const DEMOS = AI_DEMO_LIST.map(demo => ({
   available: true,
 }))
 
-// clientLoader ONLY — no bare `loader`. Same reasoning as PaymentPage.jsx:
+// clientLoader ONLY, no bare `loader`. Same reasoning as PaymentPage.jsx:
 // this route is deliberately excluded from react-router.config.ts's
 // prerender() (session-gated/write-heavy), so a `loader` export would trip
 // react-router's ssr:false validation.
@@ -41,6 +41,13 @@ clientLoader.hydrate = true
 
 export function HydrateFallback() {
   return <main className="min-h-screen bg-white" />
+}
+
+// Tells Navbar what this page renders first (see Navbar.jsx's
+// useRouteNavOverlay). Must match the render gate below: enabled, then
+// ai_demo_text.
+export const handle = {
+  navOverlayHtml: ({ config }) => (isNavEnabled(config, 'ai_demo') ? config?.ai_demo_text || null : null),
 }
 
 export function meta({ data }) {

@@ -1,9 +1,9 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
-import { Link, useLocation } from 'react-router'
+import { Link, useLocation, useMatches } from 'react-router'
 import { Search } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
-import { useNavOverlay } from '../context/NavOverlayContext'
+import { startsWithOverlayHeader } from '../utils/headerLayout'
 import SignInRequiredModal from './SignInRequiredModal'
 import SearchModal from './SearchModal'
 import OverflowNav from './OverflowNav'
@@ -20,7 +20,7 @@ function navItemClass(active, transparent) {
   // whitespace-nowrap + flex-shrink-0: a flex item's default min-width:auto
   // otherwise lets the browser wrap/shrink a multi-word label (e.g. "AI
   // Demos") below its measured natural width once OverflowNav.jsx's row
-  // gets tight — the JS width calculation there is what should decide
+  // gets tight, the JS width calculation there is what should decide
   // whether an item fits, not the browser wrapping text as a fallback. If
   // it truly doesn't fit, this makes the row overflow (clipped by
   // OverflowNav's own overflow-hidden) instead of visibly wrapping.
@@ -43,29 +43,60 @@ function SearchButton({ className = '', transparent = false }) {
   )
 }
 
+// Whether the current page starts with a header that the navbar should
+// overlay transparently (full, split, fullscreen, linear, linear-split; see
+// utils/headerLayout.js). Each page route that renders admin-edited content
+// exports `handle.navOverlayHtml({ config, data })`, returning the HTML it
+// will actually render at the top of the page (or null when it renders
+// something else, e.g. a disabled page's 404 or a docs page). Deciding this
+// during render, from the same config and loader data the page itself
+// renders from, means the server-rendered/prerendered HTML already has the
+// navbar fixed and transparent: no layout shift on hydrate, and the
+// browser's scroll restore on reload lines up with the hydrated page.
+function useRouteNavOverlay(config) {
+  const matches = useMatches()
+  const leaf = matches[matches.length - 1]
+  const getHtml = leaf?.handle?.navOverlayHtml
+  if (typeof getHtml !== 'function') return false
+  return startsWithOverlayHeader(getHtml({ config, data: leaf.data }))
+}
+
 export default function Navbar() {
   const { config } = useSiteConfig()
+  const overlay = useRouteNavOverlay(config)
   const [menuOpen, setMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [showSignInModal, setShowSignInModal] = useState(false)
   const [scrolled, setScrolled] = useState(false)
-  const [borderVisible, setBorderVisible] = useState(true)
+  // Starts hidden on an overlay page so the prerendered HTML doesn't paint a
+  // gray rule under the transparent navbar before the effects below run.
+  const [borderVisible, setBorderVisible] = useState(!overlay)
   const userMenuRef = useRef(null)
   const headerRef = useRef(null)
   const justNavigatedRef = useRef(true)
   const location = useLocation()
   const { user, logout } = useUserAuth()
-  const { overlay } = useNavOverlay() ?? {}
   // menuOpen forces the navbar solid even before scrolling: the mobile menu panel doesn't
   // cover the navbar itself (intentional), so a still-transparent bar would let a
   // fullscreen/split/full-width header show through behind the open menu's nav links.
   const transparent = !!overlay && !scrolled && !menuOpen
 
-  // Fullscreen-header pages (see useFullscreenHeaderNav) want the navbar to
-  // overlay transparently on top of the header — white text, no background
-  // — so the header gets the whole viewport for its cinematic effect, then
+  // The prerendered HTML can't know the scroll position, so it always ships
+  // the top-of-page (transparent) navbar. Until hydration takes over, the
+  // `navbar-prehydrate` class lets CSS alone turn it solid once the page is
+  // scrolled (a scroll-driven animation, see index.css): a reload partway
+  // down, or a visitor without JavaScript, would otherwise get white navbar
+  // text over the page body. Server and first client render both include
+  // the class (so hydration matches); this effect drops it in the same
+  // effect flush where the scroll listener below sets `scrolled`.
+  const [hydrated, setHydrated] = useState(false)
+  useEffect(() => { setHydrated(true) }, [])
+
+  // Fullscreen-header pages (see useRouteNavOverlay above) want the navbar to
+  // overlay transparently on top of the header (white text, no background)
+  // so the header gets the whole viewport for its cinematic effect, then
   // flip to the normal solid navbar as soon as the user scrolls even a
-  // little. A plain boolean threshold (not a scroll-linked drag) — the
+  // little. A plain boolean threshold (not a scroll-linked drag), the
   // color/background transition is handled by `transition-colors` in the
   // className below, not by JS.
   useEffect(() => {
@@ -76,19 +107,19 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [overlay])
 
-  // `overlay` flips whenever the route changes (a new page mounts/unmounts
-  // its FullscreenHeaderNav), and each time it does, the header's (and its
+  // `overlay` flips whenever the route changes to a page with a different
+  // leading header, and each time it does, the header's (and its
   // nav links'/buttons') colors should snap straight to the new page's
   // top-of-page state instead of visibly crossfading from the previous
-  // page's — there's nothing to transition FROM, it's a different page.
+  // page's, there's nothing to transition FROM, it's a different page.
   // `.navbar-no-transition *` (index.css) kills every transition in the
   // subtree; toggling it via direct DOM writes in a layout effect (not
   // React state) makes the disable land in the very same paint as the
-  // color change — a state-driven version of this raced the paint (still
+  // color change, a state-driven version of this raced the paint (still
   // showed a ~100ms fade) because the state update needed its own extra
   // render before the class actually landed in the DOM. The forced reflow
   // (`offsetHeight` read) is required so the browser commits the
-  // "transitions off" style before re-enabling them on the next frame —
+  // "transitions off" style before re-enabling them on the next frame,
   // without it the two writes can get batched into one style
   // recalculation and the disable never visibly takes effect.
   useLayoutEffect(() => {
@@ -98,7 +129,7 @@ export default function Navbar() {
     void el.offsetHeight
     const raf = requestAnimationFrame(() => el.classList.remove('navbar-no-transition'))
     // Also snap the border straight to its correct state here, before
-    // paint — see the effect below for why the border's reveal (but not
+    // paint, see the effect below for why the border's reveal (but not
     // its hide) is otherwise delayed to match the background's fade.
     // Landing on a page is not a "reveal", there's nothing to delay for.
     justNavigatedRef.current = true
@@ -109,7 +140,7 @@ export default function Navbar() {
 
   // Opening/closing the mobile menu should snap the navbar's color instantly (white while
   // the menu's open, since its panel doesn't cover the navbar itself), not play the same
-  // 300ms fade used for the scroll-driven transparent-to-white flip — same
+  // 300ms fade used for the scroll-driven transparent-to-white flip, same
   // disable-transition-then-force-reflow trick as the route-change effect above, and same
   // justNavigatedRef trick to make the border snap instead of its normal delayed reveal.
   useLayoutEffect(() => {
@@ -124,8 +155,8 @@ export default function Navbar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [menuOpen])
 
-  // The border has no in-between visual state the way a color fade does —
-  // it's either there or not — so animating it in sync with the
+  // The border has no in-between visual state the way a color fade does,
+  // it's either there or not, so animating it in sync with the
   // background's 300ms fade reads as lagging behind (a hairline's alpha
   // ramp is far less perceptible than a full-bleed fill's identical ramp).
   // Snapping it instantly fixes that for the disappear direction, but for
@@ -168,7 +199,7 @@ export default function Navbar() {
     }
   }, [config?.favicon_filename])
 
-  // Ghost-style freeform {label, url} pairs — replaces the old fixed
+  // Ghost-style freeform {label, url} pairs, replaces the old fixed
   // 7-page-key nav_order/*_enabled system entirely (that system, and the
   // `config.nav` field it fed, are gone). No `enabled` filter needed: every
   // entry here is meant to render, unlike the old system's per-page toggle.
@@ -181,7 +212,9 @@ export default function Navbar() {
       ref={headerRef}
       className={`z-50 border-b transition-[background-color] duration-300 ${
         overlay ? 'fixed top-0 left-0 right-0' : 'sticky top-0'
-      } ${transparent ? 'bg-transparent' : 'bg-white'} ${borderVisible ? 'border-gray-200' : 'border-transparent'}`}
+      } ${transparent ? 'bg-transparent' : 'bg-white'} ${borderVisible ? 'border-gray-200' : 'border-transparent'}${
+        transparent && !hydrated ? ' navbar-prehydrate' : ''
+      }`}
     >
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Site title / logo */}
@@ -191,7 +224,7 @@ export default function Navbar() {
             transparent ? 'text-white hover:text-white/80' : 'text-gray-900 hover:text-gray-700'
           }`
           // Same internal-vs-external check as the nav links (see
-          // OverflowNav.jsx's isInternalPath) — site_title_link is a freely
+          // OverflowNav.jsx's isInternalPath), site_title_link is a freely
           // typed field with no format restriction, so it needs the same
           // plain-<a>-for-external-URLs treatment or an external value
           // would get swallowed into a broken in-app <Link> navigation.
@@ -300,7 +333,7 @@ export default function Navbar() {
           const className = `text-2xl font-semibold -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
             location.pathname === link.url ? 'text-gray-900' : 'text-gray-500'
           }`
-          // Internal site pages always use root-relative paths — anything
+          // Internal site pages always use root-relative paths, anything
           // else an admin types into Site Navigation is treated as an
           // external URL (see OverflowNav.jsx's isInternalPath for the
           // desktop-nav equivalent of this same check).

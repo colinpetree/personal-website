@@ -33,7 +33,7 @@ function BlogListSkeleton() {
 
 // fetchSiteConfig() runs alongside the post fetch purely to populate
 // getCachedSiteConfig()'s cache in time for meta() below (see its usage
-// there for why) — its resolved value isn't otherwise part of this route's
+// there for why), its resolved value isn't otherwise part of this route's
 // own data (the component reads config from context, not this).
 async function fetchFirstPage() {
   const [postsRes, categoriesRes] = await Promise.all([
@@ -46,14 +46,14 @@ async function fetchFirstPage() {
   return posts
 }
 
-// Prerendered at build time, page 1 only — pagination beyond that stays a
+// Prerendered at build time, page 1 only, pagination beyond that stays a
 // plain client-side fetch (see the effect below), matching the prerender
 // scope in react-router.config.ts.
 export async function loader() {
   return fetchFirstPage()
 }
 
-// Required in addition to loader — under ssr:false, loader only runs for
+// Required in addition to loader, under ssr:false, loader only runs for
 // prerendered paths (no server exists to run it otherwise, and no .data
 // file exists for an unprerendered route). clientLoader.hydrate=true makes
 // this run in-browser on the very first hard load too, covering both the
@@ -65,7 +65,7 @@ export async function clientLoader() {
 clientLoader.hydrate = true
 
 // data.config would be the natural source here, but this route's component
-// also calls useLoaderData() — confirmed that combination makes meta()'s
+// also calls useLoaderData(), confirmed that combination makes meta()'s
 // `data` param unreliable at prerender time (see getCachedSiteConfig in
 // apiFetch.js). Read the synchronous cache instead.
 //
@@ -73,19 +73,26 @@ clientLoader.hydrate = true
 // after the prerender-time fix in react-router.config.ts: react-router calls
 // this route's meta() synchronously on the very first hydrate pass BEFORE
 // clientLoader.hydrate's own fetchSiteConfig() call has resolved (confirmed
-// by direct instrumentation — the same race, just client-side too).
+// by direct instrumentation, the same race, just client-side too).
 // hydrateRoot(document, ...) hydrates the whole document with no per-field
 // isolation, so ANY value that differs between this null-config pass and the
 // already-resolved server output (title/site info always resolved by
-// prerender time) throws hydration for the entire page — even a plain text
+// prerender time) throws hydration for the entire page, even a plain text
 // mismatch on an otherwise-matching tag, not just a missing/extra one
 // (confirmed empirically: fixing only the STRUCTURE, e.g. always including
 // `title` with a hardcoded placeholder, still failed with "Text content did
 // not match. Server: 'Blog - John Smith' Client: 'Blog'"). Falling back to
 // domFallbackTitle()/domFallbackMetaContent() instead of a placeholder reads
 // whatever the browser's own parser already put in the DOM from the
-// server's HTML — guaranteed to equal the server's exact value with zero
+// server's HTML, guaranteed to equal the server's exact value with zero
 // network wait, not just a same-shaped guess.
+// Tells Navbar what this page renders first (see Navbar.jsx's
+// useRouteNavOverlay). Must match the render gate below: enabled, then
+// blog_text.
+export const handle = {
+  navOverlayHtml: ({ config }) => (isNavEnabled(config, 'blog') ? config?.blog_text || null : null),
+}
+
 export function meta() {
   const config = getCachedSiteConfig()
   // No config yet: copy the prerendered head as-is. isNavEnabled(null)
@@ -117,12 +124,12 @@ export default function BlogPage() {
   useTrackPageView('page', enabled ? 'blog' : null)
 
   // Same fix as BlogPostPage.jsx: `data` is only seeded from useLoaderData()
-  // on first mount via useState(initialData) — if this route's loader ever
+  // on first mount via useState(initialData), if this route's loader ever
   // reruns while the component stays mounted (a future revalidation; this
   // route has no dynamic param so it can't happen via navigation the way
   // BlogPostPage's slug change can), the fresh page-1 data would otherwise
   // be silently ignored. Also resets to page 1, since the loader always
-  // fetches page 1 only — staying on a later page after a resync would show
+  // fetches page 1 only, staying on a later page after a resync would show
   // page-1 posts under a "Page 2 of N" pager.
   useEffect(() => {
     setData(initialData)
@@ -131,7 +138,7 @@ export default function BlogPage() {
   }, [initialData])
 
   useEffect(() => {
-    // Page 1 (with no category filter) already came from the loader — only
+    // Page 1 (with no category filter) already came from the loader, only
     // fetch client-side when the user navigates to another page or selects
     // a category, either of which lands here since both are effect deps.
     if (isFirstRender.current) {
@@ -147,7 +154,7 @@ export default function BlogPage() {
       .then(d => { setData(prev => ({ ...d, categories: prev.categories })); setLoading(false) })
       .catch(err => { if (err.name !== 'AbortError') setLoading(false) })
     // Aborts a still-in-flight request if page/activeCategory changes again
-    // before it resolves — without this, two overlapping requests (e.g. a
+    // before it resolves, without this, two overlapping requests (e.g. a
     // page click immediately followed by a category click) could resolve out
     // of order and leave stale posts on screen.
     return () => controller.abort()
