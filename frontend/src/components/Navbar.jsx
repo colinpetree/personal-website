@@ -323,7 +323,7 @@ export default function Navbar() {
           tab order / a11y tree until opened. md:hidden already makes it display:none at
           desktop widths regardless. */}
       <nav
-        inert={menuOpen ? undefined : ''}
+        inert={!menuOpen}
         aria-hidden={!menuOpen}
         className={`md:hidden fixed inset-x-0 top-16 bottom-0 z-40 bg-white overflow-y-auto px-6 pt-2 pb-8 flex-col gap-1 ${
           menuOpen ? 'flex' : 'hidden'

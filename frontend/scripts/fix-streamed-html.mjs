@@ -5,23 +5,29 @@
 // response (root loader + route loader each resolve as a separate chunk,
 // e.g. boundary "B:0" then "B:1") and writes the raw streamed bytes straight
 // to a static .html file. The first chunk already contains a complete
-// `</body></html>`; every later chunk — the deferred loaderData transfer
+// `</body></html>`; every later chunk - the deferred loaderData transfer
 // scripts, the `<!--$?-->`/`<template>`/`<!--/$-->` Suspense-boundary
-// markers, and the `$RC(...)` reveal calls — gets appended straight after
+// markers, and the `$RC(...)` reveal calls - gets appended straight after
 // that closing tag instead of before it.
 //
 // That's invalid HTML: content after `</html>` sends the parser through its
 // error-recovery path, and empirically (reproduced on test633.org, in both
 // real Edge and headless Chromium) this leaves a stray, VISIBLE "$" text
-// node as the very first child of <body> — the first boundary's `<!--$?-->`
+// node as the very first child of <body> - the first boundary's `<!--$?-->`
 // marker, which is supposed to stay an invisible comment the whole time,
 // instead surfaces as a literal rendered "$" glyph pinned to the top-left
 // corner of every page.
 //
 // Fix: every one of these files has exactly one `</body></html>` pair,
-// positioned too early — move it to the true end of the file so all the
+// positioned too early - move it to the true end of the file so all the
 // deferred content it was supposed to wrap ends up inside <body> like it
 // would in a real (non-static) streaming response.
+//
+// React 19 note: React 19's stream writer already holds `</body></html>`
+// back until the very end, so with react-dom 19.3.1 this script finds every
+// file already correct and repositions 0 of them. It stays as a safety net
+// (it still throws on an unexpected shape) in case a future React or React
+// Router version goes back to closing the document early.
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -50,9 +56,9 @@ for (const file of files) {
 
   const idx = html.indexOf(CLOSE_TAGS)
   if (idx === -1) {
-    throw new Error(`${file}: no "${CLOSE_TAGS}" found — unexpected HTML shape, refusing to guess.`)
+    throw new Error(`${file}: no "${CLOSE_TAGS}" found - unexpected HTML shape, refusing to guess.`)
   }
-  // Already at (or right at) the true end — nothing to move.
+  // Already at (or right at) the true end - nothing to move.
   if (idx === html.length - CLOSE_TAGS.length) continue
 
   const before = html.slice(0, idx)
@@ -64,7 +70,7 @@ for (const file of files) {
   // the pre-fix content during `react-router build`. Regenerate them here
   // (same settings: gzip level 9, brotli quality 11) rather than leaving
   // that to inject-csp-hashes.mjs, which only rewrites .gz/.br for pages
-  // where it recognizes every inline script — if it ever hits a page it
+  // where it recognizes every inline script - if it ever hits a page it
   // doesn't recognize and warns instead of writing, this fix's own .gz/.br
   // must not be left stale (still pointing at the pre-fix, broken markup)
   // as a result of that unrelated script's own escape hatch.
