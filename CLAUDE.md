@@ -40,14 +40,14 @@ npm run build                # Outputs to frontend/dist/
 
 ### Backend
 
-**App factory** (`backend/app.py`) — Creates Flask app, registers 25 blueprints (23 unconditional + 2 gated behind `ENABLE_AI_DEMOS`), configures SQLAlchemy, LoginManager, CORS, and creates all tables on startup.
+**App factory** (`backend/app.py`) — Creates Flask app, registers 27 blueprints (25 unconditional + 2 gated behind `ENABLE_AI_DEMOS`), configures SQLAlchemy, LoginManager, CORS, and creates all tables on startup.
 
 **Extensions** (`backend/extensions.py`) — Shared `db` (SQLAlchemy) and `login_manager` instances, imported everywhere.
 
 **Encryption** (`backend/crypto.py`) — Fernet symmetric encryption for sensitive DB fields (Mailgun API key, Stripe secret/webhook keys, Google OAuth client secret). Requires `ENCRYPTION_KEY` env var.
 
 **Route modules** (`backend/routes/`):
-- Public: `profile.py`, `site_config.py`, `projects.py`, `blog.py`, `pages.py`, `public_resolve.py` (unified slug resolution across blog posts and freeform Pages), `contact.py`, `uploads.py`, `auth.py`, `user.py`, `payment.py`, `search.py`, `analytics_tracking.py`, `ai_demo.py` (gated)
+- Public: `profile.py`, `site_config.py`, `projects.py`, `blog.py`, `pages.py`, `public_resolve.py` (unified slug resolution across blog posts and freeform Pages), `contact.py`, `uploads.py`, `auth.py`, `user.py`, `payment.py`, `search.py`, `analytics_tracking.py`, `seo.py` (`/robots.txt` and `/sitemap.xml`, generated from published content), `ai_demo.py` (gated)
 - Admin (require session + role): `admin_auth.py`, `admin_config.py`, `admin_accounts.py`, `admin_projects.py`, `admin_blog.py`, `admin_blog_categories.py`, `admin_pages.py`, `admin_users.py`, `admin_history.py`, `admin_analytics.py`, `admin_ai_demo_links.py` (gated)
 
 Admin endpoints use `@admin_required` or `@role_required()` decorators. Role hierarchy: `contributor < editor < administrator < owner`.

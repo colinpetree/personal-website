@@ -12,26 +12,31 @@ site_config_bp = Blueprint('site_config', __name__)
 logger = logging.getLogger(__name__)
 
 
-@site_config_bp.route('/api/site-config')
-def get_site_config():
-    config = SiteConfig.query.first()
-    if not config:
-        return jsonify({'error': 'Site not configured'}), 404
-
-    # Whether each fixed page is enabled — drives both the page_content
-    # gating below and the public `nav` field's `enabled` flags (read by
-    # frontend/src/utils/meta.js's isNavEnabled() to 404/noindex a disabled
-    # page). `home` is never gated (see the page_content comment below) and
-    # `about` is gone entirely: About is a regular `Page` row now (see
-    # backend/app.py's one-time About->Page migration), not a fixed
-    # SiteConfig-backed page, so it has no enabled/disabled toggle here.
-    enabled = {
+def fixed_pages_enabled(config):
+    """Whether each fixed page is enabled. Drives the page_content gating in
+    get_site_config, the public `nav` field's `enabled` flags (read by
+    frontend/src/utils/meta.js's isNavEnabled() to 404/noindex a disabled
+    page), and which fixed pages /sitemap.xml lists (routes/seo.py). `home`
+    is never gated (see the page_content comment in get_site_config) and
+    `about` is gone entirely: About is a regular `Page` row now (see
+    backend/app.py's one-time About->Page migration), not a fixed
+    SiteConfig-backed page, so it has no enabled/disabled toggle here."""
+    return {
         'blog': config.blog_enabled,
         'projects': config.projects_enabled,
         'contact': config.contact_enabled and bool(config.mailgun_api_key and config.mailgun_domain),
         'ai_demo': config.ai_demo_enabled and current_app.config['ENABLE_AI_DEMOS'],
         'payment': config.payment_enabled and bool(config.stripe_publishable_key),
     }
+
+
+@site_config_bp.route('/api/site-config')
+def get_site_config():
+    config = SiteConfig.query.first()
+    if not config:
+        return jsonify({'error': 'Site not configured'}), 404
+
+    enabled = fixed_pages_enabled(config)
     names = {
         'blog': config.blog_page_name,
         'projects': config.projects_page_name,

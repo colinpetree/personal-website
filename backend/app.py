@@ -94,6 +94,7 @@ def create_app():
     from routes.search import search_bp
     from routes.analytics_tracking import analytics_tracking_bp
     from routes.admin_analytics import admin_analytics_bp
+    from routes.seo import seo_bp
     app.register_blueprint(profile_bp)
     app.register_blueprint(site_config_bp)
     app.register_blueprint(projects_bp)
@@ -118,6 +119,7 @@ def create_app():
     app.register_blueprint(search_bp)
     app.register_blueprint(analytics_tracking_bp)
     app.register_blueprint(admin_analytics_bp)
+    app.register_blueprint(seo_bp)
 
     if app.config['ENABLE_AI_DEMOS']:
         from routes.ai_demo import ai_demo_bp
