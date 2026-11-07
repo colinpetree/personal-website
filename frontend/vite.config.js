@@ -4,7 +4,7 @@ import zlib from 'node:zlib'
 import { compression } from 'vite-plugin-compression2'
 
 // @vitejs/plugin-react is deliberately NOT included alongside reactRouter()
-// — reactRouter() already handles JSX/Fast Refresh itself. Running both
+// - reactRouter() already handles JSX/Fast Refresh itself. Running both
 // together builds fine but breaks `react-router dev`'s HMR outright
 // ("Identifier 'RefreshRuntime' has already been declared", confirmed by
 // actually running the dev server) since both inject the refresh preamble.
@@ -14,7 +14,7 @@ export default defineConfig({
     // Precompress build output at build time (runs on the Pi build box, not
     // production) so nginx's gzip_static/brotli_static can serve these
     // siblings with zero runtime CPU cost on the small ARM production box.
-    // Originals are always kept (deleteOriginalAssets: false) — nginx falls
+    // Originals are always kept (deleteOriginalAssets: false) - nginx falls
     // back to them for clients that don't advertise gzip/br support.
     compression({
       algorithm: 'gzip',
@@ -31,6 +31,16 @@ export default defineConfig({
       deleteOriginalAssets: false,
     }),
   ],
+  // emoji-mart has no package.json "exports" map, so Node's prerender pass
+  // resolves its CommonJS "main" build, where `import { Picker }` isn't
+  // detectable as a named export and the build fails. Bundling it into the
+  // server build makes Vite use its ESM "module" build instead (the same one
+  // the browser bundle already uses). Only affects prerendering; the client
+  // bundle is unchanged. Safe to load in Node: emoji-mart guards its
+  // HTMLElement subclass behind a `typeof window` check.
+  ssr: {
+    noExternal: ['emoji-mart'],
+  },
   server: {
     proxy: {
       '/api': 'http://localhost:5000',

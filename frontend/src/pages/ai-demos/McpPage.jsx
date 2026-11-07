@@ -16,7 +16,7 @@ const DEMO_KEY = 'mcp'
 const DEMO_TITLE = 'Model Context Protocol (MCP)'
 
 // Minimal markdown -> React renderer (headings, bold/italic/inline code, lists,
-// paragraphs) — enough to render Claude's typical formatting without a new dependency.
+// paragraphs) - enough to render Claude's typical formatting without a new dependency.
 function renderInline(text) {
   const parts = []
   const regex = /(\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/g
@@ -134,7 +134,7 @@ function MarkdownText({ text }) {
 }
 
 // The backend only needs plain {role, content} turns to keep the conversation going
-// across requests — tool_call/tool_result blocks are a display-only concern, replayed
+// across requests - tool_call/tool_result blocks are a display-only concern, replayed
 // fresh by the backend's own tool loop within a single request, not sent back by the client.
 function toApiMessage(m) {
   if (m.role === 'user') return { role: 'user', content: m.content }
@@ -222,7 +222,7 @@ export default function McpPage() {
     if (!isNavEnabled(config, 'ai_demo')) {
       setNotFoundDocumentHead(config)
       // Cleared on unmount (client-side nav away), not just on the next
-      // render here — this tag is a raw DOM mutation outside React's own
+      // render here - this tag is a raw DOM mutation outside React's own
       // meta rendering, so nothing else in the app knows to remove it. Left
       // in place, it would silently noindex whatever page the visitor lands
       // on next, even a fully enabled one with no robots tag of its own.
@@ -235,7 +235,7 @@ export default function McpPage() {
   }, [config])
 
   // Tools are fetched live from GitHub's remote MCP server (rather than hardcoded like
-  // the Tool use demo) — only once signed in AND granted access, since this endpoint is
+  // the Tool use demo) - only once signed in AND granted access, since this endpoint is
   // both @user_required and @ai_demo_access_required. Skipping the fetch entirely when
   // !hasAccess (rather than letting it 403) keeps `tools` at its initial `null` so the
   // panel can tell "access required" apart from "no tools" below.
@@ -579,7 +579,7 @@ export default function McpPage() {
 
       {/* Info panel */}
       <div
-        inert={panelOpen || isDesktop ? undefined : ''}
+        inert={!(panelOpen || isDesktop)}
         aria-hidden={!panelOpen && !isDesktop}
         className={`order-1 absolute lg:static inset-y-0 left-0 z-30 lg:z-auto w-72 max-w-[85%] lg:w-80 flex-shrink-0 min-h-0 border-r border-gray-200 overflow-y-auto px-6 py-6 bg-white shadow-xl lg:shadow-none transform transition-transform duration-300 ease-in-out ${panelOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}
       >

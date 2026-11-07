@@ -3,7 +3,7 @@
 // React Router's ssr:false hydration protocol emits a handful of inline
 // <script> tags on EVERY generated page (window.__reactRouterContext's
 // bootstrap, the module-registration script, and one
-// streamController.enqueue()/close() call per loader-data chunk) — without
+// streamController.enqueue()/close() call per loader-data chunk) - without
 // them the page never hydrates. The site's CSP forbids inline script
 // execution outright (see deploy/nginx/personal-website.conf: it's a
 // stored-XSS backstop for admin-authored blog content), which made every
@@ -16,7 +16,7 @@
 // and inject a per-page <meta http-equiv="Content-Security-Policy"> tag
 // listing those hashes. When a page is protected by multiple delivered CSP
 // policies (an HTTP header AND a meta tag), browsers enforce the
-// INTERSECTION of both for any directive present in either — so if nginx's
+// INTERSECTION of both for any directive present in either - so if nginx's
 // header still declared its own script-src (even a permissive one lacking
 // these hashes), it would keep blocking these scripts regardless of what
 // this meta tag allows. That's why the nginx config's Content-Security-Policy
@@ -34,7 +34,7 @@ import zlib from 'node:zlib'
 const BUILD_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'build', 'client')
 
 // Every other directive from deploy/nginx/personal-website.conf's CSP,
-// unchanged — only script-src moves here with page-specific hashes added,
+// unchanged - only script-src moves here with page-specific hashes added,
 // since these directives have nothing to do with the inline-script problem
 // and don't need per-page computation.
 const CSP_STATIC_DIRECTIVES = [
@@ -53,74 +53,91 @@ const CSP_STATIC_DIRECTIVES = [
 
 // Deliberately excludes any <script src="...">: those already satisfy
 // 'self' via the ordinary script-src host-source rule and need no hash.
-// Requires a real attribute boundary (whitespace) right before "src=" —
-// NOT a bare word boundary — so a hypothetical future attribute like
+// Requires a real attribute boundary (whitespace) right before "src=" -
+// NOT a bare word boundary - so a hypothetical future attribute like
 // "data-src=" (word boundary exists between "-" and "s" too) doesn't get
 // misread as a real src and wrongly skipped.
 const INLINE_SCRIPT_RE = /<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/gi
 
-// Only these exact shapes are trusted enough to hash-allowlist — NOT "any
+// Only these exact shapes are trusted enough to hash-allowlist - NOT "any
 // inline <script> found anywhere in the file", and NOT a mere prefix check
 // either. Prerendered pages also embed admin-authored blog content in the
 // same HTML (BlogPostPage.jsx renders content_html via
 // dangerouslySetInnerHTML, after backend/sanitize_html.py's server-side
-// sanitization strips script-capable markup) — if a raw <script> tag ever
+// sanitization strips script-capable markup) - if a raw <script> tag ever
 // slipped past that sanitizer, whoever controls its content also controls
 // EVERY character of it.
 //
 // An earlier version of this file tried to validate the two variable-length
 // scripts (the context bootstrap and the module-registration script) with a
-// single regex using an unconstrained `[\s\S]*`/`[^{}]*` middle — anchored
+// single regex using an unconstrained `[\s\S]*`/`[^{}]*` middle - anchored
 // at both ends, but a wildcard is still a wildcard: a payload could satisfy
 // the literal start/end text while smuggling an executable expression
 // through the middle (confirmed by actually constructing and testing such
-// payloads against those regexes — both matched). Fixed below by validating
+// payloads against those regexes - both matched). Fixed below by validating
 // each variable region against what it's STRUCTURALLY supposed to contain,
 // not just "some characters": the bootstrap's middle is build-emitted JSON
-// (so JSON.parse must fully consume it — JSON syntax has no function calls,
+// (so JSON.parse must fully consume it - JSON syntax has no function calls,
 // no arbitrary identifiers, nothing executable, so there is no expression
 // to smuggle), and the registration script's route-modules object may only
 // contain comma-separated `"key":routeN` entries (a bare `route<digits>`
-// identifier reference — not an arbitrary expression — so no parens/
+// identifier reference - not an arbitrary expression - so no parens/
 // operators/fetch calls fit there either).
 //
 // What these still do NOT protect against: the loaderData JSON string
 // literal inside the enqueue(...) call (isStreamEnqueue below) can itself
 // contain attacker-controlled bytes (e.g. an unsanitized field value) if
-// React Router's OWN string-escaping of that payload were ever broken —
+// React Router's OWN string-escaping of that payload were ever broken -
 // that's a framework-level escaping guarantee this build step relies on but
 // can't independently verify, not something checked here.
 
 const STREAM_ENQUEUE_RE = /^window\.__reactRouterContext\.streamController\.enqueue\("(?:[^"\\]|\\.)*"\);$/
 const STREAM_CLOSE_RE = /^window\.__reactRouterContext\.streamController\.close\(\);$/
 
-// React DOM's own Suspense "complete boundary" reveal script — emitted by
+// React DOM's own Suspense "complete boundary" reveal script - emitted by
 // renderToPipeableStream whenever a Suspense boundary in the tree resolves
 // after the initial render pass. React Router's <ServerRouter> always wraps
 // its single-fetch loader-data transfer (the enqueue()/close() calls above)
 // in a <Suspense>, and reading that data is inherently async, so this script
 // accompanies them on every prerendered page. Its function body is a fixed
 // string baked into react-dom's own source (react-dom/cjs/react-dom-server.
-// node.development.js: `completeBoundaryFunction`/`completeBoundaryScript1Full`)
-// — not attacker-influenced content — so it's trusted the same way the other
+// node.{development,production}.js: `completeBoundaryScriptFunctionOnly`),
+// not attacker-influenced content, so it's trusted the same way the other
 // patterns here are. React sends the full function definition once per page
-// and bare `$RC("id","id")` calls for any additional boundaries.
-const COMPLETE_BOUNDARY_FUNCTION = 'function $RC(a,b){a=document.getElementById(a);b=document.getElementById(b);b.parentNode.removeChild(b);if(a){a=a.previousSibling;var f=a.parentNode,c=a.nextSibling,e=0;do{if(c&&8===c.nodeType){var d=c.data;if("/$"===d)if(0===e)break;else e--;else"$"!==d&&"$?"!==d&&"$!"!==d||e++}d=c.nextSibling;f.removeChild(c);c=d}while(c);for(;b.firstChild;)f.insertBefore(b.firstChild,c);a.data="$";a._reactRetry&&a._reactRetry()}}'
-// Boundary/segment IDs are React-internal, e.g. "B:0"/"S:1a" — a bounded
+// (immediately followed by the first `$RC("id","id")` call) and bare
+// `$RC("id","id")` calls for any additional boundaries.
+//
+// PINNED TO react-dom 19.3.1 (package.json pins react/react-dom exactly for
+// this reason). React 19 replaced React 18's single `function $RC(...)` with
+// this batched form ($RB queue, $RV reveal, $RC enqueue). Any react-dom bump
+// that changes it makes this build fail loudly below; when that happens, copy
+// the new string from the file named above (it must match the dev and prod
+// builds) rather than loosening the check. React's other runtime scripts
+// ($RS segments, $RX client-render errors, $RR style-aware reveal, the
+// view-transition $RV) are not emitted by this site today and are left
+// unrecognized on purpose, so they would also stop the build for review.
+const COMPLETE_BOUNDARY_FUNCTION = '$RB=[];$RV=function(a){$RT=performance.now();for(var b=0;b<a.length;b+=2){var c=a[b],e=a[b+1];null!==e.parentNode&&e.parentNode.removeChild(e);var f=c.parentNode;if(f){var g=c.previousSibling,h=0;do{if(c&&8===c.nodeType){var d=c.data;if("/$"===d||"/&"===d)if(0===h)break;else h--;else"$"!==d&&"$?"!==d&&"$~"!==d&&"$!"!==d&&"&"!==d||h++}d=c.nextSibling;f.removeChild(c);c=d}while(c);for(;e.firstChild;)f.insertBefore(e.firstChild,c);g.data="$";g._reactRetry&&requestAnimationFrame(g._reactRetry)}}a.length=0};\n$RC=function(a,b){if(b=document.getElementById(b))(a=document.getElementById(a))?(a.previousSibling.data="$~",$RB.push(a,b),2===$RB.length&&("number"!==typeof $RT?requestAnimationFrame($RV.bind(null,$RB)):(a=performance.now(),setTimeout($RV.bind(null,$RB),2300>a&&2E3<a?2300-a:$RT+300-a)))):b.parentNode.removeChild(b)};'
+// Boundary/segment IDs are React-internal, e.g. "B:0"/"S:1a" - a bounded
 // charset rather than a wildcard, same reasoning as ROUTE_ENTRY above.
 const BOUNDARY_ID = '[A-Za-z0-9_:-]+'
 const COMPLETE_BOUNDARY_CALL_RE = new RegExp(`^\\$RC\\("${BOUNDARY_ID}","${BOUNDARY_ID}"\\)$`)
 const COMPLETE_BOUNDARY_FULL_RE = new RegExp(
-  `^${COMPLETE_BOUNDARY_FUNCTION.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')};\\$RC\\("${BOUNDARY_ID}","${BOUNDARY_ID}"\\)$`
+  `^${COMPLETE_BOUNDARY_FUNCTION.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\$RC\\("${BOUNDARY_ID}","${BOUNDARY_ID}"\\)$`
 )
 
+// React 19's "shell time" marker, emitted once per page as
+// <script id="_R_">: records when the shell first painted so the reveal
+// function above can batch Suspense reveals around it. A fixed string from
+// the same react-dom file (`shellTimeRuntimeScript`), matched exactly.
+const SHELL_TIME_SCRIPT = 'requestAnimationFrame(function(){$RT=performance.now()});'
+
 // React Router's own <ScrollRestoration> bootstrap script (src/root.jsx
-// renders it unconditionally, so it's on every prerendered page) — a fixed
+// renders it unconditionally, so it's on every prerendered page) - a fixed
 // function body baked into react-router's own source (restoreScroll in
 // react-router/dist/.../chunk-*.mjs's ScrollRestoration()), not
 // attacker-influenced, trusted the same way COMPLETE_BOUNDARY_FUNCTION above
 // is. Only the two call arguments (the storage key and an optional per-page
-// restore key) vary per page, so — same approach as isContextBootstrap —
+// restore key) vary per page, so - same approach as isContextBootstrap -
 // they're validated structurally via JSON.parse rather than pinned to fixed
 // values.
 const SCROLL_RESTORATION_FUNCTION = '(storageKey2, restoreKey) => {\n    if (!window.history.state || !window.history.state.key) {\n      let key = Math.random().toString(32).slice(2);\n      window.history.replaceState({ key }, "");\n    }\n    try {\n      let positions = JSON.parse(sessionStorage.getItem(storageKey2) || "{}");\n      let storedY = positions[restoreKey || window.history.state.key];\n      if (typeof storedY === "number") {\n        window.scrollTo(0, storedY);\n      }\n    } catch (error) {\n      console.error(error);\n      sessionStorage.removeItem(storageKey2);\n    }\n  }'
@@ -132,7 +149,7 @@ function isScrollRestoration(trimmed) {
   try {
     // Wrapping in [] and parsing as JSON both confirms there are exactly two
     // comma-separated values AND that they're inert string/null data with no
-    // executable syntax slot — same reasoning as isContextBootstrap.
+    // executable syntax slot - same reasoning as isContextBootstrap.
     const args = JSON.parse(`[${argsPart}]`)
     return (
       Array.isArray(args) &&
@@ -152,7 +169,7 @@ function isContextBootstrap(trimmed) {
   if (!trimmed.startsWith(CONTEXT_PREFIX) || !trimmed.endsWith(CONTEXT_SUFFIX)) return false
   const jsonPart = trimmed.slice(CONTEXT_PREFIX.length, trimmed.length - CONTEXT_SUFFIX.length)
   try {
-    // Must be the ENTIRE remaining content, not a prefix of it — JSON.parse
+    // Must be the ENTIRE remaining content, not a prefix of it - JSON.parse
     // throws on any trailing non-whitespace garbage, which is exactly what
     // rules out "valid JSON followed by more attacker-supplied text".
     JSON.parse(jsonPart)
@@ -163,7 +180,7 @@ function isContextBootstrap(trimmed) {
 }
 
 // One route-modules entry: a JSON-safe quoted key mapped to a bare
-// `route<digits>` identifier — never an arbitrary expression, so there's no
+// `route<digits>` identifier - never an arbitrary expression, so there's no
 // syntax slot here for a function call or operator.
 const ROUTE_ENTRY = '"(?:[^"\\\\]|\\\\.)*":route\\d+'
 const MODULE_REGISTRATION_RE = new RegExp(
@@ -183,6 +200,7 @@ function isFrameworkScript(content) {
     STREAM_CLOSE_RE.test(trimmed) ||
     COMPLETE_BOUNDARY_CALL_RE.test(trimmed) ||
     COMPLETE_BOUNDARY_FULL_RE.test(trimmed) ||
+    trimmed === SHELL_TIME_SCRIPT ||
     isScrollRestoration(trimmed)
   )
 }
@@ -222,26 +240,26 @@ for (const file of files) {
 
   // Fail loudly rather than either silently allowing (hashing it would
   // defeat the whole point) or silently leaving it CSP-blocked (breaks the
-  // page with no visible signal at build time) — either this is a new React
+  // page with no visible signal at build time) - either this is a new React
   // Router internal script pattern that needs a new check added above (see
   // isFrameworkScript), or it's unexpected content that needs a human
   // looking at it before this ships.
   if (unrecognized.length > 0) {
     throw new Error(
       `${file}: found ${unrecognized.length} inline <script> tag(s) not matching ` +
-      `any known React Router bootstrap pattern — refusing to guess. First 200 ` +
+      `any known React Router bootstrap pattern - refusing to guess. First 200 ` +
       `chars: ${JSON.stringify(unrecognized[0].slice(0, 200))}`
     )
   }
 
-  // No inline scripts recognized on this page at all — every page React
+  // No inline scripts recognized on this page at all - every page React
   // Router's ssr:false build emits should have at least the bootstrap
   // scripts, so this is unexpected rather than routine; warn instead of
   // silently moving on, since (with no header-level script-src left either,
   // per deploy/nginx/personal-website.conf) skipping the meta tag here means
   // this page ships with NO script-src restriction whatsoever.
   if (hashes.size === 0) {
-    console.warn(`[inject-csp-hashes] WARNING: ${file} has no recognized inline scripts — shipping with no script-src restriction.`)
+    console.warn(`[inject-csp-hashes] WARNING: ${file} has no recognized inline scripts - shipping with no script-src restriction.`)
     continue
   }
 
@@ -250,11 +268,11 @@ for (const file of files) {
   const metaTag = `<meta http-equiv="Content-Security-Policy" content="${csp.replace(/"/g, '&quot;')}">`
 
   // Must land inside <head>, and CSP via meta only governs content parsed
-  // AFTER the tag — but it must go LAST among <head>'s children, not first
+  // AFTER the tag - but it must go LAST among <head>'s children, not first
   // and not anywhere in the middle. react-router's client entry calls
   // hydrateRoot(document, ...) (the whole document, not a container div),
   // and its <Meta/>/<Links/> components reconcile <head>'s children
-  // POSITIONALLY against React's own tree — confirmed by actually
+  // POSITIONALLY against React's own tree - confirmed by actually
   // reproducing this locally: inserting this tag as <head>'s first child
   // mismatched root.jsx's <meta charSet> (the real first child) against it
   // ("Prop `charSet` did not match. Server: null Client: "UTF-8""); moving
@@ -267,14 +285,14 @@ for (const file of files) {
   // shifting any of those nodes' positions, while still landing well before
   // any actual script content (all in <body>).
   if (!/<\/head>/i.test(html)) {
-    throw new Error(`${file}: no </head> tag found — can't inject CSP meta tag`)
+    throw new Error(`${file}: no </head> tag found - can't inject CSP meta tag`)
   }
   const updated = html.replace(/<\/head>/i, `${metaTag}</head>`)
 
   writeFileSync(file, updated)
 
   // vite.config.js's compression() plugin already wrote .gz/.br siblings for
-  // the pre-injection content during `react-router build` — regenerate them
+  // the pre-injection content during `react-router build` - regenerate them
   // here (same settings: gzip level 9, brotli quality 11) so nginx's
   // gzip_static/brotli_static don't keep serving stale HTML missing this
   // meta tag to any client that prefers a precompressed encoding, which in

@@ -25,13 +25,13 @@ function resolveTextColor(mode, bgHex) {
 // Wraps $generateHtmlFromNodes to restore the real `autoplay` attribute on
 // exported background videos. VideoNode/HeaderNode.exportDOM() never set a
 // real `autoplay` attribute on their (live-document-owned) detached <video>
-// elements — only a harmless `data-export-autoplay` marker — because
+// elements - only a harmless `data-export-autoplay` marker - because
 // `autoplay` + `src` together on such an element is what causes Chrome/
 // Firefox/Brave to start a real, audible native player purely from calling
 // exportDOM() (which runs on every editor.update(), i.e. every keystroke or
 // panel click). Swapping the marker for the real attribute here, on the
 // plain string returned by $generateHtmlFromNodes, happens after
-// `.outerHTML` has already been read — so no live <video> element ever
+// `.outerHTML` has already been read - so no live <video> element ever
 // carries `autoplay` at all. Use this everywhere $generateHtmlFromNodes is
 // called instead of calling it directly.
 export function generateSafeHtmlFromNodes(editor, selection) {
@@ -49,7 +49,7 @@ function isBlankHtml(html) {
 
 // ─── Header split/linear-split width-fit font sizing ───────────────────────────
 //
-// split/linear-split headings no longer wrap — the user controls line breaks
+// split/linear-split headings no longer wrap - the user controls line breaks
 // explicitly (Enter/Shift+Enter both insert one), and the heading's font size
 // scales down so its widest typed line always fits the fixed-width text
 // column. This must produce identical numbers whether called from the live
@@ -60,11 +60,11 @@ function isBlankHtml(html) {
 // Font family isn't available at this level: exportDOM() is always a
 // zero-argument method (see every other node's exportDOM in this file) and
 // the post's font-family toggle is only threaded to decorators via
-// FontFamilyContext, never to node-level export — and it can change
+// FontFamilyContext, never to node-level export - and it can change
 // independently of the header after the header was last measured anyway. So
 // instead of assuming a font, every line is measured against BOTH stacks the
 // heading/subheading can ever render in (see index.css's sans-default /
-// [data-font-family="serif"] override) and the wider of the two wins — this
+// [data-font-family="serif"] override) and the wider of the two wins - this
 // guarantees the computed size fits no matter which font is later selected.
 const HEADER_FIT_FONT_STACKS = [
   "bold 100px 'Source Sans 3', ui-sans-serif, system-ui, sans-serif",
@@ -89,15 +89,15 @@ function measureHeaderMaxLineWidthAt100(lines) {
 // Both split-like layouts' text column is ~50% of the header's width minus
 // the fixed 96px (48px each side) desktop padding, so the fitting font size
 // is linear in viewport width: fontSize(v) = slope*v - intercept. That's a
-// single continuous curve — no per-breakpoint values that jump at each
-// breakpoint edge — floored at HEADER_FIT_MIN so very long headings don't
+// single continuous curve - no per-breakpoint values that jump at each
+// breakpoint edge - floored at HEADER_FIT_MIN so very long headings don't
 // shrink below legibility, and capped at a "ceiling" so very short headings
 // don't blow up arbitrarily large.
 //
 // The ceiling itself isn't a flat cap, though: it stays flat at
 // HEADER_FIT_CEILING up to HEADER_FIT_CEILING_REF_WIDTH (matching the
 // original fixed-max look at everyday/moderately-large screen widths), then
-// keeps growing at HEADER_FIT_CEILING's own vw-equivalent rate beyond that —
+// keeps growing at HEADER_FIT_CEILING's own vw-equivalent rate beyond that -
 // so on very large/ultrawide screens the text keeps using the extra space
 // instead of plateauing. A short heading is governed by this ceiling; a
 // heading long enough to need less than the ceiling is governed by its own
@@ -106,7 +106,7 @@ function measureHeaderMaxLineWidthAt100(lines) {
 // `split` alone breaks this 50%-column assumption below 768px: it stacks to
 // a full-width column there (column-reverse, see index.css), so its actual
 // available width jumps from "half the header, minus 48px-a-side padding" to
-// "the whole header, minus 24px-a-side mobile padding" — a real, deliberate
+// "the whole header, minus 24px-a-side mobile padding" - a real, deliberate
 // shape change, not an artificial tier. Using the 50%-column formula there
 // anyway would shrink text well below what the (much wider) stacked column
 // actually has room for, which is what this was built to avoid. So `split`
@@ -115,19 +115,19 @@ function measureHeaderMaxLineWidthAt100(lines) {
 //
 // The stacked formula reuses this same ceiling mechanism, just with the
 // full-width geometry instead of the 50%-column one, and its own (lower)
-// ceiling — 75px reads too large once the column is full-width instead of
-// half — since the ceiling only ever binds for very short headings anyway,
+// ceiling - 75px reads too large once the column is full-width instead of
+// half - since the ceiling only ever binds for very short headings anyway,
 // within the bounded 0–768px range it rarely triggers; the formula otherwise
 // just scales continuously down to the same HEADER_FIT_MIN floor as
 // viewport width shrinks, same as normal.
 //
-// `linear-split` never stacks — its column stays a 50%-width side-by-side
-// half at every width — but its text-side padding still needs to shrink on
+// `linear-split` never stacks - its column stays a 50%-width side-by-side
+// half at every width - but its text-side padding still needs to shrink on
 // narrow phones, from the 48px-a-side desktop value down to a 12px-a-side
 // floor (see HEADER_LINEAR_SPLIT_TEXT_PAD_CSS below). Unlike `split`'s stacking, that's
-// not a real shape change at one breakpoint — it's the same 50%-column
+// not a real shape change at one breakpoint - it's the same 50%-column
 // geometry throughout, just with less padding eating into it as the header
-// narrows — so instead of a second breakpoint-swapped formula, its padding
+// narrows - so instead of a second breakpoint-swapped formula, its padding
 // is itself a single clamp() that scales continuously between the two
 // values, and that same clamp() expression is baked directly into its one
 // heading/subheading fit formula (buildLinearSplitFitPair) as the padTotal
@@ -135,7 +135,7 @@ function measureHeaderMaxLineWidthAt100(lines) {
 // as a result, and there's no breakpoint for either to jump at.
 //
 // linear-split also drops the ceiling described above, but only below
-// 768px — see the comment on buildLinearSplitFitPair itself for why.
+// 768px - see the comment on buildLinearSplitFitPair itself for why.
 const HEADER_FIT_MIN = 20
 const HEADER_FIT_CEILING = 75
 const HEADER_FIT_CEILING_REF_WIDTH = 1600
@@ -148,16 +148,16 @@ const HEADER_FIT_SAFETY_MARGIN = 0.96
 // linear-split's text-side padding (one side): a flat 48px at/above
 // HEADER_SPLIT_PAD_WIDE_REF_WIDTH, a flat 12px at/below
 // HEADER_SPLIT_PAD_NARROW_REF_WIDTH, and a straight-line interpolation
-// between the two reference widths in between — expressed as one CSS
+// between the two reference widths in between - expressed as one CSS
 // clamp() so the browser does the interpolation continuously, with no
 // breakpoint jump. 12px (not the page's own 24px edge margin) is
 // deliberate: linear-split's column is already a bounded, fixed-shape box
-// half the header's own width, not the full page's edge — the no-wrap
+// half the header's own width, not the full page's edge - the no-wrap
 // heading needs the room more than it needs to visually line up with the
 // body text below it on the smallest phones. Used as the actual
 // padding-left/padding-right on linear-split's text side (below, and
 // exportDOM) and, doubled, as the padTotal term inside its own fit formula
-// (buildLinearSplitFitPair) — one string, so the two can never disagree.
+// (buildLinearSplitFitPair) - one string, so the two can never disagree.
 const HEADER_SPLIT_PAD_WIDE = 48
 const HEADER_SPLIT_PAD_NARROW = 12
 const HEADER_SPLIT_PAD_WIDE_REF_WIDTH = 768
@@ -196,7 +196,7 @@ function headerFitCss(min, ceiling, ceilingSlopeVw, slope, intercept) {
 }
 
 // Same outer floor/ceiling wrapper as headerFitCss, but for a raw available-width
-// expression that isn't a simple slope*vw-intercept line — used by
+// expression that isn't a simple slope*vw-intercept line - used by
 // buildLinearSplitFitPair, whose padTotal term is itself a clamp(), not a constant.
 function headerFitCssRaw(min, ceiling, ceilingSlopeVw, rawExpr) {
   return `max(${min.toFixed(2)}px, min(${rawExpr}, max(${ceiling.toFixed(2)}px, calc(${ceilingSlopeVw.toFixed(4)}vw))))`
@@ -204,24 +204,24 @@ function headerFitCssRaw(min, ceiling, ceilingSlopeVw, rawExpr) {
 
 // linear-split's heading/subheading fit formula: same 50%-column width
 // fraction as the default pair, but with HEADER_LINEAR_SPLIT_TEXT_PAD_CSS
-// (doubled, for both sides) as the padTotal term instead of a flat number —
+// (doubled, for both sides) as the padTotal term instead of a flat number -
 // so the computed font size scales continuously with that same padding
 // clamp() instead of jumping between two fixed-padding formulas at a
 // breakpoint. See the big comment above HEADER_FIT_MIN for why linear-split
 // needs this instead of reusing buildPair below.
 //
-// The ceiling is still wanted here on larger screens — same reason as the
+// The ceiling is still wanted here on larger screens - same reason as the
 // default pair: without it, a very short heading (like "Colin Petree" alone)
 // would blow up to an oversized, gap-free block on a wide desktop screen just
 // because the column is wide. But that same ceiling was the reason a short
 // heading also stopped short of the padding edges on PHONE-width screens,
-// where the column is far too narrow for the ceiling to be the right call —
+// where the column is far too narrow for the ceiling to be the right call -
 // there, the box-fit formula alone should govern, uncapped, so the text
 // grows to actually fill the (already-narrower, thanks to
 // HEADER_LINEAR_SPLIT_TEXT_PAD_CSS) column. So this returns both a capped
-// pair (headingFs/subFs, same ceiling mechanism as the default pair — used
+// pair (headingFs/subFs, same ceiling mechanism as the default pair - used
 // at md/768px and up) and an uncapped pair (headingFs/subFsUncapped, floored
-// but never capped — used below 768px), with the switch between them made in
+// but never capped - used below 768px), with the switch between them made in
 // nodes.jsx's headingTextClass/subTextClass (editor) and index.css (publish)
 // via the same md/768px breakpoint every other layout's mobile overrides use.
 function buildLinearSplitFitPair(widthPerFontPx) {
@@ -242,7 +242,7 @@ function buildLinearSplitFitPair(widthPerFontPx) {
 }
 
 // Returns ready-to-use nested CSS min()/max()/calc() strings for
-// heading/subheading font-size — assigned directly to --hdr-heading-fs /
+// heading/subheading font-size - assigned directly to --hdr-heading-fs /
 // --hdr-sub-fs (and, for `split` only, the "stacked" mobile-geometry
 // counterparts) custom properties, so index.css and exportDOM's inline
 // fallback don't need to know anything about the underlying formula, just
@@ -276,7 +276,7 @@ function computeHeaderFitSizes(headingPlainText, layout) {
   return result
 }
 
-// Font Family editor setting ('default' | 'sans' | 'serif') — provided by
+// Font Family editor setting ('default' | 'sans' | 'serif') - provided by
 // RichTextEditor around the whole composer tree. Decorator nodes below are
 // always sans-serif by default (see index.css's "Keep these elements
 // sans-serif" block for the public-page equivalent), so only 'serif' mode
@@ -285,7 +285,7 @@ export const FontFamilyContext = createContext('default')
 function decoratorFontClass(fontFamily) {
   return fontFamily === 'serif' ? 'font-serif' : 'font-sans'
 }
-import Picker from '@emoji-mart/react'
+import Picker from './EmojiPicker'
 import emojiData from '@emoji-mart/data'
 import { handleUploadFull } from './upload'
 import { FloatingToolbarPlugin, OPEN_VIDEO_POSTER_COMMAND, parseYouTubeId, parseVimeoId, parseSpotifyPath } from './plugins'
@@ -317,7 +317,7 @@ function ImageNodeComponent({ src, alt, caption, width, href, srcset, lqip, shad
   // (or pasted/dragged in some other path that didn't capture them): probe
   // the src client-side and backfill the dimensions into the node so the
   // next save's exportDOM can emit width/height attributes, same pattern as
-  // GalleryNode's own probeImage backfill — including its retry-on-error
+  // GalleryNode's own probeImage backfill - including its retry-on-error
   // (up to 3 attempts, 2s apart), so a transient network failure doesn't
   // silently give up on backfilling this image for the rest of the session.
   useEffect(() => {
@@ -640,7 +640,7 @@ export class ImageNode extends DecoratorNode {
     return {
       // Intercept <a> tags that wrap a <figure> before LinkNode claims them.
       // Returning null conversion skips the <a> element itself and lets its
-      // children be processed — the figure handler below then picks up the href.
+      // children be processed - the figure handler below then picks up the href.
       a: (domNode) => {
         if (!domNode.querySelector(':scope > figure')) return null
         return { conversion: () => null, priority: 4 }
@@ -704,7 +704,7 @@ export class ImageNode extends DecoratorNode {
     img.setAttribute('loading', 'lazy')
     img.setAttribute('decoding', 'async')
     // Native width/height attributes let the browser reserve this image's
-    // aspect-ratio-correct box before any bytes of it (or its LQIP) arrive —
+    // aspect-ratio-correct box before any bytes of it (or its LQIP) arrive -
     // without them, the wrapping div below has no way to know its own height
     // until the real image loads, so it collapses to 0px and the whole
     // figure (blur placeholder included, since it's absolutely positioned
@@ -731,11 +731,11 @@ export class ImageNode extends DecoratorNode {
     if (this.__shadow) figure.setAttribute('data-shadow', 'true')
 
     if (this.__width === 'wide') {
-      // calc(100vw - 2rem), not a bare 100vw — same convention as the wide
+      // calc(100vw - 2rem), not a bare 100vw - same convention as the wide
       // table wrapper in index.css: only kicks in once the viewport (not the
       // 1040px cap) is the binding constraint, i.e. on mobile, giving a
       // small gutter instead of running flush to the screen edge. "full"
-      // width is deliberately excluded — that layout is meant to bleed edge
+      // width is deliberately excluded - that layout is meant to bleed edge
       // to edge at every size.
       figure.style.cssText = 'width:min(1040px,calc(100vw - 2rem));position:relative;left:50%;transform:translateX(-50%);margin:1.5rem 0'
     } else if (this.__width === 'full') {
@@ -1101,27 +1101,27 @@ export class VideoNode extends DecoratorNode {
     if (!this.__src) return { element: null }
     const video = document.createElement('video')
     // This element is only ever used to build an HTML string via outerHTML
-    // and is never attached to the visible DOM — but it's still owned by the
+    // and is never attached to the visible DOM - but it's still owned by the
     // live, fully-active page document, and exportDOM() runs on every
     // editor.update() (Lexical regenerates content_html for autosave on
     // every keystroke/click). Browsers don't require an element to be
-    // connected under <body> to start decoding — only for its ownerDocument
-    // to be the active document — so a real `autoplay` attribute here would
+    // connected under <body> to start decoding - only for its ownerDocument
+    // to be the active document - so a real `autoplay` attribute here would
     // start a genuine, audio-capable native player every single time this
     // runs, regardless of `muted` timing (confirmed live via Chrome's Media
     // panel: dozens of real player instances were created purely from this
     // export path during ordinary panel interaction). The `muted`
     // property/attribute below is still set for good measure, but the actual
     // fix is that the real `autoplay` attribute is NEVER set on this live
-    // element — see `data-export-autoplay` below and
+    // element - see `data-export-autoplay` below and
     // `generateSafeHtmlFromNodes()`, which swaps it back in as a plain
     // string after `.outerHTML` has already been read, so no live element
     // ever carries `autoplay` + `src` at the same time.
     //
-    // `muted`/`volume` are JS-only state — they silence this temporary
+    // `muted`/`volume` are JS-only state - they silence this temporary
     // element without ever being reflected into the exported HTML.
     // `defaultMuted`, in contrast, DOES reflect to the `muted` content
-    // attribute per the HTML5 spec — setting it unconditionally here used to
+    // attribute per the HTML5 spec - setting it unconditionally here used to
     // leak a `muted` attribute onto every exported video, including normal
     // (non-looping, controls-visible) ones that should never start muted.
     // It's set explicitly via setAttribute('muted', '') below, only for the
@@ -1163,7 +1163,7 @@ export class VideoNode extends DecoratorNode {
     // frame, not the caption. Chrome can render actively-decoding video
     // through a hardware "overlay" path on Windows that ignores this
     // wrapper's clip during playback, occasionally showing a thin sliver at
-    // a corner — accepted as a known cosmetic limitation rather than
+    // a corner - accepted as a known cosmetic limitation rather than
     // "fixed" with CSS tricks on the <video> itself, which introduced worse
     // artifacts (a double-clip chamfer, then a full-frame ghosting haze).
     const videoWrap = document.createElement('div')
@@ -1769,11 +1769,11 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
   }, [showRing])
 
   // Self-heal old/missing per-image dimensions by measuring them client-side
-  // — so simply opening a pre-redesign gallery in the editor backfills real
+  // - so simply opening a pre-redesign gallery in the editor backfills real
   // aspect ratios, and the next save bakes them into exportDOM.
   //
   // This is deliberately NOT driven by React's render/effect cycle beyond
-  // kicking a probe chain off once per src — GalleryNode.clone() deep-clones
+  // kicking a probe chain off once per src - GalleryNode.clone() deep-clones
   // every image object on ANY node mutation (e.g. typing in the caption
   // field), so `images` gets a new identity on every keystroke even when the
   // images themselves haven't changed. Tying retries or completion-handling
@@ -1784,7 +1784,7 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
   //
   // Instead: probeImageRef holds a self-recursing prober per src, tracked in
   // probeStateRef (attempts/inFlight/timer) entirely independent of re-
-  // renders — it schedules its own retries via setTimeout and applies a
+  // renders - it schedules its own retries via setTimeout and applies a
   // successful result directly, gated only by isMountedRef (true unmount,
   // set once below), never by anything that fires on a merely-superseded
   // render. The effect below only ever starts this chain once per src.
@@ -1828,7 +1828,7 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
   useEffect(() => {
     images.forEach(img => {
       if (img.width && img.height) return
-      if (probeStateRef.current.has(img.src)) return // already tracked — in flight, mid-retry, or exhausted
+      if (probeStateRef.current.has(img.src)) return // already tracked - in flight, mid-retry, or exhausted
       probeImageRef.current(img.src)
     })
   }, [images])
@@ -1863,7 +1863,7 @@ function GalleryNodeComponent({ images, caption, nodeKey, editor }) {
     const files = [...(e.target.files || [])].slice(0, remaining)
     e.target.value = ''
     if (!files.length) return
-    // Uploaded in parallel (not one-at-a-time) — the server-side WebP/resize/
+    // Uploaded in parallel (not one-at-a-time) - the server-side WebP/resize/
     // LQIP work for each file no longer has to finish before the next file's
     // upload even starts, which is what made adding several images take tens
     // of seconds. Failures are tolerated individually via allSettled so one
@@ -2088,7 +2088,7 @@ export class GalleryNode extends DecoratorNode {
     if (!this.__images.length) return { element: null }
     const figure = document.createElement('figure')
     figure.className = 'gallery'
-    // calc(100vw - 2rem), not a bare 100vw — see the matching comment in
+    // calc(100vw - 2rem), not a bare 100vw - see the matching comment in
     // ImageNode.exportDOM(); galleries have no "full width" variant to
     // exclude, so this always applies once the viewport becomes the
     // binding constraint (mobile).
@@ -2120,7 +2120,7 @@ export class GalleryNode extends DecoratorNode {
         // Each image gets its own positioned wrapper (mirroring the editor's
         // own live GalleryNodeComponent render) so useContentLqip's blur-up
         // placeholder is anchored to THIS image's own box. Without it,
-        // img.parentElement was the shared multi-image rowEl — an absolutely
+        // img.parentElement was the shared multi-image rowEl - an absolutely
         // positioned placeholder there covers the entire row (all images'
         // combined width), not just one image, which is what made the
         // placeholder look oversized and then visibly shrink once removed.
@@ -2996,7 +2996,7 @@ export function $createButtonNode() {
 
 // Every icon type (brand SVG, generic SVG, emoji, or the no-icon placeholder) renders
 // inside a fixed-size slot of the same footprint, so icons in different link rows line
-// up in the same column and read as the same size — regardless of a given lucide icon's
+// up in the same column and read as the same size - regardless of a given lucide icon's
 // intrinsic proportions or an emoji glyph's natural rendered width.
 function LinkGroupIconPreview({ link, size = 28 }) {
   if (!link.iconEnabled) return null
@@ -3272,7 +3272,7 @@ function rgbToHex(r, g, b) {
 }
 
 // Relative luminance (WCAG) decides direction: light backgrounds darken on hover,
-// dark backgrounds lighten — so the hover state reads as "this button responded"
+// dark backgrounds lighten - so the hover state reads as "this button responded"
 // rather than a translucent film sitting on top of it.
 function relativeLuminance(r, g, b) {
   const [rl, gl, bl] = [r, g, b].map(c => {
@@ -3304,7 +3304,7 @@ function linkGroupHoverColor(bgHex, textHex, darkenAmount = 4, lightenAmount = 1
 }
 
 // A white (or near-white) border reads as a harsh ring against a colored button
-// background, since it can't blend the way a darker outline does — drop it instead.
+// background, since it can't blend the way a darker outline does - drop it instead.
 function linkGroupBorderColor(textColor) {
   if (!/^#[0-9a-f]{6}$/i.test(textColor || '')) return textColor
   const { r, g, b } = hexToRgb(textColor)
@@ -3382,7 +3382,7 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, width, 
   }, [isSelected, editor, nodeKey])
 
   // Reads/writes the node's live __links inside the same editor.update, rather than
-  // computing the next array from the React `links` prop — avoids losing an update
+  // computing the next array from the React `links` prop - avoids losing an update
   // when two link edits (add/remove/save) happen before Lexical re-renders this
   // component with fresh props.
   function updateLinks(updater) {
@@ -3438,7 +3438,7 @@ function LinkGroupNodeComponent({ links, radius, buttonColor, textColor, width, 
   }
 
   // `committed` is false when the browser reports the drag was cancelled (Escape,
-  // or dropped outside any valid target) — in that case discard the in-progress
+  // or dropped outside any valid target) - in that case discard the in-progress
   // reorder instead of saving it. Comparing dragOrder to the original `links`
   // reference (rather than just truthiness) also skips the update entirely when
   // the handle was clicked/released without ever moving over another row.
@@ -3691,7 +3691,7 @@ export class LinkGroupNode extends DecoratorNode {
     wrap.style.maxWidth = LINK_GROUP_WIDTH_MAX[this.__width] || LINK_GROUP_WIDTH_MAX.narrow
     const itemRadius = RADIUS_MAP[this.__radius] || RADIUS_MAP.rounded
     for (const link of this.__links) {
-      if (!link.url?.trim()) continue // no valid link — don't publish a dead button
+      if (!link.url?.trim()) continue // no valid link - don't publish a dead button
       const a = document.createElement('a')
       a.className = 'link-group-item'
       a.href = link.url
@@ -4383,7 +4383,7 @@ export class CodeBlockNode extends DecoratorNode {
     const btn = document.createElement('button')
     btn.className = 'code-block-copy'
     btn.setAttribute('aria-label', 'Copy code')
-    // No inline onclick here — a page-level CSP (script-src, no 'unsafe-inline')
+    // No inline onclick here - a page-level CSP (script-src, no 'unsafe-inline')
     // blocks inline event-handler attributes. The public blog page instead
     // wires this up via event delegation; see BlogPostPage.jsx's
     // '.code-block-copy' click handler, which reads these same icon strings.
@@ -4412,7 +4412,7 @@ export function $createCodeBlockNode(code = '') {
 // ─── HeaderFieldSyncPlugin ────────────────────────────────────────────────────
 
 // Walks the field's single paragraph in document order and reports whether a
-// LineBreakNode appears anywhere after the caret — used to tell whether the
+// LineBreakNode appears anywhere after the caret - used to tell whether the
 // caret is on the field's last typed line. Nested inline nodes (e.g. a link)
 // are handled by locating the caret's top-level sibling within the paragraph
 // and only checking everything after it, since line breaks are always direct
@@ -4480,7 +4480,7 @@ function HeaderFieldSyncPlugin({ parentEditor, nodeKey, setterName, initialHtml,
 
   useEffect(() => {
     // noWrapMode (split/linear-split only): text no longer wraps and the user
-    // controls every line break explicitly — both plain Enter and Shift+Enter
+    // controls every line break explicitly - both plain Enter and Shift+Enter
     // must insert a LineBreakNode, and Down-arrow at the last line takes over
     // the "advance to the next field/block" role instead.
     if (noWrapMode) {
@@ -4500,12 +4500,12 @@ function HeaderFieldSyncPlugin({ parentEditor, nodeKey, setterName, initialHtml,
       // handling (registerRichText, @lexical/rich-text): that dispatches
       // INSERT_PARAGRAPH_COMMAND for plain Enter and INSERT_LINE_BREAK_COMMAND
       // only for Shift+Enter, splitting the field into two paragraphs instead
-      // of inserting a line break — invisible on screen (paragraph margins are
+      // of inserting a line break - invisible on screen (paragraph margins are
       // zeroed) but breaks $hasLineBreakAfterCaret (which only looks at the
       // current paragraph) and the exportDOM/editor line-measurement match
       // (headingHtmlToPlainText only converts <br> to \n, not </p><p>).
-      // Intercepted here at KEY_DOWN_COMMAND/CRITICAL — same mechanism as the
-      // arrow-down handler above — because a KEY_DOWN_COMMAND listener
+      // Intercepted here at KEY_DOWN_COMMAND/CRITICAL - same mechanism as the
+      // arrow-down handler above - because a KEY_DOWN_COMMAND listener
       // returning true stops Lexical's internal handler from ever dispatching
       // the more specific KEY_ENTER_COMMAND for this keydown.
       const unregisterEnter = nestedEditor.registerCommand(
@@ -4547,18 +4547,18 @@ const HEADER_NESTED_THEME = {
 
 // The header's background video is mounted here imperatively, completely
 // outside JSX/React's own reconciliation of the <video> element, and its
-// mount effect depends ONLY on `src` — not on any of HeaderNodeComponent's
-// many other props (shadowOverlay, textColorMode, buttonText, ...) — so it's
+// mount effect depends ONLY on `src` - not on any of HeaderNodeComponent's
+// many other props (shadowOverlay, textColorMode, buttonText, ...) - so it's
 // created once per distinct file and left alone across unrelated panel
 // re-renders. `muted` (property + attribute) is set before the element is
 // attached to the DOM and before `.play()` is called, so there's no window
 // where the browser could treat this as unmuted-audio autoplay.
 //
 // (The real source of the audio bug this whole file's history briefly
-// chased through several dead ends — duplicate players, leaked instances,
-// refcounting, watchdogs — turned out to live entirely in exportDOM(),
+// chased through several dead ends - duplicate players, leaked instances,
+// refcounting, watchdogs - turned out to live entirely in exportDOM(),
 // not here: those methods never set a real `autoplay` attribute on their
-// live-document-owned elements at all — see the comment on
+// live-document-owned elements at all - see the comment on
 // VideoNode.exportDOM() above and generateSafeHtmlFromNodes(). This
 // component's simple mount-once/clean-up-once behavior was correct the
 // whole time.)
@@ -4608,7 +4608,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   const [panelPos, setPanelPos] = useState(null)
   const [localButtonText, setLocalButtonText] = useState(buttonText)
   const [localButtonUrl, setLocalButtonUrl] = useState(buttonUrl)
-  // split/linear-split only — the heading's plain text (with \n for each typed
+  // split/linear-split only - the heading's plain text (with \n for each typed
   // line break), used to compute the width-fit font size below. Initialized
   // from the saved `heading` HTML (converting <br> to \n) rather than '', so
   // an existing long heading is sized correctly the moment the editor opens,
@@ -4654,7 +4654,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   // isSelected/headingFocused/subheadingFocused/panelFocused could all stay
   // stuck true and leave the settings panel open indefinitely. A document-
   // level mousedown listener closes it explicitly whenever the click lands
-  // outside this header's own box — the same pattern other decorator nodes
+  // outside this header's own box - the same pattern other decorator nodes
   // in this file already use for their own floating popovers (e.g.
   // CalloutNodeComponent's emoji picker). bgPickerOpen/btnPickerOpen are
   // deliberately left alone here: their ColorSwatchMenu popovers render via
@@ -4715,7 +4715,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
       const isSplitLikeLayout = layout === 'split' || layout === 'linear-split'
       let left
       if (isSplitLikeLayout) {
-        // Text alignment doesn't matter here — the panel instead floats over
+        // Text alignment doesn't matter here - the panel instead floats over
         // whichever half is the IMAGE side (DOM order is always image-then-
         // text; flipLayout swaps row/row-reverse), so it can never cover the
         // text regardless of left/center/right, and follows the image side
@@ -4726,7 +4726,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
       } else {
         left = containerRight - PANEL_WIDTH + rightShift
         // These offsets were tuned assuming the panel's usual bottom-right spot sits over
-        // empty space — true for left/center-aligned text, but right-aligned text now sits
+        // empty space - true for left/center-aligned text, but right-aligned text now sits
         // flush against that same right edge, so the panel would cover it instead. Mirroring
         // the whole computed position across the container's own horizontal center moves the
         // panel to the equivalent bottom-left spot for right-aligned text.
@@ -4746,30 +4746,30 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   const outerClass = isFullish ? 'w-full' : layout === 'wide' ? 'max-w-7xl mx-auto' : 'max-w-3xl mx-auto header-regular-preview'
   const sideMargin = isFullish ? '' : 'mx-6'
   const textAlignClass   = textAlign === 'center' ? 'text-center' : textAlign === 'right' ? 'text-right' : 'text-left'
-  // Non-split layouts only — split's text side is already a fixed 50%-width column. Caps
+  // Non-split layouts only - split's text side is already a fixed 50%-width column. Caps
   // the text block to half the header's width when left- or right-aligned so it wraps like
   // a real column instead of stretching full-width (which reads as center-but-off). Applies
-  // at every width, including mobile — left/right-aligned text shouldn't cross the header's
+  // at every width, including mobile - left/right-aligned text shouldn't cross the header's
   // midpoint. Widens to 60% below md (768px) since 50% wraps too aggressively on narrow
   // phones; matches index.css's mobile `.header-text-col` override. The parent is a flex
   // column with default align-items:stretch, so left-aligned text (capped below the full
-  // width) naturally anchors to the left edge with no extra positioning — right-aligned
+  // width) naturally anchors to the left edge with no extra positioning - right-aligned
   // text needs `ml-auto` to push that same capped box to the opposite edge instead.
   const textColClass = textAlign === 'left' ? 'max-w-[50%] max-md:max-w-[60%]'
     : textAlign === 'right' ? 'max-w-[50%] max-md:max-w-[60%] ml-auto'
     : 'max-w-full'
   // Unconditional (no md: prefix) so the editor's mobile preview matches exportDOM's
-  // public HTML, which sets this same min-height as an inline style at every width —
+  // public HTML, which sets this same min-height as an inline style at every width -
   // previously the editor used a smaller mobile-only floor, so the header collapsed
   // shorter in the editor's mobile preview than it actually renders once published.
-  // clamp() values mirror the `heights` map in HeaderNode.exportDOM() (nodes.jsx) — keep
+  // clamp() values mirror the `heights` map in HeaderNode.exportDOM() (nodes.jsx) - keep
   // both in sync. Fullscreen stays min-h-screen at every width, unaffected by scaling.
   // linear uses a fixed `h-` (not `min-h-`) so its box can never grow past the
   // aspect-ratio-driven value even if the heading/subheading/button content needs more
   // room. overflow-hidden (applied at the className site below) clips any excess instead
   // of letting the box (and the page) grow taller than intended. Every other layout keeps
   // min-h- since they're floors, not hard caps. The 56.25vw slope is a true 16:9 ratio
-  // capped at 100vh, so it already grows continuously into that cap on its own — no
+  // capped at 100vh, so it already grows continuously into that cap on its own - no
   // breakpoint needed (a prior 2xl:h-screen override forced a hard snap at 1536px and
   // has been removed; see index.css, same rationale).
   const minHeightClass   = layout === 'fullscreen' ? 'min-h-screen' : layout === 'linear' ? 'h-[min(max(280px,56.25vw),100vh)]' : layout === 'linear-split' ? 'h-[min(max(280px,43.75vw),100vh)]' : layout === 'split' ? 'min-h-[clamp(300px,42vw,600px)]' : layout === 'full' ? 'min-h-[clamp(280px,38vw,551px)]' : layout === 'wide' ? 'min-h-[clamp(240px,35vw,447px)]' : 'min-h-[clamp(200px,45vw,347px)]'
@@ -4789,14 +4789,14 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   // (4.6875vw = 72/1536, 1.953125vw = 30/1536).
   // split and linear-split both get their own medium tier between md (768px) and lg
   // (1024px), unlike the other isFullish layouts' flat jump straight from 28px to the full
-  // 60px/24px size at md — their text column is only half the header's width, so that full
+  // 60px/24px size at md - their text column is only half the header's width, so that full
   // size reads oversized right as it first appears at 768px, before there's enough column
   // width (at lg+) to comfortably hold it. 2xl vw-scaling past 1536px is unchanged,
   // continuing from the same full-size base as the other isFullish layouts (see index.css's
   // matching selector list).
   const isSplitLike = layout === 'split' || layout === 'linear-split'
   // split/linear-split: heading font size is computed from the widest typed
-  // line (see computeHeaderFitSizes) instead of a static per-layout value —
+  // line (see computeHeaderFitSizes) instead of a static per-layout value -
   // baked as CSS custom properties (below) so the editor and exportDOM's
   // published output share one calculation and can never drift apart.
   const headerFitSizes = useMemo(
@@ -4822,12 +4822,12 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
   // jumping straight from the mobile value to the full 256px at md, which otherwise
   // squeezes the heading into a narrow column on in-between (tablet/small laptop) widths.
   // Steps match index.css's public media queries exactly. Left- or right-aligned full/
-  // linear/fullscreen (not wide — it's meant to stay a narrower, page-bound layout, not
-  // full-bleed — and not centered text, which stays flat like before) keeps growing past
+  // linear/fullscreen (not wide - it's meant to stay a narrower, page-bound layout, not
+  // full-bleed - and not centered text, which stays flat like before) keeps growing past
   // 2xl (1536px) at a sixth the rate of viewport width instead of staying pinned at 256px
   // there, same idea as split/linear-split's own growing text-side padding. The growth
   // itself is symmetric (px-* sets both left and right padding equally), so right mirrors
-  // left exactly — just triggered by the opposite alignment.
+  // left exactly - just triggered by the opposite alignment.
   const paddingClass = layout === 'regular'
     ? 'px-8 md:px-20'
     : ((textAlign === 'left' || textAlign === 'right') && (layout === 'full' || layout === 'linear' || layout === 'fullscreen'))
@@ -4835,24 +4835,24 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
       : 'px-8 md:px-14 lg:px-24 xl:px-40 2xl:px-64'
   // On small phones, a left-aligned header's left inset (and a right-aligned header's right
   // inset) should match the blog post body text's own side margin (BlogPostView's `px-6` =
-  // 24px) so the header's text edge lines up with paragraph text below it — otherwise the
+  // 24px) so the header's text edge lines up with paragraph text below it - otherwise the
   // header's default 32px (px-8) inset reads as misaligned against the narrower page margin.
   // Centered text keeps the 32px inset (it isn't flush against an edge to compare against).
   // max-sm: (below Tailwind's 640px `sm`) matches the public breakpoint added in index.css.
   const sideInsetClass = textAlign === 'left' ? 'max-sm:pl-6' : textAlign === 'right' ? 'max-sm:pr-6' : ''
 
   // Both split-style layouts use one fixed, uniform padding box at every
-  // alignment (left/center/right) — the box's shape must never change with
+  // alignment (left/center/right) - the box's shape must never change with
   // alignment or text length, only the text's position within it. 48px
   // matches the design system's existing px-12 scale; 24px mobile matches
   // the smallest left inset other header layouts use at their own
-  // small-phone breakpoint (index.css's max-width:640px rule) —
+  // small-phone breakpoint (index.css's max-width:640px rule) -
   // split/linear-split's no-wrap text needs all the width it can get on
   // narrow phones, more than the old 32px mobile value left room for.
   //
   // The two layouts get there differently, though: `split` stacks to a
   // full-width column at md (768px, see minHeightClass/index.css), so its
-  // padding jumps straight from 48px to 24px right at that same breakpoint —
+  // padding jumps straight from 48px to 24px right at that same breakpoint -
   // a real shape change, not an artificial tier. `linear-split` never
   // stacks, so instead of a breakpoint jump, its padding scales down
   // continuously via HEADER_LINEAR_SPLIT_TEXT_PAD_CSS (applied as an inline
@@ -4996,9 +4996,9 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
           if (!file) return
           try {
             // file.type isn't always reliably populated by the browser/OS for
-            // every video container, so fall back to the file extension —
+            // every video container, so fall back to the file extension -
             // matching backend/routes/admin_config.py's own ALLOWED_EXTENSIONS
-            // video set — before assuming "not a video" defaults to image.
+            // video set - before assuming "not a video" defaults to image.
             const isVideo = file.type.startsWith('video/') ||
               /\.(mp4|webm|mov)$/i.test(file.name)
             if (isVideo) {
@@ -5028,10 +5028,10 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
           >
             {/* Image/video side */}
             {/* h-[240px] (not min-h) below md so the box itself has a definite height on
-                mobile, where there's no sibling row to stretch against — min-height alone
+                mobile, where there's no sibling row to stretch against - min-height alone
                 doesn't establish one. The media inside is absolutely-filled via the
                 header-split-image CSS rule (index.css), so it never affects this box's own
-                size — it just crops to whatever height the box ends up with. linear-split
+                size - it just crops to whatever height the box ends up with. linear-split
                 never stacks, so its side is always a plain half-width column at every
                 width instead. */}
             {(() => {
@@ -5056,11 +5056,11 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                       <span className="text-sm text-gray-400">Click to upload image or video</span>
                     </div>
                   )}
-                  {/* Shadow overlay darkens both sides — see the matching block on the text side below. */}
+                  {/* Shadow overlay darkens both sides - see the matching block on the text side below. */}
                   {splitMedia && shadowOverlay && (
                     <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />
                   )}
-                  {/* Upload / delete buttons — only shown when media exists, visible on hover */}
+                  {/* Upload / delete buttons - only shown when media exists, visible on hover */}
                   {splitMedia && (
                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-white border border-gray-200 rounded-lg shadow-sm p-1">
                       <button
@@ -5104,7 +5104,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
                 <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: 0.35 }} />
               )}
               {/* Heading/subheading/button share one shrink-wrapped box (not
-                  stretched to the column's full width) — combined with the
+                  stretched to the column's full width) - combined with the
                   parent's items-center above, this centers the whole group in
                   the split side whenever the text doesn't max out the
                   available width, while each field's own text-align still
@@ -5139,11 +5139,11 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
           // positioned with plain position:absolute (viewport-relative math via
           // scrollX/scrollY), so an unbounded-height panel whose bottom lands
           // past the viewport literally grows the document's own scroll height
-          // — on top of whatever inner scroll container the admin editor page
+          // - on top of whatever inner scroll container the admin editor page
           // already has, that's the double scrollbar. Capping height and
           // scrolling internally instead keeps the panel from ever doing that,
           // regardless of how tall its content gets or how far down `top`
-          // (see the layout effect above) ends up placing it — e.g. on a
+          // (see the layout effect above) ends up placing it - e.g. on a
           // short viewport where the panel's usual spot still leaves it
           // taller than the visible screen.
           style={{ position: 'absolute', top: panelPos.top, left: panelPos.left, zIndex: 9999, width: PANEL_WIDTH, maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}
@@ -5215,7 +5215,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             </div>
           </div>
 
-          {/* Flip Layout — split and linear-split only */}
+          {/* Flip Layout - split and linear-split only */}
           {(layout === 'split' || layout === 'linear-split') && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-500">Flip Layout</span>
@@ -5228,7 +5228,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
             </div>
           )}
 
-          {/* Mobile Image Above — split only; linear-split never stacks, so this has no effect there */}
+          {/* Mobile Image Above - split only; linear-split never stacks, so this has no effect there */}
           {layout === 'split' && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-500">Mobile Image Above</span>
@@ -5280,7 +5280,7 @@ function HeaderNodeComponent({ layout, textAlign, heading, subheading, backgroun
               onChange={val => {
                 commitField('setBackgroundColor', val)
                 // split/linear-split show this color on the text side alongside separate
-                // media (image/video) on the other side — backgroundType there tracks which
+                // media (image/video) on the other side - backgroundType there tracks which
                 // media is active, so picking a color must not clear it. Other layouts show
                 // color and media as mutually-exclusive backgrounds, so backgroundType does
                 // need to flip to 'color' there.
@@ -5568,7 +5568,7 @@ export class HeaderNode extends DecoratorNode {
     // staying flat, so headers shrink proportionally toward mobile instead of reading as
     // "full page" there. The vw slope is chosen so the clamp reaches its max around the
     // viewport width where that layout's own rendered width plateaus (its max-width cap,
-    // or a large-desktop reference for layouts with no cap) — see the plan/tuning notes for
+    // or a large-desktop reference for layouts with no cap) - see the plan/tuning notes for
     // the derivation. Fullscreen intentionally stays 100vh at every width.
     // linear's slope (56.25vw = 1080/1920) is a true 16:9 ratio, floored at 280px like the
     // other layouts but capped at 100vh instead of a fixed px ceiling; once the viewport is
@@ -5576,14 +5576,14 @@ export class HeaderNode extends DecoratorNode {
     // stops growing there instead of pushing content off the page (mirrors fullscreen's
     // 100vh cap, just reached via the aspect-ratio slope instead of applying at every width).
     // linear-split's slope (43.75vw) keeps the WHOLE header at a fixed aspect ratio as it
-    // scales — 640x280 at exactly 640px wide (280/640 = 43.75%) — rather than the 16:9
+    // scales - 640x280 at exactly 640px wide (280/640 = 43.75%) - rather than the 16:9
     // full-header ratio `linear` uses (56.25vw); it's shallower since the image is only
     // half the header's width, not the whole thing. Floor matches full width's own 280px
     // floor (rather than linear's, since linear-split's small-screen height is meant to
-    // read the same as full width's does there) — and 43.75vw meets exactly that floor at
+    // read the same as full width's does there) - and 43.75vw meets exactly that floor at
     // 640px, so growth starts right there with no seam.
     const heights      = { regular: 'clamp(200px, 45vw, 347px)', wide: 'clamp(240px, 35vw, 447px)', full: 'clamp(280px, 38vw, 551px)', split: 'clamp(300px, 42vw, 600px)', fullscreen: '100vh', linear: 'min(max(280px, 56.25vw), 100vh)', 'linear-split': 'min(max(280px, 43.75vw), 100vh)' }
-    // Fullscreen's base (below xl) matches full width's size — the CSS media queries in
+    // Fullscreen's base (below xl) matches full width's size - the CSS media queries in
     // index.css (min-width: 1280px/1536px) ramp it up further at xl and 2xl.
     const headingSizes = { regular: '36px',  wide: '48px',  full: '60px',  split: '60px',  fullscreen: '60px', linear: '60px', 'linear-split': '60px' }
     const subSizes     = { regular: '20px',  wide: '22px',  full: '24px',  split: '24px',  fullscreen: '24px', linear: '24px', 'linear-split': '24px' }
@@ -5598,11 +5598,11 @@ export class HeaderNode extends DecoratorNode {
     header.setAttribute('data-button-color', this.__buttonColor)
     header.setAttribute('data-text-align', this.__textAlign)
     // Both media references are written out whenever present, even the inactive one left
-    // over from switching image<->video without deleting it — a draft needs that reference
+    // over from switching image<->video without deleting it - a draft needs that reference
     // to survive round-trips (importDOM, autosave) so the file isn't seen as orphaned before
     // the admin has actually committed to discarding it. The backend strips whichever one
     // doesn't match backgroundType at the moment a post/page is actually published/scheduled
-    // (see header_media.strip_inactive_header_media, called from admin_blog.py/admin_pages.py) —
+    // (see header_media.strip_inactive_header_media, called from admin_blog.py/admin_pages.py) -
     // that's the one place "this media is no longer wanted" actually gets decided.
     if (this.__headerImage) {
       header.setAttribute('data-header-image', this.__headerImage)
@@ -5619,7 +5619,7 @@ export class HeaderNode extends DecoratorNode {
 
     // split/linear-split: bake this heading's width-fit font size as a
     // ready-made CSS clamp(...) string in a custom property on <header>
-    // itself, consumed by index.css's single (non-tiered) rule — which falls
+    // itself, consumed by index.css's single (non-tiered) rule - which falls
     // back to its own clamp() when this is absent, e.g. on a post published
     // before this feature, whose <header> has no --hdr-* vars. Computed via
     // the same computeHeaderFitSizes() helper the live editor uses, so
@@ -5641,7 +5641,7 @@ export class HeaderNode extends DecoratorNode {
     if (this.__layout === 'split' || this.__layout === 'linear-split') {
       header.style.display = 'flex'
       header.style.flexDirection = this.__flipLayout ? 'row-reverse' : 'row'
-      // linear-split is a hard cap, not a floor — same reasoning as linear below: `height`
+      // linear-split is a hard cap, not a floor - same reasoning as linear below: `height`
       // (not `min-height`) plus overflow:hidden so it can never grow past its
       // aspect-ratio-driven size, it clips instead. split keeps a min-height floor.
       if (this.__layout === 'linear-split') {
@@ -5668,7 +5668,7 @@ export class HeaderNode extends DecoratorNode {
           // still owned by the live document, so a real `autoplay` attribute
           // would start a genuine audio-capable player on every editor
           // update, not just on save. The real `autoplay` attribute is never
-          // set here — `generateSafeHtmlFromNodes()` swaps the
+          // set here - `generateSafeHtmlFromNodes()` swaps the
           // `data-export-autoplay` marker back in as a string afterward.
           video.muted = true
           video.defaultMuted = true
@@ -5680,8 +5680,8 @@ export class HeaderNode extends DecoratorNode {
           video.setAttribute('playsinline', '')
           video.setAttribute('disablepictureinpicture', '')
           // Position/size/crop come from the .header-split-image CSS rule
-          // (index.css) — the video is a direct child of imgSide, which that
-          // rule already targets — so it's absolutely-filled and can never
+          // (index.css) - the video is a direct child of imgSide, which that
+          // rule already targets - so it's absolutely-filled and can never
           // affect imgSide's own box size, matching .header-bg-video on the
           // other layouts.
           imgSide.appendChild(video)
@@ -5691,7 +5691,7 @@ export class HeaderNode extends DecoratorNode {
           imgSide.appendChild(img)
         }
 
-        // Shadow overlay darkens both sides — see the matching block on textSide below.
+        // Shadow overlay darkens both sides - see the matching block on textSide below.
         if (this.__shadowOverlay) {
           const overlay = document.createElement('div')
           overlay.style.position = 'absolute'
@@ -5711,12 +5711,12 @@ export class HeaderNode extends DecoratorNode {
       textSide.style.flexDirection = 'column'
       textSide.style.justifyContent = 'center'
       // Centers the text group (below) horizontally within the column whenever
-      // it doesn't max out the available width — a flex item that isn't
+      // it doesn't max out the available width - a flex item that isn't
       // stretched sizes to its own content (shrink-to-fit) instead of the
       // column's full width.
       textSide.style.alignItems = 'center'
       // Fixed, uniform vertical padding and (for `split`) horizontal padding at
-      // every alignment (left/center/right) — the box's shape never changes with
+      // every alignment (left/center/right) - the box's shape never changes with
       // alignment or text length, only the text's position within it does.
       // `linear-split` overrides the horizontal padding just below with its own
       // continuously-scaling clamp() instead of this flat 48px.
@@ -5739,12 +5739,12 @@ export class HeaderNode extends DecoratorNode {
       }
 
       // Heading/subheading/button all share one box, sized to fit its own
-      // content rather than stretched to the column's full width — combined
+      // content rather than stretched to the column's full width - combined
       // with alignItems:center above, this centers the whole group (not just
       // each line) in the split side whenever text doesn't max out the
       // available width, while each field's own text-align still governs how
       // its lines sit within this shared box. Also doubles as the "paint
-      // above the shadow overlay" positioned wrapper when one is enabled — a
+      // above the shadow overlay" positioned wrapper when one is enabled - a
       // plain in-flow child paints UNDER a positioned sibling regardless of
       // DOM order, so without this the overlay would darken the text too
       // instead of just the background behind it. Mirrors the non-split
@@ -5758,7 +5758,7 @@ export class HeaderNode extends DecoratorNode {
 
       const headingEl = document.createElement('div')
       headingEl.className = 'header-heading'
-      // var(...) with the old flat static value as fallback — this is only
+      // var(...) with the old flat static value as fallback - this is only
       // the pre-CSS-override base layer; index.css's own !important rule
       // (with its own clamp() fallback) is what actually governs old posts'
       // responsive sizing when --hdr-heading-fs is absent.
@@ -5858,7 +5858,7 @@ export class HeaderNode extends DecoratorNode {
       }
 
       // Content (and the shadow overlay, if enabled) must sit in a positioned wrapper so
-      // it paints above the background video — an absolutely-positioned video otherwise
+      // it paints above the background video - an absolutely-positioned video otherwise
       // paints on top of plain in-flow content regardless of DOM order.
       let innerContentWrap = inner
       if (this.__shadowOverlay || hasBgVideo) {
@@ -5884,7 +5884,7 @@ export class HeaderNode extends DecoratorNode {
       // Text content sits in its own column, capped to half the header's width when left-
       // or right-aligned so it wraps like a real column instead of stretching edge to edge
       // (which read as center-but-off for anything but very long text). Centered text is
-      // unaffected — full width, same as before. innerContentWrap is a flex column with
+      // unaffected - full width, same as before. innerContentWrap is a flex column with
       // default align-items:stretch, so a max-width here naturally left-anchors the column
       // without needing any extra positioning; right-aligned text needs an auto left-margin
       // to push that same capped column to the opposite edge instead. This 50% is the
@@ -5974,7 +5974,7 @@ export function $createHeaderNode() {
 }
 
 // Shared "edit embed link" popover for the YouTube/Vimeo/Spotify nodes below
-// — lets an existing embed's URL be swapped in place instead of deleting and
+// - lets an existing embed's URL be swapped in place instead of deleting and
 // re-inserting the whole node. parseValue returning a falsy value (an
 // unrecognized URL) silently discards the edit, same tolerance as the image
 // node's own link popover.
@@ -6137,7 +6137,7 @@ function YouTubeNodeComponent({ videoId, caption, nodeKey, editor }) {
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '0.5rem' }}
           />
           {/* Clicks inside an <iframe> never reach the parent document (a hard
-              browser boundary), so CLICK_COMMAND above can never see them —
+              browser boundary), so CLICK_COMMAND above can never see them -
               this transparent overlay catches the first click to select the
               node/show the toolbar, then gets out of the way once selected
               so the embed itself (play, etc.) is fully interactive. */}
@@ -6269,7 +6269,7 @@ export class YouTubeNode extends DecoratorNode {
     figure.style.cssText = 'max-width:740px;margin:1.5rem auto'
 
     // Rounding + clipping live on this inner wrapper (not the <figure>) so
-    // they hug just the video frame, not the caption below it — same
+    // they hug just the video frame, not the caption below it - same
     // pattern as ImageNode/VideoNode.
     const wrapper = document.createElement('div')
     wrapper.style.cssText = 'position:relative;padding-bottom:56.25%;height:0;border-radius:0.5rem;overflow:hidden'
@@ -6419,7 +6419,7 @@ function VimeoNodeComponent({ videoId, caption, nodeKey, editor }) {
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', borderRadius: '0.5rem' }}
           />
           {/* Clicks inside an <iframe> never reach the parent document (a hard
-              browser boundary), so CLICK_COMMAND above can never see them —
+              browser boundary), so CLICK_COMMAND above can never see them -
               this transparent overlay catches the first click to select the
               node/show the toolbar, then gets out of the way once selected
               so the embed itself (play, etc.) is fully interactive. */}
@@ -6551,7 +6551,7 @@ export class VimeoNode extends DecoratorNode {
     figure.style.cssText = 'max-width:740px;margin:1.5rem auto'
 
     // Rounding + clipping live on this inner wrapper (not the <figure>) so
-    // they hug just the video frame, not the caption below it — same
+    // they hug just the video frame, not the caption below it - same
     // pattern as ImageNode/VideoNode.
     const wrapper = document.createElement('div')
     wrapper.style.cssText = 'position:relative;padding-bottom:56.25%;height:0;border-radius:0.5rem;overflow:hidden'
@@ -6704,7 +6704,7 @@ function SpotifyNodeComponent({ embedPath, caption, nodeKey, editor }) {
             style={{ width: '100%', height: `${iframeHeight}px`, border: 'none', borderRadius: '12px', display: 'block' }}
           />
           {/* Clicks inside an <iframe> never reach the parent document (a hard
-              browser boundary), so CLICK_COMMAND above can never see them —
+              browser boundary), so CLICK_COMMAND above can never see them -
               this transparent overlay catches the first click to select the
               node/show the toolbar, then gets out of the way once selected
               so the embed itself (play, etc.) is fully interactive. */}
@@ -6877,7 +6877,7 @@ export function $createSpotifyNode(embedPath, caption = '') {
 
 // ─── Table nodes (subclasses of @lexical/table) ──────────────────────────────
 // We use the official @lexical/table package so cells are part of the single
-// main editor (native rich text — no nested editors). These two subclasses add
+// main editor (native rich text - no nested editors). These two subclasses add
 // the project-specific fields the package doesn't have: a regular/wide width
 // mode + block alignment on the table, and an auto/light/dark text-color mode
 // on each cell. They also control the exported HTML so it round-trips and so
@@ -6945,7 +6945,7 @@ export class WideTableNode extends TableNode {
     const prevAfter = out.after
     const borderColor = this.__borderColor
     // Use the node's own stored width state, same as the live editor
-    // (createDOM/updateDOM above) — previously this recomputed width from
+    // (createDOM/updateDOM above) - previously this recomputed width from
     // colCount >= 4 here, which disagreed with the editor's own colCount
     // >= 6 auto-classification (see plugins.jsx), so a 4–5 column table
     // could render 'wide'/centered on the public site while the editor
@@ -6957,7 +6957,7 @@ export class WideTableNode extends TableNode {
     out.after = (tableElement) => {
       const el = prevAfter ? prevAfter(tableElement) : tableElement
       if (el && el.nodeName === 'TABLE') {
-        // Count columns from the built DOM — more reliable than reading Lexical node tree.
+        // Count columns from the built DOM - more reliable than reading Lexical node tree.
         const colCount = el.rows[0]?.cells.length || el.querySelectorAll('col').length || 0
         // Use stored widths if available; otherwise default 150px/col so the table
         // always has an explicit pixel width and overflow-x: auto can fire.
@@ -7056,7 +7056,7 @@ export class StyledTableCellNode extends TableCellNode {
     const out = super.exportDOM(editor)
     const el = out.element
     if (el && el.nodeType === 1) {
-      // Base TableCellNode.exportDOM hardcodes a black border inline —
+      // Base TableCellNode.exportDOM hardcodes a black border inline -
       // strip it so table.blog-table td's CSS var-based border (driven by
       // the table's own borderColor setting) isn't shadowed by an inline style.
       el.style.removeProperty('border')
