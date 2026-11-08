@@ -38,11 +38,6 @@ on:
         description: "test only: allow a test build that adds database migrations (back up production first)"
         type: boolean
         default: false
-  # TEMPORARY, Phase 1 only: every push to the CI/CD branch runs a trial, because
-  # GitHub only offers "Run workflow" for workflows already on the default
-  # branch. REMOVE this trigger before merging CI/CD into main.
-  push:
-    branches: ["CI/CD"]
 
 permissions:
   contents: read
@@ -71,7 +66,7 @@ jobs:
         id: plan
         shell: bash
         env:
-          BUMP: ${{ github.event_name == 'push' && 'trial' || inputs.bump }}
+          BUMP: ${{ inputs.bump }}
           ALLOW_MIGRATIONS: ${{ inputs.allow_migrations || false }}
           BRANCH: ${{ github.ref_name }}
         run: |
