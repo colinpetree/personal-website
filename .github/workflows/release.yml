@@ -494,11 +494,25 @@ jobs:
             echo "DIST_DISPATCH_TOKEN or OWN_DIST_REPOS not set; dist repos will pick this up on their next scheduled run."
             exit 0
           fi
+          # --ref main: without it, gh first looks up the repo's default branch,
+          # which needs "Contents: read". The token deliberately has only
+          # "Actions: read and write", so that lookup fails (HTTP 403,
+          # "Resource not accessible by personal access token").
+          failed=0
           for repo in $REPOS; do
+            args=(publish.yml --repo "$repo" --ref main)
+            how="Actions -> Publish site -> Run workflow"
             if [ "$MODE" = "test" ]; then
-              GH_TOKEN="$DISPATCH_TOKEN" gh workflow run publish.yml --repo "$repo" -f test_tag="$TAG"
-            else
-              GH_TOKEN="$DISPATCH_TOKEN" gh workflow run publish.yml --repo "$repo"
+              args+=(-f test_tag="$TAG")
+              how="$how, with test_tag set to $TAG"
             fi
-            echo "Started publish.yml in $repo"
+            if GH_TOKEN="$DISPATCH_TOKEN" gh workflow run "${args[@]}"; then
+              echo "Started publish.yml in $repo"
+            else
+              # The release above is already published and stays published;
+              # only the "build now" message failed.
+              echo "::error::Could not start publish.yml in $repo, but $TAG IS published. Start the build by hand there: $how. (Otherwise its next scheduled run picks up a normal release; a test build always needs this.)"
+              failed=1
+            fi
           done
+          exit "$failed"
