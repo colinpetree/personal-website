@@ -164,7 +164,23 @@ jobs:
             edited_at="$(date -u -d "$live_fp" +%s 2>/dev/null || echo 0)"
             fp_age=$(( $(date -u +%s) - edited_at ))
           fi
-          upstream_tag="$(gh api "repos/$UPSTREAM/releases/latest" --jq .tag_name 2>/dev/null || true)"
+          # On an HTTP error `gh api` still prints GitHub's JSON error body to
+          # stdout, so never use the output of a failed call as a tag. Only a
+          # 404 means "no release yet"; any other failure (outage, rate limit)
+          # stops the run, so GitHub emails you instead of this run quietly
+          # doing nothing and swallowing the content change that started it.
+          if upstream_out="$(gh api "repos/$UPSTREAM/releases/latest" --jq .tag_name 2>/dev/null)"; then
+            upstream_tag="$upstream_out"
+          elif [[ "$upstream_out" == *'"status":"404"'* ]]; then
+            upstream_tag=""
+          else
+            echo "::error::Could not read $UPSTREAM's latest release from GitHub (${upstream_out:-no response}). Nothing was published; the next run tries again."
+            exit 1
+          fi
+          if [ -n "$upstream_tag" ] && ! [[ "$upstream_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::$UPSTREAM's latest release is '$upstream_tag', which is not a vX.Y.Z version tag."
+            exit 1
+          fi
 
           note "Live content fingerprint: $live_fp"
           note "This repo's latest release: ${own_tag:-none} (fingerprint: ${own_fp:-none recorded})"
