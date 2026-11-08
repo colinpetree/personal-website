@@ -1,0 +1,5 @@
+-r requirements.txt
+# Build-only: the release workflow (.github/workflows/release.yml) and the Pi
+# fallback (deploy/scripts/build-on-pi.sh) both install from this file, so
+# every release is frozen by the same PyInstaller version. Bump on purpose.
+pyinstaller==6.22.3

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runs ON THE PRODUCTION SERVER. Installs or upgrades to a given release.
 #
-# Normal first-time flow: run deploy/scripts/bootstrap.sh once first — it
+# Normal first-time flow: run deploy/scripts/bootstrap.sh once first - it
 # provisions the OS/Postgres and writes a complete $DATA_DIR/.env, so this
 # script needs no manual .env editing. If bootstrap.sh was given a domain,
 # this script's domain prompt below is skipped entirely (already resolved
@@ -14,13 +14,13 @@
 # --tag names the release directory under $APP_ROOT/releases (defaults to
 # "v$VERSION", derived from the tarball filename). Pass the actual GitHub
 # release tag here for a content-only release (e.g.
-# v0.1.12-content-20260818153000, see publish-content-refresh.sh) — it keeps
+# v0.1.12-content-20260818153000, see publish-content-refresh.sh) - it keeps
 # VERSION unchanged from the code release it's based on, so without --tag its
 # release directory would collide with that earlier release's. Not needed
 # with the vX.Y.Z / --releases-repo form above, which already uses the tag
 # as ARG1.
 #
-# --domain is only needed until a domain is known — before an admin has ever
+# --domain is only needed until a domain is known - before an admin has ever
 # logged in to save one via the settings page, and only if this session has
 # no terminal to answer the interactive prompt install.sh falls back to
 # otherwise. It seeds $DATA_DIR/certbot_domain.txt directly, which also
@@ -60,7 +60,7 @@ trap 'rm -rf "$WORKDIR"' EXIT
 if [[ "$ARG1" == v* && -n "$RELEASES_REPO" ]]; then
     echo "==> Downloading $ARG1 from $RELEASES_REPO"
     gh release download "$ARG1" --repo "$RELEASES_REPO" --dir "$WORKDIR"
-    # Discover the downloaded filename rather than guessing it from the tag —
+    # Discover the downloaded filename rather than guessing it from the tag -
     # build-on-pi.sh always names the tarball after the bare VERSION file
     # (e.g. personal-website-v0.1.12.tar.gz), which only happens to match the
     # tag for an ordinary code release. A content-only release tag (e.g.
@@ -86,17 +86,17 @@ if [ -f "$TARBALL.sha256" ]; then
     echo "==> Verifying checksum"
     (cd "$(dirname "$TARBALL")" && sha256sum -c "$(basename "$TARBALL").sha256")
 else
-    echo "WARNING: no .sha256 file found next to the tarball — skipping integrity check."
+    echo "WARNING: no .sha256 file found next to the tarball - skipping integrity check."
 fi
 
 # The release directory is named after the release TAG, not the bare
-# VERSION — a content-only release (see publish-content-refresh.sh) ships a
+# VERSION - a content-only release (see publish-content-refresh.sh) ships a
 # tarball whose VERSION is unchanged from the code release it's based on, so
 # naming this directory after VERSION alone would collide with that earlier
 # release's already-extracted directory. That collision made every content
 # release silently skip extraction (the "already extracted" guard below) and
 # also broke update-watch.sh's installed-vs-latest tag comparison, which
-# reads this directory's basename — together that produced an infinite
+# reads this directory's basename - together that produced an infinite
 # reinstall loop, since the comparison could never observe a successful
 # content install. Defaulting TAG to "v$VERSION" keeps ordinary code
 # releases (and any manual invocation with just a tarball path) unchanged.
@@ -104,7 +104,7 @@ TAG="${TAG_ARG:-v$VERSION}"
 RELEASE_NAME="$TAG"
 RELEASE_DIR="$RELEASES_DIR/$RELEASE_NAME"
 if [ -d "$RELEASE_DIR" ]; then
-    echo "Release $RELEASE_NAME is already extracted at $RELEASE_DIR — remove it first if you want to re-extract."
+    echo "Release $RELEASE_NAME is already extracted at $RELEASE_DIR - remove it first if you want to re-extract."
 else
     echo "==> Extracting to $RELEASE_DIR"
     mkdir -p "$RELEASES_DIR"
@@ -112,7 +112,7 @@ else
     mv "$WORKDIR/personal-website-v$VERSION" "$RELEASE_DIR"
 fi
 
-# ---- 2. .env — never auto-generate secrets, never overwrite --------------
+# ---- 2. .env - never auto-generate secrets, never overwrite --------------
 mkdir -p "$DATA_DIR"
 if [ ! -f "$DATA_DIR/.env" ]; then
     cp "$RELEASE_DIR/.env.example" "$DATA_DIR/.env"
@@ -121,31 +121,34 @@ if [ ! -f "$DATA_DIR/.env" ]; then
     echo " First install detected: $DATA_DIR/.env was created from .env.example."
     echo " Fill in DATABASE_URL, SECRET_KEY, ENCRYPTION_KEY, etc. and re-run this"
     echo " script. SECRET_KEY/ENCRYPTION_KEY must be generated once and kept stable"
-    echo " across every future deploy — do not regenerate them later."
+    echo " across every future deploy - do not regenerate them later."
     echo "=========================================================================="
     exit 1
 fi
 
-# ---- 3. Persistent data dirs — created once, never touched again ---------
+# ---- 3. Persistent data dirs - created once, never touched again ---------
 mkdir -p "$DATA_DIR/uploads"
 touch -a "$DATA_DIR/certbot_domain.txt"
-# Interval update-watch.sh (deploy/scripts/update-watch.sh) polls GitHub at,
-# in seconds. 1800 (30 min) balances the Pi's own ~20min build time against
-# not polling pointlessly during the long idle stretches between edits —
-# edit by hand any time, no restart needed, it's re-read every cycle.
-[ -f "$DATA_DIR/update-check-interval-seconds" ] || echo 1800 > "$DATA_DIR/update-check-interval-seconds"
+# Interval update-watch.sh (deploy/scripts/update-watch.sh) checks GitHub for
+# a new release at, in seconds. 300 (5 min): releases are built by GitHub
+# Actions in minutes, so waiting on this check is most of the time between a
+# release and it going live. Each check is one small API call (about 12 an
+# hour, far under GitHub's limit). Only seeded when the file is missing, so a
+# server that already has one keeps its value; edit it by hand any time, no
+# restart needed, it's re-read every cycle.
+[ -f "$DATA_DIR/update-check-interval-seconds" ] || echo 300 > "$DATA_DIR/update-check-interval-seconds"
 
 # This script runs as root (sudo), so everything just created under $DATA_DIR
-# is root-owned by default — but the systemd unit runs the app as the
+# is root-owned by default - but the systemd unit runs the app as the
 # unprivileged `personalweb` user (ReadWritePaths= only lifts systemd's own
 # sandboxing, it does not grant actual Unix write permission). Without this,
 # every runtime write here (uploads, certbot_domain.txt, the RAG cache)
-# throws PermissionError. Safe to re-run on every install, not just first —
+# throws PermissionError. Safe to re-run on every install, not just first -
 # a plain `chown -R` on already-correctly-owned files is a no-op.
 if id personalweb >/dev/null 2>&1; then
     chown -R personalweb:personalweb "$DATA_DIR"
 else
-    echo "WARNING: system user 'personalweb' does not exist — skipping chown of $DATA_DIR."
+    echo "WARNING: system user 'personalweb' does not exist - skipping chown of $DATA_DIR."
     echo "         The app will fail to write uploads/certbot_domain.txt/etc. until this"
     echo "         user exists and owns $DATA_DIR (see deploy plan §2)."
 fi
@@ -181,29 +184,29 @@ _install_config() {
     elif [ "$new_hash" = "$recorded" ]; then
         echo "==> $dest unchanged, skipping"
     else
-        echo "==> $dest CHANGED in this release — not overwriting automatically."
+        echo "==> $dest CHANGED in this release - not overwriting automatically."
         echo "    New version written to: $dest.new"
         echo "    Diff and apply manually: diff $dest $dest.new"
         cp "$src" "$dest.new"
     fi
 }
 
-# Single source of truth for the gunicorn/Varnish backend port — templated
+# Single source of truth for the gunicorn/Varnish backend port - templated
 # into both the systemd unit and the VCL below so they can never drift
 # independently (previously each hardcoded its own copy of "8000").
 BACKEND_PORT="8000"
 # Must match the -a 127.0.0.1:__ varnishd is bound to in bootstrap.sh's
-# systemd override — templated into nginx's upstream so it proxies to
+# systemd override - templated into nginx's upstream so it proxies to
 # Varnish itself, not straight past it to gunicorn.
 VARNISH_PORT="6081"
 
-# ---- Determine domain — prompt interactively on first install if needed --
+# ---- Determine domain - prompt interactively on first install if needed --
 DOMAIN="$(cat "$DATA_DIR/certbot_domain.txt" 2>/dev/null || true)"
 if [ -z "$DOMAIN" ] && [ -n "$DOMAIN_ARG" ]; then
     DOMAIN="$DOMAIN_ARG"
 fi
 if [ -z "$DOMAIN" ]; then
-    # Not gated on FIRST_INSTALL specifically — if an earlier run happened
+    # Not gated on FIRST_INSTALL specifically - if an earlier run happened
     # non-interactively with no --domain and the prompt never fired, the
     # systemd unit now exists so FIRST_INSTALL would be false forever after;
     # prompting whenever the domain is still genuinely unknown (regardless
@@ -212,7 +215,7 @@ if [ -z "$DOMAIN" ]; then
         echo ""
         echo "Before continuing: this domain's DNS (an A/AAAA record at your registrar"
         echo "or DNS provider) must already point at this server's public IP, or the"
-        echo "certificate request below will fail — DNS isn't something this script can"
+        echo "certificate request below will fail - DNS isn't something this script can"
         echo "do for you. If it's not pointed yet, it's fine to enter the domain anyway"
         echo "and re-run install.sh once DNS has propagated."
         read -rp "==> Enter the domain this site will be served from (e.g. example.com): " DOMAIN
@@ -228,15 +231,15 @@ fi
 
 # ---- Obtain a certificate before installing the real nginx config --------
 # nginx refuses to load any "listen ... ssl" block with no ssl_certificate
-# configured — the full site config (with its 443 block) can only ever be
+# configured - the full site config (with its 443 block) can only ever be
 # installed AFTER a real certificate already exists on disk. On first
 # install with no cert yet, bootstrap a temporary HTTP-only nginx config
 # just to serve the ACME HTTP-01 challenge, then obtain the cert via
-# `certbot certonly --webroot` — deliberately not `certbot --nginx`, which
+# `certbot certonly --webroot` - deliberately not `certbot --nginx`, which
 # would edit our hand-written config instead of just fetching a cert.
 CERT_DIR="/etc/letsencrypt/live/$DOMAIN"
 if [ -n "$DOMAIN" ] && [ ! -f "$CERT_DIR/fullchain.pem" ]; then
-    echo "==> No certificate yet for $DOMAIN — bootstrapping HTTP-only nginx to obtain one"
+    echo "==> No certificate yet for $DOMAIN - bootstrapping HTTP-only nginx to obtain one"
     mkdir -p /var/www/certbot
     BOOTSTRAP_CONF="$WORKDIR/nginx-bootstrap.conf"
     cat > "$BOOTSTRAP_CONF" <<-EOF
@@ -250,7 +253,7 @@ server {
     }
 
     location / {
-        return 200 'Bootstrapping HTTPS for $DOMAIN — try again shortly.';
+        return 200 'Bootstrapping HTTPS for $DOMAIN - try again shortly.';
         add_header Content-Type text/plain;
     }
 }
@@ -261,7 +264,7 @@ EOF
         ln -s /etc/nginx/sites-available/personal-website.conf /etc/nginx/sites-enabled/personal-website.conf
     fi
     if ! nginx -t; then
-        echo "WARNING: bootstrap nginx config failed nginx -t — cannot obtain a certificate this run. Check manually."
+        echo "WARNING: bootstrap nginx config failed nginx -t - cannot obtain a certificate this run. Check manually."
     else
         systemctl reload nginx 2>/dev/null || systemctl start nginx
 
@@ -275,12 +278,12 @@ EOF
         if certbot certonly --webroot -w /var/www/certbot -d "$DOMAIN" --non-interactive --agree-tos $EMAIL_FLAG; then
             echo "==> Certificate obtained for $DOMAIN"
             # certonly doesn't manage reloading nginx after renewal the way
-            # `certbot --nginx` would — add that ourselves, once.
+            # `certbot --nginx` would - add that ourselves, once.
             mkdir -p /etc/letsencrypt/renewal-hooks/deploy
             printf '#!/bin/sh\nsystemctl reload nginx\n' > /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
             chmod +x /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
         else
-            echo "WARNING: certbot failed to obtain a certificate for $DOMAIN — the site will"
+            echo "WARNING: certbot failed to obtain a certificate for $DOMAIN - the site will"
             echo "         stay on the HTTP-only bootstrap config until this is resolved (check"
             echo "         DNS points at this server and port 80 is reachable from the internet)"
             echo "         and install.sh is re-run."
@@ -295,13 +298,13 @@ if [ -n "$DOMAIN" ] && [ -f "$CERT_DIR/fullchain.pem" ]; then
     # Cloudflare's edge IP ranges change occasionally, so this is fetched
     # live on every install rather than hardcoded into the repo (which would
     # silently go stale). A fetch failure degrades gracefully to no real_ip
-    # trust at all — the same behavior as before this feature existed —
+    # trust at all - the same behavior as before this feature existed -
     # rather than failing the install; it only matters for sites actually
     # proxied through Cloudflare, and even then just means $remote_addr goes
     # back to showing Cloudflare's edge IP until the next successful
     # install/re-run.
     CLOUDFLARE_REAL_IP_CONFIG=""
-    # Fetched as two SEPARATE curl calls, not one multi-URL call — Cloudflare's
+    # Fetched as two SEPARATE curl calls, not one multi-URL call - Cloudflare's
     # ips-v4 response has no trailing newline, so a single `curl url1 url2`
     # (which just concatenates both bodies back-to-back) merges the last IPv4
     # range directly into the first IPv6 range with no separator (e.g.
@@ -323,7 +326,7 @@ if [ -n "$DOMAIN" ] && [ -f "$CERT_DIR/fullchain.pem" ]; then
         )"
         echo "==> Fetched $(echo "$CF_RANGES" | grep -c .) Cloudflare IP ranges for nginx real_ip config"
     else
-        echo "WARNING: could not fetch Cloudflare's IP ranges (cloudflare.com unreachable?) —"
+        echo "WARNING: could not fetch Cloudflare's IP ranges (cloudflare.com unreachable?) -"
         echo "         nginx will NOT recover real visitor IPs behind Cloudflare this run. If"
         echo "         this site is Cloudflare-proxied, re-run install.sh once network access"
         echo "         to cloudflare.com is available."
@@ -335,7 +338,7 @@ if [ -n "$DOMAIN" ] && [ -f "$CERT_DIR/fullchain.pem" ]; then
         -e "s#__VARNISH_PORT__#$VARNISH_PORT#g" \
         "$RELEASE_DIR/deploy/nginx/personal-website.conf" > "$NGINX_SRC.tmp"
     # sed -e with & / \ in the replacement (CIDR ranges contain neither, but
-    # a multi-line replacement itself is what breaks plain sed) — done as a
+    # a multi-line replacement itself is what breaks plain sed) - done as a
     # separate awk pass instead of another -e, since sed's `s#pat#repl#`
     # can't cleanly substitute a multi-line block via the shell variable.
     awk -v repl="$CLOUDFLARE_REAL_IP_CONFIG" '
@@ -344,7 +347,7 @@ if [ -n "$DOMAIN" ] && [ -f "$CERT_DIR/fullchain.pem" ]; then
     rm -f "$NGINX_SRC.tmp"
     INSTALL_FULL_NGINX_CONFIG=true
 else
-    echo "NOTE: no certificate available — leaving the HTTP-only bootstrap nginx config in"
+    echo "NOTE: no certificate available - leaving the HTTP-only bootstrap nginx config in"
     echo "      place for now. Re-run install.sh once DNS/certbot succeed to switch to HTTPS."
 fi
 
@@ -363,13 +366,13 @@ _install_config varnish "$WORKDIR/default.vcl" "/etc/varnish/default.vcl"
 # No templating needed (no __BACKEND_PORT__/__DOMAIN__ placeholders), so this
 # one installs straight from the release dir. Same hash-diff-safe behavior as
 # the other three: unmodified on a later release is a no-op, a genuine change
-# writes .new instead of overwriting a hand-edit — see deploy/scripts/
+# writes .new instead of overwriting a hand-edit - see deploy/scripts/
 # update-watch.sh for how the *script* itself (as opposed to this unit file)
 # actually keeps itself current across releases.
 _install_config updater "$RELEASE_DIR/deploy/systemd/personal-website-updater.service" \
     "/etc/systemd/system/personal-website-updater.service"
 
-# Backup + health-monitoring timers — no templating needed (no
+# Backup + health-monitoring timers - no templating needed (no
 # __BACKEND_PORT__/__DOMAIN__ placeholders), same hash-diff-safe install as
 # the updater unit above. Config (RESTIC_PASSWORD etc.) lives in
 # $DATA_DIR/.env, not these unit files, so a later env-only tweak never shows
@@ -386,10 +389,20 @@ _install_config media-cleanup-service "$RELEASE_DIR/deploy/systemd/personal-webs
     "/etc/systemd/system/personal-website-media-cleanup.service"
 _install_config media-cleanup-timer "$RELEASE_DIR/deploy/systemd/personal-website-media-cleanup.timer" \
     "/etc/systemd/system/personal-website-media-cleanup.timer"
+# Tells GitHub to rebuild the prerendered pages after content edits (see
+# deploy/scripts/content-dispatch.sh). Installed but never enabled here: it
+# needs a GitHub token first, so enabling is a manual step (printed below).
+# Guarded so a tarball built before this unit existed still installs.
+if [ -f "$RELEASE_DIR/deploy/systemd/personal-website-content-dispatch.service" ]; then
+    _install_config content-dispatch-service "$RELEASE_DIR/deploy/systemd/personal-website-content-dispatch.service" \
+        "/etc/systemd/system/personal-website-content-dispatch.service"
+    _install_config content-dispatch-timer "$RELEASE_DIR/deploy/systemd/personal-website-content-dispatch.timer" \
+        "/etc/systemd/system/personal-website-content-dispatch.timer"
+fi
 
 systemctl daemon-reload
 
-# Reload nginx/Varnish unconditionally on every run, not just first install —
+# Reload nginx/Varnish unconditionally on every run, not just first install -
 # _install_config can install an updated file on a LATER run too (e.g. the
 # nginx config only actually gets written once a certificate exists, which
 # may not happen until a retry after the very first install, by which point
@@ -399,51 +412,51 @@ echo "==> Reloading nginx"
 if nginx -t; then
     systemctl reload nginx 2>/dev/null || systemctl start nginx
 else
-    echo "WARNING: nginx config test failed — check manually (nginx -t, systemctl status nginx)."
+    echo "WARNING: nginx config test failed - check manually (nginx -t, systemctl status nginx)."
 fi
 
 echo "==> Reloading Varnish VCL"
 if command -v varnishadm >/dev/null 2>&1; then
-    # Varnish requires a unique label per vcl.load — reusing one (e.g. a
+    # Varnish requires a unique label per vcl.load - reusing one (e.g. a
     # fixed "config1") errors on every run after the first. Old labels are
     # harmless to leave around; they're just inactive metadata.
     VCL_LABEL="config_$(date +%s)"
     if varnishadm vcl.load "$VCL_LABEL" /etc/varnish/default.vcl 2>/dev/null && varnishadm vcl.use "$VCL_LABEL" 2>/dev/null; then
         echo "    Loaded and activated as $VCL_LABEL"
     else
-        echo "WARNING: varnishadm vcl.load/vcl.use failed — varnish may not be running yet."
+        echo "WARNING: varnishadm vcl.load/vcl.use failed - varnish may not be running yet."
         echo "         Once it is, run: varnishadm vcl.load $VCL_LABEL /etc/varnish/default.vcl && varnishadm vcl.use $VCL_LABEL"
     fi
 else
-    echo "NOTE: varnishadm not found — is varnish installed? Skipping VCL reload."
+    echo "NOTE: varnishadm not found - is varnish installed? Skipping VCL reload."
 fi
 
 if [ "$FIRST_INSTALL" = true ]; then
     systemctl enable personal-website
 
     # Needs no configuration to be useful (reads .env, defaults everything
-    # else) — safe to enable unconditionally, unlike the backup timer below.
+    # else) - safe to enable unconditionally, unlike the backup timer below.
     systemctl enable --now personal-website-healthwatch.timer
 
-    # Same reasoning — zero-config, safe-by-default (grace period + circuit
+    # Same reasoning - zero-config, safe-by-default (grace period + circuit
     # breaker, see deploy/BACKUP.md), unlike the backup timer's offsite
     # destination requirement.
     systemctl enable --now personal-website-media-cleanup.timer
 
     echo ""
     echo "=========================================================================="
-    echo " First install — remaining manual steps (deploy plan §12):"
-    echo "   1. Confirm varnishd is bound to 127.0.0.1:6081, NOT 0.0.0.0:6081 —"
+    echo " First install - remaining manual steps (deploy plan §12):"
+    echo "   1. Confirm varnishd is bound to 127.0.0.1:6081, NOT 0.0.0.0:6081 -"
     echo "      check its systemd unit / /etc/default/varnish DAEMON_OPTS for"
     echo "      \"-a 127.0.0.1:6081\" and restart varnish if you had to change it."
     echo "      Left unconfigured this exposes the cache directly, bypassing nginx's TLS."
     echo "   2. ufw: allow only 22 (or your SSH port), 80, 443; deny everything else."
     echo "   3. Confirm PostgreSQL is installed and DATABASE_URL in .env points at it."
     echo "   4. Confirm libnginx-mod-http-brotli is installed (apt install"
-    echo "      libnginx-mod-http-brotli) — nginx auto-loads it via"
+    echo "      libnginx-mod-http-brotli) - nginx auto-loads it via"
     echo "      /etc/nginx/modules-enabled/, no nginx.conf edit needed. Without"
     echo "      it, nginx -t fails on the brotli/brotli_static directives below."
-    echo "   5. Auto-updates are NOT enabled yet — this install.sh run was manual,"
+    echo "   5. Auto-updates are NOT enabled yet - this install.sh run was manual,"
     echo "      as every first install always is. Once you're ready to hand future"
     echo "      releases (code or content) off to the auto-updater: edit"
     echo "      UPDATE_WATCH_RELEASES_REPO in"
@@ -453,26 +466,30 @@ if [ "$FIRST_INSTALL" = true ]; then
     echo "      initialized first): run deploy/scripts/setup-restic-repo.sh here,"
     echo "      then run deploy/scripts/setup-backup-pull-pi.sh on the Pi and paste"
     echo "      its printed authorized_keys line onto this server (this server"
-    echo "      never pushes anywhere — the Pi pulls the backup on its own"
+    echo "      never pushes anywhere - the Pi pulls the backup on its own"
     echo "      schedule). Then run"
     echo "      systemctl enable --now personal-website-backup.timer"
     echo "      See deploy/BACKUP.md for full setup and restore instructions."
     echo "   7. Crash-loop/disk/certificate-expiry monitoring IS already enabled"
-    echo "      (personal-website-healthwatch.timer) — no action needed unless"
+    echo "      (personal-website-healthwatch.timer) - no action needed unless"
     echo "      you want to tune BACKUP_DISK_ALERT_PERCENT/CERT_ALERT_DAYS in"
     echo "      $DATA_DIR/.env."
     echo "   8. Orphan media cleanup IS already enabled"
-    echo "      (personal-website-media-cleanup.timer) — deletes uploaded files no"
+    echo "      (personal-website-media-cleanup.timer) - deletes uploaded files no"
     echo "      longer referenced anywhere, after a grace period. No action needed"
     echo "      unless you want to tune ORPHAN_MEDIA_GRACE_DAYS or the circuit"
     echo "      breaker's ORPHAN_MEDIA_MIN_REFERENCED_RATIO/_FLOOR/"
     echo "      _REFERENCED_HISTORY_WINDOW/_MAX_PER_RUN_FLOOR/_PERCENT settings"
     echo "      in $DATA_DIR/.env. See deploy/BACKUP.md."
+    echo "   9. Content edits rebuilding the site right away is NOT enabled yet"
+    echo "      (needs a GitHub token). Run setup-auto-update-production.sh, which"
+    echo "      asks for it, or see RELEASING.md. Until then the dist repo's"
+    echo "      scheduled run picks up edits every 3 hours."
     echo "=========================================================================="
 fi
 
 # server is invoked directly in steps 4b/5 below, NOT via systemd, so none of
-# the unit file's EnvironmentFile=/Environment= lines apply — without
+# the unit file's EnvironmentFile=/Environment= lines apply - without
 # explicitly sourcing .env and exporting these ourselves, DATABASE_URL etc.
 # are unset and both calls fail immediately.
 _run_server_in() {
@@ -489,7 +506,7 @@ _run_server_in() {
 }
 _run_server() { _run_server_in "$RELEASE_DIR" "$@"; }
 
-# Whether the *database* has ever been seeded — deliberately NOT the same
+# Whether the *database* has ever been seeded - deliberately NOT the same
 # thing as $FIRST_INSTALL above, which only reflects whether this SERVER has
 # installed a release before (systemd-unit-file presence). Those two can
 # diverge: resetting/replacing the database while the systemd unit is still
@@ -499,32 +516,32 @@ _run_server() { _run_server_in "$RELEASE_DIR" "$@"; }
 # itself (via server --db-is-fresh, checking for schema_migrations) is the
 # only signal that can't be fooled by that mismatch.
 if ! DB_IS_FRESH="$(_run_server --db-is-fresh)"; then
-    echo "DB FRESHNESS CHECK FAILED — aborting before touching the current release."
+    echo "DB FRESHNESS CHECK FAILED - aborting before touching the current release."
     echo "(Check DATABASE_URL in $DATA_DIR/.env and that PostgreSQL is reachable.)"
     exit 1
 fi
 
 # ---- 4b. Only on a genuinely fresh database: seed the 4 pre-existing legacy
 # migrations as already-applied. They describe how an ALREADY-EXISTING
-# (pre-rename) database reaches today's schema — db.create_all() on a fresh
+# (pre-rename) database reaches today's schema - db.create_all() on a fresh
 # database already creates that schema directly, so actually running them
 # here would fail outright (e.g. "relation donation does not exist").
 # Automatic and unconditional, not a manual step to remember.
 if [ "$DB_IS_FRESH" = "true" ]; then
     echo "==> Seeding legacy migrations as already-applied (fresh database)"
     if ! _run_server --seed-known-migrations; then
-        echo "SEEDING FAILED — aborting before touching the current release."
+        echo "SEEDING FAILED - aborting before touching the current release."
         exit 1
     fi
 fi
 
 # ---- 4c. Only on a genuinely fresh database: seed Profile/SiteConfig/
-# AdminAccount — server.py --seed-initial-data (§0.2) is itself always a safe
+# AdminAccount - server.py --seed-initial-data (§0.2) is itself always a safe
 # no-op past the first row in each table, but there's no reason to run it on
 # every upgrade. SiteConfig in particular must exist before the post-cutover
 # health check below (§7/§8), which polls /api/site-config. AdminAccount
 # always seeds as admin@example.com with a freshly random password, printed
-# once to the output below — save it from there.
+# once to the output below - save it from there.
 if [ "$DB_IS_FRESH" = "true" ]; then
     echo "==> Seeding initial Profile/SiteConfig/AdminAccount data"
     if [ -n "$DOMAIN" ]; then
@@ -534,16 +551,16 @@ if [ "$DB_IS_FRESH" = "true" ]; then
         export SITE_DOMAIN="$DOMAIN"
     fi
     if ! _run_server --seed-initial-data; then
-        echo "SEEDING FAILED — aborting before touching the current release."
+        echo "SEEDING FAILED - aborting before touching the current release."
         exit 1
     fi
 fi
 
-# Only resolve a previous release if $CURRENT_LINK actually exists yet — GNU
+# Only resolve a previous release if $CURRENT_LINK actually exists yet - GNU
 # `readlink -f` on a not-yet-existing path doesn't return empty, it just
 # echoes the literal (nonexistent) path back. On a genuine first install that
 # made PREVIOUS_RELEASE equal to $CURRENT_LINK itself, and a failed health
-# check below would then `ln -sfn "$CURRENT_LINK" "$CURRENT_LINK"` — a
+# check below would then `ln -sfn "$CURRENT_LINK" "$CURRENT_LINK"` - a
 # self-referential symlink ("too many levels of symbolic links" on every
 # subsequent access) instead of the intended "nothing to roll back to".
 # Resolved here (before migrations run, not just before cutover) so it's
@@ -553,7 +570,7 @@ if [ -L "$CURRENT_LINK" ]; then
     PREVIOUS_RELEASE="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
 fi
 
-# Facts common to both the success and failure deploy-report emails —
+# Facts common to both the success and failure deploy-report emails -
 # gathered once and exported right before each `--send-deploy-report` call.
 # Silently a no-op downstream if Mailgun/forward_email isn't configured.
 _export_deploy_report_common() {
@@ -568,7 +585,7 @@ _export_deploy_report_common() {
 # ---- 5. Run pending SQL migrations before touching traffic ----------------
 echo "==> Running database migrations"
 if ! _run_server --migrate-only; then
-    echo "MIGRATION FAILED — aborting before touching the current release."
+    echo "MIGRATION FAILED - aborting before touching the current release."
     _export_deploy_report_common
     export DEPLOY_REPORT_STATUS=failure
     export DEPLOY_REPORT_STAGE=migrate
@@ -598,7 +615,7 @@ for i in $(seq 1 15); do
 done
 
 if [ "$HEALTHY" != true ]; then
-    echo "HEALTH CHECK FAILED — rolling back."
+    echo "HEALTH CHECK FAILED - rolling back."
     ROLLED_BACK=false
     REPORT_DIR="$RELEASE_DIR"
     if [ -n "$PREVIOUS_RELEASE" ] && [ -d "$PREVIOUS_RELEASE" ]; then
@@ -608,7 +625,7 @@ if [ "$HEALTHY" != true ]; then
         ROLLED_BACK=true
         REPORT_DIR="$PREVIOUS_RELEASE"
     else
-        echo "No previous release to roll back to — service left as-is, investigate manually."
+        echo "No previous release to roll back to - service left as-is, investigate manually."
     fi
     _export_deploy_report_common
     export DEPLOY_REPORT_STATUS=failure
@@ -624,17 +641,17 @@ fi
 echo "==> $RELEASE_NAME is live and healthy."
 
 echo "==> Purging Varnish cache"
-# purge_all_public()/ban_pattern() itself never propagates a failure — but
+# purge_all_public()/ban_pattern() itself never propagates a failure - but
 # `|| true` here isn't about that function, it's about install.sh's own
 # `set -e`: _run_server spawns a whole separate process, whose create_app()
 # bootstrap runs unconditionally before the --purge-cache flag is even
 # checked. If that bootstrap failed for any unrelated reason (a transient DB
 # hiccup, disk full), an unguarded call here would abort this script right
-# after cutover+health-check already succeeded — skipping the deploy-report
+# after cutover+health-check already succeeded - skipping the deploy-report
 # email and release pruning for an otherwise-successful deploy, and making
 # update-watch.sh needlessly retry an install that already landed. Same
 # reasoning as the `|| true` on --send-deploy-report right below. Deliberately
-# NOT redirected to /dev/null, though — a real purge failure is only visible
+# NOT redirected to /dev/null, though - a real purge failure is only visible
 # via varnish_purge.py's own logging.getLogger(__name__).warning(...,
 # exc_info=True), and swallowing stderr here would throw that away for nothing.
 _run_server --purge-cache || true
@@ -653,5 +670,14 @@ ls -1dt v*/ 2>/dev/null | tail -n +$((KEEP_RELEASES + 1)) | while read -r old; d
         rm -rf "${old:?}"
     fi
 done
+
+# A reminder on every install (not just the first), since an existing server
+# gets the content-dispatch timer installed by an ordinary update.
+if [ -f /etc/systemd/system/personal-website-content-dispatch.timer ] \
+   && ! systemctl is-enabled --quiet personal-website-content-dispatch.timer 2>/dev/null; then
+    echo "NOTE: personal-website-content-dispatch.timer is installed but not enabled, so content"
+    echo "      edits wait for the dist repo's 3-hourly check. To rebuild within minutes instead,"
+    echo "      run setup-auto-update-production.sh --dispatch-token (see RELEASING.md)."
+fi
 
 echo "==> install.sh finished successfully."

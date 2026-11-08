@@ -71,9 +71,17 @@ else
     # bump here - it now decides/writes the bump AFTER this build succeeds
     # (see its own comments), so a plain git sync is always safe at this point.
     if [ -d .git ]; then
-        echo "==> Pulling latest from origin"
-        git fetch origin
-        git reset --hard "origin/$(git rev-parse --abbrev-ref HEAD)"
+        # BUILD_REF picks the branch to build (publish-release.sh --ref sets
+        # it); it defaults to main, never "whatever branch the checkout was
+        # left on", so a --ref test build can't leave later builds on that
+        # branch. `checkout -f -B` switches to (or creates) a local branch at
+        # origin's copy and throws away local edits to tracked files, as the
+        # old `reset --hard` did, so building another branch never needs an
+        # SSH session and a manual `git checkout` first.
+        BUILD_REF="${BUILD_REF:-main}"
+        echo "==> Pulling $BUILD_REF from origin"
+        git fetch origin "$BUILD_REF"
+        git checkout -f -B "$BUILD_REF" "origin/$BUILD_REF"
     else
         echo "WARNING: $REPO_DIR is not a git checkout - building whatever is on disk as-is."
     fi
@@ -136,6 +144,14 @@ if [ -z "${ASSEMBLE_ONLY:-}" ]; then
     # ---- Frontend -----------------------------------------------------
     echo "==> Building frontend"
     cd "$REPO_DIR/frontend"
+    # GitHub Actions builds with the Node major in frontend/.nvmrc. A Pi
+    # fallback build on a different major still works, but can produce
+    # different output, so say so instead of staying quiet.
+    WANT_NODE="$(tr -d '[:space:]v' < .nvmrc 2>/dev/null || true)"
+    HAVE_NODE="$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo none)"
+    if [ -n "$WANT_NODE" ] && [ "$HAVE_NODE" != "$WANT_NODE" ]; then
+        echo "WARNING: frontend/.nvmrc asks for Node $WANT_NODE, this machine has Node $HAVE_NODE."
+    fi
     npm ci
 
     # The Pi has ~900MB RAM; V8 auto-scales its default old-space heap ceiling
@@ -169,7 +185,9 @@ if [ -z "${ASSEMBLE_ONLY:-}" ]; then
     # shellcheck source=/dev/null
     source "$VENV_DIR/bin/activate"
     pip install --upgrade pip
-    pip install -r requirements.txt pyinstaller
+    # requirements-build.txt = requirements.txt + the pinned PyInstaller,
+    # the same file GitHub Actions installs from.
+    pip install -r requirements-build.txt
     # The exact package set this release's frozen binary is built from.
     # dependency-audit.sh audits this file, so its monthly report reflects
     # what production actually runs rather than a fresh resolve of
@@ -250,72 +268,25 @@ fi
 # true earlier in a since-finished process.
 VERSION="$(cat "$REPO_DIR/VERSION" | tr -d '[:space:]')"
 echo "==> Assembling release v$VERSION"
-RELEASE_NAME="personal-website-v$VERSION"
-RELEASE_DIR="$STAGING/$RELEASE_NAME"
-rm -rf "$RELEASE_DIR"
-mkdir -p "$RELEASE_DIR"
 
-cp -r "$REPO_DIR/backend/dist/server" "$RELEASE_DIR/backend"
-mkdir -p "$RELEASE_DIR/frontend"
-# React Router framework mode builds to build/client/, not dist/ (that was
-# the plain-Vite convention pre-SSG-migration) -- copied to frontend/dist/
-# in the release layout regardless, so nginx's `root .../frontend/dist`
-# doesn't need to change.
-cp -r "$REPO_DIR/frontend/build/client" "$RELEASE_DIR/frontend/dist"
+# Same two-step packaging GitHub Actions uses (deploy/scripts/
+# assemble-release.sh): server bundle first, then the site tarball built from
+# it plus this checkout's frontend. Output name and layout are unchanged:
+# $STAGING/personal-website-v$VERSION.tar.gz (+ .sha256).
+mkdir -p "$STAGING"
+BUNDLE_OUT="$STAGING/server-bundle"
+rm -rf "$BUNDLE_OUT"
+BUNDLE="$(bash "$REPO_DIR/deploy/scripts/assemble-release.sh" --server-only --out "$BUNDLE_OUT" --repo-dir "$REPO_DIR" | tail -1)"
 
-# Always bundle every migration file, not just those since the previous tag -
-# install.sh's schema_migrations table already tracks per-file applied state,
-# so re-shipping an already-applied file is a safe no-op. Diffing against the
-# previous tag instead used to silently drop any migration whose release got
-# skipped on a given server (e.g. installing straight from v0.1.8 to v0.1.10
-# would omit migrations that first shipped in the skipped v0.1.9), breaking
-# the fast-forward guarantee schema_migrations is supposed to provide.
-mkdir -p "$RELEASE_DIR/migrations"
-cp "$REPO_DIR"/backend/migrations/*.sql "$RELEASE_DIR/migrations/" 2>/dev/null || true
-
-mkdir -p "$RELEASE_DIR/deploy/systemd" "$RELEASE_DIR/deploy/nginx" "$RELEASE_DIR/deploy/varnish"
-cp "$REPO_DIR/deploy/systemd/personal-website.service" "$RELEASE_DIR/deploy/systemd/"
-cp "$REPO_DIR/deploy/systemd/personal-website-updater.service" "$RELEASE_DIR/deploy/systemd/"
-cp "$REPO_DIR/deploy/systemd/personal-website-backup.service" "$RELEASE_DIR/deploy/systemd/"
-cp "$REPO_DIR/deploy/systemd/personal-website-backup.timer" "$RELEASE_DIR/deploy/systemd/"
-cp "$REPO_DIR/deploy/systemd/personal-website-healthwatch.service" "$RELEASE_DIR/deploy/systemd/"
-cp "$REPO_DIR/deploy/systemd/personal-website-healthwatch.timer" "$RELEASE_DIR/deploy/systemd/"
-cp "$REPO_DIR/deploy/systemd/personal-website-media-cleanup.service" "$RELEASE_DIR/deploy/systemd/"
-cp "$REPO_DIR/deploy/systemd/personal-website-media-cleanup.timer" "$RELEASE_DIR/deploy/systemd/"
-cp "$REPO_DIR/deploy/nginx/personal-website.conf" "$RELEASE_DIR/deploy/nginx/"
-cp "$REPO_DIR/deploy/varnish/default.vcl" "$RELEASE_DIR/deploy/varnish/"
-cp "$REPO_DIR/deploy/scripts/install.sh" "$RELEASE_DIR/deploy/"
-cp "$REPO_DIR/deploy/scripts/rollback.sh" "$RELEASE_DIR/deploy/"
-cp "$REPO_DIR/deploy/scripts/update-watch.sh" "$RELEASE_DIR/deploy/"
-cp "$REPO_DIR/deploy/scripts/backup.sh" "$RELEASE_DIR/deploy/"
-cp "$REPO_DIR/deploy/scripts/setup-restic-repo.sh" "$RELEASE_DIR/deploy/"
-cp "$REPO_DIR/deploy/scripts/health-watch.sh" "$RELEASE_DIR/deploy/"
-cp "$REPO_DIR/deploy/scripts/media-cleanup.sh" "$RELEASE_DIR/deploy/"
+ASSEMBLE_ARGS=(--from-server-bundle "$BUNDLE" --frontend "$REPO_DIR/frontend/build/client" --out "$STAGING")
+# Template builds (publish-release.sh --no-target) already exclude the AI demo
+# pages from the frontend bundle via this same flag; this also defaults a
+# fresh install of this tarball away from enabling the backend routes.
 if [ "${VITE_ENABLE_AI_DEMOS:-}" = "false" ]; then
-    # Template builds (publish-release.sh --no-target) already exclude the AI
-    # demo pages from the frontend bundle via this same flag - this defaults
-    # a fresh install of this specific tarball away from opting into the
-    # backend routes too, since ENABLE_AI_DEMOS is otherwise a runtime
-    # setting on whichever server installs it, not something build time can
-    # enforce directly.
-    sed 's/^ENABLE_AI_DEMOS=true$/ENABLE_AI_DEMOS=false/' "$REPO_DIR/backend/.env.example" > "$RELEASE_DIR/.env.example"
-else
-    cp "$REPO_DIR/backend/.env.example" "$RELEASE_DIR/"
+    ASSEMBLE_ARGS+=(--no-ai)
 fi
-cp "$REPO_DIR/VERSION" "$RELEASE_DIR/"
-# Distinct from VERSION: a content-only release (publish-content-refresh.sh)
-# ships fresh prerendered pages under an unchanged VERSION, so this is what
-# actually tells the admin UI how current the static content is (see
-# backend/version.py's get_prerendered_at()).
-date -u +%Y-%m-%dT%H:%M:%SZ > "$RELEASE_DIR/PRERENDERED_AT"
-
-TARBALL="$STAGING/$RELEASE_NAME.tar.gz"
-tar -czf "$TARBALL" -C "$STAGING" "$RELEASE_NAME"
-# Run from inside $STAGING so the checksum file records a bare relative
-# filename - install.sh's `sha256sum -c` on the production server needs that
-# (an absolute Pi-local path would never match there). No path-rewriting
-# needed this way, unlike computing the hash from an absolute path first.
-(cd "$STAGING" && { sha256sum "$RELEASE_NAME.tar.gz" || shasum -a 256 "$RELEASE_NAME.tar.gz"; } > "$RELEASE_NAME.tar.gz.sha256")
+rm -f "$STAGING/personal-website-v$VERSION.tar.gz" "$STAGING/personal-website-v$VERSION.tar.gz.sha256"
+TARBALL="$(bash "$REPO_DIR/deploy/scripts/assemble-release.sh" "${ASSEMBLE_ARGS[@]}" | tail -1)"
+rm -rf "$BUNDLE_OUT"
 
 echo "==> Done: $TARBALL"
-echo "    Next: bash deploy/scripts/publish-release.sh"

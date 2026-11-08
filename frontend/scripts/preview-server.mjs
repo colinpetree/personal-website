@@ -6,7 +6,7 @@
 //
 // This exists specifically to test pages locally without hitting
 // react-router@7.18.2's dev-server-only SingleFetchNoResultError bug on
-// any route with its own loader (BlogPage/ProjectsPage/BlogPostPage) —
+// any route with its own loader (BlogPage/ProjectsPage/BlogPostPage) -
 // confirmed via extensive testing to be a dev-server-only issue that does
 // not reproduce against a real production build. Use this instead of
 // `npm run dev` when testing those specific pages.
@@ -34,7 +34,7 @@ const MIME = {
 }
 
 if (!fs.existsSync(ROOT)) {
-  console.error(`No build found at ${ROOT} — run \`npm run build\` first.`)
+  console.error(`No build found at ${ROOT} - run \`npm run build\` first.`)
   process.exit(1)
 }
 
@@ -46,7 +46,7 @@ function serveFile(res, filePath, statusCode = 200) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://x`)
 
-  // Mirrors deploy/nginx/personal-website.conf's `location /api/` proxy —
+  // Mirrors deploy/nginx/personal-website.conf's `location /api/` proxy -
   // forwards method/body/cookies to the real local Flask backend so login,
   // uploads, and every loader's fetch() work exactly as in production.
   if (url.pathname.startsWith('/api/')) {
@@ -57,27 +57,48 @@ const server = http.createServer(async (req, res) => {
       body = Buffer.concat(chunks)
     }
     // Forward the client's own content-type as-is (don't default to
-    // application/json — that broke multipart/form-data uploads, e.g.
+    // application/json - that broke multipart/form-data uploads, e.g.
     // images through the admin panel).
     const headers = { cookie: req.headers.cookie || '' }
     if (req.headers['content-type']) headers['content-type'] = req.headers['content-type']
-    const upstream = await fetch(API_TARGET + url.pathname + url.search, {
-      method: req.method,
-      headers,
-      body,
-    })
-    // Stream the body through rather than buffering it with arrayBuffer()/text() —
+    let upstream
+    try {
+      upstream = await fetch(API_TARGET + url.pathname + url.search, {
+        method: req.method,
+        headers,
+        body,
+      })
+    } catch (err) {
+      // Backend down or restarting: answer 502 like nginx would, instead of
+      // letting the rejection crash this process.
+      console.error(`[preview] /api proxy could not reach ${API_TARGET} for ${url.pathname}:`, err.message)
+      if (!res.headersSent && !res.destroyed) {
+        res.writeHead(502, { 'Content-Type': 'text/plain' })
+        res.end('Bad gateway: backend not reachable')
+      }
+      return
+    }
+    // Stream the body through rather than buffering it with arrayBuffer()/text() -
     // buffering the whole response defeats the AI demo routes' streaming (the
     // client would sit idle until Claude's full reply finished, then get it all
     // at once). Piping the raw upstream stream also preserves binary responses
     // (images/videos via /api/uploads/*) without needing text()'s corrupting
     // string conversion.
+    // The browser can give up on a request while the upstream fetch above is
+    // still in flight (navigating away, closing the tab). Piping into an
+    // already-closed response makes pipeline() throw synchronously
+    // (ERR_STREAM_UNABLE_TO_PIPE), which inside this async handler is an
+    // unhandled rejection that kills the whole preview server.
+    if (res.destroyed || res.writableEnded) {
+      await upstream.body?.cancel().catch(() => {})
+      return
+    }
     const responseHeaders = { 'Content-Type': upstream.headers.get('content-type') || 'application/octet-stream' }
     const setCookie = upstream.headers.get('set-cookie')
     if (setCookie) responseHeaders['set-cookie'] = setCookie
     res.writeHead(upstream.status, responseHeaders)
     if (upstream.body) {
-      // pipeline(), not .pipe() — .pipe() leaves the source stream's 'error'
+      // pipeline(), not .pipe() - .pipe() leaves the source stream's 'error'
       // event unhandled (e.g. Flask restarting mid-stream, or the browser
       // aborting the request), which for a plain EventEmitter means an
       // uncaught throw that kills this whole process, not just the one

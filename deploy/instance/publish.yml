@@ -1,0 +1,70 @@
+# Copy this file into your site's PRIVATE dist repo as
+#   .github/workflows/publish.yml
+# (for example colinpetree/personal-website-dist-colinpetree.com).
+#
+# It builds and prerenders your site with GitHub Actions and publishes the
+# result as a release in that repo, where your server's update-watch.sh
+# installs it. No Pi or other build machine is needed. All the logic lives in
+# the public repo's build-instance.yml; this file only says when to run it
+# and for which site.
+#
+# Repo variables (Settings -> Secrets and variables -> Actions -> Variables):
+#   SITE_URL      required, e.g. https://example.com
+#   ORIGIN_HOST   optional: your server's own DNS name (e.g. its AWS public
+#                 DNS). Set it if your site is behind Cloudflare or another
+#                 proxy, so the build talks to the server directly.
+#   AI_DEMOS      optional: "false" leaves out the AI demo pages
+#   AUTO_UPGRADE  optional: "false" stops new upstream releases installing
+#                 automatically (content updates still happen)
+#
+# It runs:
+#   - when your server reports a content change (content-dispatch.sh),
+#   - when the upstream release workflow notifies it (optional),
+#   - every 3 hours as a backup check (finishes in seconds if nothing changed),
+#   - by hand: Actions -> Publish site -> Run workflow.
+name: Publish site
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "auto: publish whatever changed. resume: leave a test build and go back to the last stable version."
+        type: choice
+        options: [auto, resume]
+        default: auto
+      force_content:
+        description: "Rebuild the pages now, even if nothing changed (by hand only)"
+        type: boolean
+        default: false
+      test_tag:
+        description: "Test build to install (sent automatically by the upstream release workflow; leave empty)"
+        type: string
+        default: ""
+  schedule:
+    - cron: "17 */3 * * *"
+
+permissions:
+  contents: write # to publish releases in this repo
+
+# Two queues: automatic runs (schedule, content changes, new releases) and
+# test/resume runs. GitHub keeps only the newest WAITING run in a queue, which
+# is harmless for automatic runs (each one checks the site's current state, so
+# the newest reaches the same decision) but would silently drop a test build.
+# A run that finds something was published while it built does not publish.
+concurrency:
+  group: publish-${{ (inputs.test_tag != '' || inputs.mode == 'resume') && 'manual' || 'auto' }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Following @main picks up workflow fixes automatically. To review changes
+    # first, pin a commit SHA instead: ...build-instance.yml@<sha>
+    uses: colinpetree/personal-website/.github/workflows/build-instance.yml@main
+    with:
+      site_url: ${{ vars.SITE_URL }}
+      origin_host: ${{ vars.ORIGIN_HOST }}
+      ai_demos: ${{ vars.AI_DEMOS != 'false' }}
+      auto_upgrade: ${{ vars.AUTO_UPGRADE != 'false' }}
+      force_content: ${{ inputs.force_content || false }}
+      test_tag: ${{ inputs.test_tag || '' }}
+      mode: ${{ inputs.mode || 'auto' }}

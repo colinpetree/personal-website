@@ -1,11 +1,20 @@
 #!/usr/bin/env bash
-# Runs ON THE PI (gh auth lives there — avoids an artifact round-trip back to
-# Windows). Optionally bumps VERSION, then always builds+publishes the
-# tarball as a GitHub Release on the SEPARATE releases repo given by
-# --releases-repo.
+# FALLBACK: releases are normally made by GitHub Actions
+# (.github/workflows/release.yml, "Run workflow" with patch/minor/major), and
+# each site's prerendered build by its dist repo's publish.yml. Use this
+# script only when GitHub Actions is unavailable. See RELEASING.md.
 #
-# Usage: publish-release.sh [--patch|--minor|--major] [--releases-repo <owner>/<repo>] [--no-target] [--no-ai] [--upstream-sync] [-y|--yes]
-# With no bump flag, VERSION is left untouched — this rebuilds and publishes
+# Runs ON THE PI (gh auth lives there). Optionally bumps VERSION, then always
+# builds+publishes the tarball as a GitHub Release on the SEPARATE releases
+# repo given by --releases-repo.
+#
+# Usage: publish-release.sh [--patch|--minor|--major] [--ref <branch>] [--releases-repo <owner>/<repo>] [--no-target] [--no-ai] [--upstream-sync] [-y|--yes]
+#
+# --ref <branch> builds that branch from origin (it switches the checkout to
+# it). Without --ref it always builds main, whatever branch the checkout was
+# left on. A bump flag is only allowed on main, so a version bump never lands
+# on a side branch.
+# With no bump flag, VERSION is left untouched - this rebuilds and publishes
 # the CURRENT version to --releases-repo. That's the normal way to publish
 # the same code state to more than one repo (e.g. a real site's dist repo and
 # the no-prerender template dist repo): call this once per target repo, only
@@ -15,7 +24,7 @@
 # A no-bump call that actually produces real prerendered pages (a working
 # PRERENDER_BASE_URL, not --no-target) is published under a DATED tag
 # (v$VERSION-content-<timestamp>, same convention publish-content-refresh.sh
-# already uses) instead of a bare v$VERSION tag — republishing under an
+# already uses) instead of a bare v$VERSION tag - republishing under an
 # unchanged, already-used tag either fails outright (gh release create: tag
 # exists) or, if it didn't, would never be recognized as new by
 # update-watch.sh's tag-string comparison. This is what lets you test a real,
@@ -23,34 +32,34 @@
 # without permanently advancing VERSION or affecting forks tracking this repo
 # as origin. Pass --upstream-sync ONLY to replicate content-watch.sh's own
 # automatic "adopt an upstream release this checkout never published itself"
-# behavior by hand — it forces a bare, clean tag unconditionally, since that
+# behavior by hand - it forces a bare, clean tag unconditionally, since that
 # VERSION is guaranteed never to have been tagged from this checkout before.
 # Every other no-bump call should leave --upstream-sync off.
 #
 # --no-target forces a no-prerender build regardless of what PRERENDER_BASE_URL
 # is set to in ~/.personal-website-build.env, and defaults the target repo to
 # colinpetree/personal-website-template-dist instead of the domain-scoped one
-# — this is the generic/template profile other forks build from, which has no
+# - this is the generic/template profile other forks build from, which has no
 # specific site to prerender against. --no-target implies --no-ai (a generic
 # template build shouldn't require a forker's own Anthropic API keys by
 # default), but --no-ai also works standalone for a normal, domain-targeted
 # build that just doesn't want the AI demo section on that particular site.
 set -euo pipefail
 
-# Re-exec into a fresh process group — see build-on-pi.sh's own comment for
+# Re-exec into a fresh process group - see build-on-pi.sh's own comment for
 # the full reasoning, including why this is `set -m` (job control) and NOT
 # `setsid`. The earlier setsid-based version of this re-exec was confirmed
 # broken by hand on real hardware: Ctrl-C only killed the thin wrapper left
 # behind in the original session, while the actual release kept building,
 # committing, and pushing to completion in the background, completely
-# ignoring the interrupt — because setsid detaches into a new SESSION, which
+# ignoring the interrupt - because setsid detaches into a new SESSION, which
 # is what the tty's Ctrl-C delivery actually keys off, not just a process
-# group. `set -m` gives this script's whole process tree — including the
+# group. `set -m` gives this script's whole process tree - including the
 # build-on-pi.sh + npm/pyinstaller/smoke-test-server descendants it spawns
-# below — one shared process group for a later interactive run's TERM/KILL
+# below - one shared process group for a later interactive run's TERM/KILL
 # escalation (lib/build-lock.sh) to target as a unit, once this script (not
 # build-on-pi.sh) is the one holding the lock for the whole run, WITHOUT
-# detaching from the terminal — so a human's own Ctrl-C still reaches this
+# detaching from the terminal - so a human's own Ctrl-C still reaches this
 # same tree normally, including while paused at the confirmation prompt
 # below.
 if [ -z "${PUBLISH_RELEASE_SESSION:-}" ]; then
@@ -62,7 +71,7 @@ fi
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-BUMP=""   # empty = no bump, the default — must be explicitly requested now
+BUMP=""   # empty = no bump, the default - must be explicitly requested now
 NO_TARGET=false
 NO_AI=false
 ASSUME_YES=false
@@ -79,9 +88,19 @@ while [ $# -gt 0 ]; do
         --upstream-sync) UPSTREAM_SYNC=true; shift ;;
         -y|--yes) ASSUME_YES=true; shift ;;
         --releases-repo) RELEASES_REPO_ARG="$2"; shift 2 ;;
+        --ref) export BUILD_REF="$2"; shift 2 ;;
         *) echo "Unknown argument: $1"; exit 1 ;;
     esac
 done
+
+# Always main unless --ref says otherwise, never "whatever branch the checkout
+# was left on": after a --ref test build the Pi's checkout stays on that
+# branch, and a later plain --patch must not release it.
+export BUILD_REF="${BUILD_REF:-main}"
+if [ "$BUILD_REF" != "main" ] && [ -n "$BUMP" ]; then
+    echo "--patch/--minor/--major only work with --ref main (a version bump must land on main)."
+    exit 1
+fi
 
 case "$BUMP" in
     major|minor|patch|"") ;;
@@ -89,7 +108,7 @@ case "$BUMP" in
 esac
 
 # --upstream-sync only ever means "this is a no-bump call, tag it clean
-# regardless of prerender output" — combining it with a real bump would
+# regardless of prerender output" - combining it with a real bump would
 # otherwise silently no-op (the bump branch never consults $UPSTREAM_SYNC),
 # which is worth catching explicitly rather than leaving as a footgun for
 # whoever calls this by hand later. Nothing today ever hits this (only
@@ -99,22 +118,22 @@ if [ -n "$BUMP" ] && [ "$UPSTREAM_SYNC" = true ]; then
     exit 1
 fi
 
-# --no-target implies --no-ai — see the usage comment above.
+# --no-target implies --no-ai - see the usage comment above.
 [ "$NO_TARGET" = true ] && NO_AI=true
 
-# Domain/staging/default-repo derivation — depends on --no-target, so this
+# Domain/staging/default-repo derivation - depends on --no-target, so this
 # has to happen after arg parsing above, not before it. Same
 # PI_BUILD_ENV/BUILD_DOMAIN derivation build-on-pi.sh uses internally, kept
 # in sync here so this script's own STAGING/DEFAULT_RELEASES_REPO agree with
 # wherever the build-on-pi.sh subprocess below actually puts the tarball.
 PI_BUILD_ENV="$HOME/.personal-website-build.env"
 if [ "$NO_TARGET" = true ]; then
-    # Force no prerendering regardless of what the Pi-local env file says —
+    # Force no prerendering regardless of what the Pi-local env file says -
     # build-on-pi.sh respects an already-exported PRERENDER_BASE_URL (even
     # empty) instead of overwriting it from the file, specifically so this
     # override works. "template" (not the generic "unknown" fallback) both
     # for a meaningful staging path and to match the pre-existing
-    # colinpetree/personal-website-template-dist repo's naming — note that
+    # colinpetree/personal-website-template-dist repo's naming - note that
     # repo is "template-dist", not the domain-scoped "dist-<domain>" pattern.
     export PRERENDER_BASE_URL=""
     export BUILD_DOMAIN="template"
@@ -132,13 +151,13 @@ else
 fi
 RELEASES_REPO="${RELEASES_REPO_ARG:-$DEFAULT_RELEASES_REPO}"
 
-# Independent of --no-target — a normal, domain-targeted build can also pass
+# Independent of --no-target - a normal, domain-targeted build can also pass
 # plain --no-ai to exclude AI demos from just this one site. Excludes the AI
 # demo routes/pages from the frontend bundle entirely (Vite dead-code-
-# eliminates them — see frontend/src/routes.ts). Also read by build-on-pi.sh's
+# eliminates them - see frontend/src/routes.ts). Also read by build-on-pi.sh's
 # tarball assembly to ship a .env.example defaulting ENABLE_AI_DEMOS=false,
 # since that flag is otherwise a runtime setting on whichever server installs
-# this tarball — build time can't disable the backend routes directly, only
+# this tarball - build time can't disable the backend routes directly, only
 # default a fresh install away from opting into them.
 if [ "$NO_AI" = true ]; then
     export VITE_ENABLE_AI_DEMOS="false"
@@ -166,9 +185,10 @@ if [ -n "$BUMP" ]; then
     echo " Current version : $CURRENT"
     echo " New version      : $NEW_VERSION ($BUMP bump)"
 else
-    echo " Version          : $CURRENT (unchanged — no bump requested)"
+    echo " Version          : $CURRENT (unchanged - no bump requested)"
 fi
 echo " Releases repo    : $RELEASES_REPO"
+echo " Branch           : $BUILD_REF"
 if [ "$NO_TARGET" = true ]; then
     echo " Prerender domain : none (--no-target)"
 else
@@ -179,7 +199,7 @@ fi
 [ "$NO_AI" = true ] && echo " AI demos         : excluded"
 echo "--------------------------------------------------"
 echo " Use --patch, --minor, or --major to bump a version."
-echo " Use --releases-repo <owner>/<repo> to change the target repo — publish"
+echo " Use --releases-repo <owner>/<repo> to change the target repo - publish"
 echo " the same version to more than one repo with one call per repo, only"
 echo " passing a bump flag on whichever call should advance the version."
 echo " Use --no-target for a no-prerender template build (implies --no-ai)."
@@ -187,14 +207,14 @@ echo " Use --no-ai on its own to exclude AI demos from a normal, targeted build.
 echo " Use -y/--yes to skip the confirmation prompt (e.g. when queuing multiple calls)."
 echo "=================================================="
 if [ "$ASSUME_YES" = true ]; then
-    echo " -y/--yes passed — skipping confirmation."
+    echo " -y/--yes passed - skipping confirmation."
 else
     read -r -p "Press Enter to continue, or Ctrl+C to cancel... "
 fi
 
 # ---- Acquire the shared build/publish lock for this ENTIRE run ------------
 # From here through the final git push, this script holds exclusive control
-# of the repo checkout and build root (see lib/build-lock.sh) — not just
+# of the repo checkout and build root (see lib/build-lock.sh) - not just
 # during the build. That's what stops a concurrent automatic run (content-
 # watch.sh's upstream-VERSION check, or another periodic content refresh)
 # from resetting this checkout's git state out from under an in-progress
@@ -216,7 +236,7 @@ export BUILD_ON_PI_SESSION=1
 # ---- Build first; decide the version only after it (and its smoke test)
 # ---- actually succeeds -----------------------------------------------------
 # Nothing below this point has touched VERSION or git history yet, so a
-# build failure here leaves the working tree exactly as it started — no
+# build failure here leaves the working tree exactly as it started - no
 # revert logic needed for this step, unlike the version write further down.
 echo "==> Building (git sync + frontend + backend + smoke test)"
 if ! SKIP_ASSEMBLE=1 bash deploy/scripts/build-on-pi.sh; then
@@ -227,7 +247,7 @@ fi
 if [ -n "$BUMP" ]; then
     # Re-read CURRENT: the git sync inside the build above could have moved
     # it (e.g. a fork tracking colinpetree/personal-website as `origin` that
-    # also happens to pass a bump flag — unusual, but this keeps the bump
+    # also happens to pass a bump flag - unusual, but this keeps the bump
     # math correct even then instead of bumping from a now-stale value).
     CURRENT="$(cat VERSION | tr -d '[:space:]')"
     if [ "$CURRENT" != "$CURRENT_AT_START" ]; then
@@ -244,7 +264,7 @@ if [ -n "$BUMP" ]; then
 
     # Revert this uncommitted bump on ANY exit from here on (build/assembly
     # failure, Ctrl-C, an unexpected error under `set -e`) unless we make it
-    # far enough below to actually commit it — covers every early-exit path,
+    # far enough below to actually commit it - covers every early-exit path,
     # not just the one explicit failure branch a plain `git checkout --
     # VERSION` in an `if` block would.
     BUMP_COMMITTED=false
@@ -252,7 +272,7 @@ if [ -n "$BUMP" ]; then
     echo "==> Bumping VERSION (uncommitted): $CURRENT -> $NEW_VERSION"
     echo "$NEW_VERSION" > VERSION
 else
-    # No bump requested — VERSION reflects whatever's already on disk now
+    # No bump requested - VERSION reflects whatever's already on disk now
     # that the build's git sync has run (unchanged for colinpetree's own Pi;
     # possibly advanced for a fork tracking colinpetree/personal-website
     # directly as `origin` and picking up an upstream release it never
@@ -264,25 +284,25 @@ else
 
     if [ "$UPSTREAM_SYNC" = true ]; then
         # content-watch.sh's own automatic call (or a human replicating it by
-        # hand) — always a bare tag, see the usage comment above for why.
+        # hand) - always a bare tag, see the usage comment above for why.
         TAG="v$NEW_VERSION"
     else
-        # Manual no-bump call — either the documented "publish the same code
+        # Manual no-bump call - either the documented "publish the same code
         # to a second repo" use case, or testing a real unbumped code change
         # against production. Detect whether this build actually produced
         # real prerendered pages by counting the HTML files it emitted: a
         # degraded build (PRERENDER_BASE_URL unset, unreachable, or
         # --no-target) always emits exactly one index.html (the pure-SPA
         # shell); a real prerender always emits at least 4 (/, blog,
-        # projects, contact, plus any posts/pages — see
+        # projects, contact, plus any posts/pages - see
         # frontend/react-router.config.ts's prerender()). No explicit
         # --no-target check is needed: it naturally falls into the "1 file"
         # case on its own.
         #
         # The assignment's own failure is neutralized with `|| HTML_COUNT=0`
         # rather than gated by a single `[ -d ... ]` pre-check: this script
-        # has `set -euo pipefail`, so ANY `find | wc -l` failure — not just a
-        # missing directory, but e.g. a permission error mid-traversal too —
+        # has `set -euo pipefail`, so ANY `find | wc -l` failure - not just a
+        # missing directory, but e.g. a permission error mid-traversal too -
         # would otherwise abort this entire publish (pipefail propagates
         # find's nonzero exit even though wc -l itself still prints a count).
         # A pre-check only guards the one failure mode; this neutralizes all
@@ -290,11 +310,11 @@ else
         # clean tag" outcome. This directory is expected to always exist and
         # be readable by the time this code runs (produced by the earlier
         # SKIP_ASSEMBLE=1 build above, which would already have aborted this
-        # script under `set -e` if the build itself had failed) — this is
+        # script under `set -e` if the build itself had failed) - this is
         # belt-and-suspenders, not an expected trigger path.
         HTML_COUNT="$(find "$REPO_DIR/frontend/build/client" -type f -name '*.html' 2>/dev/null | wc -l | tr -d ' ')" || HTML_COUNT=0
         if [ "${HTML_COUNT:-0}" -gt 1 ]; then
-            # Same tag convention publish-content-refresh.sh already uses —
+            # Same tag convention publish-content-refresh.sh already uses -
             # this is what makes a same-version republish both unique and
             # recognizable as new to update-watch.sh's tag-string comparison.
             TAG="v${NEW_VERSION}-content-$(date -u +%Y%m%d%H%M%S)"
@@ -311,13 +331,13 @@ if ! ASSEMBLE_ONLY=1 bash deploy/scripts/build-on-pi.sh; then
 fi
 
 # build-on-pi.sh's assembly step (RELEASE_NAME="personal-website-v$VERSION")
-# names the tarball after the BARE version only — it has no concept of $TAG
+# names the tarball after the BARE version only - it has no concept of $TAG
 # at all, so it never appends "-content-<timestamp>" or anything else. Must
 # match that naming here exactly, independent of what $TAG ended up being
 # (which can now diverge from v$NEW_VERSION per the dated-tag branch above)
-# — same pattern publish-content-refresh.sh already uses correctly. $TAG is
+# - same pattern publish-content-refresh.sh already uses correctly. $TAG is
 # still used everywhere else below (git tag, git push, gh release create's
-# tag argument and --title) — only this file-lookup line differs from it.
+# tag argument and --title) - only this file-lookup line differs from it.
 TARBALL="$STAGING/personal-website-v$NEW_VERSION.tar.gz"
 SHA_FILE="$TARBALL.sha256"
 if [ ! -f "$TARBALL" ]; then
@@ -331,8 +351,8 @@ if [ -n "$BUMP" ]; then
     git commit -m "Release $TAG"
     git tag "$TAG"
     BUMP_COMMITTED=true   # the EXIT trap above no longer reverts VERSION
-    # Push immediately — before the gh upload below, which can take a while
-    # for a multi-MB tarball — so the commit+tag spend as little time as
+    # Push immediately - before the gh upload below, which can take a while
+    # for a multi-MB tarball - so the commit+tag spend as little time as
     # possible sitting local-only. The lock held since before the build is
     # what actually closes the race (nothing else can touch this checkout
     # while this script holds it); pushing promptly on top of that also

@@ -1,0 +1,8 @@
+# Keeps the commit-SHA pins on GitHub Actions current: opens a pull request
+# when an action used in .github/workflows has a new version.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

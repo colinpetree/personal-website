@@ -1,0 +1,365 @@
+name: Build site (reusable)
+
+# The per-site half of a release. Each site's PRIVATE dist repo (for example
+# personal-website-dist-colinpetree.com) calls this from its own small
+# .github/workflows/publish.yml (template: deploy/instance/publish.yml). It:
+#
+#   1. decides whether anything needs publishing:
+#      - a newer upstream release        -> code release  vX.Y.Z
+#      - the site's content changed      -> content release vX.Y.Z-content-<UTC time>
+#      - a test build was sent           -> that test build
+#      - otherwise                       -> nothing (most scheduled runs)
+#   2. prerenders the site's frontend against its live content,
+#   3. adds the matching server bundle from the upstream public release
+#      (built and tested once, by release.yml),
+#   4. publishes the finished tarball as a release in the CALLING repo, where
+#      the site's production server (update-watch.sh) picks it up.
+#
+# This replaces deploy/scripts/content-watch.sh + publish-content-refresh.sh
+# on a Pi: a site needs no build machine at all.
+#
+# The backend is not rebuilt or retested here; that already happened in
+# release.yml. What can still fail here is only about this site: its live
+# API being unreachable, or something in its real content. Nothing is
+# published unless every check below passes, so production keeps running
+# the version it has.
+
+on:
+  workflow_call:
+    inputs:
+      site_url:
+        description: "The site's public URL, e.g. https://example.com"
+        type: string
+        required: true
+      origin_host:
+        description: "Optional: the server's own DNS name (e.g. its AWS public DNS). If set, the build talks to the server directly instead of through a proxy like Cloudflare."
+        type: string
+        default: ""
+      ai_demos:
+        description: "Include the AI demo pages"
+        type: boolean
+        default: true
+      auto_upgrade:
+        description: "Install new upstream releases automatically"
+        type: boolean
+        default: true
+      upstream_repo:
+        description: "Public repo whose releases provide the code"
+        type: string
+        default: colinpetree/personal-website
+      force_content:
+        description: "Rebuild the pages even if nothing changed (a manual checkbox in publish.yml; automatic runs never need it)"
+        type: boolean
+        default: false
+      test_tag:
+        description: "Publish this upstream test pre-release (sent by release.yml's test mode)"
+        type: string
+        default: ""
+      mode:
+        description: "auto, or resume (go back from a test build to the last stable version)"
+        type: string
+        default: auto
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+      SITE_URL: ${{ inputs.site_url }}
+      UPSTREAM: ${{ inputs.upstream_repo }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # Point the site's domain at the server itself, on this runner only. The
+      # URL, TLS certificate (certbot, for the real domain) and SNI stay the
+      # same; only the path skips the proxy, whose bot checks can challenge
+      # GitHub's datacenter IPs. Needs port 443 open to the internet on the
+      # server, which bootstrap.sh sets up (ufw allow 443/tcp).
+      - name: Connect straight to the server (if ORIGIN_HOST is set)
+        if: inputs.origin_host != ''
+        env:
+          ORIGIN_HOST: ${{ inputs.origin_host }}
+        run: |
+          set -euo pipefail
+          domain="$(echo "$SITE_URL" | sed -E 's#^https?://##; s#[/:].*##')"
+          ip="$(getent ahostsv4 "$ORIGIN_HOST" | awk 'NR==1{print $1}')"
+          if [ -z "$ip" ]; then
+            echo "::error::ORIGIN_HOST does not resolve. If the server was rebuilt or its address changed, update the ORIGIN_HOST variable in this repo."
+            exit 1
+          fi
+          echo "::add-mask::$ip"
+          echo "$ip $domain" | sudo tee -a /etc/hosts > /dev/null
+          echo "Requests to $domain now go straight to ORIGIN_HOST."
+
+      - name: Check the site's API is reachable
+        run: |
+          set -uo pipefail
+          code="$(curl -sS --max-time 30 -D headers.txt -o body.txt -w '%{http_code}' "$SITE_URL/api/site-config" || echo 000)"
+          if grep -qi '^cf-mitigated: challenge' headers.txt 2>/dev/null; then
+            echo "::error::Cloudflare challenged this runner, so the pages cannot be prerendered. Set the ORIGIN_HOST variable in this repo to the server's own DNS name (see deploy/instance/README.md, 'Behind Cloudflare?')."
+            exit 1
+          fi
+          if [ "$code" != "200" ] || ! python3 -c 'import json,sys; json.load(open("body.txt"))' 2>/dev/null; then
+            echo "::error::$SITE_URL/api/site-config answered HTTP $code instead of JSON. The site may be down, or a proxy is blocking this runner (if so, set ORIGIN_HOST)."
+            head -c 300 body.txt 2>/dev/null; echo
+            exit 1
+          fi
+          echo "Site API reachable (HTTP 200, JSON)."
+
+      - name: Decide what to publish
+        id: decide
+        env:
+          AUTO_UPGRADE: ${{ inputs.auto_upgrade }}
+          FORCE_CONTENT: ${{ inputs.force_content }}
+          TEST_TAG: ${{ inputs.test_tag }}
+          MODE: ${{ inputs.mode }}
+        run: |
+          set -euo pipefail
+          note() { echo "$*"; echo "- $*" >> "$GITHUB_STEP_SUMMARY"; }
+          out() { echo "$1=$2" >> "$GITHUB_OUTPUT"; }
+          base_of() { echo "$1" | sed -E 's/^v//; s/-.*$//'; }          # v1.2.3-content-x -> 1.2.3
+          newer() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -1)" = "$1" ]; }
+          has_bundle() {
+            gh release view "$1" --repo "$UPSTREAM" --json assets -q '.assets[].name' 2>/dev/null \
+              | grep -q '^server-bundle-.*-linux-arm64\.tar\.gz$'
+          }
+
+          # Read before anything is built: an edit made during the build then
+          # still differs next time and gets its own rebuild.
+          #   Last-Modified    newest content edit (the content fingerprint)
+          #   X-Backend-Build  opaque id of the installed backend version
+          #                    (absent on versions before it was added)
+          cv_headers="$(curl -sSI --max-time 30 "$SITE_URL/api/content-version" | tr -d '\r' || true)"
+          live_fp="$(echo "$cv_headers" | grep -i '^last-modified:' | cut -d' ' -f2- || true)"
+          live_build="$(echo "$cv_headers" | grep -i '^x-backend-build:' | cut -d' ' -f2- || true)"
+          # "none" (recorded as such) rather than empty, so a site with no
+          # content yet, or a backend without the header, compares equal next
+          # time instead of looking like a release with nothing recorded,
+          # which would rebuild on every run.
+          live_fp="${live_fp:-none}"
+          live_build="${live_build:-none}"
+
+          # This repo's newest release (drafts and pre-releases are never installed, so ignore them).
+          releases="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 50 --json tagName,isDraft,isPrerelease \
+                      -q '[.[] | select((.isDraft or .isPrerelease) | not) | .tagName] | .[]' || true)"
+          own_tag="$(echo "$releases" | head -1)"
+          own_stable="$(echo "$releases" | grep -v -- '-test\.' | head -1 || true)"
+          own_fp=""; own_build=""
+          if [ -n "$own_tag" ]; then
+            own_body="$(gh release view "$own_tag" --repo "$GITHUB_REPOSITORY" --json body -q .body 2>/dev/null | tr -d '\r' || true)"
+            own_fp="$(echo "$own_body" | sed -n 's/^content-fingerprint: //p' | head -1)"
+            own_build="$(echo "$own_body" | sed -n 's/^backend-build: //p' | head -1)"
+          fi
+          # Seconds since the newest content edit. Varnish can serve a cached
+          # API response for up to 60s TTL + 300s grace after an edit whose
+          # admin route did not clear the cache, so a build started sooner
+          # could prerender the old content and still record the new
+          # fingerprint. Production's content-dispatch.sh waits 420s before
+          # starting a build; 360 here leaves a minute for clock differences.
+          SETTLE_SECONDS=360
+          fp_age=999999
+          if [ "$live_fp" != "none" ]; then
+            edited_at="$(date -u -d "$live_fp" +%s 2>/dev/null || echo 0)"
+            fp_age=$(( $(date -u +%s) - edited_at ))
+          fi
+          upstream_tag="$(gh api "repos/$UPSTREAM/releases/latest" --jq .tag_name 2>/dev/null || true)"
+
+          note "Live content fingerprint: $live_fp"
+          note "This repo's latest release: ${own_tag:-none} (fingerprint: ${own_fp:-none recorded})"
+          note "Backend: live $live_build, release prerendered against ${own_build:-not recorded}"
+          note "Upstream latest release: ${upstream_tag:-none}"
+
+          action=none; build_tag=""; publish_tag=""
+          own_base="$(base_of "${own_tag:-v0.0.0}")"
+          up_base="$(base_of "${upstream_tag:-v0.0.0}")"
+
+          if [ -n "$TEST_TAG" ]; then
+            action=test; build_tag="$TEST_TAG"; publish_tag="$TEST_TAG"
+            note "Test build requested: $TEST_TAG"
+          elif [ "$MODE" = "resume" ]; then
+            if [ -z "$own_stable" ]; then
+              echo "::error::No stable release in this repo to go back to."
+              exit 1
+            fi
+            build_tag="v$(base_of "$own_stable")"; action=content
+            note "Resuming: going back to the last stable version, $build_tag"
+          elif [ -z "$upstream_tag" ]; then
+            note "No upstream release yet. Nothing to do."
+          elif [[ "$own_tag" == *-test.* ]]; then
+            if [ "$AUTO_UPGRADE" = "true" ] && newer "$up_base" "$own_base"; then
+              action=code; build_tag="$upstream_tag"
+              note "A test build is live, and stable $upstream_tag is newer: installing it ends the test."
+            else
+              note "Test build $own_tag is live, so automatic content updates are paused. Run this workflow with mode 'resume' to go back to stable, or ship the branch."
+            fi
+          elif [ -z "$own_tag" ]; then
+            action=code; build_tag="$upstream_tag"
+            note "First release for this site: $upstream_tag"
+          elif [ "$AUTO_UPGRADE" = "true" ] && newer "$up_base" "$own_base"; then
+            action=code; build_tag="$upstream_tag"
+            note "Upstream $upstream_tag is newer than $own_tag: code release."
+          elif [ "$FORCE_CONTENT" = "true" ]; then
+            action=content; build_tag="v$own_base"
+            note "Rebuild requested: content release at $build_tag"
+          elif [ -z "$own_fp" ] || [ "$live_fp" != "$own_fp" ] || [ "$live_build" != "$own_build" ]; then
+            # Decided from the site's current state, never from what the
+            # trigger said, so a queued run that GitHub replaced with a newer
+            # one loses nothing: the newer run reaches the same decision.
+            if [ "$fp_age" -lt "$SETTLE_SECONDS" ]; then
+              note "Content was edited ${fp_age}s ago; waiting for it to settle. Production's content-dispatch (or the next scheduled run) builds it."
+            else
+              action=content; build_tag="v$own_base"
+              if [ "$live_build" != "$own_build" ] && [ "$live_fp" = "$own_fp" ]; then
+                note "A new backend version is installed: prerendering again against it, at $build_tag"
+              else
+                note "Content changed: content release at $build_tag"
+              fi
+            fi
+          else
+            note "Nothing changed. Nothing to do."
+          fi
+
+          # A content build reuses this site's current version's server bundle.
+          # Releases built before GitHub Actions (on the Pi) have none.
+          if [ "$action" != "none" ] && ! has_bundle "$build_tag"; then
+            if [ "$action" = "content" ] && [ "$AUTO_UPGRADE" = "true" ] && [ -n "$upstream_tag" ] && has_bundle "$upstream_tag" && newer "$up_base" "$own_base"; then
+              action=code; build_tag="$upstream_tag"
+              note "No server bundle for v$own_base; upgrading to $upstream_tag instead."
+            else
+              echo "::error::Upstream $UPSTREAM has no server bundle for $build_tag (it was probably built before GitHub Actions). Run a code release first (Release -> patch in $UPSTREAM)."
+              exit 1
+            fi
+          fi
+
+          case "$action" in
+            code) publish_tag="$build_tag" ;;
+            content) publish_tag="v$(base_of "$build_tag")-content-$(date -u +%Y%m%d%H%M%S)" ;;
+          esac
+          out action "$action"
+          out build_tag "$build_tag"
+          out publish_tag "$publish_tag"
+          out fingerprint "$live_fp"
+          out backend_build "$live_build"
+          out own_tag "$own_tag"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: steps.decide.outputs.action != 'none'
+        with:
+          repository: ${{ inputs.upstream_repo }}
+          ref: ${{ steps.decide.outputs.build_tag }}
+          path: src
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: steps.decide.outputs.action != 'none'
+        with:
+          node-version-file: src/frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: src/frontend/package-lock.json
+
+      - name: Prerender the site
+        if: steps.decide.outputs.action != 'none'
+        working-directory: src/frontend
+        env:
+          PRERENDER_BASE_URL: ${{ inputs.site_url }}
+          VITE_ENABLE_AI_DEMOS: ${{ inputs.ai_demos && 'true' || 'false' }}
+        run: |
+          npm ci
+          npm run build
+          # No pages prerendered means the site was unreachable mid-build, or
+          # its API failed: never publish that.
+          node scripts/verify-prerender.mjs
+          # Every page's inline scripts must be allowed by its CSP, or it will
+          # not hydrate in browsers. Real content produces different scripts
+          # than the test fixture did, so this runs for every site build.
+          node scripts/verify-csp-hashes.mjs
+
+      - name: Download the server bundle
+        if: steps.decide.outputs.action != 'none'
+        env:
+          BUILD_TAG: ${{ steps.decide.outputs.build_tag }}
+        run: |
+          mkdir -p bundle
+          gh release download "$BUILD_TAG" --repo "$UPSTREAM" \
+            --pattern 'server-bundle-*-linux-arm64.tar.gz*' --dir bundle
+          (cd bundle && sha256sum -c ./*.sha256)
+
+      - name: Assemble the release
+        if: steps.decide.outputs.action != 'none'
+        env:
+          AI_DEMOS: ${{ inputs.ai_demos }}
+        run: |
+          set -euo pipefail
+          args=(--from-server-bundle "$(ls bundle/server-bundle-*.tar.gz)" --frontend src/frontend/build/client --out out)
+          [ "$AI_DEMOS" = "true" ] || args+=(--no-ai)
+          bash src/deploy/scripts/assemble-release.sh "${args[@]}"
+          cd out
+          ls -l
+          shopt -s nullglob
+          files=(personal-website-v*.tar.gz)
+          [ "${#files[@]}" -eq 1 ] || { echo "::error::expected exactly one personal-website-v*.tar.gz, found ${#files[@]}"; exit 1; }
+          sha256sum -c ./*.sha256
+
+      - name: Publish
+        id: publish
+        if: steps.decide.outputs.action != 'none'
+        env:
+          ACTION: ${{ steps.decide.outputs.action }}
+          BUILD_TAG: ${{ steps.decide.outputs.build_tag }}
+          TAG: ${{ steps.decide.outputs.publish_tag }}
+          FINGERPRINT: ${{ steps.decide.outputs.fingerprint }}
+          BACKEND_BUILD: ${{ steps.decide.outputs.backend_build }}
+          OWN_TAG: ${{ steps.decide.outputs.own_tag }}
+          MANUAL: ${{ inputs.test_tag != '' || inputs.mode == 'resume' }}
+        run: |
+          set -euo pipefail
+          # Automatic runs and test/resume runs queue separately (see
+          # publish.yml), so one of each can be building at once. If anything
+          # was published since this run decided, its decision is stale: stop,
+          # and let the next run decide again. Without this, a content build
+          # that started before a test build could finish after it and quietly
+          # replace the test on the site. Test and resume runs always publish.
+          if [ "$MANUAL" != "true" ]; then
+            newest="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 50 --json tagName,isDraft,isPrerelease \
+                      -q '[.[] | select((.isDraft or .isPrerelease) | not) | .tagName] | .[0] // ""')"
+            if [ "$newest" != "$OWN_TAG" ]; then
+              echo "$newest was published while this run was building, so this build is out of date and was not published. The next run decides again." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          fi
+          {
+            case "$ACTION" in
+              code) echo "Code release $BUILD_TAG from https://github.com/$UPSTREAM/releases/tag/$BUILD_TAG, prerendered against $SITE_URL." ;;
+              content) echo "Content refresh: pages prerendered again against $SITE_URL, same code as $BUILD_TAG." ;;
+              test) echo "**TEST BUILD** $BUILD_TAG (https://github.com/$UPSTREAM/releases/tag/$BUILD_TAG). Automatic content updates are paused while this is live; run publish with mode 'resume' to go back to stable." ;;
+            esac
+            echo ""
+            # Read by the next run's "Decide" step. Keep these line formats.
+            echo "content-fingerprint: $FINGERPRINT"
+            echo "backend-build: $BACKEND_BUILD"
+          } > notes.md
+          # A normal release, even for a test build: update-watch.sh skips
+          # pre-releases, and this is the one meant to be installed.
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes-file notes.md \
+            out/personal-website-v*.tar.gz out/personal-website-v*.tar.gz.sha256
+          echo "published=true" >> "$GITHUB_OUTPUT"
+          echo "Published $TAG. The server installs it on its next update check." | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # After a stable code release, remove this repo's OLDER test builds. A
+      # test build published after this release (by a test run that was
+      # building at the same time) is the newest release and is kept.
+      - name: Remove old test builds
+        if: steps.decide.outputs.action == 'code' && steps.publish.outputs.published == 'true'
+        env:
+          TAG: ${{ steps.decide.outputs.publish_tag }}
+        run: |
+          created="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json createdAt -q .createdAt)"
+          # `|| true`: grep exits 1 when there are no test builds, which
+          # pipefail would otherwise turn into a failed step.
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,createdAt \
+            -q ".[] | select(.createdAt < \"$created\") | .tagName" \
+            | { grep -- '-test\.' || true; } | while read -r t; do
+              echo "Deleting test build $t"
+              gh release delete "$t" --repo "$GITHUB_REPOSITORY" --cleanup-tag -y || true
+            done

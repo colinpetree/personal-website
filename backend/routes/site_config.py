@@ -1,3 +1,4 @@
+import hashlib
 import hmac
 import json
 import logging
@@ -46,7 +47,7 @@ def get_site_config():
     }
 
     # Per-page content (text/meta description/layout) is only exposed for
-    # pages that are actually enabled — a disabled page must be
+    # pages that are actually enabled - a disabled page must be
     # indistinguishable from one that doesn't exist at all, so its real
     # content never reaches a client that hotlinks the page or calls this
     # endpoint directly, even though the toggle only otherwise affects
@@ -71,25 +72,25 @@ def get_site_config():
             page_content[width_field] = getattr(config, width_field)
         page_content[font_field] = getattr(config, font_field)
 
-    # Only return public-safe fields — no secrets (Mailgun API key, Stripe keys, OAuth secrets)
+    # Only return public-safe fields - no secrets (Mailgun API key, Stripe keys, OAuth secrets)
     return jsonify({
         'site_title': config.site_title,
         'favicon_filename': config.favicon_filename,
         'social_image_filename': config.social_image_filename,
-        # Not a secret — it's the site's own public hostname, visible in every
+        # Not a secret - it's the site's own public hostname, visible in every
         # visitor's URL bar already. Needed by the frontend to build absolute
         # og:image URLs (Open Graph/Twitter Card scrapers fetch images
         # directly and don't resolve relative URLs against the page).
         'domain': config.domain,
-        # Per-page enabled flags/names — NOT the site's navigation menu
+        # Per-page enabled flags/names - NOT the site's navigation menu
         # (that's `primary_navigation` below); this only feeds isNavEnabled()
         # gating and the AI demo pages' "Back to {name}" link.
         'nav': [{'key': key, 'name': names[key], 'enabled': enabled[key]} for key in enabled],
-        # Also exposed individually as `<key>_page_name` — each public page's
+        # Also exposed individually as `<key>_page_name` - each public page's
         # meta() reads its own field directly (e.g. `data.ai_demo_page_name`)
         # rather than searching `nav`, matching how it already reads its own
         # `<key>_meta_description` alongside this. Unconditional, same as the
-        # `name` inside `nav` above — a page's display name was never gated
+        # `name` inside `nav` above - a page's display name was never gated
         # on its enabled flag, only its actual content is (see page_content).
         **{f'{key}_page_name': names[key] for key in names},
         'primary_navigation': json.loads(config.primary_navigation) if config.primary_navigation else [],
@@ -103,7 +104,7 @@ def get_site_config():
         },
         'users_enabled': config.users_enabled,
         'google_oauth_client_id': config.google_oauth_client_id,
-        # home content is always public — see page_content comment above.
+        # home content is always public - see page_content comment above.
         'home_text': config.home_text,
         'home_meta_description': config.home_meta_description,
         'home_scrollable_nav_enabled': config.home_scrollable_nav_enabled,
@@ -116,9 +117,24 @@ def get_site_config():
     })
 
 
+def _backend_build_id():
+    """Opaque id for the installed backend version, read by the dist repo's
+    site build (.github/workflows/build-instance.yml): when it differs from the
+    id a release was prerendered against, the pages are prerendered again
+    against this backend. Salted with SECRET_KEY so it doesn't reveal which
+    version is running (it is only ever compared for equality). None outside
+    a release (no VERSION file)."""
+    from version import get_app_version
+    version = get_app_version()
+    if not version:
+        return None
+    salt = current_app.config.get('SECRET_KEY') or ''
+    return hashlib.sha256(f'{version}|{salt}'.encode()).hexdigest()[:16]
+
+
 @site_config_bp.route('/api/content-version', methods=['GET', 'HEAD'])
 def get_content_version():
-    """Public fingerprint of everything that feeds a prerendered page —
+    """Public fingerprint of everything that feeds a prerendered page -
     polled by the Pi's content-watch.sh to detect edits that should trigger
     a rebuild. Returned as a standard Last-Modified header (not a JSON body)
     so the poller is a plain `curl -sI | grep`, and so this behaves like the
@@ -137,6 +153,9 @@ def get_content_version():
     resp = current_app.response_class(status=204)
     if latest:
         resp.headers['Last-Modified'] = format_datetime(latest.replace(tzinfo=timezone.utc), usegmt=True)
+    build_id = _backend_build_id()
+    if build_id:
+        resp.headers['X-Backend-Build'] = build_id
     current_app.logger.debug('get_content_version: latest=%s', latest)
     return resp
 
@@ -144,14 +163,14 @@ def get_content_version():
 @site_config_bp.route('/api/watcher-alert', methods=['POST'])
 def post_watcher_alert():
     """Lets the Pi's content-watch.sh email the admin when its gh auth has
-    been broken for an extended period — the Pi has no DB/Mailgun access of
+    been broken for an extended period - the Pi has no DB/Mailgun access of
     its own, so this is the only path it has to raise an alert. Not under
     /api/admin/: the Pi has no session cookie, so this is secured with a
     pre-shared secret (constant-time compared) instead of @admin_required."""
     secret = current_app.config.get('WATCHER_ALERT_SECRET', '')
     given = request.headers.get('X-Watcher-Secret', '')
     if not secret or not hmac.compare_digest(secret, given):
-        # Never log `given` itself — logging a rejected secret attempt is
+        # Never log `given` itself - logging a rejected secret attempt is
         # exactly the kind of thing that turns into a secret leaking into
         # log files. The fact of a rejection is the useful signal (repeated
         # ones could mean a misconfigured Pi, or someone probing this
@@ -162,7 +181,7 @@ def post_watcher_alert():
     data = request.get_json(silent=True) or {}
     from watcher_alerts import send_watcher_alert
     sent = send_watcher_alert(data.get('source', 'pi'), data.get('message', 'gh calls have been failing.'))
-    # 502, not 200, on failure — content-watch.sh's `curl -sf` only touches
+    # 502, not 200, on failure - content-watch.sh's `curl -sf` only touches
     # its ALERT_SENT_FILE on a 2xx response, so a genuine send failure here
     # needs to read as a failed request, not a successful one with a false
     # ok:true, or the Pi would stop retrying an alert that never actually

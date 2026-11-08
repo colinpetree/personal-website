@@ -1,0 +1,14 @@
+[Unit]
+Description=Personal Website: tell GitHub to rebuild prerendered pages after content changes
+After=network-online.target personal-website.service
+
+[Service]
+Type=oneshot
+# Root, like personal-website-healthwatch.service: it reads the root-only
+# token file (/etc/personal-website/github-dispatch-token, mode 600) and
+# the installed systemd units, and its only outbound action is one HTTPS call
+# to GitHub (plus an alert email if that keeps failing).
+WorkingDirectory=/opt/personal-website
+# Local checks plus at most one GitHub API call (30s timeout) and one alert.
+TimeoutStartSec=90
+ExecStart=/bin/bash /opt/personal-website/current/deploy/content-dispatch.sh
