@@ -453,6 +453,16 @@ def main():
         return
 
     run_migrations(app)
+    # run_migrations leaves an open Postgres connection in the master's pool.
+    # Every forked worker would inherit that same socket and share it, so two
+    # workers answering at once read each other's replies ("there is already
+    # a transaction in progress", "PGRES_TUPLES_OK and no message from the
+    # libpq", 500s) until the connection breaks and is replaced. Closing the
+    # pool here, before the fork, makes each worker open its own. Found by the
+    # CI prerender test, whose parallel API requests hit it every time.
+    from extensions import db
+    with app.app_context():
+        db.engine.dispose()
     _run_gunicorn(app)
 
 
