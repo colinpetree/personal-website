@@ -23,7 +23,7 @@ def create_app():
     app = Flask(__name__)
     app.config['SQLALCHEMY_DATABASE_URI'] = _database_uri()
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    # Validate pooled connections before use and recycle them proactively —
+    # Validate pooled connections before use and recycle them proactively -
     # without this, a connection silently killed by an idle timeout (AWS's
     # network path, Postgres itself) gets reused and fails with an opaque
     # "SSL error: decryption failed" / "connection reset by peer" instead of
@@ -41,27 +41,27 @@ def create_app():
     app.config['SESSION_COOKIE_SECURE'] = is_production
     if is_production:
         # gunicorn only ever accepts connections from Varnish on 127.0.0.1
-        # (never exposed publicly — see deploy/scripts/bootstrap.sh's ufw
+        # (never exposed publicly - see deploy/scripts/bootstrap.sh's ufw
         # rules), and nginx sets X-Forwarded-For to the real client address
-        # before proxying in — but Varnish itself then appends its OWN
+        # before proxying in - but Varnish itself then appends its OWN
         # connecting peer (nginx, reached over loopback) as a second entry,
         # e.g. "203.0.113.5, 127.0.0.1", even with a custom vcl_recv that
         # returns in every branch. Confirmed via varnishlog on test633.org:
         # BereqHeader X-Forwarded-For consistently carries two values, not
         # nginx's single one. x_for must be 2 (not 1) to correctly skip
-        # Varnish's own loopback stamp and land on nginx's real value —
+        # Varnish's own loopback stamp and land on nginx's real value -
         # x_for=1 would instead pick Varnish's stamp itself (the rightmost
         # entry), making request.remote_addr always 127.0.0.1 for every
         # visitor and silently collapsing the login/contact-form rate
         # limiters below into one shared bucket.
         app.wsgi_app = ProxyFix(app.wsgi_app, x_for=2, x_proto=1, x_host=0, x_port=0, x_prefix=0)
-    # Deployment-time flag — lets forks of this project fully exclude the AI demo
+    # Deployment-time flag - lets forks of this project fully exclude the AI demo
     # feature (its own API keys/spend) without touching code. Not admin-toggleable;
     # ai_demo_enabled in SiteConfig is a separate runtime toggle for sites that have it.
     app.config['ENABLE_AI_DEMOS'] = os.getenv('ENABLE_AI_DEMOS', 'true').lower() == 'true'
-    # Shared secret the Pi's content-watch.sh authenticates with when POSTing
-    # to /api/watcher-alert — the Pi has no admin session cookie to send, so
-    # this substitutes for @admin_required there. Unset by default (route
+    # Shared secret the optional backup-copy machine's backup-pull.sh
+    # authenticates with when POSTing to /api/watcher-alert - it has no admin
+    # session cookie to send, so this substitutes for @admin_required there. Unset by default (route
     # then always returns 403, never a silent no-op).
     app.config['WATCHER_ALERT_SECRET'] = os.getenv('WATCHER_ALERT_SECRET', '')
 
@@ -133,7 +133,7 @@ def create_app():
 
 def _migrate_schema():
     """Idempotent, additive schema patches for columns added after a table
-    already existed — db.create_all() only creates missing tables, it never
+    already existed - db.create_all() only creates missing tables, it never
     alters existing ones. Safe to run on every startup."""
     from sqlalchemy import inspect, text
 
@@ -217,7 +217,7 @@ def _migrate_schema():
 
         attempt_columns = {c['name'] for c in inspector.get_columns('analytics_attempt')}
         if 'visitor_key' not in attempt_columns:
-            # No NOT NULL here even though the model declares one — these
+            # No NOT NULL here even though the model declares one - these
             # rows are always stale within ~60s under normal operation
             # (check_rate_limit() sweeps them), so there's nothing meaningful
             # to backfill, and a NOT NULL ADD COLUMN would fail outright on
@@ -225,7 +225,7 @@ def _migrate_schema():
             conn.execute(text('ALTER TABLE analytics_attempt ADD COLUMN visitor_key VARCHAR(64)'))
 
         # db.create_all() only adds indexes when it creates the table itself
-        # — since analytics_attempt already existed before these were added
+        # - since analytics_attempt already existed before these were added
         # to the model, they need the same explicit additive treatment as a
         # column would.
         attempt_indexes = {i['name'] for i in inspector.get_indexes('analytics_attempt')}
@@ -238,7 +238,7 @@ def _migrate_schema():
                 'CREATE INDEX ix_analytics_attempt_ip_created ON analytics_attempt (ip_address, created_at)'
             ))
 
-        # Pages feature / Site Navigation — see slug_utils.py, routes/admin_pages.py,
+        # Pages feature / Site Navigation - see slug_utils.py, routes/admin_pages.py,
         # models.py's Page/SiteConfig.primary_navigation|site_title_link|about_migrated.
         if 'primary_navigation' not in config_columns:
             conn.execute(text('ALTER TABLE site_config ADD COLUMN primary_navigation TEXT'))
@@ -256,15 +256,15 @@ def _migrate_schema():
 
 
 def _seed_pages_and_nav():
-    """One-time, idempotent data seeding for the Pages feature — run once
+    """One-time, idempotent data seeding for the Pages feature - run once
     per startup, after _migrate_schema() has added the columns this reads/
     writes. Two independent steps:
 
       a) Migrates the old fixed About SiteConfig columns into a real Page
-         row (About is no longer a hardcoded page — see slug_utils.py's
+         row (About is no longer a hardcoded page - see slug_utils.py's
          comment on why 'about' is no longer a reserved slug). Gated on
          SiteConfig.about_migrated, NOT on "does a Page with this slug
-         exist" — the latter would be fooled by a later slug rename and
+         exist" - the latter would be fooled by a later slug rename and
          recreate a duplicate About page on the next restart.
 
       b) Seeds primary_navigation from the legacy nav_order + each fixed
@@ -283,7 +283,7 @@ def _seed_pages_and_nav():
         return  # fresh install, nothing to migrate yet (seed.py hasn't run)
 
     # Direct object reference to whatever Page this run creates for About,
-    # if any — used by the nav seed below so it doesn't need to re-query for
+    # if any - used by the nav seed below so it doesn't need to re-query for
     # it. Only a same-run migration relies on this; see the fallback query
     # below for the (rare) case where about_migrated is already true but
     # primary_navigation is still NULL from a previous partial run.
@@ -324,13 +324,13 @@ def _seed_pages_and_nav():
 
         if migrated_about is None:
             # about_migrated was already true on entry (a previous run did
-            # step (a) but crashed before step (b)) — best-effort re-find by
+            # step (a) but crashed before step (b)) - best-effort re-find by
             # the title that migration would have used, since there's no
             # stored id linking SiteConfig to it.
             migrated_about = Page.query.filter_by(title=config.about_page_name or 'About').order_by(Page.id.asc()).first()
 
         # "Enabled" here must match site_config.py's get_site_config() nav_items
-        # computation exactly, not just the raw *_enabled flag — contact and
+        # computation exactly, not just the raw *_enabled flag - contact and
         # payment additionally require their third-party integration to
         # actually be configured, and ai_demo additionally requires the
         # deployment-level ENABLE_AI_DEMOS flag. Seeding a nav entry that the

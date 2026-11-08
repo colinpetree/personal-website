@@ -15,8 +15,7 @@ name: Build site (reusable)
 #   4. publishes the finished tarball as a release in the CALLING repo, where
 #      the site's production server (update-watch.sh) picks it up.
 #
-# This replaces deploy/scripts/content-watch.sh + publish-content-refresh.sh
-# on a Pi: a site needs no build machine at all.
+# A site needs no build machine of its own: GitHub Actions does all of it.
 #
 # The backend is not rebuilt or retested here; that already happened in
 # release.yml. What can still fail here is only about this site: its live

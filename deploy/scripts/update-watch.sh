@@ -8,7 +8,7 @@
 # habit the human flow already relies on; this just automates it.
 set -uo pipefail
 
-_log() { echo "[update-watch] $*"; }   # see content-watch.sh's _log - same reasoning
+_log() { echo "[update-watch] $*"; }   # journalctl already timestamps every line
 
 DATA_DIR="/opt/personal-website/data"
 INTERVAL_FILE="$DATA_DIR/update-check-interval-seconds"   # default 300 (5 min), seeded by

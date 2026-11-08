@@ -134,11 +134,14 @@ def _backend_build_id():
 
 @site_config_bp.route('/api/content-version', methods=['GET', 'HEAD'])
 def get_content_version():
-    """Public fingerprint of everything that feeds a prerendered page -
-    polled by the Pi's content-watch.sh to detect edits that should trigger
-    a rebuild. Returned as a standard Last-Modified header (not a JSON body)
-    so the poller is a plain `curl -sI | grep`, and so this behaves like the
-    ordinary HTTP conditional-request mechanism it actually is."""
+    """Public fingerprint of everything that feeds a prerendered page.
+    Read by production's content-dispatch.sh (to start a rebuild after an
+    edit) and by the dist repo's build-instance.yml (to decide whether a
+    rebuild is needed). Returned as a standard Last-Modified header (not a
+    JSON body) so callers are a plain `curl -sI | grep`, and so this behaves
+    like the ordinary HTTP conditional-request mechanism it actually is.
+    X-Backend-Build (see _backend_build_id) tells the build when a new
+    backend version was installed."""
     candidates = [
         db.session.query(func.max(SiteConfig.updated_at)).scalar(),
         db.session.query(func.max(Profile.updated_at)).scalar(),
@@ -162,11 +165,12 @@ def get_content_version():
 
 @site_config_bp.route('/api/watcher-alert', methods=['POST'])
 def post_watcher_alert():
-    """Lets the Pi's content-watch.sh email the admin when its gh auth has
-    been broken for an extended period - the Pi has no DB/Mailgun access of
-    its own, so this is the only path it has to raise an alert. Not under
-    /api/admin/: the Pi has no session cookie, so this is secured with a
-    pre-shared secret (constant-time compared) instead of @admin_required."""
+    """Lets an off-server script email the admin through this site: the
+    optional backup-copy machine's backup-pull.sh (e.g. a Raspberry Pi) when a
+    nightly pull fails. It has no DB/Mailgun access of its own, so this is the
+    only path it has to raise an alert. Not under /api/admin/: it has no
+    session cookie, so this is secured with a pre-shared secret
+    (constant-time compared) instead of @admin_required."""
     secret = current_app.config.get('WATCHER_ALERT_SECRET', '')
     given = request.headers.get('X-Watcher-Secret', '')
     if not secret or not hmac.compare_digest(secret, given):
@@ -181,9 +185,8 @@ def post_watcher_alert():
     data = request.get_json(silent=True) or {}
     from watcher_alerts import send_watcher_alert
     sent = send_watcher_alert(data.get('source', 'pi'), data.get('message', 'gh calls have been failing.'))
-    # 502, not 200, on failure - content-watch.sh's `curl -sf` only touches
-    # its ALERT_SENT_FILE on a 2xx response, so a genuine send failure here
-    # needs to read as a failed request, not a successful one with a false
-    # ok:true, or the Pi would stop retrying an alert that never actually
-    # reached an inbox.
+    # 502, not 200, on failure - callers use `curl -sf`, which only treats a
+    # 2xx as sent, so a genuine send failure here must read as a failed
+    # request, not a successful one with a false ok:true, or the caller
+    # would log an alert as sent that never actually reached an inbox.
     return jsonify({'ok': sent}), (200 if sent else 502)

@@ -53,10 +53,10 @@ Usage:
                                   # a Pi-built release's content is never left
                                   # behind Varnish's 60s safety-net TTL. Always
                                   # exits 0 - purge_all_public() never raises.
-    server --send-watcher-alert   # emails the admin when a watcher loop (Pi or
-                                  # production, see deploy/scripts/content-watch.sh
-                                  # /update-watch.sh) has been unable to reach gh/
-                                  # GitHub for 48h+. Reads WATCHER_ALERT_SOURCE/
+    server --send-watcher-alert   # emails the admin about a problem a watcher
+                                  # found (update-watch.sh: gh/GitHub unreachable
+                                  # for 48h+; also health-watch.sh, backup.sh,
+                                  # content-dispatch.sh, media cleanup). Reads WATCHER_ALERT_SOURCE/
                                   # WATCHER_ALERT_MESSAGE from the environment.
                                   # Unlike --send-deploy-report, this DOES signal
                                   # failure via its exit code (0 = actually sent,

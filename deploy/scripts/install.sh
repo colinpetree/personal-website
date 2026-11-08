@@ -14,7 +14,7 @@
 # --tag names the release directory under $APP_ROOT/releases (defaults to
 # "v$VERSION", derived from the tarball filename). Pass the actual GitHub
 # release tag here for a content-only release (e.g.
-# v0.1.12-content-20260818153000, see publish-content-refresh.sh) - it keeps
+# v0.1.12-content-20260818153000, made by the dist repo's build) - it keeps
 # VERSION unchanged from the code release it's based on, so without --tag its
 # release directory would collide with that earlier release's. Not needed
 # with the vX.Y.Z / --releases-repo form above, which already uses the tag
@@ -64,7 +64,7 @@ if [[ "$ARG1" == v* && -n "$RELEASES_REPO" ]]; then
     # build-on-pi.sh always names the tarball after the bare VERSION file
     # (e.g. personal-website-v0.1.12.tar.gz), which only happens to match the
     # tag for an ordinary code release. A content-only release tag (e.g.
-    # v0.1.12-content-20260818153000, see publish-content-refresh.sh) never
+    # v0.1.12-content-20260818153000) never
     # matches that filename, so a guessed path would silently miss it.
     TARBALL="$(ls "$WORKDIR"/personal-website-*.tar.gz | head -1)"
     TAG_ARG="${TAG_ARG:-$ARG1}"
@@ -90,7 +90,7 @@ else
 fi
 
 # The release directory is named after the release TAG, not the bare
-# VERSION - a content-only release (see publish-content-refresh.sh) ships a
+# VERSION - a content-only release (vX.Y.Z-content-<time>) ships a
 # tarball whose VERSION is unchanged from the code release it's based on, so
 # naming this directory after VERSION alone would collide with that earlier
 # release's already-extracted directory. That collision made every content
@@ -457,18 +457,15 @@ if [ "$FIRST_INSTALL" = true ]; then
     echo "      /etc/nginx/modules-enabled/, no nginx.conf edit needed. Without"
     echo "      it, nginx -t fails on the brotli/brotli_static directives below."
     echo "   5. Auto-updates are NOT enabled yet - this install.sh run was manual,"
-    echo "      as every first install always is. Once you're ready to hand future"
-    echo "      releases (code or content) off to the auto-updater: edit"
-    echo "      UPDATE_WATCH_RELEASES_REPO in"
-    echo "      /etc/systemd/system/personal-website-updater.service, then run"
-    echo "      systemctl enable --now personal-website-updater"
+    echo "      as every first install always is. Create your site's dist repo, then"
+    echo "      run setup-auto-update-production.sh --releases-repo <you>/<dist repo>"
+    echo "      --dispatch-token (DEPLOYMENT_INSTRUCTIONS.md, steps 4 and 5)."
     echo "   6. Nightly backups are NOT enabled yet (need a restic repository"
-    echo "      initialized first): run deploy/scripts/setup-restic-repo.sh here,"
-    echo "      then run deploy/scripts/setup-backup-pull-pi.sh on the Pi and paste"
-    echo "      its printed authorized_keys line onto this server (this server"
-    echo "      never pushes anywhere - the Pi pulls the backup on its own"
-    echo "      schedule). Then run"
-    echo "      systemctl enable --now personal-website-backup.timer"
+    echo "      initialized first): run $APP_ROOT/current/deploy/setup-restic-repo.sh,"
+    echo "      then systemctl enable --now personal-website-backup.timer"
+    echo "      (DEPLOYMENT_INSTRUCTIONS.md, step 6). Optionally, keep a copy on a"
+    echo "      machine you own with setup-backup-pull-pi.sh (step 7; this server"
+    echo "      never pushes anywhere - that machine pulls on its own schedule)."
     echo "      See deploy/BACKUP.md for full setup and restore instructions."
     echo "   7. Crash-loop/disk/certificate-expiry monitoring IS already enabled"
     echo "      (personal-website-healthwatch.timer) - no action needed unless"

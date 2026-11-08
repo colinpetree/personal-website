@@ -3,7 +3,7 @@
 # deploy/systemd/personal-website-healthwatch.timer/.service). Three
 # independent checks - crash-loop, disk usage, Certbot cert expiry - each
 # alerting at most once per day via a marker file, same debounce pattern as
-# content-watch.sh's gh-outage alert. A condition that clears removes its own
+# update-watch.sh's gh-outage alert. A condition that clears removes its own
 # marker, so a later recurrence alerts again rather than staying silenced
 # forever.
 set -uo pipefail   # not -e: one failed check must not stop the others
@@ -22,7 +22,7 @@ set +a
 
 DISK_ALERT_PERCENT="${BACKUP_DISK_ALERT_PERCENT:-85}"
 CERT_ALERT_DAYS="${CERT_ALERT_DAYS:-14}"
-ALERT_DEBOUNCE_SECONDS=86400   # one alert/day per condition, matches content-watch.sh's threshold shape
+ALERT_DEBOUNCE_SECONDS=86400   # one alert/day per condition
 
 _run_server() {   # mirrors install.sh/update-watch.sh's own _run_server helper
     ( set -a; source "$DATA_DIR/.env"; set +a

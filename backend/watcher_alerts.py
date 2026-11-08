@@ -3,7 +3,7 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# Per-source (subject label, troubleshooting hint) — keeps the email's
+# Per-source (subject label, troubleshooting hint) - keeps the email's
 # subject line and closing advice specific to what actually went wrong,
 # instead of a one-size-fits-all message. Any source not listed here still
 # gets a sane generic email via _DEFAULT_INFO, so adding a new watcher never
@@ -15,56 +15,57 @@ _SOURCE_INFO = {
                    'Check `gh auth status` on production and re-authenticate if the token expired or was revoked.'),
     'backup': ('nightly backup failed',
                'This can come from either half of the backup pipeline: production '
-               '(`journalctl -u personal-website-backup` — pg_dump, restic backup, or restic forget/prune '
+               '(`journalctl -u personal-website-backup` - pg_dump, restic backup, or restic forget/prune '
                'failing; confirm DATABASE_URL and RESTIC_PASSWORD in .env, see deploy/scripts/setup-restic-repo.sh) '
-               'or the Pi (`journalctl --user -u personal-website-backup-pull` — the rsync pull or its post-pull '
+               'or the Pi (`journalctl --user -u personal-website-backup-pull` - the rsync pull or its post-pull '
                '`restic snapshots` check failing; confirm the Pi\'s backup-pull SSH key is still valid, see '
                'deploy/scripts/setup-backup-pull-pi.sh). The message above should say which.'),
     'crash-loop': ('personal-website.service is down',
                    'Check `systemctl status personal-website` and `journalctl -u personal-website -n 100` on '
-                   'the server for the underlying crash reason — a recent log tail is usually included below.'),
+                   'the server for the underlying crash reason - a recent log tail is usually included below.'),
     'disk': ('disk usage threshold exceeded',
              'Free up space or grow the disk, then run `df -h` on the server to confirm current usage.'),
     'certbot': ('TLS certificate renewal at risk',
                 'Run `sudo certbot certificates` and `journalctl -u certbot.timer` on the server to see why '
                 'renewal has stalled.'),
     'media-cleanup': ('orphan media cleanup needs attention',
-                       'Check `journalctl -u personal-website-media-cleanup` on the server for details — this '
+                       'Check `journalctl -u personal-website-media-cleanup` on the server for details - this '
                        'fires on an unexpected error, or when the reference scan itself looks unhealthy (found '
-                       'far fewer referenced files than its recent history, or — during cold start only — a '
-                       'huge volume cap was exceeded). Not a limit on legitimate cleanup volume — worth a '
+                       'far fewer referenced files than its recent history, or - during cold start only - a '
+                       'huge volume cap was exceeded). Not a limit on legitimate cleanup volume - worth a '
                        'manual `--cleanup-orphan-media --dry-run` look before investigating further.'),
-    'dependency-audit': ('monthly dependency audit report',
-                         'This is a routine report sent every run, not necessarily a failure, see the '
-                         'pip-audit/npm audit output above for whether any vulnerabilities were actually '
-                         'found. "completed WITH ERRORS" in the report body means the audit tooling itself '
-                         'failed to run (check `journalctl --user -u personal-website-dependency-audit` on '
-                         'the Pi), which is different from the tooling running fine and finding CVEs.'),
+    'content-dispatch': ('content edits cannot start a site rebuild',
+                         'The GitHub token production uses to start a rebuild after a content edit was '
+                         'rejected (usually expired). Edits still go live through the dist repo\'s 3-hourly '
+                         'check. Make a new fine-grained token (only the dist repo, Actions: read and write) '
+                         'and run `sudo bash setup-auto-update-production.sh --releases-repo <dist repo> '
+                         '--dispatch-token` on the server. See RELEASING.md.'),
 }
-_DEFAULT_INFO = ('issue detected', 'Check the server logs for details — see the message above.')
+_DEFAULT_INFO = ('issue detected', 'Check the server logs for details - see the message above.')
 
 
 def send_watcher_alert(source, message):
     """Emails the site owner when something a watcher script/timer checks
-    has gone wrong — gh/GitHub outages (content-watch.sh/update-watch.sh),
-    nightly backup failures, service crash-loops, high disk usage, or
-    Certbot renewal risk (all from health-watch.sh/backup.sh). Subject and
+    has gone wrong - gh/GitHub outages (update-watch.sh), a rejected
+    content-dispatch token (content-dispatch.sh), nightly backup failures
+    (backup.sh, backup-pull.sh), service crash-loops, high disk usage, or
+    Certbot renewal risk (health-watch.sh). Subject and
     body are tailored per `source` via _SOURCE_INFO above so the email
     itself says what kind of problem this is and where to start looking,
     rather than a single hardcoded story that only fit the original
     gh-outage use case this function was first written for.
 
     Tries the normal SiteConfig-backed Mailgun config first (same one the
-    public contact form uses). If that path doesn't work for ANY reason —
+    public contact form uses). If that path doesn't work for ANY reason -
     SiteConfig unset, the query itself fails (e.g. the database is down,
     plausible cause of a 'crash-loop' alert), or the send itself fails
-    (expired/revoked Mailgun key, suspended account, a bad decrypt) — falls
+    (expired/revoked Mailgun key, suspended account, a bad decrypt) - falls
     back to a second, deliberately DB-independent path using plain
     WATCHER_ALERT_FALLBACK_* env vars, if set. This exists specifically so a
     broken database OR a broken primary mail account doesn't also silently
     take out the one alert meant to report it.
 
-    Returns True iff the email was actually sent, False otherwise — callers
+    Returns True iff the email was actually sent, False otherwise - callers
     (the --send-watcher-alert CLI flag, the /api/watcher-alert route) use
     this to decide whether to mark the outage as "alerted" and stop
     retrying. Never raises: the caller must never itself fail because of
@@ -82,13 +83,13 @@ def send_watcher_alert(source, message):
         try:
             config = SiteConfig.query.first()
         except Exception:
-            logger.exception('send_watcher_alert(%s): could not read SiteConfig — database may be unreachable, '
+            logger.exception('send_watcher_alert(%s): could not read SiteConfig - database may be unreachable, '
                               'falling back to WATCHER_ALERT_FALLBACK_* env config if set.', source)
 
         if config and config.forward_email and mail_configured(config):
             # Wrapped locally (not left to the outer try/except) so a primary
-            # SEND failure — expired/revoked Mailgun key, suspended account,
-            # a bad decrypt() — still falls through to the fallback below,
+            # SEND failure - expired/revoked Mailgun key, suspended account,
+            # a bad decrypt() - still falls through to the fallback below,
             # not just a failure to read SiteConfig in the first place. A
             # fallback that only covered "the database is down" would miss
             # the more common real-world case of "the mail account itself is
@@ -99,7 +100,7 @@ def send_watcher_alert(source, message):
                 logger.info('send_watcher_alert(%s): alert email sent to %s.', source, config.forward_email)
                 return True
             except Exception:
-                logger.exception('send_watcher_alert(%s): primary Mailgun send failed — falling back to '
+                logger.exception('send_watcher_alert(%s): primary Mailgun send failed - falling back to '
                                   'WATCHER_ALERT_FALLBACK_* env config if set.', source)
 
         fb_key = os.getenv('WATCHER_ALERT_FALLBACK_MAILGUN_API_KEY')
@@ -114,16 +115,16 @@ def send_watcher_alert(source, message):
         ) if not val]
         if not missing:
             send_raw_email(fb_domain, fb_key, fb_from, fb_to, subject, body)
-            logger.info('send_watcher_alert(%s): primary path unavailable — sent via fallback env-based '
+            logger.info('send_watcher_alert(%s): primary path unavailable - sent via fallback env-based '
                         'Mailgun config to %s.', source, fb_to)
             return True
 
-        logger.warning('send_watcher_alert(%s): no usable Mailgun config — primary path unavailable and '
+        logger.warning('send_watcher_alert(%s): no usable Mailgun config - primary path unavailable and '
                         'fallback %s. Alert NOT sent. Message was: %s',
                         source,
                         'not configured at all' if len(missing) == 4 else f'missing {", ".join(missing)}',
                         message)
         return False
     except Exception:
-        logger.exception('send_watcher_alert(%s) failed — no alert was sent.', source)
+        logger.exception('send_watcher_alert(%s) failed - no alert was sent.', source)
         return False

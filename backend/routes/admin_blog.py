@@ -33,7 +33,7 @@ def _reserved_slugs():
 
 def _ban_public_caches():
     # /api/resolve/<slug> is what the public :slug route actually fetches
-    # (see routes/public_resolve.py) — banning only /api/blog would leave a
+    # (see routes/public_resolve.py) - banning only /api/blog would leave a
     # stale cached resolve response outliving this edit/publish/unpublish.
     ban_pattern('^/api/blog')
     ban_pattern('^/api/resolve')
@@ -119,7 +119,7 @@ def update_post(post_id):
     if current_user.role == 'contributor':
         if post.author_id != current_user.id:
             return jsonify({'error': 'You can only edit your own posts'}), 403
-        # A published/scheduled post is already live (or about to go live) —
+        # A published/scheduled post is already live (or about to go live) -
         # letting a contributor keep editing something they can't actually
         # save changes to would just be a silent no-op wasting their time,
         # so this is blocked outright rather than only blocking the status
@@ -137,7 +137,7 @@ def update_post(post_id):
         new_slug = _slugify(data['slug']) or _slugify(post.title) or 'untitled'
         if new_slug in _reserved_slugs():
             return jsonify({'error': f'"{new_slug}" is a reserved path and cannot be used as a slug.'}), 400
-        # A colliding slug no longer blocks the save — it silently gets a
+        # A colliding slug no longer blocks the save - it silently gets a
         # "-1", "-2", ... suffix (same resolution create_post already uses)
         # so a draft/post can never get stuck unable to save over a slug
         # clash. slug_collided tells the frontend whether that happened so
@@ -148,7 +148,7 @@ def update_post(post_id):
     for field in ('content_html', 'excerpt', 'meta_description', 'scrollable_nav_enabled', 'font_family', 'thumbnail_filename', 'thumbnail_caption', 'thumbnail_width', 'thumbnail_height', 'list_thumbnail_auto'):
         if field in data:
             value = data[field]
-            # Contributors are the lowest-trust writable role — sanitize their
+            # Contributors are the lowest-trust writable role - sanitize their
             # HTML so a malicious/compromised contributor account can't plant
             # stored XSS. Editor/administrator/owner content is trusted as-is
             # (same trust level as editing site config directly).
@@ -185,7 +185,7 @@ def update_post(post_id):
 
     # Committing to "this is going live" (now or on schedule) is the one point
     # where a HeaderNode's no-longer-selected image/video reference actually
-    # becomes abandoned rather than just mid-edit — see header_media.py.
+    # becomes abandoned rather than just mid-edit - see header_media.py.
     if post.status in ('scheduled', 'published') and post.content_html:
         post.content_html = strip_inactive_header_media(post.content_html)
 
@@ -196,9 +196,9 @@ def update_post(post_id):
 
     # A post losing 'published' status (unpublish, or back to draft/
     # scheduled) drops out of get_content_version()'s BlogPost filter
-    # (`WHERE status == 'published'`) the moment this commits — so the
+    # (`WHERE status == 'published'`) the moment this commits - so the
     # updated_at bump above never reaches the public fingerprint, and the
-    # Pi's content-watcher sees no change and skips the rebuild that's
+    # site rebuild (content-dispatch.sh / the dist repo) sees no change and skips the rebuild that's
     # supposed to pull the now-unpublished page down. Publishing (or
     # staying published) doesn't need this: that bump already lands inside
     # the filter on its own. Piggybacking on SiteConfig's row (always
@@ -229,7 +229,7 @@ def update_post(post_id):
 def delete_post(post_id):
     post = BlogPost.query.get_or_404(post_id)
 
-    # Contributors can delete their own draft posts — they already can't
+    # Contributors can delete their own draft posts - they already can't
     # edit a post once it's published or scheduled (see update_post), so
     # "own draft only" mirrors that same boundary rather than opening up a
     # new one. A contributor's own post can only ever be 'draft' anyway
@@ -246,8 +246,8 @@ def delete_post(post_id):
     # Same reasoning as update_post()'s unpublish branch: get_content_version()
     # fingerprints BlogPost via MAX(updated_at) WHERE status == 'published',
     # so deleting a row only moves that MAX() if the deleted post happened to
-    # hold it — deleting any OTHER published post leaves the fingerprint
-    # unchanged, and the Pi's content-watcher would skip the rebuild that's
+    # hold it - deleting any OTHER published post leaves the fingerprint
+    # unchanged, and the site rebuild would skip the rebuild that's
     # supposed to pull the now-deleted post's stale prerendered page down.
     if was_published:
         fingerprint_config = SiteConfig.query.first()

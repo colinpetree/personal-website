@@ -9,9 +9,10 @@
 # on the git working tree itself).
 #
 # BUILD_LOCK_MODE=interactive (the default: a manual run) always wins,
-# interrupting whatever's running. BUILD_LOCK_MODE=periodic (set only by
-# content-watch.sh's automatic cycles) never interrupts - it backs off with
-# exit 3 and lets the next scheduled poll retry instead.
+# interrupting whatever's running. BUILD_LOCK_MODE=periodic never interrupts
+# - it backs off with exit 3. (Its original caller, the Pi's automatic
+# content-watch.sh, was retired when GitHub Actions took over building; the
+# mode is kept for any future unattended caller.)
 #
 # publish-release.sh acquires this lock itself, up front, for its ENTIRE run
 # (git sync + build + smoke test, deciding/writing the version, assembling

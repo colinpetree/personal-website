@@ -16,10 +16,11 @@
 #   with access to ONLY the dist repo and "Actions: read and write", stores it
 #   root-only, and enables the timer. Safe to re-run to replace the token.
 #
-# --watcher-secret: must match the value put in the Pi's
-#   ~/.personal-website-build.env (see setup-auto-update-pi.sh). If omitted and
-#   not already set in this server's .env, one is generated and printed so you
-#   can copy it to the Pi.
+# --watcher-secret: must match WATCHER_ALERT_SECRET in the Pi's
+#   ~/.personal-website-build.env (the Pi's backup-pull.sh uses it to email
+#   you through this server; see setup-backup-pull-pi.sh). If omitted and not
+#   already set in this server's .env, one is generated and printed so you can
+#   copy it to the Pi.
 set -euo pipefail
 
 APP_ROOT="/opt/personal-website"

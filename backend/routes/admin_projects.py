@@ -86,13 +86,13 @@ def delete_project(project_id):
     db.session.delete(project)
 
     # get_content_version() fingerprints Project via a plain, unfiltered
-    # MAX(updated_at) — but removing a row only moves that MAX() if the
+    # MAX(updated_at) - but removing a row only moves that MAX() if the
     # deleted project happened to hold it. Deleting any OTHER project (which
-    # is the common case) leaves the fingerprint unchanged, so the Pi's
-    # content-watcher would skip the rebuild that's supposed to pull the
+    # is the common case) leaves the fingerprint unchanged, so the site
+    # rebuild (content-dispatch.sh / the dist repo) would skip the one that's supposed to pull the
     # now-deleted project off the prerendered /projects page. Unconditional
     # here (unlike BlogPost's fix) since there's no status/visible filter
-    # for a deletion to fall out of in the first place — every delete needs
+    # for a deletion to fall out of in the first place - every delete needs
     # this, not just ones matching some condition.
     fingerprint_config = SiteConfig.query.first()
     if fingerprint_config:

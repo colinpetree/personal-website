@@ -27,14 +27,24 @@ cd frontend
 npm run dev                  # Starts Vite on http://localhost:5173
 ```
 
-`/api/*` requests are proxied to `http://localhost:5000` by Vite. No testing or linting is configured.
+`/api/*` requests are proxied to `http://localhost:5000` by Vite. There's no unit test suite or linter; the release checks run in CI (see Releases and deployment below).
 
 ### Build
 
 ```bash
 cd frontend
-npm run build                # Outputs to frontend/dist/
+npm run build                # Outputs to frontend/build/client/ (shipped as frontend/dist in releases)
 ```
+
+## Releases and deployment
+
+GitHub Actions builds everything; nothing builds on a Pi or on the server. Full guides: `RELEASING.md` (releasing, testing a branch live) and `DEPLOYMENT_INSTRUCTIONS.md` (new server setup).
+
+- **Code release:** `.github/workflows/release.yml` (Actions, Release, Run workflow; `bump` patch/minor/major/trial/test). Builds the backend with PyInstaller on ARM64, runs the CI checks (Postgres migrations fresh and as an upgrade, a prerender of `backend/ci_fixture.py` sample content, `frontend/scripts/verify-prerender.mjs`, `verify-csp-hashes.mjs`, and a Playwright `verify-hydration.mjs`), then commits `VERSION`, tags and publishes a public release with a server bundle (packaged by `deploy/scripts/assemble-release.sh`). It pushes a "Release vX.Y.Z" commit to `main`, so pull before the next commit.
+- **Site build:** each site's private dist repo (`colinpetree/personal-website-dist-colinpetree.com`) runs `deploy/instance/publish.yml`, which calls `.github/workflows/build-instance.yml@main` to prerender against the live site and publish the release production installs. It decides what to build from the live `/api/content-version` headers (`Last-Modified` fingerprint, `X-Backend-Build`) compared with its latest release's notes.
+- **Production:** `update-watch.sh` installs the newest dist release every 5 minutes; `content-dispatch.sh` (timer) starts a dist build about 7 minutes after content edits stop. Any admin change that should reach prerendered pages must bump `updated_at` on a fingerprinted table (see the `content-update-triggers` skill).
+- **Pi:** only pulls a copy of the nightly backups (`deploy/BACKUP.md`). `deploy/scripts/publish-release.sh` / `build-on-pi.sh` remain as a manual build fallback if GitHub Actions is down.
+- **Monthly:** `.github/workflows/dependency-audit.yml` runs pip-audit and npm audit.
 
 ## Architecture
 

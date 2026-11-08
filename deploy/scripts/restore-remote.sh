@@ -139,8 +139,7 @@ fi
 if [ -n "$RELEASES_REPO_ARG" ]; then
     RELEASES_REPO="$RELEASES_REPO_ARG"
 else
-    # Same domain-derivation publish-release.sh/publish-content-refresh.sh
-    # already use: personal-website-dist-<domain>, from PRERENDER_BASE_URL.
+    # Same domain-derivation publish-release.sh uses: personal-website-dist-<domain>, from PRERENDER_BASE_URL.
     BUILD_DOMAIN="$(printf '%s' "${PRERENDER_BASE_URL:-}" | sed -E 's#^https?://##; s#/.*$##')"
     if [ -z "$BUILD_DOMAIN" ]; then
         echo "--releases-repo not given, and PRERENDER_BASE_URL is not set in $PI_BUILD_ENV to derive it from."

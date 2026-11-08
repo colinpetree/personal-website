@@ -15,8 +15,7 @@ set -euo pipefail
 # Re-exec into a fresh PROCESS GROUP (not a new session) so this build's
 # whole process tree (npm, pyinstaller, the backgrounded smoke-test server,
 # ...) shares one process group distinct from whatever invoked us - the
-# personal-website-publisher systemd service's own process, a manual
-# interactive shell, etc. That's what lets a later invocation cleanly
+# publish-release.sh, a manual interactive shell, etc. That's what lets a later invocation cleanly
 # kill -TERM the entire tree of a build it's interrupting below, without
 # also killing its own caller.
 #
@@ -114,7 +113,7 @@ PI_BUILD_ENV="$HOME/.personal-website-build.env"
 # PRERENDER_BASE_URL="" to force a no-prerender build regardless of what's
 # in the file - without this check, sourcing the file here would silently
 # clobber that override with whatever it normally contains. Normal callers
-# (a bare manual run, or content-watch.sh's chain) never pre-set it, so this
+# (a bare manual run) never pre-set it, so this
 # is a no-op for them - the file gets sourced exactly as before.
 if [ -z "${PRERENDER_BASE_URL+x}" ] && [ -f "$PI_BUILD_ENV" ]; then
     # shellcheck source=/dev/null
@@ -188,10 +187,9 @@ if [ -z "${ASSEMBLE_ONLY:-}" ]; then
     # requirements-build.txt = requirements.txt + the pinned PyInstaller,
     # the same file GitHub Actions installs from.
     pip install -r requirements-build.txt
-    # The exact package set this release's frozen binary is built from.
-    # dependency-audit.sh audits this file, so its monthly report reflects
-    # what production actually runs rather than a fresh resolve of
-    # requirements.txt.
+    # The exact package set this release's frozen binary is built from
+    # (GitHub Actions attaches the same list to each public release, which
+    # the monthly dependency-audit.yml checks).
     pip freeze > "$BUILD_ROOT/last-build-requirements.txt"
 
     rm -rf build dist

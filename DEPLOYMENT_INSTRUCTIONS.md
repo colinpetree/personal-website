@@ -1,270 +1,255 @@
 # Deployment instructions
 
-Full setup for a brand-new production server plus the automated build,
-release, update, and backup pipeline. Assumes you are SSH'd into **both**
-machines already:
+How to set up a brand-new site: one production server, plus a private GitHub
+repo that builds your site's pages. GitHub Actions does all the building, so
+there is no build machine to run. After this setup, content edits and new
+versions install themselves.
 
-- **[Pi]** — your build machine (Raspberry Pi or similar), where `gh` auth
-  and the git checkout live.
-- **[Prod]** — the production/test server (AWS EC2 Ubuntu 24.04), e.g.
-  `ubuntu@<domain-or-ip>`.
+Two places are involved:
 
-Steps are numbered in the order you need to run them. Anything not required
-for a working site is marked **(Optional)** — skip those on a first pass and
-come back later.
+- **[Prod]**: your server (AWS EC2, Ubuntu 24.04, ARM64, for example a
+  `t4g.small`), reached with `ssh ubuntu@<server>`.
+- **[GitHub]**: the GitHub website, in your browser.
 
-Replace every `<placeholder>` with your actual value. `<domain>` means your
-site's real domain (e.g. `example.com`); `<pi-host>` means the Pi's
-hostname/IP as reachable from wherever you're running `scp`/`ssh` from.
+Steps are in the order to run them. Anything not needed for a working site
+is marked **(Optional)**.
 
----
+Replace every `<placeholder>`. `<domain>` is your site's domain (for example
+`example.com`). `<you>` is your GitHub username.
 
-## 0. Prerequisites
+How the pieces fit together, once set up:
 
-**[Pi]** Assuming the Pi is running **Ubuntu 24.04** (Server or Desktop,
-ARM64) — install the build toolchain:
-
-```bash
-sudo apt update
-sudo apt install -y git curl build-essential python3 python3-pip python3-venv python3-dev libpq-dev
 ```
-`build-essential`/`python3-dev`/`libpq-dev` are there so `pip install` can
-compile `psycopg2-binary` (and PyInstaller's other native deps) from source
-if a prebuilt ARM64 wheel isn't available for a given package version —
-harmless if everything resolves to prebuilt wheels instead.
-
-Node.js: Ubuntu 24.04's own `apt` repo ships an older Node than this
-project wants, so install current LTS via NodeSource instead:
-```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-sudo apt install -y nodejs
-node -v && npm -v   # confirm v20.x / a matching npm
-```
-
-**[Pi]** Clone the source repo (public — no authentication needed):
-```bash
-mkdir -p ~/src
-git clone https://github.com/colinpetree/personal-website.git ~/src/personal-website
-cd ~/src/personal-website
-```
-
-**(Optional) [Pi]** Authenticate `gh` — only needed once you get to the
-auto-update pipeline (step 5) or want to publish releases as GitHub Releases
-instead of `scp`-ing tarballs by hand:
-```bash
-gh auth login
+colinpetree/personal-website (public)       builds and tests each version once,
+  Release vX.Y.Z                             publishes a server bundle
+        |
+        v
+<you>/personal-website-dist-<domain> (private, yours)
+  publish.yml                                prerenders YOUR site against its
+                                             live content, publishes a release
+        |
+        v
+your server                                  update-watch.sh installs the newest
+                                             release every 5 minutes;
+                                             content-dispatch.sh asks the dist
+                                             repo to rebuild after you edit
 ```
 
 ---
 
-## 1. [Pi] Build the first release
+## 0. Before you start
 
-```bash
-cd ~/src/personal-website
-bash deploy/scripts/build-on-pi.sh
-```
-This produces a tarball (+ `.sha256`) somewhere under
-`~/personal-website-build/` — its exact subdirectory name depends on build
-config that isn't set yet at this point, so don't hardcode the path; step 2
-locates it for you automatically.
+- An Ubuntu 24.04 **ARM64** server (AWS Graviton, for example `t4g.small`)
+  with ports 22, 80 and 443 open. The prebuilt server bundles are ARM64 only.
+- Your domain's DNS pointing at the server, so the TLS certificate can be
+  issued during install. If the domain is proxied through Cloudflare, see
+  step 4.
+- A GitHub account.
 
 ---
 
-## 2. [Pi] Transfer the bootstrap files to production
+## 1. [Prod] Download the setup files
 
-None of `bootstrap.sh`, the very first `install.sh` run, or
-`setup-auto-update-production.sh` already exist on a fresh server, and none
-of them ship inside a release tarball — they have to be copied over by hand
-before anything else can run. This requires the Pi to already be able to
-SSH into production with an admin key (e.g. `~/aws-key.pem`, per this
-project's usual convention — the Pi needs that key present, or pass your
-own with `--key`).
+Everything comes from the newest public release, so all the files match:
 
 ```bash
-cd ~/src/personal-website
-bash deploy/scripts/first-install-transfer.sh --host <domain-or-ip> --user <ssh-user>
+TAG="$(curl -fsSL https://api.github.com/repos/colinpetree/personal-website/releases/latest | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"])')"
+echo "Installing $TAG"
+BASE="https://github.com/colinpetree/personal-website"
+curl -fsSLO "$BASE/releases/download/$TAG/personal-website-$TAG.tar.gz"
+curl -fsSLO "$BASE/releases/download/$TAG/personal-website-$TAG.tar.gz.sha256"
+for f in bootstrap.sh install.sh setup-auto-update-production.sh; do
+    curl -fsSLO "https://raw.githubusercontent.com/colinpetree/personal-website/$TAG/deploy/scripts/$f"
+done
 ```
-This finds the tarball built in step 1 by matching it against this
-checkout's `VERSION` file (rather than guessing its path) and `scp`s it,
-its `.sha256`, and the three scripts above into the target user's home
-directory on production.
+
+The `personal-website-<tag>.tar.gz` file is the **template build**: the full
+site with no pages prerendered yet and the AI demo pages off. Your own dist
+repo replaces it with a prerendered build in step 4.
 
 ---
 
-## 3. [Prod] Bootstrap the server (once, on a fresh box)
+## 2. [Prod] Bootstrap the server (once)
 
 ```bash
 sudo bash bootstrap.sh --domain <domain>
 ```
-`--domain` is optional here (you can set it later via `install.sh --domain`
-or the admin UI instead), but providing it now lets `install.sh` obtain the
-TLS certificate automatically in the next step. `--no-ai` is also optional —
-pass it if this site shouldn't enable the AI Implementations demo section
-(this is the backend half — it sets `ENABLE_AI_DEMOS=false` in the generated
-`.env`, which disables the AI demo routes entirely. It only takes effect
-here, on a fresh box with no `.env` yet; see step 5 below for the frontend
-half and for making this permanent across future automated rebuilds).
 
-**(Optional) [Prod] If `.env` already existed (re-running `bootstrap.sh`, or
-you forgot `--no-ai` the first time)**, `--no-ai` has no effect (`bootstrap.sh`
-prints a NOTE and leaves the existing `.env` untouched) — set it directly
-instead and restart:
-```bash
-sudo sed -i 's/^ENABLE_AI_DEMOS=.*/ENABLE_AI_DEMOS=false/' /opt/personal-website/data/.env
-sudo systemctl restart personal-website
-```
+This installs Postgres, nginx, Varnish, ufw, restic and `gh`, creates the
+`personalweb` service user, writes `/opt/personal-website/data/.env` with
+freshly generated secrets, and sets up the firewall. It's safe to re-run.
 
-This installs Postgres/nginx/Varnish/ufw/restic, creates the `personalweb`
-system user, generates `$DATA_DIR/.env` with fresh secrets, and configures
-the firewall. Safe to re-run if interrupted.
+- `--domain` lets the next step get the TLS certificate automatically. You
+  can leave it out and set the domain later.
+- **(Optional)** `--no-ai` turns off the AI Implementations demo section on
+  the server side (`ENABLE_AI_DEMOS=false`). It only takes effect on the first
+  run. If you forgot it, set it afterwards:
+  ```bash
+  sudo sed -i 's/^ENABLE_AI_DEMOS=.*/ENABLE_AI_DEMOS=false/' /opt/personal-website/data/.env
+  sudo systemctl restart personal-website
+  ```
+  Also set `AI_DEMOS=false` in step 4, so the pages are left out of the
+  build too.
 
 ---
 
-## 4. [Prod] Install
+## 3. [Prod] Install
 
 ```bash
-sudo bash install.sh personal-website-v<X.Y.Z>.tar.gz
+sudo bash install.sh personal-website-$TAG.tar.gz --tag "$TAG-template"
 ```
-(Use the exact filename `first-install-transfer.sh` printed — it also
-prints this exact command as a reminder.) This runs migrations, seeds the
-initial `Profile`/`SiteConfig`/admin account, installs and enables the main
-`personal-website` service, and **automatically enables** two of the timers
-described below (health-monitoring and orphan-media-cleanup — no setup
-needed for those). It prints a one-time-generated admin password at the
-end.
 
-Log in to confirm the site works:
-```
-https://<domain>/admin
-```
-Use the printed `admin@example.com` password. Change it from the admin UI
-once logged in.
+(`$TAG` is from step 1. In a new terminal, spell it out, for example
+`sudo bash install.sh personal-website-v0.9.3.tar.gz --tag v0.9.3-template`.)
+
+`--tag` names this install `vX.Y.Z-template`. Don't leave it out: your dist
+repo's first release (step 4) is published as plain `vX.Y.Z`, and the server
+only installs a release whose name differs from what's already installed, so
+without it the server would keep this unprerendered template build.
+
+This checks the download, sets up the database, gets the TLS certificate,
+starts the site, and turns on the health check and media-cleanup timers. It
+prints a one-time admin password at the end.
+
+Log in at `https://<domain>/admin` with `admin@example.com` and that
+password, then change the password from the admin menu.
 
 ---
 
-## 5. (Optional but recommended) Auto-updates — hand future releases off to the server itself
+## 4. [GitHub] Create your dist repo
 
-Lets production pull and install new releases on its own, instead of you
-re-running `install.sh` by hand every time. Needs a **releases repo** — a
-separate, normally-private GitHub repo that holds built release tarballs
-(different from the public source repo cloned in step 0). Convention used by
-this project's own scripts: `<owner>/personal-website-dist-<domain>`.
+This private repo builds your site's pages with GitHub Actions and holds the
+releases your server installs.
 
-**[Prod]** (this is the copy `first-install-transfer.sh` placed in your home
-directory in step 2 — it isn't part of the release tarball):
-```bash
-sudo bash ~/setup-auto-update-production.sh --domain <domain>
-```
-This installs/authenticates `gh` as root, generates a `WATCHER_ALERT_SECRET`
-(prints it — copy it for the next step), points the updater at the releases
-repo, and enables `personal-website-updater`.
+1. Create a **private** repo named `personal-website-dist-<domain>`. Tick
+   "Add a README file" so it has a first commit.
+2. In it, **Add file**, then **Create new file**. Name it
+   `.github/workflows/publish.yml` and paste in the contents of
+   [`deploy/instance/publish.yml`](deploy/instance/publish.yml). Commit it to
+   `main`.
+3. **Settings**, **Secrets and variables**, **Actions**, **Variables** tab.
+   Add:
+   - `SITE_URL` = `https://<domain>`
+   - **(Optional)** `ORIGIN_HOST`: only if your domain is proxied (for example
+     through Cloudflare). Set it to the server's own DNS name, such as its AWS
+     public DNS (`ec2-1-2-3-4.us-east-2.compute.amazonaws.com`, shown in the
+     EC2 console). The build then talks to your server directly instead of
+     through the proxy, whose bot protection can block GitHub. It needs port
+     443 open to the internet and the normal Let's Encrypt certificate, which
+     steps 2 and 3 set up. The AWS name changes if the instance is stopped
+     and started (not a plain reboot) unless it has an Elastic IP; update the
+     variable if that happens.
+   - **(Optional)** `AI_DEMOS` = `false` to leave out the AI demo pages.
+   - **(Optional)** `AUTO_UPGRADE` = `false` to stop new versions installing
+     automatically. Content edits still publish.
+4. **Actions**, **Publish site**, **Run workflow**. In about a minute it
+   publishes your first prerendered release. The run's summary says what it
+   did; if it can't reach your site, it says so and suggests `ORIGIN_HOST`.
 
-**[Pi]**
-```bash
-cd ~/src/personal-website
-bash deploy/scripts/setup-auto-update-pi.sh \
-    --site-url https://<domain> \
-    --watcher-secret <secret printed above>
-```
-This installs/authenticates `gh`, stores the secret + site URL in
-`~/.personal-website-build.env`, and enables the Pi's own
-`personal-website-publisher` content-watcher (auto-republishes prerendered
-content when you edit the site, no code push needed).
-
-**[Pi] (essential if you want real prerendered builds, not just placeholders)**
-Add the site's real base URL to the build config, used by the build step to
-prerender pages against the live site:
-```bash
-echo "PRERENDER_BASE_URL=https://<domain>" >> ~/.personal-website-build.env
-```
-
-**(Optional) [Pi] If this site shouldn't include the AI Implementations demo
-section, make that permanent now.** `bootstrap.sh --no-ai` in step 3 only
-covers the backend (disables the AI demo routes) and only applies once, on a
-box with no `.env` yet. The frontend half — whether the AI demo pages are
-actually built into the site — is controlled per-build by
-`VITE_ENABLE_AI_DEMOS`, and every future automated content refresh
-(`personal-website-publisher` on the Pi) re-sources
-`~/.personal-website-build.env` from scratch with no memory of past flags.
-Passing `--no-ai` to `publish-release.sh` by hand only excludes AI demos from
-that one release — the next automatic content-only rebuild would silently
-re-enable them unless this is set here too:
-```bash
-echo "VITE_ENABLE_AI_DEMOS=false" >> ~/.personal-website-build.env
-```
-With both this and `bootstrap.sh --no-ai` done, the AI demo section stays
-off across every future release and automated rebuild, on both frontend and
-backend.
-
-From here on, publishing a new release is just:
-```bash
-# [Pi]
-cd ~/src/personal-website
-bash deploy/scripts/publish-release.sh --patch   # or --minor / --major
-```
-`personal-website-updater` on production picks it up and installs it
-automatically within its poll interval — no more manual `scp`/`install.sh`
-needed for ordinary releases. (`rollback.sh vX.Y.Z` on production still
-exists for a manual revert if a release misbehaves.)
+Building uses your account's free GitHub Actions minutes for private repos.
+A build takes about a minute, and the 3-hourly check finishes in seconds
+when nothing changed, which stays well inside the free allowance.
 
 ---
 
-## 6. (Optional but recommended) Nightly backups — Pi-pulled restic repository
+## 5. [GitHub + Prod] Turn on automatic installs and content rebuilds
 
-Production dumps Postgres + backs up uploads into a local, deduplicated
-restic repository every night; the Pi pulls a copy of that repository on its
-own schedule (production has no route back into the Pi's network, so the
-Pi always initiates).
+**[GitHub]** Create a fine-grained token: your profile picture, **Settings**,
+**Developer settings**, **Personal access tokens**, **Fine-grained tokens**,
+**Generate new token**:
 
-**[Prod]** Initialize the repository:
+- **Repository access:** *Only select repositories*, just your dist repo.
+- **Permissions:** **Actions**, **Read and write**. Nothing else.
+- **Expiration:** up to a year. Note the date; you get an email if it stops
+  working.
+
+Copy it; GitHub shows it only once.
+
+**[Prod]**
+```bash
+sudo bash setup-auto-update-production.sh --releases-repo <you>/personal-website-dist-<domain> --dispatch-token
+```
+
+- It signs `gh` in as root (follow the device-code prompt the first time) so
+  the server can download your private dist repo's releases.
+- It points `personal-website-updater` at your dist repo and turns it on:
+  the server checks for a new release every 5 minutes and installs it.
+- It asks for the token (input hidden), stores it root-only in
+  `/etc/personal-website/github-dispatch-token`, and turns on
+  `personal-website-content-dispatch.timer`. About 7 minutes after you stop
+  editing content, the server asks your dist repo to rebuild.
+- It prints a `WATCHER_ALERT_SECRET` if it generated one. You only need it for
+  step 7.
+
+Within a few minutes the server installs the prerendered release from step 4.
+From now on:
+
+| You do | What happens |
+|---|---|
+| Edit content in the admin area | Live in about 10 to 15 minutes |
+| Nothing (a new version is released upstream) | Your dist repo picks it up within 3 hours and your server installs it |
+
+---
+
+## 6. [Prod] Nightly backups
+
+Production backs up its database, uploads and secrets into a local restic
+repository every night, keeping 14 days.
+
 ```bash
 sudo bash /opt/personal-website/current/deploy/setup-restic-repo.sh
 ```
-Copy the `RESTIC_PASSWORD=...` it prints.
 
-**[Prod]** If this server was bootstrapped before this feature existed,
-check both `personalweb`'s shell *and* home directory (a fresh bootstrap in
-step 3 already sets both correctly, so this is only needed on an older
-box):
+**Save the `RESTIC_PASSWORD=...` it prints somewhere safe, off the server.**
+Without it the backups can't be restored.
+
 ```bash
-getent passwd personalweb   # shell should end in /bin/bash, home should be /opt/personal-website/data
-```
-If either is wrong:
-```bash
-sudo systemctl stop personal-website   # usermod refuses to touch a user with live processes
-sudo usermod -s /bin/bash -d /opt/personal-website/data personalweb
-sudo systemctl start personal-website
+sudo systemctl start personal-website-backup          # run one now
+sudo journalctl -u personal-website-backup -n 20 --no-pager   # should end with "Backup complete"
+sudo systemctl enable --now personal-website-backup.timer
 ```
 
-**[Pi]** `--production-host` must be an address SSH can reach directly — if
-the domain is proxied through something like Cloudflare, its public DNS
-resolves to the proxy's IPs, which only forward HTTP/HTTPS, not SSH's port
-22. Use the server's AWS-assigned public DNS name instead (visible in the
-EC2 console, or via `curl -4 ifconfig.me` run on the server itself — e.g.
-`ec2-1-2-3-4.us-east-2.compute.amazonaws.com`), an Elastic IP, or an
-unproxied ("DNS only") subdomain — not the proxied domain itself. The raw
-public IP address itself works too (same `curl -4 ifconfig.me` output,
-without the hostname) — simpler, but note it'll change if the instance is
-ever stopped and started again (not a plain reboot) unless an Elastic IP is
-attached, so the AWS hostname or an Elastic IP holds up better long-term.
-(This
-doesn't affect `--site-url`/`PRERENDER_BASE_URL` in step 5 — those are
-plain HTTPS requests, meant to go through the proxy like normal traffic.)
+Always start a backup through the service as above, never with a bare
+`sudo bash backup.sh`: a root run leaves root-owned files that break the next
+nightly run.
+
+These backups live on the server itself, so they don't protect against
+losing the server. Step 7 keeps a second copy elsewhere.
+
+---
+
+## 7. (Optional) Keep a copy of the backups on your own machine
+
+A machine you own (a Raspberry Pi, a home server, any always-on Linux box)
+can pull a copy of the backups every night. Production never connects to it;
+it always connects out to production. Nothing else depends on this machine.
+
+**[Your machine]** Install `git` and clone the repo (only its scripts are used):
 ```bash
+sudo apt install -y git
+git clone https://github.com/colinpetree/personal-website.git ~/src/personal-website
 cd ~/src/personal-website
 bash deploy/scripts/setup-backup-pull-pi.sh \
-    --production-host <domain-or-unproxied-address> \
-    --restic-password <password printed above>
+    --production-host <server's AWS DNS name or Elastic IP> \
+    --restic-password <RESTIC_PASSWORD from step 6> \
+    --site-url https://<domain> \
+    --watcher-secret <WATCHER_ALERT_SECRET>
 ```
-This installs `restic`, generates a dedicated read-only-restricted SSH key
-(never reuses your admin key), stores the pull config, and enables
-`personal-website-backup-pull.timer`. It prints an `authorized_keys` line at
-the end.
 
-**[Prod]** Paste that exact printed line onto production. `personalweb`'s
-home is `/opt/personal-website/data` (not `/home/personalweb`), so don't
-use `~` here — it expands in the wrong shell context for a `sudo -u`
-one-liner like this:
+- `--production-host` must reach SSH directly: use the AWS DNS name or an
+  Elastic IP, not a Cloudflare-proxied domain (Cloudflare doesn't forward
+  SSH).
+- `--site-url` and `--watcher-secret` let a failed pull email you through the
+  site. The secret is `WATCHER_ALERT_SECRET` in
+  `/opt/personal-website/data/.env` on production
+  (`sudo grep WATCHER_ALERT_SECRET /opt/personal-website/data/.env`).
+
+It installs restic, creates a dedicated SSH key that can only *read* the
+backups, and turns on `personal-website-backup-pull.timer`. It prints one
+`authorized_keys` line at the end.
+
+**[Prod]** Add that line for the `personalweb` user. Its home is
+`/opt/personal-website/data`, so don't use `~`:
 ```bash
 sudo -u personalweb bash -c 'mkdir -p /opt/personal-website/data/.ssh && chmod 700 /opt/personal-website/data/.ssh && cat >> /opt/personal-website/data/.ssh/authorized_keys' <<'EOF'
 <paste the restrict,command="..." line printed by setup-backup-pull-pi.sh>
@@ -272,55 +257,47 @@ EOF
 sudo -u personalweb chmod 600 /opt/personal-website/data/.ssh/authorized_keys
 ```
 
-**[Prod]** Run the backup once manually and enable the nightly timer.
-Always run a manual backup as `personalweb` (via the systemd service, not
-a bare `sudo bash backup.sh`) — the service's files need to stay
-`personalweb`-owned, and a plain root run leaves them root-owned, which
-then breaks both the next `personalweb`-run backup (can't overwrite a
-root-owned file) and the Pi's pull (can't read a root-owned file over the
-read-only key):
-```bash
-sudo systemctl start personal-website-backup
-sudo -u personalweb bash -c 'set -a; source /opt/personal-website/data/.env; set +a; restic -r /opt/personal-website/data/restic-repo snapshots'   # confirm a snapshot exists
-sudo systemctl enable --now personal-website-backup.timer
-```
-
-**[Pi]** Confirm the pull works end-to-end:
+**[Your machine]** Check it works:
 ```bash
 cd ~/src/personal-website
 bash deploy/scripts/backup-pull.sh
-bash -c 'set -a; source ~/.personal-website-build.env; set +a; restic -r ~/personal-website-backups snapshots'   # should show today's snapshot
+bash deploy/scripts/backup-status.sh   # should list today's snapshot
 ```
 
-Full restore instructions (only needed in an actual disaster) are in
-`deploy/BACKUP.md`.
+Restoring, in a real disaster or as a drill, is in
+[`deploy/BACKUP.md`](deploy/BACKUP.md).
 
 ---
 
-## 7. Already automatic — no setup needed
+## 8. Already automatic
 
-These are enabled by `install.sh` on first install with no extra steps:
+Turned on by `install.sh` with no extra steps:
 
-- **`personal-website-healthwatch.timer`** — crash-loop/disk/certificate-
-  expiry monitoring, every 15 minutes.
-- **`personal-website-media-cleanup.timer`** — deletes uploaded files no
-  longer referenced anywhere, after a grace period.
+- **`personal-website-healthwatch.timer`**: crash-loop, disk-space and
+  certificate-expiry checks every 15 minutes, emailing you about problems.
+- **`personal-website-media-cleanup.timer`**: removes uploaded files nothing
+  refers to any more, after a grace period.
 
-**(Optional)** Tune their behavior via `$DATA_DIR/.env`:
+**(Optional)** Tune them in `/opt/personal-website/data/.env`:
 `BACKUP_DISK_ALERT_PERCENT`, `CERT_ALERT_DAYS`, `ORPHAN_MEDIA_GRACE_DAYS`,
 `ORPHAN_MEDIA_MIN_REFERENCED_RATIO`, `ORPHAN_MEDIA_MIN_REFERENCED_FLOOR`,
 `ORPHAN_MEDIA_REFERENCED_HISTORY_WINDOW`, `ORPHAN_MEDIA_MAX_PER_RUN_FLOOR`,
 `ORPHAN_MEDIA_MAX_PER_RUN_PERCENT`, `BACKUP_RETENTION_DAYS`.
 
-**(Optional)** Set `WATCHER_ALERT_FALLBACK_MAILGUN_API_KEY` /
-`_MAILGUN_DOMAIN` / `_FROM_EMAIL` / `_TO_EMAIL` in `$DATA_DIR/.env` so
-crash-loop/backup alerts can still be emailed if the database itself is
-what's down (the normal alert path reads Mailgun config from the database).
+**(Optional)** Set `WATCHER_ALERT_FALLBACK_MAILGUN_API_KEY`,
+`_MAILGUN_DOMAIN`, `_FROM_EMAIL` and `_TO_EMAIL` there too, so alerts still
+reach you if the database is what's down (the normal path reads the Mailgun
+settings from the database). Alerts need Mailgun set up in the admin area
+(Integrations) either way.
 
 ---
 
-## Summary — minimum path to a working site
+## Minimum path to a working site
 
-Steps **0, 1, 2, 3, 4** only. Everything from step 5 onward is optional
-automation layered on top of a server that's already fully working after
-step 4.
+Steps **0 to 3** give a working site (the template build, no prerendered
+pages). Steps **4 and 5** add prerendering and automatic updates, and are
+what you want for a real site. Step 6 is strongly recommended; step 7 is
+optional.
+
+For releasing new versions of the code itself, testing a branch on a live
+site, and troubleshooting, see [`RELEASING.md`](RELEASING.md).

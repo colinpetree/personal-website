@@ -6,7 +6,7 @@ Releases are built by GitHub Actions. There is nothing to SSH into and no versio
 - **Your site:** your private dist repo (`colinpetree/personal-website-dist-colinpetree.com`) prerenders the site against its live content and publishes the release your server installs. Its `.github/workflows/publish.yml` calls `.github/workflows/build-instance.yml` here.
 - **Production:** `update-watch.sh` installs the newest dist release within about 5 minutes, as before.
 
-The Pi now only pulls backups. `deploy/scripts/publish-release.sh` still works on it as a manual fallback if GitHub Actions is down.
+The Pi now only pulls a copy of the nightly backups (see `deploy/BACKUP.md`). If GitHub Actions is ever down, `deploy/scripts/publish-release.sh` still builds and publishes from the Pi as a manual fallback (`--patch`, or `--ref <branch>` to try a branch). A release made that way has no server bundle on the public repo, so the dist repo can't make content releases on top of it: run a normal GitHub release once GitHub is back.
 
 ## Every code release
 
@@ -20,6 +20,8 @@ The Pi now only pulls backups. `deploy/scripts/publish-release.sh` still works o
 4. Run `git pull` before your next change, to get the `VERSION` commit.
 
 If it fails, GitHub emails you and nothing is committed, tagged or published. If you pushed to `main` while it was building, it stops before publishing; run it again.
+
+On the 1st of each month, **Actions**, **Dependency audit** checks the packages in the latest release, and what the next release would ship, for known security problems. If it finds any, the run fails and GitHub emails you; the run's summary shows the details. Run it any time from the same page.
 
 Each release's notes list the Python and npm packages that changed since the previous release. Read them: version ranges in `backend/requirements.txt` mean a release can pick up a new version of, say, stripe-python without any change of yours (that is how checkout broke in `f314ee8`).
 

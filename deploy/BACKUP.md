@@ -2,7 +2,13 @@
 
 ## Backups
 
-Backups are **pulled by the Pi**, not pushed by production - production has
+Production backs itself up every night into a local restic repository.
+**Optionally**, a machine you own ("the Pi" below: a Raspberry Pi, home
+server or any always-on Linux box) pulls a copy, so the backups survive
+losing the server. That machine only holds backups: GitHub Actions does all
+building (see `RELEASING.md`), and nothing else depends on it.
+
+The copy is **pulled by the Pi**, not pushed by production - production has
 no stable route to reach the Pi (no port-forwarding, a rotating public IP on
 university WiFi), whereas production itself has a stable domain and SSH
 already open. So production only ever produces backups locally; the Pi
@@ -63,9 +69,8 @@ step timeouts) - via the systemd `--user` timer
 
 Also silent on success. On either the rsync or the snapshot check failing,
 it POSTs an alert directly to production's `/api/watcher-alert` route
-(the Pi has no local Mailgun credentials of its own) - the same
-pre-shared-secret HTTP mechanism `content-watch.sh` already uses for its own
-gh-outage alerts, source `backup`.
+(the Pi has no local Mailgun credentials of its own), authenticated with the
+pre-shared `WATCHER_ALERT_SECRET`, source `backup`.
 
 Both failure paths funnel into the same alert `source=backup`, since
 they're one subsystem from the recipient's point of view - the alert
@@ -79,12 +84,14 @@ message text says which stage (production's dump, or the Pi's pull) failed.
    Generates `RESTIC_PASSWORD`, appends it to `$DATA_DIR/.env`, and runs
    `restic init` on `$DATA_DIR/restic-repo`. Prints the password back out;
    you'll need it again in step 2.
-2. On the **Pi**: `bash deploy/scripts/setup-backup-pull-pi.sh
-   --production-host <address> --restic-password <password from step 1>`
+2. On the **Pi** (optional): `bash deploy/scripts/setup-backup-pull-pi.sh
+   --production-host <address> --restic-password <password from step 1>
+   --site-url https://<domain> --watcher-secret <WATCHER_ALERT_SECRET>`
    - generates a fresh, dedicated SSH keypair (never reuse an admin/deploy
    key for this - an unattended job on a less-trusted network device
    should hold nothing more powerful than "read this one directory"),
-   writes the pull config into `~/.personal-website-build.env`, and
+   writes the pull config (and the site URL + alert secret, so a failed
+   pull can email you) into `~/.personal-website-build.env`, and
    installs + enables `personal-website-backup-pull.timer`. Prints an
    `authorized_keys` line to paste onto production.
    `--production-host` must be an address SSH can reach directly - if the

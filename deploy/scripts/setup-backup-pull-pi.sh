@@ -1,51 +1,65 @@
 #!/usr/bin/env bash
-# Enables the nightly backup-pull job on the Pi build machine. Safe to
-# re-run (e.g. after a later fix to the timer/service unit files or this
-# script itself) — re-copies the unit files and restarts the timer so
-# changes actually take effect even if it's already running. Assumes the
-# repo is already checked out at ~/src/personal-website (build-on-pi.sh's
-# normal home) and ~/.personal-website-build.env already has
-# WATCHER_ALERT_SECRET/PRERENDER_BASE_URL set (i.e. setup-auto-update-pi.sh
-# has already been run from here).
+# OPTIONAL: keeps a second copy of production's nightly backups on a machine
+# you own (a Raspberry Pi, a home server, any always-on Linux box). Production
+# already backs itself up every night (backup.sh); this only pulls a copy
+# somewhere else, so the backups survive losing the server itself. Nothing
+# else in the site depends on it.
 #
-# Usage (run as the Pi's normal build user, NOT root):
-#   bash setup-backup-pull-pi.sh --production-host test633.org \
-#       --production-remote-path /opt/personal-website/data/restic-repo \
-#       --restic-password <password from setup-restic-repo.sh's output>
+# Enables the nightly backup-pull job. Safe to re-run (e.g. after a later fix
+# to the timer/service unit files or this script itself): re-copies the unit
+# files and restarts the timer so changes actually take effect even if it's
+# already running. Assumes the repo is checked out at ~/src/personal-website.
 #
-# --production-host MUST be an address SSH can actually reach directly — if
+# Usage (run as the machine's normal user, NOT root):
+#   bash setup-backup-pull-pi.sh --production-host <ssh-reachable host> \
+#       --restic-password <password from setup-restic-repo.sh's output> \
+#       --site-url https://example.com --watcher-secret <WATCHER_ALERT_SECRET>
+#       [--production-remote-path /opt/personal-website/data/restic-repo]
+#
+# --site-url and --watcher-secret let a failed pull email you through the
+# site (POST /api/watcher-alert). The secret must match WATCHER_ALERT_SECRET
+# in production's /opt/personal-website/data/.env (setup-auto-update-
+# production.sh prints it when it generates one). Both are optional on a
+# re-run once they're saved; without them, a failed pull is only logged.
+#
+# --production-host MUST be an address SSH can actually reach directly. If
 # the domain is proxied through Cloudflare (or similar), its public DNS
 # resolves to the proxy's IPs, which only forward HTTP/HTTPS, not port 22.
 # Use the server's AWS-assigned public DNS name instead (e.g.
-# ec2-1-2-3-4.us-east-2.compute.amazonaws.com — visible in the EC2 console,
+# ec2-1-2-3-4.us-east-2.compute.amazonaws.com, visible in the EC2 console,
 # or via `curl -4 ifconfig.me` run on the server itself), an Elastic IP, or
-# an unproxied ("DNS only") subdomain — never the proxied domain itself.
+# an unproxied ("DNS only") subdomain, never the proxied domain itself.
 set -euo pipefail
 
 if [ "$(id -u)" -eq 0 ]; then
-    echo "Run as the normal build user, not root (sudo is only used internally for loginctl/apt)."
+    echo "Run as your normal user, not root (sudo is only used internally for loginctl/apt)."
     exit 1
 fi
 
 PROD_HOST=""
 PROD_REMOTE_PATH="/opt/personal-website/data/restic-repo"
 RESTIC_PW=""
+SITE_URL=""
+WATCHER_SECRET=""
 while [ $# -gt 0 ]; do
     case "$1" in
         --production-host) PROD_HOST="$2"; shift 2 ;;
         --production-remote-path) PROD_REMOTE_PATH="$2"; shift 2 ;;
         --restic-password) RESTIC_PW="$2"; shift 2 ;;
+        --site-url) SITE_URL="$2"; shift 2 ;;
+        --watcher-secret) WATCHER_SECRET="$2"; shift 2 ;;
         *) echo "Unknown argument: $1"; exit 1 ;;
     esac
 done
 
 if [ -z "$PROD_HOST" ] || [ -z "$RESTIC_PW" ]; then
     echo "Usage: bash setup-backup-pull-pi.sh --production-host <domain> --restic-password <password>"
+    echo "       [--site-url https://<domain> --watcher-secret <secret>]"
     echo "       [--production-remote-path /opt/personal-website/data/restic-repo]"
     exit 1
 fi
 # Strip any trailing slash so we control exactly where one gets added below
-# — the forced-command path (FORCED_PATH) needs exactly one trailing slash,
+# - the forced-command path (FORCED_PATH) needs exactly one trailing slash,
 # while the plain PROD_REMOTE_PATH stored in .env must NOT have one, since
 # backup-pull.sh's own rsync invocation already appends its own "/".
 PROD_REMOTE_PATH="${PROD_REMOTE_PATH%/}"
@@ -65,7 +79,7 @@ KEY_FILE="$HOME/.ssh/personal-website-backup-pull"
 LOCAL_BACKUP_DIR="$HOME/personal-website-backups"
 
 if [ ! -f "$REPO_DIR/deploy/systemd/personal-website-backup-pull.service" ]; then
-    echo "$REPO_DIR/deploy/systemd/personal-website-backup-pull.service not found — expected the repo checked out at $REPO_DIR."
+    echo "$REPO_DIR/deploy/systemd/personal-website-backup-pull.service not found - expected the repo checked out at $REPO_DIR."
     exit 1
 fi
 
@@ -78,14 +92,14 @@ else
 fi
 
 echo "==> 2. Dedicated backup-pull SSH key"
-# A fresh, single-purpose key — never the AWS admin key used to SSH into
+# A fresh, single-purpose key - never the AWS admin key used to SSH into
 # production interactively. This one will be restricted on production's end
 # to a single read-only rsync command, so even a full compromise of this Pi
 # only leaks the ability to re-pull backups, not run arbitrary commands.
 mkdir -p "$HOME/.ssh"
 chmod 700 "$HOME/.ssh"
 if [ -f "$KEY_FILE" ]; then
-    echo "    Key already exists at $KEY_FILE — not regenerating."
+    echo "    Key already exists at $KEY_FILE - not regenerating."
 else
     ssh-keygen -t ed25519 -f "$KEY_FILE" -N "" -C "personal-website-backup-pull"
 fi
@@ -105,11 +119,16 @@ _set_var "BACKUP_PULL_REMOTE_PATH" "$PROD_REMOTE_PATH"
 _set_var "BACKUP_PULL_LOCAL_DIR" "$LOCAL_BACKUP_DIR"
 _set_var "BACKUP_PULL_SSH_KEY" "$KEY_FILE"
 _set_var "RESTIC_PASSWORD" "$RESTIC_PW"
+# PRERENDER_BASE_URL is the name backup-pull.sh (and the manual build-on-pi.sh
+# fallback) already read the site URL from.
+if [ -n "$SITE_URL" ]; then _set_var "PRERENDER_BASE_URL" "${SITE_URL%/}"; fi
+if [ -n "$WATCHER_SECRET" ]; then _set_var "WATCHER_ALERT_SECRET" "$WATCHER_SECRET"; fi
+chmod 600 "$BUILD_ENV"   # holds the restic password and the alert secret
 mkdir -p "$LOCAL_BACKUP_DIR"
 echo "    Set in $BUILD_ENV."
-if ! grep -q '^WATCHER_ALERT_SECRET=' "$BUILD_ENV" 2>/dev/null; then
-    echo "    WARNING: WATCHER_ALERT_SECRET is not set in $BUILD_ENV — backup-pull.sh"
-    echo "    won't be able to alert on failure. Run setup-auto-update-pi.sh first."
+if ! grep -q '^WATCHER_ALERT_SECRET=' "$BUILD_ENV" || ! grep -q '^PRERENDER_BASE_URL=' "$BUILD_ENV"; then
+    echo "    WARNING: no --site-url/--watcher-secret saved yet, so a failed pull is only"
+    echo "    logged, not emailed. Re-run with both to turn on failure emails."
 fi
 
 echo "==> 4. Installing the systemd --user unit"
@@ -134,9 +153,9 @@ echo " Paste the ONE line below (between the ---- markers, nothing else) into"
 echo " production's personalweb user's authorized_keys file, at:"
 echo "   /opt/personal-website/data/.ssh/authorized_keys"
 echo " (personalweb's home is /opt/personal-website/data, not"
-echo " /home/personalweb — create the file with chmod 600 if it doesn't"
+echo " /home/personalweb - create the file with chmod 600 if it doesn't"
 echo " already exist). The --sender flag makes this forced command"
-echo " READ-ONLY — it can only serve files from that path, never write to"
+echo " READ-ONLY - it can only serve files from that path, never write to"
 echo " production, even if this key were to leak."
 echo ""
 echo "---- copy the single line below ----"

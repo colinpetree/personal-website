@@ -11,8 +11,8 @@ import { compression } from 'vite-plugin-compression2'
 export default defineConfig({
   plugins: [
     reactRouter(),
-    // Precompress build output at build time (runs on the Pi build box, not
-    // production) so nginx's gzip_static/brotli_static can serve these
+    // Precompress build output at build time (runs in GitHub Actions, not
+    // on production) so nginx's gzip_static/brotli_static can serve these
     // siblings with zero runtime CPU cost on the small ARM production box.
     // Originals are always kept (deleteOriginalAssets: false) - nginx falls
     // back to them for clients that don't advertise gzip/br support.

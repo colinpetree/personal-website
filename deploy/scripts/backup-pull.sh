@@ -1,31 +1,27 @@
 #!/usr/bin/env bash
 # Runs ON THE PI, daily (see deploy/systemd/personal-website-backup-pull.timer,
-# a systemd --user unit — same convention as personal-website-publisher.service).
+# a systemd --user unit).
 # Pulls production's restic repository via rsync (initiated from here, since
-# production has no route back into the Pi's network — no port-forwarding,
+# production has no route back into the Pi's network - no port-forwarding,
 # rotating public IP) and confirms a fresh snapshot actually landed. The Pi
-# has no local Mailgun credentials, so on failure it alerts the same way
-# content-watch.sh's gh-outage check does: an HTTP POST to production's
-# pre-shared-secret-gated /api/watcher-alert route. Silent on success —
+# has no local Mailgun credentials, so on failure it alerts through
+# production: an HTTP POST to its pre-shared-secret-gated /api/watcher-alert
+# route, which emails you. Silent on success -
 # mirrors every other watcher script in this codebase.
 set -uo pipefail   # not -e: a failed step must still let the alert POST fire below
 
 _log() { echo "[backup-pull] $*"; }   # journalctl already timestamps every line
 
-PI_BUILD_ENV="$HOME/.personal-website-build.env"   # same file content-watch.sh
-                                                     # already uses for
-                                                     # WATCHER_ALERT_SECRET/
-                                                     # PRERENDER_BASE_URL
+PI_BUILD_ENV="$HOME/.personal-website-build.env"   # written by setup-backup-pull-pi.sh
 [ -f "$PI_BUILD_ENV" ] && { set -a; source "$PI_BUILD_ENV"; set +a; }
 
-# PRERENDER_BASE_URL, not CONTENT_WATCH_SITE_URL — the latter only ever
-# exists as an Environment= line baked into personal-website-publisher's
-# systemd unit file (see setup-auto-update-pi.sh), never in this .env file,
-# so reading it here would always silently fall through to the placeholder.
+# The site's public URL, where /api/watcher-alert lives. Named
+# PRERENDER_BASE_URL because the same file also configures the manual
+# build-on-pi.sh fallback, which prerenders against it.
 SITE_URL="${PRERENDER_BASE_URL:-https://example.com}"
 
 if [ -z "${BACKUP_PULL_HOST:-}" ] || [ -z "${BACKUP_PULL_REMOTE_PATH:-}" ] || [ -z "${BACKUP_PULL_LOCAL_DIR:-}" ] || [ -z "${BACKUP_PULL_SSH_KEY:-}" ]; then
-    _log "BACKUP_PULL_HOST/BACKUP_PULL_REMOTE_PATH/BACKUP_PULL_LOCAL_DIR/BACKUP_PULL_SSH_KEY not fully set in $PI_BUILD_ENV — run setup-backup-pull-pi.sh."
+    _log "BACKUP_PULL_HOST/BACKUP_PULL_REMOTE_PATH/BACKUP_PULL_LOCAL_DIR/BACKUP_PULL_SSH_KEY not fully set in $PI_BUILD_ENV - run setup-backup-pull-pi.sh."
     exit 1
 fi
 
@@ -91,13 +87,13 @@ _log "Pulling $BACKUP_PULL_HOST:$BACKUP_PULL_REMOTE_PATH to $BACKUP_PULL_LOCAL_D
 if ! timeout 1800 rsync -avz --delete \
         -e "ssh -i $BACKUP_PULL_SSH_KEY -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=15" \
         "personalweb@$BACKUP_PULL_HOST:$BACKUP_PULL_REMOTE_PATH/" "$BACKUP_PULL_LOCAL_DIR/"; then
-    _alert "backup-pull: rsync from $BACKUP_PULL_HOST failed or timed out after 30m — the Pi's offsite copy is stale. Check SSH connectivity and the backup-pull key (see deploy/scripts/setup-backup-pull-pi.sh)."
+    _alert "backup-pull: rsync from $BACKUP_PULL_HOST failed or timed out after 30m - the Pi's offsite copy is stale. Check SSH connectivity and the backup-pull key (see deploy/scripts/setup-backup-pull-pi.sh)."
     exit 1
 fi
 
 # ---- 2. confirm a fresh snapshot actually landed -----------------------------
 if [ -z "${RESTIC_PASSWORD:-}" ]; then
-    _alert "backup-pull: rsync succeeded but RESTIC_PASSWORD is not set in $PI_BUILD_ENV — cannot verify today's snapshot landed. Paste the password from setup-restic-repo.sh's output."
+    _alert "backup-pull: rsync succeeded but RESTIC_PASSWORD is not set in $PI_BUILD_ENV - cannot verify today's snapshot landed. Paste the password from setup-restic-repo.sh's output."
     exit 1
 fi
 
@@ -105,7 +101,7 @@ TODAY="$(date -u +%Y-%m-%d)"
 LATEST_SNAPSHOT_TIME="$(RESTIC_PASSWORD="$RESTIC_PASSWORD" restic -r "$BACKUP_PULL_LOCAL_DIR" snapshots --last --json 2>/dev/null \
     | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d[0]["time"] if d else "")' 2>/dev/null)"
 # restic's JSON time field preserves the snapshotting machine's own local UTC
-# offset (e.g. production's -07:00) rather than normalizing to UTC — slicing
+# offset (e.g. production's -07:00) rather than normalizing to UTC - slicing
 # it directly would compare a local calendar date against TODAY's UTC date
 # and false-positive whenever they diverge (every night between UTC midnight
 # and local midnight for a negative-offset zone). Let `date -u -d` do the
@@ -113,7 +109,7 @@ LATEST_SNAPSHOT_TIME="$(RESTIC_PASSWORD="$RESTIC_PASSWORD" restic -r "$BACKUP_PU
 # `date -d ""` treats an empty string as "now" and succeeds instead of
 # erroring, so an empty LATEST_SNAPSHOT_TIME (no snapshots, or the JSON parse
 # above failed) must be checked explicitly rather than left to fall through
-# to `date` — otherwise a genuinely unreadable repo would silently read back
+# to `date` - otherwise a genuinely unreadable repo would silently read back
 # as "confirmed dated $TODAY" instead of alerting.
 if [ -z "$LATEST_SNAPSHOT_TIME" ]; then
     LATEST_SNAPSHOT_DATE=""
@@ -122,11 +118,11 @@ else
 fi
 
 if [ -z "$LATEST_SNAPSHOT_DATE" ]; then
-    _alert "backup-pull: rsync succeeded but 'restic snapshots' could not be read afterward — repo may be corrupt or RESTIC_PASSWORD may be wrong."
+    _alert "backup-pull: rsync succeeded but 'restic snapshots' could not be read afterward - repo may be corrupt or RESTIC_PASSWORD may be wrong."
     exit 1
 fi
 if [ "$LATEST_SNAPSHOT_DATE" != "$TODAY" ]; then
-    _alert "backup-pull: rsync succeeded but the latest restic snapshot is dated $LATEST_SNAPSHOT_DATE, not today ($TODAY) — production's own backup.sh may have failed silently before the pull ran, or the pull ran before production's backup completed."
+    _alert "backup-pull: rsync succeeded but the latest restic snapshot is dated $LATEST_SNAPSHOT_DATE, not today ($TODAY) - production's own backup.sh may have failed silently before the pull ran, or the pull ran before production's backup completed."
     exit 1
 fi
 
