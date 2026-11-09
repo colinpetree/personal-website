@@ -4,11 +4,20 @@ import { ExternalLink, Pencil, X } from 'lucide-react'
 import { PageShell } from '../../components/admin/AdminPage'
 import { useToast } from '../../context/ToastContext'
 import { useAdminAuth } from '../../context/AdminAuthContext'
+import AdminListFilterBar from '../../components/admin/AdminListFilterBar'
+import {
+  CREATED_SORT_OPTIONS,
+  DEFAULT_LIST_SORT,
+  EMPTY_LIST_FILTER,
+  PUBLISHED_SORT_OPTIONS,
+  filterList,
+  sortList,
+} from '../../lib/adminListFilter'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
 function formatDate(iso) {
-  if (!iso) return '—'
+  if (!iso) return '-'
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
@@ -102,12 +111,14 @@ export default function AdminBlogPostsPage() {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [publishConfirm, setPublishConfirm] = useState(null)
+  const [filter, setFilter] = useState(EMPTY_LIST_FILTER)
+  const [sort, setSort] = useState(DEFAULT_LIST_SORT)
   const navigate = useNavigate()
   const location = useLocation()
   const { addToast } = useToast()
   const { admin } = useAdminAuth()
 
-  // Ref guard, not just an empty dep array — React StrictMode double-invokes
+  // Ref guard, not just an empty dep array: React StrictMode double-invokes
   // effects once in dev (mount, cleanup, mount again) against this same
   // component instance, so without this the toast/modal below fires twice
   // for a single delete/publish (the ref persists across that double-invoke,
@@ -152,11 +163,12 @@ export default function AdminBlogPostsPage() {
 
   const isContributor = admin?.role === 'contributor'
   // Contributors can't do anything with a published/scheduled post once
-  // it's live or queued — can't edit, can't delete (see admin_blog.py) —
+  // it's live or queued (can't edit, can't delete, see admin_blog.py),
   // so it's hidden here rather than shown as a dead-end row that just
   // bounces them back out of the editor (see AdminBlogEditorPage.jsx's
   // redirect-away-if-not-draft).
   const visiblePosts = isContributor ? posts.filter(p => p.author_id === admin.id && p.status === 'draft') : posts
+  const shownPosts = sortList(filterList(visiblePosts, filter), sort)
 
   return (
     <PageShell title="Blog Posts">
@@ -173,30 +185,52 @@ export default function AdminBlogPostsPage() {
       {visiblePosts.length === 0 ? (
         <p className="text-gray-500 text-sm">No posts yet. Create your first post above.</p>
       ) : (
-        <div className="flex flex-col divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
-          {visiblePosts.map(post => (
-            <div
-              key={post.id}
-              onClick={() => navigate(`/admin/blog/posts/${post.id}`)}
-              className="flex items-center gap-4 px-4 py-3 bg-white hover:bg-gray-50 cursor-pointer"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-col sm:flex-row sm:items-baseline gap-0 sm:gap-2">
-                  <p className="text-sm font-medium text-gray-900 truncate">{post.title}</p>
-                  <p className="text-xs text-gray-400 shrink-0">/{post.slug}</p>
+        <>
+          <AdminListFilterBar
+            filter={filter}
+            onChange={setFilter}
+            sort={sort}
+            onSortChange={setSort}
+            // Contributors only ever see their own drafts, so status filters
+            // and publish-date sorts would have nothing to act on.
+            sortOptions={isContributor ? CREATED_SORT_OPTIONS : [...CREATED_SORT_OPTIONS, ...PUBLISHED_SORT_OPTIONS]}
+            statuses={isContributor ? [] : ['published', 'scheduled', 'draft']}
+            placeholder="Search posts by title or URL"
+            noun="posts"
+            shown={shownPosts.length}
+            total={visiblePosts.length}
+          />
+          {shownPosts.length === 0 ? (
+            <p className="text-gray-500 text-sm">No posts match these filters.</p>
+          ) : (
+            <div className="flex flex-col divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+              {shownPosts.map(post => (
+                <div
+                  key={post.id}
+                  onClick={() => navigate(`/admin/blog/posts/${post.id}`)}
+                  className="flex items-center gap-4 px-4 py-3 bg-white hover:bg-gray-50 cursor-pointer"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-baseline gap-0 sm:gap-2">
+                      <p className="text-sm font-medium text-gray-900 truncate">{post.title}</p>
+                      <p className="text-xs text-gray-400 shrink-0">/{post.slug}</p>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">
+                      Created {formatDate(post.created_at)} · Updated {formatDate(post.updated_at)}
+                      {post.status !== 'draft' && post.publish_date
+                        ? ` · ${post.status === 'scheduled' ? 'Scheduled' : 'Published'} ${formatDate(post.publish_date)}`
+                        : ''}
+                    </p>
+                    <div className="mt-0.5">
+                      <StatusLabel post={post} />
+                    </div>
+                  </div>
+                  <Pencil size={14} className="shrink-0 text-gray-400" />
                 </div>
-                <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">
-                  Updated {formatDate(post.updated_at)}
-                  {post.publish_date ? ` · Published ${formatDate(post.publish_date)}` : ''}
-                </p>
-                <div className="mt-0.5">
-                  <StatusLabel post={post} />
-                </div>
-              </div>
-              <Pencil size={14} className="shrink-0 text-gray-400" />
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       {publishConfirm && (

@@ -5,9 +5,17 @@ import { PageShell } from '../../components/admin/AdminPage'
 import { useToast } from '../../context/ToastContext'
 import { useAdminAuth } from '../../context/AdminAuthContext'
 import { Tooltip } from '../../components/ui/Tooltip'
+import AdminListFilterBar from '../../components/admin/AdminListFilterBar'
+import {
+  CREATED_SORT_OPTIONS,
+  DEFAULT_LIST_SORT,
+  EMPTY_LIST_FILTER,
+  filterList,
+  sortList,
+} from '../../lib/adminListFilter'
 
 function formatDate(iso) {
-  if (!iso) return '—'
+  if (!iso) return '-'
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
@@ -58,12 +66,14 @@ export default function AdminPagesListPage() {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [publishConfirm, setPublishConfirm] = useState(null)
+  const [filter, setFilter] = useState(EMPTY_LIST_FILTER)
+  const [sort, setSort] = useState(DEFAULT_LIST_SORT)
   const navigate = useNavigate()
   const location = useLocation()
   const { addToast } = useToast()
   const { admin } = useAdminAuth()
 
-  // Ref guard, not just an empty dep array — React StrictMode double-invokes
+  // Ref guard, not just an empty dep array: React StrictMode double-invokes
   // effects once in dev (mount, cleanup, mount again) against this same
   // component instance, so without this the toast/modal below fires twice
   // for a single delete/publish (the ref persists across that double-invoke,
@@ -107,11 +117,12 @@ export default function AdminPagesListPage() {
   if (loading) return <div className="p-8 text-gray-400">Loading…</div>
 
   const isContributor = admin?.role === 'contributor'
-  // Contributors can't do anything with a published page once it's live —
-  // can't edit, can't delete (see admin_pages.py) — so it's hidden here
+  // Contributors can't do anything with a published page once it's live
+  // (can't edit, can't delete, see admin_pages.py), so it's hidden here
   // rather than shown as a dead-end row that just bounces them back out of
   // the editor (see AdminPageEditorPage.jsx's redirect-away-if-not-draft).
   const visiblePages = isContributor ? pages.filter(p => p.author_id === admin.id && p.status === 'draft') : pages
+  const shownPages = sortList(filterList(visiblePages, filter), sort)
 
   return (
     <PageShell title="Pages">
@@ -128,49 +139,71 @@ export default function AdminPagesListPage() {
       {visiblePages.length === 0 ? (
         <p className="text-gray-500 text-sm">No pages yet. Create your first page above.</p>
       ) : (
-        <div className="flex flex-col divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
-          {visiblePages.map(page => (
-            <div
-              key={page.id}
-              onClick={() => navigate(`/admin/pages/${page.id}`)}
-              className="flex items-center gap-4 px-4 py-3 bg-white hover:bg-gray-50 cursor-pointer"
-            >
-              <div className="flex-1 min-w-0">
-                <div className="flex flex-col sm:flex-row sm:items-baseline gap-0 sm:gap-2">
-                  <p className="text-sm font-medium text-gray-900 truncate">{page.title}</p>
-                  <p className="text-xs text-gray-400 shrink-0">/{page.slug}</p>
-                  {page.docs_section && (
-                    <Tooltip content={`Docs Section: ${page.docs_section.name}`}>
-                      {/* Contributors can't open Docs sections (editor+, see
-                          admin_docs.py), so for them the badge stays plain text. */}
-                      {isContributor ? (
-                        <span className="self-start sm:self-auto shrink-0 rounded-full bg-blue-50 px-2 py-px text-[11px] font-medium text-blue-600">Docs</span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={e => {
-                            // The whole row opens the page editor; don't let
-                            // the badge click fall through to it.
-                            e.stopPropagation()
-                            navigate(`/admin/docs/${page.docs_section.id}`)
-                          }}
-                          className="self-start sm:self-auto shrink-0 rounded-full bg-blue-50 px-2 py-px text-[11px] font-medium text-blue-600 hover:bg-blue-100 transition-colors"
-                        >
-                          Docs
-                        </button>
+        <>
+          <AdminListFilterBar
+            filter={filter}
+            onChange={setFilter}
+            sort={sort}
+            onSortChange={setSort}
+            sortOptions={CREATED_SORT_OPTIONS}
+            // Contributors only ever see their own drafts, so a status
+            // filter would have nothing to act on.
+            statuses={isContributor ? [] : ['published', 'draft']}
+            placeholder="Search pages by title or URL"
+            noun="pages"
+            shown={shownPages.length}
+            total={visiblePages.length}
+          />
+          {shownPages.length === 0 ? (
+            <p className="text-gray-500 text-sm">No pages match these filters.</p>
+          ) : (
+            <div className="flex flex-col divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
+              {shownPages.map(page => (
+                <div
+                  key={page.id}
+                  onClick={() => navigate(`/admin/pages/${page.id}`)}
+                  className="flex items-center gap-4 px-4 py-3 bg-white hover:bg-gray-50 cursor-pointer"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-baseline gap-0 sm:gap-2">
+                      <p className="text-sm font-medium text-gray-900 truncate">{page.title}</p>
+                      <p className="text-xs text-gray-400 shrink-0">/{page.slug}</p>
+                      {page.docs_section && (
+                        <Tooltip content={`Docs Section: ${page.docs_section.name}`}>
+                          {/* Contributors can't open Docs sections (editor+, see
+                              admin_docs.py), so for them the badge stays plain text. */}
+                          {isContributor ? (
+                            <span className="self-start sm:self-auto shrink-0 rounded-full bg-blue-50 px-2 py-px text-[11px] font-medium text-blue-600">Docs</span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={e => {
+                                // The whole row opens the page editor; don't let
+                                // the badge click fall through to it.
+                                e.stopPropagation()
+                                navigate(`/admin/docs/${page.docs_section.id}`)
+                              }}
+                              className="self-start sm:self-auto shrink-0 rounded-full bg-blue-50 px-2 py-px text-[11px] font-medium text-blue-600 hover:bg-blue-100 transition-colors"
+                            >
+                              Docs
+                            </button>
+                          )}
+                        </Tooltip>
                       )}
-                    </Tooltip>
-                  )}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">
+                      Created {formatDate(page.created_at)} · Updated {formatDate(page.updated_at)}
+                    </p>
+                    <div className="mt-0.5">
+                      <StatusLabel page={page} />
+                    </div>
+                  </div>
+                  <Pencil size={14} className="shrink-0 text-gray-400" />
                 </div>
-                <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">Updated {formatDate(page.updated_at)}</p>
-                <div className="mt-0.5">
-                  <StatusLabel page={page} />
-                </div>
-              </div>
-              <Pencil size={14} className="shrink-0 text-gray-400" />
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       {publishConfirm && (
