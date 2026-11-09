@@ -133,14 +133,14 @@ function AdminDocsSectionsPageContent() {
   if (loading) return <div className="p-8 text-gray-400">Loading…</div>
   if (loadError) {
     return (
-      <PageShell title="Docs">
+      <PageShell title="Docs Sections">
         <p className="text-sm text-red-500">Couldn't load docs sections. Try reloading the page.</p>
       </PageShell>
     )
   }
 
   return (
-    <PageShell title="Docs">
+    <PageShell title="Docs Sections">
       <div className="mb-6 -mt-2 flex flex-col gap-3">
         <p className="text-sm text-gray-500">
           A docs section links pages together in order, with a sidebar and next/previous buttons on the public site.

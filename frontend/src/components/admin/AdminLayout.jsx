@@ -72,7 +72,7 @@ const PAGES_NAV_ITEM = { standalone: true, to: '/admin/pages', label: 'Pages' }
 const SITE_NAVIGATION_NAV_ITEM = { standalone: true, to: '/admin/navigation', label: 'Site Navigation' }
 
 // Editor+ only, same as Site Navigation (and admin_docs.py's role_at_least).
-const DOCS_NAV_ITEM = { standalone: true, to: '/admin/docs', label: 'Docs' }
+const DOCS_NAV_ITEM = { standalone: true, to: '/admin/docs', label: 'Docs Sections' }
 
 function getFilteredNavGroups(role) {
   if (role === 'contributor') {

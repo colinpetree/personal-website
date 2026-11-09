@@ -140,8 +140,25 @@ export default function AdminPagesListPage() {
                   <p className="text-sm font-medium text-gray-900 truncate">{page.title}</p>
                   <p className="text-xs text-gray-400 shrink-0">/{page.slug}</p>
                   {page.docs_section && (
-                    <Tooltip content={`In docs section: ${page.docs_section.name}`}>
-                      <span className="self-start sm:self-auto shrink-0 rounded-full bg-blue-50 px-2 py-px text-[11px] font-medium text-blue-600">Docs</span>
+                    <Tooltip content={`Docs Section: ${page.docs_section.name}`}>
+                      {/* Contributors can't open Docs sections (editor+, see
+                          admin_docs.py), so for them the badge stays plain text. */}
+                      {isContributor ? (
+                        <span className="self-start sm:self-auto shrink-0 rounded-full bg-blue-50 px-2 py-px text-[11px] font-medium text-blue-600">Docs</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={e => {
+                            // The whole row opens the page editor; don't let
+                            // the badge click fall through to it.
+                            e.stopPropagation()
+                            navigate(`/admin/docs/${page.docs_section.id}`)
+                          }}
+                          className="self-start sm:self-auto shrink-0 rounded-full bg-blue-50 px-2 py-px text-[11px] font-medium text-blue-600 hover:bg-blue-100 transition-colors"
+                        >
+                          Docs
+                        </button>
+                      )}
                     </Tooltip>
                   )}
                 </div>

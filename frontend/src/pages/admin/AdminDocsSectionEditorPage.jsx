@@ -179,7 +179,7 @@ function AdminDocsSectionEditorPageContent() {
   if (loading) return <div className="p-8 text-gray-400">Loading…</div>
   if (loadError) {
     return (
-      <PageShell title="Docs section">
+      <PageShell title="Docs Section">
         <Link to="/admin/docs" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-6">
           <ArrowLeft size={14} strokeWidth={1.5} />Docs
         </Link>
@@ -189,7 +189,7 @@ function AdminDocsSectionEditorPageContent() {
   }
   if (notFound) {
     return (
-      <PageShell title="Docs section not found">
+      <PageShell title="Docs Section not found">
         <Link to="/admin/docs" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ArrowLeft size={14} strokeWidth={1.5} />Docs
         </Link>
@@ -320,7 +320,7 @@ function AdminDocsSectionEditorPageContent() {
   }
 
   return (
-    <PageShell title="Docs section">
+    <PageShell title="Docs Section">
       <div className="mb-6 -mt-2">
         <Link to="/admin/docs" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
           <ArrowLeft size={14} strokeWidth={1.5} />Docs
