@@ -1,4 +1,5 @@
-from flask import Flask
+from datetime import timedelta
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 from extensions import db, login_manager
@@ -6,6 +7,11 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
+
+_SAFE_METHODS = {'GET', 'HEAD', 'OPTIONS'}
+# Server-to-server callers: Stripe's webhook (verified by signature) and the
+# backup machine's failure alert (verified by WATCHER_ALERT_SECRET).
+_ORIGIN_CHECK_EXEMPT = {'/api/payment/webhook', '/api/watcher-alert'}
 
 
 def _database_uri():
@@ -36,9 +42,29 @@ def create_app():
             raise RuntimeError('SECRET_KEY environment variable must be set in production')
         secret_key = 'dev-secret-change-in-production'
     app.config['SECRET_KEY'] = secret_key
+    # Renamed from Flask's default "session". This release changed what the
+    # admin login id inside the session looks like ("<id>:<version>", see
+    # AdminAccount.get_id), and releases before it crash on that format
+    # (int("1:0")). Under a new name, an older release rolled back to never
+    # sees these cookies, so it treats everyone as logged out instead of
+    # returning 500s. Varnish's cache bypass matches "session=" anywhere in
+    # the Cookie header, which still covers "pw_session=".
+    app.config['SESSION_COOKIE_NAME'] = 'pw_session'
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
     app.config['SESSION_COOKIE_SECURE'] = is_production
+    # Flask-Login's "remember me" cookie (admin logins use remember=True) has
+    # its own settings, and its defaults are weak: not Secure, no SameSite,
+    # 365 days. Without SameSite, Firefox and Safari send it on cross-site
+    # requests, which undoes the session cookie's Lax protection because
+    # Flask-Login quietly logs the admin back in from it. Renamed from the
+    # default "remember_token" so every cookie issued under the old settings
+    # is ignored instead of staying valid for up to a year.
+    app.config['REMEMBER_COOKIE_NAME'] = 'remember_admin'
+    app.config['REMEMBER_COOKIE_SECURE'] = is_production
+    app.config['REMEMBER_COOKIE_HTTPONLY'] = True
+    app.config['REMEMBER_COOKIE_SAMESITE'] = 'Lax'
+    app.config['REMEMBER_COOKIE_DURATION'] = timedelta(days=30)
     if is_production:
         # gunicorn only ever accepts connections from Varnish on 127.0.0.1
         # (never exposed publicly - see deploy/scripts/bootstrap.sh's ufw
@@ -65,10 +91,29 @@ def create_app():
     # then always returns 403, never a silent no-op).
     app.config['WATCHER_ALERT_SECRET'] = os.getenv('WATCHER_ALERT_SECRET', '')
 
-    frontend_origins = os.getenv('FRONTEND_ORIGIN', 'http://localhost:5173').split(',')
-    CORS(app, supports_credentials=True, origins=[o.strip() for o in frontend_origins if o.strip()])
+    frontend_origins = [o.strip() for o in os.getenv('FRONTEND_ORIGIN', 'http://localhost:5173').split(',') if o.strip()]
+    CORS(app, supports_credentials=True, origins=frontend_origins)
     db.init_app(app)
     login_manager.init_app(app)
+
+    @app.before_request
+    def _reject_cross_site_writes():
+        """Defense in depth against cross-site request forgery, on top of the
+        SameSite=Lax cookies. Browsers always send an Origin header on a
+        cross-site POST/PUT/PATCH/DELETE, so a state-changing /api/ request
+        whose Origin is some other site is refused. A missing Origin is
+        allowed, so curl, scripts and server-to-server callers keep working;
+        the two server-to-server endpoints are also listed explicitly."""
+        if request.method in _SAFE_METHODS or not request.path.startswith('/api/'):
+            return None
+        if request.path in _ORIGIN_CHECK_EXEMPT:
+            return None
+        origin = request.headers.get('Origin')
+        if not origin:
+            return None
+        if origin == f'{request.scheme}://{request.host}' or origin in frontend_origins:
+            return None
+        return jsonify({'error': 'Cross-site request blocked'}), 403
 
     from routes.profile import profile_bp
     from routes.site_config import site_config_bp

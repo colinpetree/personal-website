@@ -5,6 +5,7 @@ from models import SiteConfig, ContactAttempt, ContactSubmission
 from crypto import decrypt
 from email_utils import send_email, mail_configured
 from routes.admin_auth import role_at_least
+from rate_limit import client_ip_key
 
 contact_bp = Blueprint('contact', __name__)
 
@@ -22,7 +23,7 @@ def submit_contact():
     if not _mail_configured(config):
         return jsonify({'error': 'Contact form is not available.'}), 503
 
-    ip = request.remote_addr or 'unknown'
+    ip = client_ip_key()
     window_start = datetime.utcnow() - IP_WINDOW
     ContactAttempt.query.filter(ContactAttempt.created_at < window_start).delete()
     recent_attempts = ContactAttempt.query.filter(

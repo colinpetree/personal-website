@@ -213,6 +213,11 @@ SQL
     # system-wide just for this one call.
     ENCRYPTION_KEY="$(python3 -c 'import os, base64; print(base64.urlsafe_b64encode(os.urandom(32)).decode())')"
 
+    # Created private from the start (umask in a subshell so it only applies
+    # to this file): it holds SECRET_KEY, ENCRYPTION_KEY and the database
+    # password. Step 9 below also chmods it, and install.sh re-applies that on
+    # every install.
+    ( umask 077; : > "$DATA_DIR/.env" )
     cat > "$DATA_DIR/.env" <<EOF
 DATABASE_URL=postgresql://personalweb:${DB_PASSWORD}@localhost:5432/personal_website
 FLASK_ENV=production
@@ -244,8 +249,13 @@ else
     echo "    No domain provided - set one later via install.sh --domain or the admin panel."
 fi
 
-echo "==> 9. Fixing ownership"
+echo "==> 9. Fixing ownership and permissions"
 chown -R personalweb:personalweb "$DATA_DIR"
+# Only personalweb (the app, backup.sh, the Pi's backup pull) and root (these
+# scripts, health-watch, the updater) need anything in here. nginx never reads
+# it: uploads are served through Flask.
+chmod 750 "$DATA_DIR"
+chmod 600 "$DATA_DIR/.env"
 
 echo ""
 echo "=========================================================================="

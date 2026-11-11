@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from flask_login import current_user
+from flask_login import current_user, login_user, logout_user
 from extensions import db
 from models import AdminAccount, SiteEventLog
 from routes.admin_auth import admin_required, role_at_least, ROLE_ORDER
@@ -162,7 +162,14 @@ def update_password(account_id):
             return jsonify({'error': 'Insufficient permissions'}), 403
 
     account.set_password(new_password)
+    # Logs this account out of every other browser. When it's your own
+    # password, this browser is logged back in under the new session version
+    # so you aren't signed out of the tab you just used.
+    account.end_all_sessions()
     db.session.commit()
+    if is_own_account:
+        logout_user()
+        login_user(account, remember=True)
     return jsonify({'message': 'Password updated'})
 
 

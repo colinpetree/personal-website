@@ -8,10 +8,16 @@ import secrets
 from urllib.parse import quote
 from flask import Blueprint, jsonify, request, session, redirect, current_app
 from flask_login import current_user, logout_user
+from sqlalchemy import func
 from extensions import db
-from models import User, SiteConfig
+from models import User, SiteConfig, PendingSignIn
 from crypto import decrypt
 from email_utils import send_email, mail_configured
+from rate_limit import (
+    check_auth_email_limits, looks_like_email, magic_link_requests_last_hour,
+    MAGIC_LINK_SITE_WIDE_PER_HOUR,
+)
+from watcher_alerts import send_watcher_alert
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -24,7 +30,7 @@ GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo'
 
 def get_current_user():
     """Returns the signed-in User, or None. Does not cover the admin-as-visitor
-    case — that has no User row, see `me()` for how it's surfaced to the frontend."""
+    case - that has no User row, see `me()` for how it's surfaced to the frontend."""
     user_id = session.get('user_id')
     if user_id:
         return User.query.get(user_id)
@@ -114,7 +120,7 @@ def google_callback():
 
     user = User.query.filter_by(google_id=google_id).first()
     if not user and email:
-        # No Google-linked account yet — but an account may already exist for
+        # No Google-linked account yet - but an account may already exist for
         # this email via magic-link sign-in (which has no google_id). Link the
         # Google identity onto it instead of trying to insert a second row
         # with the same email, which would violate the unique constraint.
@@ -130,7 +136,7 @@ def google_callback():
     db.session.commit()
 
     # A fresh Google sign-in always wins over a stale admin session in the same
-    # browser — otherwise /api/auth/me's admin-first check would keep masking
+    # browser - otherwise /api/auth/me's admin-first check would keep masking
     # this user indefinitely.
     if current_user.is_authenticated:
         logout_user()
@@ -139,37 +145,62 @@ def google_callback():
 
 
 def _send_magic_link_if_valid(app, email, next_url):
-    """Runs in a background thread, after the response has already been sent —
+    """Runs in a background thread, after the response has already been sent -
     keeps magic_link_request()'s response time identical whether or not the
     email matches an existing account, so timing can't be used to enumerate
-    registered users. Mirrors admin_auth._send_reset_email_if_valid."""
+    registered users. Mirrors admin_auth._send_reset_email_if_valid.
+
+    No User row is created here: the token is kept in PendingSignIn and the
+    account is created (or found) only when the link is actually clicked, in
+    magic_link_verify()."""
     with app.app_context():
         try:
             config = SiteConfig.query.first()
             if not (config and config.users_enabled and mail_configured(config) and email):
                 return
 
-            user = User.query.filter_by(email=email).first()
-            if not user:
-                user = User(email=email, name=email.split('@')[0], can_comment=True)
-                db.session.add(user)
+            # Over the site-wide hourly cap: keep sending to existing accounts,
+            # pause links to addresses with no account. Decided here, after the
+            # response went out, so the reply is identical either way and says
+            # nothing about which addresses are registered.
+            recent = magic_link_requests_last_hour()
+            if recent > MAGIC_LINK_SITE_WIDE_PER_HOUR:
+                if recent == MAGIC_LINK_SITE_WIDE_PER_HOUR + 1:
+                    send_watcher_alert(
+                        'sign-in-flood',
+                        f'More than {MAGIC_LINK_SITE_WIDE_PER_HOUR} sign-in link requests in the last hour. '
+                        f'Links to addresses with no account are paused until the hourly count drops; '
+                        f'existing users can still sign in.',
+                    )
+                if not User.query.filter(func.lower(User.email) == email).first():
+                    return
+
+            now = datetime.utcnow()
+            PendingSignIn.query.filter(PendingSignIn.expires_at < now).delete()
+            # Only the newest link for an address works, matching the old
+            # one-token-per-user behavior.
+            PendingSignIn.query.filter(func.lower(PendingSignIn.email) == email).delete(
+                synchronize_session=False)
 
             token = secrets.token_urlsafe(32)
-            user.login_token_hash = hashlib.sha256(token.encode()).hexdigest()
-            user.login_token_expires = datetime.utcnow() + MAGIC_LINK_TTL
+            db.session.add(PendingSignIn(
+                email=email,
+                token_hash=hashlib.sha256(token.encode()).hexdigest(),
+                expires_at=now + MAGIC_LINK_TTL,
+            ))
             db.session.commit()
 
             next_param = f'&next={quote(next_url)}' if next_url else ''
             if config.domain:
                 link_url = f'https://{config.domain.rstrip("/")}/auth/magic?token={token}{next_param}'
             else:
-                # Dev fallback — the Flask backend isn't where the frontend route
+                # Dev fallback - the Flask backend isn't where the frontend route
                 # lives; that's the Vite dev server.
                 link_url = f'http://localhost:5173/auth/magic?token={token}{next_param}'
 
             send_email(
                 config,
-                user.email,
+                email,
                 'Your sign-in link',
                 f'Click the link below to sign in.\n\n'
                 f'{link_url}\n\n'
@@ -178,7 +209,7 @@ def _send_magic_link_if_valid(app, email, next_url):
                 decrypt(config.mailgun_api_key),
             )
         except Exception:
-            # Silent by design — this runs after the response is already sent,
+            # Silent by design - this runs after the response is already sent,
             # so there's nothing left to report the failure to.
             pass
 
@@ -194,6 +225,18 @@ def magic_link_request():
     data = request.get_json(silent=True) or {}
     email = (data.get('email') or '').strip().lower()
     next_url = _safe_next_path(data.get('next'))
+
+    # Turned away before it counts against any limit, so blank or junk input
+    # can't use up the hourly budget real sign-ins share.
+    if not looks_like_email(email):
+        return jsonify({'error': 'Enter a valid email address.'}), 400
+
+    # Checked for every request, whether or not the email is registered, so a
+    # 429 says nothing about which addresses have accounts.
+    allowed = check_auth_email_limits('magic_link', email)
+    db.session.commit()
+    if not allowed:
+        return jsonify({'error': 'Too many sign-in requests. Please try again later.'}), 429
 
     app = current_app._get_current_object()
     Thread(target=_send_magic_link_if_valid, args=(app, email, next_url), daemon=True).start()
@@ -215,17 +258,35 @@ def magic_link_verify():
         return jsonify({'error': 'Token is required'}), 400
 
     token_hash = hashlib.sha256(token.encode()).hexdigest()
-    user = User.query.filter_by(login_token_hash=token_hash).first()
-    if not user or not user.login_token_expires or user.login_token_expires < datetime.utcnow():
-        return jsonify({'error': 'Invalid or expired sign-in link'}), 400
+    now = datetime.utcnow()
 
-    user.login_token_hash = None
-    user.login_token_expires = None
-    user.last_login_at = datetime.utcnow()
+    pending = PendingSignIn.query.filter_by(token_hash=token_hash).first()
+    if pending:
+        if pending.expires_at < now:
+            db.session.delete(pending)
+            db.session.commit()
+            return jsonify({'error': 'Invalid or expired sign-in link'}), 400
+        email = pending.email
+        db.session.delete(pending)
+        user = User.query.filter(func.lower(User.email) == email.lower()).first()
+        if not user:
+            user = User(email=email, name=email.split('@')[0], can_comment=True)
+            db.session.add(user)
+    else:
+        # Links sent before PendingSignIn existed stored the token on the User
+        # row. Kept so a link emailed just before an upgrade still works; it
+        # can go once no such tokens remain (they expire after MAGIC_LINK_TTL).
+        user = User.query.filter_by(login_token_hash=token_hash).first()
+        if not user or not user.login_token_expires or user.login_token_expires < now:
+            return jsonify({'error': 'Invalid or expired sign-in link'}), 400
+        user.login_token_hash = None
+        user.login_token_expires = None
+
+    user.last_login_at = now
     db.session.commit()
 
     # A fresh magic-link sign-in always wins over a stale admin session in the
-    # same browser — same rule as google_callback's precedence.
+    # same browser - same rule as google_callback's precedence.
     if current_user.is_authenticated:
         logout_user()
     session['user_id'] = user.id
@@ -245,7 +306,7 @@ def logout():
 
 @auth_bp.route('/api/auth/me')
 def me():
-    # Admin session takes priority, matching post_comment()'s precedence — staff
+    # Admin session takes priority, matching post_comment()'s precedence - staff
     # are always shown (and always comment) as themselves, even if a stale
     # regular-user session also happens to be present in the same browser.
     if current_user.is_authenticated:
@@ -265,7 +326,7 @@ def me():
         from routes.user import _user_dict
         return jsonify(_user_dict(user))
 
-    # 200/null rather than 401 — this is a routine "am I logged in" check
+    # 200/null rather than 401 - this is a routine "am I logged in" check
     # fired on every page load, not a failed request; the frontend already
     # treats a null body the same as a 401 (see UserAuthContext.jsx), so
     # this just avoids a misleading red network-error entry for the

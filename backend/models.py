@@ -110,14 +110,14 @@ class SiteConfig(db.Model):
     google_oauth_client_secret = db.Column(db.Text, nullable=True)  # stored encrypted
     analytics_start_date = db.Column(db.Date, nullable=True)  # clamps the floor of every analytics date range
 
-    # Site Navigation (Pages feature) — freeform admin-managed nav links,
+    # Site Navigation (Pages feature) - freeform admin-managed nav links,
     # replacing the old nav_order/*_enabled fixed-page-key system. See
     # routes/admin_config.py and routes/site_config.py. nav_order above is
-    # left in place, unused, once this cuts over — additive-only migration
+    # left in place, unused, once this cuts over - additive-only migration
     # style, no DROP COLUMN.
     primary_navigation = db.Column(db.Text, nullable=True)   # JSON array of {label, url}
     site_title_link = db.Column(db.String(500), nullable=False, default='/')
-    # One-time gate for the About -> Page migration in app.py — see
+    # One-time gate for the About -> Page migration in app.py - see
     # _migrate_about_to_page(). Deliberately NOT inferred from "does a Page
     # with this slug exist", since renaming the migrated page's slug later
     # (completely normal once it's a regular Page) would otherwise look
@@ -143,6 +143,17 @@ class AdminAccount(UserMixin, db.Model):
     reset_token_expires = db.Column(db.DateTime, nullable=True)
     failed_login_attempts = db.Column(db.Integer, nullable=False, default=0)
     lockout_until = db.Column(db.DateTime, nullable=True)
+    # Part of the login id Flask-Login stores in the session and remember
+    # cookies (see get_id). Bumping it logs this account out everywhere:
+    # every existing cookie carries the old number and load_user rejects it.
+    # Bumped on password changes and resets, and by "Log out everywhere".
+    session_version = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+
+    def get_id(self):
+        return f'{self.id}:{self.session_version or 0}'
+
+    def end_all_sessions(self):
+        self.session_version = (self.session_version or 0) + 1
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -165,6 +176,49 @@ class ContactAttempt(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     ip_address = db.Column(db.String(45), nullable=False)  # fits IPv6
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class AuthEmailAttempt(db.Model):
+    """One row per sign-in link or admin password-reset email request that was
+    allowed through. Backs the per-IP, per-email and site-wide limits in
+    rate_limit.check_auth_email_limits(). Rows older than the longest window
+    are swept on each check."""
+    __tablename__ = 'auth_email_attempt'
+
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(20), nullable=False)  # 'magic_link' | 'admin_reset'
+    ip_address = db.Column(db.String(45), nullable=False)  # IPv4, or IPv6 /64 prefix
+    email = db.Column(db.String(255), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+
+class PendingSignIn(db.Model):
+    """A requested but not yet used magic sign-in link. The User row is only
+    created (or looked up) when the link is clicked, so typing an address into
+    the sign-in form no longer creates an account for it."""
+    __tablename__ = 'pending_sign_in'
+
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(255), nullable=False, index=True)
+    token_hash = db.Column(db.String(64), nullable=False, unique=True)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class AdminLoginRecord(db.Model):
+    """Where each admin account has logged in from, by IP key (IPv4 address or
+    IPv6 /64). A login from a key not seen in KNOWN_LOGIN_WINDOW sends the
+    account a heads-up email (see admin_auth._notify_new_login)."""
+    __tablename__ = 'admin_login_record'
+
+    id = db.Column(db.Integer, primary_key=True)
+    admin_id = db.Column(db.Integer, db.ForeignKey('admin_account.id'), nullable=False, index=True)
+    ip_address = db.Column(db.String(45), nullable=False)
+    user_agent = db.Column(db.String(300), nullable=True)
+    first_seen = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    last_seen = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint('admin_id', 'ip_address', name='uq_admin_login_record_admin_ip'),)
 
 
 class PortalLinkRequest(db.Model):
@@ -213,7 +267,7 @@ class BlogPost(db.Model):
 
 
 class Page(db.Model):
-    """Open-ended, admin-created custom pages — draft/autosave/publish
+    """Open-ended, admin-created custom pages - draft/autosave/publish
     lifecycle mirrors BlogPost closely (see routes/admin_pages.py), but
     without excerpt/thumbnail/category. `title` drives slug auto-derivation
     and is used verbatim as the browser-tab/SEO title, exactly like
@@ -289,7 +343,7 @@ class User(db.Model):
     ai_demo_access_requested_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     # Set on every successful Google OAuth or magic-link sign-in (never on mere
-    # row creation) — doubles as an email-verification signal, since either
+    # row creation) - doubles as an email-verification signal, since either
     # method proves control of the address. NULL means the account was
     # created (e.g. someone typed this email into the magic-link form) but
     # never actually completed a sign-in.
@@ -351,7 +405,7 @@ class Project(db.Model):
 class ProjectClick(db.Model):
     __tablename__ = 'project_click'
 
-    # Just a raw click counter, on purpose — the link goes to an external
+    # Just a raw click counter, on purpose - the link goes to an external
     # site, so there's no way to know the click actually landed there, and
     # unique-visitor dedup isn't meaningful for that (ProjectsPage's own
     # page-view tracking already covers unique visitors to the /projects

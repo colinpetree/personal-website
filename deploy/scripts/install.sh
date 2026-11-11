@@ -147,6 +147,11 @@ touch -a "$DATA_DIR/certbot_domain.txt"
 # a plain `chown -R` on already-correctly-owned files is a no-op.
 if id personalweb >/dev/null 2>&1; then
     chown -R personalweb:personalweb "$DATA_DIR"
+    # Keep secrets private even on servers bootstrapped before bootstrap.sh
+    # set these: .env holds SECRET_KEY, ENCRYPTION_KEY and the database
+    # password. Only personalweb and root need the data folder.
+    chmod 750 "$DATA_DIR"
+    [ -f "$DATA_DIR/.env" ] && chmod 600 "$DATA_DIR/.env"
 else
     echo "WARNING: system user 'personalweb' does not exist - skipping chown of $DATA_DIR."
     echo "         The app will fail to write uploads/certbot_domain.txt/etc. until this"

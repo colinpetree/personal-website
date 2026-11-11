@@ -58,6 +58,7 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
   const [showNewPw, setShowNewPw] = useState(false)
   const [pwSaving, setPwSaving] = useState(false)
   const [pwError, setPwError] = useState('')
+  const [endingSessions, setEndingSessions] = useState(false)
 
   // More menu
   const [moreOpen, setMoreOpen] = useState(false)
@@ -155,6 +156,23 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
       setPwError(err.message)
     } finally {
       setPwSaving(false)
+    }
+  }
+
+  async function handleLogoutEverywhere() {
+    setEndingSessions(true)
+    try {
+      const res = await fetch('/api/admin/logout-everywhere', {
+        method: 'POST',
+        credentials: 'include',
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to sign out other devices')
+      addToast({ message: 'Signed out of every other browser and device' })
+    } catch (err) {
+      addToast({ message: err.message })
+    } finally {
+      setEndingSessions(false)
     }
   }
 
@@ -408,7 +426,26 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
             )}
           </div>
 
-          {/* Role — always read-only on own account */}
+          {/* Sessions: own account only */}
+          {isOwnAccount && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Signed-in devices</label>
+              <p className="text-sm text-gray-500 mb-2">
+                Sign out of every other browser and device. You stay signed in here.
+                Changing your password does this too.
+              </p>
+              <button
+                type="button"
+                onClick={handleLogoutEverywhere}
+                disabled={endingSessions}
+                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                {endingSessions ? 'Signing out…' : 'Log out everywhere else'}
+              </button>
+            </div>
+          )}
+
+          {/* Role: always read-only on own account */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
             {isOwnAccount || isViewingOwner || availableRoles.length === 1 ? (

@@ -1,7 +1,7 @@
 vcl 4.1;
 
 # __BACKEND_PORT__ substituted by install.sh from the same single source of
-# truth used for the systemd unit's GUNICORN_BIND — kept in sync so this
+# truth used for the systemd unit's GUNICORN_BIND - kept in sync so this
 # port can never silently drift from where gunicorn actually listens.
 backend default {
     .host = "127.0.0.1";
@@ -27,19 +27,24 @@ sub vcl_recv {
     }
 
     # Admin/auth surfaces and anything carrying a session cookie always
-    # bypass the cache — Flask-Login is cookie-based with no server-side
+    # bypass the cache - Flask-Login is cookie-based with no server-side
     # session store, so "has a session cookie" == "personalized request".
+    # remember_admin is Flask-Login's remember-me cookie (REMEMBER_COOKIE_NAME
+    # in backend/app.py): a request carrying only that one is still a logged-in
+    # admin, since Flask-Login restores the session from it. The session
+    # cookie itself is named pw_session (SESSION_COOKIE_NAME); "session="
+    # matches it as a substring, and also the old default name.
     if (req.url ~ "^/api/admin/" || req.url ~ "^/api/auth/") {
         return (pass);
     }
-    if (req.http.Cookie ~ "session=") {
+    if (req.http.Cookie ~ "session=" || req.http.Cookie ~ "remember_admin=") {
         return (pass);
     }
     if (req.method != "GET" && req.method != "HEAD") {
         return (pass);
     }
 
-    # Allowlist of cacheable public GET endpoints — safer default than
+    # Allowlist of cacheable public GET endpoints - safer default than
     # cache-by-default given there's no origin Cache-Control to lean on for
     # anything except /api/uploads/.
     if (req.url ~ "^/api/uploads/" && req.url !~ "name=") {
@@ -55,7 +60,7 @@ sub vcl_recv {
 }
 
 sub vcl_backend_response {
-    # Deliberately not setting beresp.do_gzip anywhere in this file —
+    # Deliberately not setting beresp.do_gzip anywhere in this file -
     # compression is handled entirely at the nginx layer, per-client, after
     # Varnish (see deploy/nginx/personal-website.conf). Varnish must keep
     # storing/serving plain responses; adding do_gzip here would reintroduce

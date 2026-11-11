@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Blueprint, abort, jsonify, request, session
 from flask_login import current_user
 from extensions import db
@@ -9,6 +9,11 @@ blog_bp = Blueprint('blog', __name__)
 
 RESERVED_SLUGS = {'', 'blog', 'projects', 'about', 'contact', 'demo', 'payment', 'admin', 'api', 'search'}
 
+# Per-user comment limit for signed-in public users (staff are exempt). Plenty
+# for a real conversation, too few for a script to flood the comments.
+MAX_COMMENTS_PER_WINDOW = 10
+COMMENT_WINDOW = timedelta(minutes=10)
+
 
 def _blog_enabled(config):
     return bool(config and config.blog_enabled)
@@ -16,7 +21,7 @@ def _blog_enabled(config):
 
 def _require_blog_enabled():
     # A disabled blog must be indistinguishable from one that never
-    # existed — every public blog endpoint 404s the same way a bad slug
+    # existed - every public blog endpoint 404s the same way a bad slug
     # would, rather than returning real data to a direct API call once the
     # admin has turned the page off (the frontend route already 404s too,
     # see BlogPage.jsx/BlogPostPage.jsx's own nav-enabled check).
@@ -176,7 +181,7 @@ def get_post(slug):
 @blog_bp.route('/api/blog/<slug>/adjacent')
 def get_adjacent_posts(slug):
     """Next (older) / previous (newer) post in publish-date order, optionally
-    scoped to a category — mirrors list_posts' filtering/ordering so the
+    scoped to a category - mirrors list_posts' filtering/ordering so the
     result matches what the reader would see paging through /blog."""
     _require_blog_enabled()
     _promote_scheduled()
@@ -255,7 +260,7 @@ def post_comment(slug):
     post = BlogPost.query.filter_by(slug=slug, status='published').first_or_404()
     config = SiteConfig.query.first()
 
-    # Staff can always comment, regardless of the public comments toggle —
+    # Staff can always comment, regardless of the public comments toggle -
     # matches the pre-existing behavior this gate is added in front of.
     if not current_user.is_authenticated and not _comments_enabled(config):
         return jsonify({'error': 'Comments are disabled.'}), 403
@@ -264,7 +269,7 @@ def post_comment(slug):
     parent_id = data.get('parent_id')
     content = (data.get('content') or '').strip()
 
-    # Admin session takes priority — staff can always comment
+    # Admin session takes priority - staff can always comment
     if current_user.is_authenticated:
         if not content:
             return jsonify({'error': 'Message is required.'}), 400
@@ -280,6 +285,12 @@ def post_comment(slug):
             return jsonify({'error': 'You are not allowed to comment.'}), 403
         if not content:
             return jsonify({'error': 'Message is required.'}), 400
+        recent = Comment.query.filter(
+            Comment.user_id == uid,
+            Comment.created_at >= datetime.utcnow() - COMMENT_WINDOW,
+        ).count()
+        if recent >= MAX_COMMENTS_PER_WINDOW:
+            return jsonify({'error': 'You are commenting too quickly. Please wait a few minutes.'}), 429
         comment = Comment(post_id=post.id, user_id=uid, parent_id=parent_id, content=content)
 
     db.session.add(comment)

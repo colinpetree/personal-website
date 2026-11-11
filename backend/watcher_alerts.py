@@ -34,6 +34,11 @@ _SOURCE_INFO = {
                        'far fewer referenced files than its recent history, or - during cold start only - a '
                        'huge volume cap was exceeded). Not a limit on legitimate cleanup volume - worth a '
                        'manual `--cleanup-orphan-media --dry-run` look before investigating further.'),
+    'sign-in-flood': ('unusual number of sign-in link requests',
+                      'Someone may be scripting the sign-in form. Nothing needs doing right away: existing '
+                      'users still get their links and new sign-ups resume on their own once the hourly '
+                      'count drops. If it keeps happening, consider a Cloudflare rate-limiting rule on '
+                      '/api/auth/magic-link/request, or a bot check on the sign-in form.'),
     'content-dispatch': ('content edits cannot start a site rebuild',
                          'The GitHub token production uses to start a rebuild after a content edit was '
                          'rejected (usually expired). Edits still go live through the dist repo\'s 3-hourly '
