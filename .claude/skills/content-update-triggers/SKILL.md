@@ -73,9 +73,11 @@ that spectrum).
 - **Non-obvious cascade - deleting a blog category touches every post that
   used it.** `DELETE /api/admin/blog/categories/<id>` (`admin_blog_categories.py:128-137`)
   bulk-clears `category_id` on every referencing `BlogPost` via
-  `Query.update({'category_id': None})`, including published ones. This
-  bumps `updated_at` on those posts as a side effect of an action that looks
-  unrelated to blog content itself.
+  `Query.update(...)`, including published ones. That update sets
+  `updated_at` to itself so the posts keep their last-edited date (the admin
+  lists' "Recently edited" sort), so it does **not** bump the posts. Instead,
+  if any published post used the category, the route bumps
+  `SiteConfig.updated_at` to force the rebuild.
 - **Not a trigger:** creating a post starts as `status='draft'`, excluded
   from the fingerprint until published.
 - **Not a trigger:** comments. Posting (`blog.py:248/260`), approving, or
@@ -86,11 +88,10 @@ that spectrum).
 
 > The two bullets marked "non-obvious" both go through SQLAlchemy's bulk
 > `Query.update()` rather than a normal per-instance `setattr`+commit. Bulk
-> updates are expected to still honor the column's Python-side `onupdate`
-> default (SQLAlchemy Core applies it to any column omitted from the values
-> dict at statement-compile time), but this hasn't been execution-verified
-> against this project's installed SQLAlchemy version - see "Verifying a new
-> trigger" below before relying on it for something load-bearing.
+> updates do honor the column's Python-side `onupdate` default for any column
+> left out of the values dict (verified against SQLAlchemy 2.1.8 on
+> 2026-11-11), and naming the column with itself (`'updated_at':
+> BlogPost.updated_at`) suppresses it.
 
 ## Project - triggers on every write, and unlike BlogPost has no visibility filter
 

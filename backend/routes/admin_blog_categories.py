@@ -3,7 +3,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 from extensions import db
-from models import BlogCategory, BlogPost, SiteEventLog
+from models import BlogCategory, BlogPost, SiteConfig, SiteEventLog
 from routes.admin_auth import admin_required, role_at_least
 from varnish_purge import ban_pattern
 
@@ -129,7 +129,19 @@ def update_category(category_id):
 @role_at_least('editor')
 def delete_category(category_id):
     category = BlogCategory.query.get_or_404(category_id)
-    BlogPost.query.filter_by(category_id=category.id).update({'category_id': None})
+    posts = BlogPost.query.filter_by(category_id=category.id)
+    had_published = posts.filter(BlogPost.status == 'published').first() is not None
+    # Setting updated_at to itself keeps each post's last-edited date (the
+    # admin lists' "Recently edited" sort); otherwise the column's onupdate
+    # would stamp every post that used this category as edited just now.
+    posts.update({'category_id': None, 'updated_at': BlogPost.updated_at})
+    # That also means the published posts no longer move get_content_version()'s
+    # BlogPost MAX(updated_at), so bump SiteConfig (always fingerprinted) to
+    # rebuild their prerendered pages without the deleted category.
+    if had_published:
+        fingerprint_config = SiteConfig.query.first()
+        if fingerprint_config:
+            fingerprint_config.updated_at = datetime.utcnow()
     _log('Category', 'deleted', category.name, subject_is_bold=True)
     db.session.delete(category)
     db.session.commit()

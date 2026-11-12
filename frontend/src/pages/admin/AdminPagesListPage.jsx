@@ -10,6 +10,7 @@ import {
   CREATED_SORT_OPTIONS,
   DEFAULT_LIST_SORT,
   EMPTY_LIST_FILTER,
+  UPDATED_SORT_OPTIONS,
   filterList,
   sortList,
 } from '../../lib/adminListFilter'
@@ -123,6 +124,12 @@ export default function AdminPagesListPage() {
   // the editor (see AdminPageEditorPage.jsx's redirect-away-if-not-draft).
   const visiblePages = isContributor ? pages.filter(p => p.author_id === admin.id && p.status === 'draft') : pages
   const shownPages = sortList(filterList(visiblePages, filter), sort)
+  // The Docs section choices come from the pages themselves (the sections
+  // endpoint is editor+), so a section with no pages in this list isn't
+  // offered. With no pages in any section the filter is left out entirely.
+  const docsSections = [
+    ...new Map(visiblePages.filter(p => p.docs_section).map(p => [p.docs_section.id, p.docs_section])).values(),
+  ].sort((a, b) => a.name.localeCompare(b.name))
 
   return (
     <PageShell title="Pages">
@@ -145,10 +152,11 @@ export default function AdminPagesListPage() {
             onChange={setFilter}
             sort={sort}
             onSortChange={setSort}
-            sortOptions={CREATED_SORT_OPTIONS}
+            sortOptions={[...UPDATED_SORT_OPTIONS, ...CREATED_SORT_OPTIONS]}
             // Contributors only ever see their own drafts, so a status
             // filter would have nothing to act on.
             statuses={isContributor ? [] : ['published', 'draft']}
+            docsSections={docsSections.length ? docsSections : undefined}
             placeholder="Search pages by title or URL"
             noun="pages"
             shown={shownPages.length}

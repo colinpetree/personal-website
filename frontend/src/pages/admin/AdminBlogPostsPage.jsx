@@ -10,6 +10,7 @@ import {
   DEFAULT_LIST_SORT,
   EMPTY_LIST_FILTER,
   PUBLISHED_SORT_OPTIONS,
+  UPDATED_SORT_OPTIONS,
   filterList,
   sortList,
 } from '../../lib/adminListFilter'
@@ -193,7 +194,11 @@ export default function AdminBlogPostsPage() {
             onSortChange={setSort}
             // Contributors only ever see their own drafts, so status filters
             // and publish-date sorts would have nothing to act on.
-            sortOptions={isContributor ? CREATED_SORT_OPTIONS : [...CREATED_SORT_OPTIONS, ...PUBLISHED_SORT_OPTIONS]}
+            sortOptions={[
+              ...UPDATED_SORT_OPTIONS,
+              ...CREATED_SORT_OPTIONS,
+              ...(isContributor ? [] : PUBLISHED_SORT_OPTIONS),
+            ]}
             statuses={isContributor ? [] : ['published', 'scheduled', 'draft']}
             placeholder="Search posts by title or URL"
             noun="posts"

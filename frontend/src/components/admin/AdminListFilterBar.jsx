@@ -1,16 +1,51 @@
 import { useEffect, useRef, useState } from 'react'
-import { CalendarArrowDown, CalendarArrowUp, Check, Search, SlidersHorizontal, X } from 'lucide-react'
+import { CalendarArrowDown, CalendarArrowUp, Check, History, Search, SlidersHorizontal, X } from 'lucide-react'
 import Select from '../ui/Select'
-import { EMPTY_LIST_FILTER, STATUS_LABELS, isListFilterActive } from '../../lib/adminListFilter'
+import { DOCS_FILTER_NONE, EMPTY_LIST_FILTER, STATUS_LABELS, isListFilterActive } from '../../lib/adminListFilter'
 
-const withIcons = options =>
-  options.map(o => ({ ...o, icon: o.value.endsWith('-asc') ? CalendarArrowUp : CalendarArrowDown }))
+function sortIcon(value) {
+  if (value.startsWith('updated-')) return History
+  return value.endsWith('-asc') ? CalendarArrowUp : CalendarArrowDown
+}
+
+const withIcons = options => options.map(o => ({ ...o, icon: sortIcon(o.value) }))
+
+// One labeled group of single-choice options inside the Filters popover.
+function FilterGroup({ label, choices, value, onSelect, className = '' }) {
+  return (
+    <div className={className}>
+      <span className="mb-1 block text-sm text-gray-700">{label}</span>
+      <div role="menu" aria-label={label} className="flex max-h-60 flex-col overflow-y-auto">
+        {choices.map(opt => {
+          const selected = value === opt.value
+          return (
+            <button
+              key={opt.value || 'all'}
+              type="button"
+              role="menuitemradio"
+              aria-checked={selected}
+              onClick={() => onSelect(opt.value)}
+              className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm text-left transition-colors ${
+                selected ? 'bg-gray-100 font-medium text-gray-900' : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <span className="min-w-0 break-words">{opt.label}</span>
+              {selected && <Check size={14} className="shrink-0 text-gray-500" />}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 // Search box (title and URL, filters on every keystroke), a Filters popover
-// with a status picker, and a sort picker. Modeled on lit-review's
-// ListFilterBar. `statuses` lists the status values to offer (pass an empty
-// list to hide the Filters button). shown/total feed the "Showing X of Y"
-// line while a filter is active.
+// with a status picker (and optionally a Docs section picker), and a sort
+// picker. Modeled on lit-review's ListFilterBar. `statuses` lists the status
+// values to offer. `docsSections` ({id, name} list) adds the Docs section
+// picker; leave it out on lists that have no Docs sections. With neither, the
+// Filters button is hidden. shown/total feed the "Showing X of Y" line while a
+// filter is active.
 export default function AdminListFilterBar({
   filter,
   onChange,
@@ -18,6 +53,7 @@ export default function AdminListFilterBar({
   onSortChange,
   sortOptions,
   statuses,
+  docsSections,
   placeholder,
   noun,
   shown,
@@ -42,8 +78,16 @@ export default function AdminListFilterBar({
 
   const active = isListFilterActive(filter)
   // The search box is its own indicator, so the dot only tracks the popover.
-  const popoverActive = Boolean(filter.status)
+  const popoverActive = Boolean(filter.status || filter.docs)
   const statusChoices = [{ value: '', label: 'All' }, ...statuses.map(s => ({ value: s, label: STATUS_LABELS[s] }))]
+  const docsChoices = docsSections
+    ? [
+        { value: '', label: 'All' },
+        { value: DOCS_FILTER_NONE, label: 'Not in a Docs section' },
+        ...docsSections.map(s => ({ value: String(s.id), label: s.name })),
+      ]
+    : null
+  const hasFilters = statuses.length > 0 || Boolean(docsChoices)
 
   return (
     <div className="mb-4">
@@ -70,7 +114,7 @@ export default function AdminListFilterBar({
           ) : null}
         </div>
 
-        {statuses.length > 0 && (
+        {hasFilters && (
           <div ref={ref} className="relative shrink-0">
             <button
               type="button"
@@ -89,27 +133,23 @@ export default function AdminListFilterBar({
               // Opens to the right on a phone, where the button starts the second row, and to the left
               // beside the search box on wider screens.
               <div className="absolute left-0 z-10 mt-1 w-56 rounded-md border border-gray-200 bg-white p-3 shadow-lg sm:left-auto sm:right-0">
-                <span className="mb-1 block text-sm text-gray-700">Status</span>
-                <div role="menu" className="flex flex-col">
-                  {statusChoices.map(opt => {
-                    const selected = filter.status === opt.value
-                    return (
-                      <button
-                        key={opt.value || 'all'}
-                        type="button"
-                        role="menuitemradio"
-                        aria-checked={selected}
-                        onClick={() => onChange({ ...filter, status: opt.value })}
-                        className={`flex items-center justify-between gap-2 rounded px-2 py-1.5 text-sm text-left transition-colors ${
-                          selected ? 'bg-gray-100 font-medium text-gray-900' : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        {opt.label}
-                        {selected && <Check size={14} className="shrink-0 text-gray-500" />}
-                      </button>
-                    )
-                  })}
-                </div>
+                {statuses.length > 0 && (
+                  <FilterGroup
+                    label="Status"
+                    choices={statusChoices}
+                    value={filter.status}
+                    onSelect={status => onChange({ ...filter, status })}
+                  />
+                )}
+                {docsChoices && (
+                  <FilterGroup
+                    label="Docs Section"
+                    choices={docsChoices}
+                    value={filter.docs}
+                    onSelect={docs => onChange({ ...filter, docs })}
+                    className={statuses.length > 0 ? 'mt-3 border-t border-gray-100 pt-3' : ''}
+                  />
+                )}
               </div>
             ) : null}
           </div>
