@@ -100,7 +100,7 @@ export default function AdminListFilterBar({
             value={filter.query}
             onChange={e => onChange({ ...filter, query: e.target.value })}
             placeholder={placeholder}
-            className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-8 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400"
+            className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-8 text-sm text-gray-900 focus:outline-none focus:border-gray-500"
           />
           {filter.query ? (
             <button

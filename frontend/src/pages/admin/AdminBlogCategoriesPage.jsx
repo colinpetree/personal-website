@@ -172,7 +172,7 @@ function AdminBlogCategoriesPageContent() {
           value={newName}
           onChange={e => setNewName(e.target.value)}
           placeholder="New category name…"
-          className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-100"
+          className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-gray-400"
         />
         <button
           type="submit"

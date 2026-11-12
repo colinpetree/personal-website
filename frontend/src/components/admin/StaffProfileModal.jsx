@@ -368,7 +368,7 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
               <button
                 type="button"
                 onClick={() => { setShowPasswordSection(true); setPwError('') }}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-left text-gray-400 bg-gray-50 hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-400 tracking-widest"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-left text-gray-400 bg-gray-50 hover:bg-gray-100 transition-colors focus:outline-none focus:border-gray-500 tracking-widest"
               >
                 ••••••••
               </button>
@@ -455,7 +455,7 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
                 value={local.role}
                 onChange={e => set('role', e.target.value)}
                 disabled={!canEdit}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 bg-white disabled:bg-gray-50 disabled:text-gray-500"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:border-gray-500 bg-white disabled:bg-gray-50 disabled:text-gray-500"
               >
                 {availableRoles.map(r => (
                   <option key={r} value={r}>{ROLE_LABELS[r]}</option>

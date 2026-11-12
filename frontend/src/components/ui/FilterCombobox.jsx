@@ -46,7 +46,7 @@ export default function FilterCombobox({
           if (selected) onChange(null)
           setOpen(true)
         }}
-        className={`w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 pr-7 outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-100 ${selected ? 'placeholder-gray-900 font-medium' : 'placeholder-gray-400'}`}
+        className={`w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 pr-7 outline-none focus:border-gray-400 ${selected ? 'placeholder-gray-900 font-medium' : 'placeholder-gray-400'}`}
       />
       {selected && (
         <button
