@@ -8,7 +8,7 @@ export const EMPTY_LIST_FILTER = { query: '', status: '', docs: '' }
 
 export const DOCS_FILTER_NONE = 'none'
 
-export const DEFAULT_LIST_SORT = 'created-desc'
+export const DEFAULT_LIST_SORT = 'updated-desc'
 
 export const STATUS_LABELS = { published: 'Published', scheduled: 'Scheduled', draft: 'Draft' }
 

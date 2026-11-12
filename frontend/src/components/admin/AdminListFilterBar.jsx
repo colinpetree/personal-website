@@ -1,5 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
-import { CalendarArrowDown, CalendarArrowUp, Check, History, LayoutGrid, Search, SlidersHorizontal, Table, X } from 'lucide-react'
+import {
+  ArrowDownWideNarrow,
+  CalendarArrowDown,
+  CalendarArrowUp,
+  Check,
+  History,
+  LayoutList,
+  Search,
+  SlidersHorizontal,
+  Table,
+  X,
+} from 'lucide-react'
 import Select from '../ui/Select'
 import { DOCS_FILTER_NONE, EMPTY_LIST_FILTER, STATUS_LABELS, isListFilterActive } from '../../lib/adminListFilter'
 
@@ -11,11 +22,29 @@ function sortIcon(value) {
 const withIcons = options => options.map(o => ({ ...o, icon: sortIcon(o.value) }))
 
 const VIEW_OPTIONS = [
-  { value: 'table', label: 'Table view', icon: Table },
-  { value: 'card', label: 'Card view', icon: LayoutGrid },
+  { value: 'table', label: 'Table', icon: Table },
+  { value: 'card', label: 'List', icon: LayoutList },
 ]
 
-// One labeled group of single-choice options inside the Filters popover.
+// Closes a popover on a click outside `ref` or on Escape.
+function useDismiss(open, setOpen, ref) {
+  useEffect(() => {
+    if (!open) return
+    const onDown = e => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    const onKey = e => e.key === 'Escape' && setOpen(false)
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open, setOpen, ref])
+}
+
+// One labeled group of single-choice options inside the Filters or Sort
+// popover. A choice with an `icon` shows it before its label.
 function FilterGroup({ label, choices, value, onSelect, className = '' }) {
   return (
     <div className={className}>
@@ -34,7 +63,10 @@ function FilterGroup({ label, choices, value, onSelect, className = '' }) {
                 selected ? 'bg-gray-100 font-medium text-gray-900' : 'text-gray-700 hover:bg-gray-50'
               }`}
             >
-              <span className="min-w-0 break-words">{opt.label}</span>
+              <span className="flex min-w-0 items-center gap-2">
+                {opt.icon ? <opt.icon size={14} className="shrink-0 text-gray-500" /> : null}
+                <span className="min-w-0 break-words">{opt.label}</span>
+              </span>
               {selected && <Check size={14} className="shrink-0 text-gray-500" />}
             </button>
           )
@@ -69,20 +101,11 @@ export default function AdminListFilterBar({
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
+  const [sortOpen, setSortOpen] = useState(false)
+  const sortRef = useRef(null)
 
-  useEffect(() => {
-    if (!open) return
-    const onDown = e => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
-    }
-    const onKey = e => e.key === 'Escape' && setOpen(false)
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
+  useDismiss(open, setOpen, ref)
+  useDismiss(sortOpen, setSortOpen, sortRef)
 
   const active = isListFilterActive(filter)
   // The search box is its own indicator, so the dot only tracks the popover.
@@ -163,13 +186,32 @@ export default function AdminListFilterBar({
           </div>
         )}
 
-        <Select
-          options={withIcons(sortOptions)}
-          value={sort}
-          onChange={onSortChange}
-          placeholder="Sort by"
-          className="min-w-0 flex-1 sm:w-48 sm:flex-none"
-        />
+        {/* The button always reads "Sort"; the popover shows which order is in use. */}
+        <div ref={sortRef} className="relative shrink-0">
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={sortOpen}
+            onClick={() => setSortOpen(o => !o)}
+            className="flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-600 transition-colors hover:bg-gray-50"
+          >
+            <ArrowDownWideNarrow size={14} />
+            Sort
+          </button>
+          {sortOpen ? (
+            <div className="absolute left-0 z-10 mt-1 w-56 rounded-md border border-gray-200 bg-white p-3 shadow-lg sm:left-auto sm:right-0">
+              <FilterGroup
+                label="Sort by"
+                choices={withIcons(sortOptions)}
+                value={sort}
+                onSelect={value => {
+                  onSortChange(value)
+                  setSortOpen(false)
+                }}
+              />
+            </div>
+          ) : null}
+        </div>
 
         {onViewChange ? (
           <Select
@@ -177,7 +219,7 @@ export default function AdminListFilterBar({
             value={view}
             onChange={onViewChange}
             placeholder="View"
-            className="min-w-0 flex-1 sm:w-36 sm:flex-none"
+            className="w-28 shrink-0"
           />
         ) : null}
       </div>
