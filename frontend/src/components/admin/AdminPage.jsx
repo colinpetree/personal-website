@@ -104,9 +104,11 @@ export function EditableCard({ title, description, savedValues, onSave, onDirtyC
   )
 }
 
-export function PageShell({ title, children, wide = false }) {
+// `wide` is for tables and charts; `medium` for lists whose toolbar needs a
+// little more room than a settings form (the Blog Posts and Pages card view).
+export function PageShell({ title, children, wide = false, medium = false }) {
   return (
-    <div className={`mx-auto px-8 py-10 ${wide ? 'max-w-5xl' : 'max-w-2xl'}`}>
+    <div className={`mx-auto px-8 py-10 ${wide ? 'max-w-5xl' : medium ? 'max-w-3xl' : 'max-w-2xl'}`}>
       <h1 className="text-2xl font-bold text-gray-900 mb-8">{title}</h1>
       {children}
     </div>

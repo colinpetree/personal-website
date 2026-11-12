@@ -5,6 +5,8 @@ import { PageShell } from '../../components/admin/AdminPage'
 import { useToast } from '../../context/ToastContext'
 import { useAdminAuth } from '../../context/AdminAuthContext'
 import AdminListFilterBar from '../../components/admin/AdminListFilterBar'
+import { Cell, DataTable, ListRow, TruncatedText } from '../../components/admin/ListTable'
+import { useListView } from '../../lib/adminListView'
 import {
   CREATED_SORT_OPTIONS,
   DEFAULT_LIST_SORT,
@@ -20,6 +22,37 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 function formatDate(iso) {
   if (!iso) return '-'
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+function formatDateTime(iso) {
+  if (!iso) return '-'
+  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
+// "Nov 11, 2026 14:05" for the table's Created and Updated columns.
+function formatDate24(iso) {
+  if (!iso) return '-'
+  const d = new Date(iso)
+  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+  return `${formatDate(iso)} ${time}`
+}
+
+const COLUMNS = [
+  { label: 'Title' },
+  { label: 'URL' },
+  { label: 'Status' },
+  { label: 'Published' },
+  { label: 'Created' },
+  { label: 'Updated' },
+  { label: '', srLabel: 'Edit', className: 'w-px' },
+]
+
+// A scheduled post's publish time, or a published post's date. A draft isn't
+// published even if it kept a publish_date from an earlier schedule.
+function publishedText(post) {
+  if (post.status === 'scheduled') return formatDateTime(post.publish_date)
+  if (post.status === 'published') return formatDate(post.publish_date)
+  return '-'
 }
 
 function formatScheduledTime(iso) {
@@ -40,10 +73,13 @@ function formatPublishDateTime(isoStr) {
   return `${month} ${day}, ${year} at ${time}`
 }
 
-function StatusLabel({ post }) {
+// `hoverDetail` shows the scheduled time beside the label on hover; the table
+// leaves it off since it has a Published column (and it would widen the cell).
+function StatusLabel({ post, hoverDetail = true }) {
   const [hovered, setHovered] = useState(false)
 
   if (post.status === 'scheduled') {
+    if (!hoverDetail) return <span className="text-xs font-medium" style={{ color: '#30cf43' }}>Scheduled</span>
     return (
       <span
         className="text-xs font-medium cursor-default"
@@ -114,6 +150,7 @@ export default function AdminBlogPostsPage() {
   const [publishConfirm, setPublishConfirm] = useState(null)
   const [filter, setFilter] = useState(EMPTY_LIST_FILTER)
   const [sort, setSort] = useState(DEFAULT_LIST_SORT)
+  const [view, setView] = useListView()
   const navigate = useNavigate()
   const location = useLocation()
   const { addToast } = useToast()
@@ -172,7 +209,7 @@ export default function AdminBlogPostsPage() {
   const shownPosts = sortList(filterList(visiblePosts, filter), sort)
 
   return (
-    <PageShell title="Blog Posts">
+    <PageShell title="Blog Posts" wide={view === 'table'} medium>
       <div className="mb-6 -mt-2">
         <button
           onClick={handleNew}
@@ -192,6 +229,8 @@ export default function AdminBlogPostsPage() {
             onChange={setFilter}
             sort={sort}
             onSortChange={setSort}
+            view={view}
+            onViewChange={setView}
             // Contributors only ever see their own drafts, so status filters
             // and publish-date sorts would have nothing to act on.
             sortOptions={[
@@ -207,6 +246,31 @@ export default function AdminBlogPostsPage() {
           />
           {shownPosts.length === 0 ? (
             <p className="text-gray-500 text-sm">No posts match these filters.</p>
+          ) : view === 'table' ? (
+            <DataTable columns={COLUMNS}>
+              {shownPosts.map(post => {
+                const [title, url, status, published, created, updated, edit] = COLUMNS
+                return (
+                  <ListRow key={post.id} to={`/admin/blog/posts/${post.id}`}>
+                    <Cell column={title}>
+                      <TruncatedText text={post.title} className="max-w-xs font-medium text-gray-900" />
+                    </Cell>
+                    <Cell column={url}>
+                      <TruncatedText text={`/${post.slug}`} className="max-w-[14rem] text-gray-400" />
+                    </Cell>
+                    <Cell column={status}>
+                      <StatusLabel post={post} hoverDetail={false} />
+                    </Cell>
+                    <Cell column={published} className="text-gray-600">{publishedText(post)}</Cell>
+                    <Cell column={created} className="text-gray-600">{formatDate24(post.created_at)}</Cell>
+                    <Cell column={updated} className="text-gray-600">{formatDate24(post.updated_at)}</Cell>
+                    <Cell column={edit}>
+                      <Pencil size={14} className="text-gray-400" />
+                    </Cell>
+                  </ListRow>
+                )
+              })}
+            </DataTable>
           ) : (
             <div className="flex flex-col divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
               {shownPosts.map(post => (

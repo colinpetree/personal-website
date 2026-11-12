@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { CalendarArrowDown, CalendarArrowUp, Check, History, Search, SlidersHorizontal, X } from 'lucide-react'
+import { CalendarArrowDown, CalendarArrowUp, Check, History, LayoutGrid, Search, SlidersHorizontal, Table, X } from 'lucide-react'
 import Select from '../ui/Select'
 import { DOCS_FILTER_NONE, EMPTY_LIST_FILTER, STATUS_LABELS, isListFilterActive } from '../../lib/adminListFilter'
 
@@ -9,6 +9,11 @@ function sortIcon(value) {
 }
 
 const withIcons = options => options.map(o => ({ ...o, icon: sortIcon(o.value) }))
+
+const VIEW_OPTIONS = [
+  { value: 'table', label: 'Table view', icon: Table },
+  { value: 'card', label: 'Card view', icon: LayoutGrid },
+]
 
 // One labeled group of single-choice options inside the Filters popover.
 function FilterGroup({ label, choices, value, onSelect, className = '' }) {
@@ -45,12 +50,15 @@ function FilterGroup({ label, choices, value, onSelect, className = '' }) {
 // values to offer. `docsSections` ({id, name} list) adds the Docs section
 // picker; leave it out on lists that have no Docs sections. With neither, the
 // Filters button is hidden. shown/total feed the "Showing X of Y" line while a
-// filter is active.
+// filter is active. `view`/`onViewChange` add the card/table view picker after
+// the sort picker (see lib/adminListView.js).
 export default function AdminListFilterBar({
   filter,
   onChange,
   sort,
   onSortChange,
+  view,
+  onViewChange,
   sortOptions,
   statuses,
   docsSections,
@@ -162,6 +170,16 @@ export default function AdminListFilterBar({
           placeholder="Sort by"
           className="min-w-0 flex-1 sm:w-48 sm:flex-none"
         />
+
+        {onViewChange ? (
+          <Select
+            options={VIEW_OPTIONS}
+            value={view}
+            onChange={onViewChange}
+            placeholder="View"
+            className="min-w-0 flex-1 sm:w-36 sm:flex-none"
+          />
+        ) : null}
       </div>
 
       {active ? (

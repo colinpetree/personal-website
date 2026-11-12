@@ -6,6 +6,8 @@ import { useToast } from '../../context/ToastContext'
 import { useAdminAuth } from '../../context/AdminAuthContext'
 import { Tooltip } from '../../components/ui/Tooltip'
 import AdminListFilterBar from '../../components/admin/AdminListFilterBar'
+import { Cell, DataTable, ListRow, TruncatedText } from '../../components/admin/ListTable'
+import { useListView } from '../../lib/adminListView'
 import {
   CREATED_SORT_OPTIONS,
   DEFAULT_LIST_SORT,
@@ -19,6 +21,24 @@ function formatDate(iso) {
   if (!iso) return '-'
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
+
+// "Nov 11, 2026 14:05" for the table's Created and Updated columns.
+function formatDate24(iso) {
+  if (!iso) return '-'
+  const d = new Date(iso)
+  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+  return `${formatDate(iso)} ${time}`
+}
+
+const COLUMNS = [
+  { label: 'Title' },
+  { label: 'URL' },
+  { label: 'Status' },
+  { label: 'Docs Section' },
+  { label: 'Created' },
+  { label: 'Updated' },
+  { label: '', srLabel: 'Edit', className: 'w-px' },
+]
 
 function StatusLabel({ page }) {
   if (page.status === 'published') {
@@ -69,6 +89,7 @@ export default function AdminPagesListPage() {
   const [publishConfirm, setPublishConfirm] = useState(null)
   const [filter, setFilter] = useState(EMPTY_LIST_FILTER)
   const [sort, setSort] = useState(DEFAULT_LIST_SORT)
+  const [view, setView] = useListView()
   const navigate = useNavigate()
   const location = useLocation()
   const { addToast } = useToast()
@@ -132,7 +153,7 @@ export default function AdminPagesListPage() {
   ].sort((a, b) => a.name.localeCompare(b.name))
 
   return (
-    <PageShell title="Pages">
+    <PageShell title="Pages" wide={view === 'table'} medium>
       <div className="mb-6 -mt-2">
         <button
           onClick={handleNew}
@@ -152,6 +173,8 @@ export default function AdminPagesListPage() {
             onChange={setFilter}
             sort={sort}
             onSortChange={setSort}
+            view={view}
+            onViewChange={setView}
             sortOptions={[...UPDATED_SORT_OPTIONS, ...CREATED_SORT_OPTIONS]}
             // Contributors only ever see their own drafts, so a status
             // filter would have nothing to act on.
@@ -164,6 +187,48 @@ export default function AdminPagesListPage() {
           />
           {shownPages.length === 0 ? (
             <p className="text-gray-500 text-sm">No pages match these filters.</p>
+          ) : view === 'table' ? (
+            <DataTable columns={COLUMNS}>
+              {shownPages.map(page => {
+                const [title, url, status, docs, created, updated, edit] = COLUMNS
+                return (
+                  <ListRow key={page.id} to={`/admin/pages/${page.id}`}>
+                    <Cell column={title}>
+                      <TruncatedText text={page.title} className="max-w-xs font-medium text-gray-900" />
+                    </Cell>
+                    <Cell column={url}>
+                      <TruncatedText text={`/${page.slug}`} className="max-w-[14rem] text-gray-400" />
+                    </Cell>
+                    <Cell column={status}>
+                      <StatusLabel page={page} />
+                    </Cell>
+                    <Cell column={docs}>
+                      {!page.docs_section ? (
+                        <span className="text-gray-400">-</span>
+                      ) : isContributor ? (
+                        // Contributors can't open Docs sections (editor+, see admin_docs.py).
+                        <TruncatedText text={page.docs_section.name} className="max-w-[12rem] text-gray-600" />
+                      ) : (
+                        <Tooltip content="Open Docs section">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/admin/docs/${page.docs_section.id}`)}
+                            className="block max-w-[12rem] truncate rounded-full bg-blue-50 px-2 py-px text-[11px] font-medium text-blue-600 hover:bg-blue-100 transition-colors"
+                          >
+                            {page.docs_section.name}
+                          </button>
+                        </Tooltip>
+                      )}
+                    </Cell>
+                    <Cell column={created} className="text-gray-600">{formatDate24(page.created_at)}</Cell>
+                    <Cell column={updated} className="text-gray-600">{formatDate24(page.updated_at)}</Cell>
+                    <Cell column={edit}>
+                      <Pencil size={14} className="text-gray-400" />
+                    </Cell>
+                  </ListRow>
+                )
+              })}
+            </DataTable>
           ) : (
             <div className="flex flex-col divide-y divide-gray-100 border border-gray-200 rounded-lg overflow-hidden">
               {shownPages.map(page => (
