@@ -1,0 +1,346 @@
+name: CI
+
+# Builds and tests every change (build-test.yml). What happens after the
+# tests pass depends on what started the run:
+#
+#   push to main    Leaves a DRAFT release, "Candidate <sha>", holding the
+#                   exact files that were tested. Each new passing push
+#                   replaces it. To release it: Actions -> Publish release ->
+#                   Run workflow, and pick patch, minor or major
+#                   (release.yml). Drafts are private and nothing installs
+#                   them.
+#   pull request    Tests only.
+#   Run workflow    Any branch, by hand:
+#                     trial  tests only, nothing is published.
+#                     test   publishes the branch as a PRE-release
+#                            (vX.Y.Z-test.<branch>.<sha>) and sends it to your
+#                            own site to try live. See RELEASING.md.
+#
+# Versions come from release tags; the repo has no VERSION file. A candidate
+# is labelled <newest release>-ci.<sha>, e.g. 0.9.6-ci.abc1234, which also
+# records which release its upgrade-migration test ran against.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "trial: build and test only. test: also publish a test build of this branch to your site."
+        type: choice
+        options: [trial, test]
+        default: trial
+      allow_migrations:
+        description: "test only: allow a test build that adds database migrations (back up production first)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# On main and on pull requests only the newest push matters, so a newer push
+# cancels an older run. A test build is different: it publishes and deploys,
+# so it joins the "publish" group shared with Publish release (both are
+# started by hand) and is never cancelled halfway.
+#
+# The automatic draft job deliberately stays OUT of the "publish" group:
+# GitHub keeps one running and one waiting run per group, and a frequent
+# automatic job there would replace (cancel) a waiting Publish. Instead the
+# two coordinate through draft titles: Publish renames the draft it works on
+# to "Publishing ...", and the draft job never deletes those.
+concurrency:
+  group: ${{ inputs.mode == 'test' && 'publish' || format('ci-{0}', github.ref) }}
+  cancel-in-progress: ${{ inputs.mode != 'test' }}
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.plan.outputs.mode }}
+      version: ${{ steps.plan.outputs.version }}
+      tag: ${{ steps.plan.outputs.tag }}
+      previous: ${{ steps.plan.outputs.previous }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Work out the version
+        id: plan
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_MODE: ${{ inputs.mode }}
+          ALLOW_MIGRATIONS: ${{ inputs.allow_migrations || false }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ]; then mode="$INPUT_MODE"; else mode=ci; fi
+
+          # The newest stable release tag reachable from main: the base for
+          # every version label, the upgrade-migration test and the
+          # dependency report.
+          git fetch -q origin main
+          previous="$(git tag --merged origin/main --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)"
+          base="${previous#v}"
+          base="${base:-0.0.0}"
+
+          case "$mode" in
+            ci|trial)
+              version="$base-ci.${GITHUB_SHA::7}"
+              ;;
+            test)
+              # Lowercase; anything outside a-z 0-9 - becomes -, so CI/CD -> ci-cd.
+              slug="$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]+/-/g; s/^-+|-+$//g' | cut -c1-40)"
+              version="$base-test.$slug.${GITHUB_SHA::7}"
+              # A test build installs on your real site. install.sh takes no
+              # database backup before migrating, and a migration cannot be
+              # undone by going back to the stable release.
+              if [ -n "$previous" ]; then
+                added="$(git diff --name-only --diff-filter=A "$previous" HEAD -- backend/migrations/ || true)"
+                if [ -n "$added" ] && [ "$ALLOW_MIGRATIONS" != "true" ]; then
+                  echo "::error::This branch adds database migrations: $(echo "$added" | tr '\n' ' ')"
+                  echo "::error::A test build would change the production database permanently, and install.sh takes no backup first. On production run: sudo systemctl start personal-website-backup  (then check it finished), and run this again with allow_migrations ticked."
+                  exit 1
+                fi
+              fi
+              if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+                echo "::error::Tag v$version already exists. Delete it (git push --delete origin v$version) or push a new commit."
+                exit 1
+              fi
+              ;;
+            *)
+              echo "::error::Unknown mode '$mode'"
+              exit 1
+              ;;
+          esac
+
+          {
+            echo "mode=$mode"
+            echo "version=$version"
+            echo "tag=v$version"
+            echo "previous=$previous"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## Build plan"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Mode | \`$mode\` |"
+            echo "| Branch | \`$BRANCH\` @ \`${GITHUB_SHA::7}\` |"
+            echo "| Version label | **$version** |"
+            echo "| Previous release | ${previous:-none} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    needs: prepare
+    uses: ./.github/workflows/build-test.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      previous: ${{ needs.prepare.outputs.previous }}
+      artifact_name: release-${{ needs.prepare.outputs.version }}
+
+  # Push to main only: keep exactly one draft release, for the newest commit
+  # that passed. Draft titles say what state a draft is in:
+  #   Uploading <sha7>                        files still uploading (or the
+  #                                           upload was cut off); never published
+  #   Candidate <sha7>, tested against <tag>  complete; what Publish release uses
+  #   Publishing <sha7>, tested against <tag> claimed by a Publish release run;
+  #                                           this job never deletes it
+  draft:
+    needs: [prepare, build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # create and delete draft releases
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      PREVIOUS: ${{ needs.prepare.outputs.previous }}
+      SHA: ${{ github.sha }}
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-${{ needs.prepare.outputs.version }}
+          path: out
+
+      - name: Check the files again
+        run: |
+          cd out
+          ls -l
+          sha256sum -c ./*.sha256
+
+      - name: Write the notes
+        run: |
+          set -euo pipefail
+          {
+            echo "**Candidate build** of \`main\` at ${SHA::7}, tested against ${PREVIOUS:-no earlier release}. Not released yet."
+            echo ""
+            echo "To release it: **Actions > Publish release > Run workflow**, and pick patch, minor or major. Nothing is rebuilt: these exact files become the release."
+            echo ""
+            if [ -n "$PREVIOUS" ]; then
+              echo "### Commits since $PREVIOUS"
+              echo ""
+              git log --no-merges --format='- %h %s' "$PREVIOUS..$SHA"
+              echo ""
+              echo "Compare: https://github.com/$GITHUB_REPOSITORY/compare/$PREVIOUS...$SHA"
+            else
+              echo "### Commits"
+              echo ""
+              git log --no-merges --format='- %h %s' -n 50 "$SHA"
+            fi
+            echo ""
+            cat out/dependency-changes.md
+          } > notes.md
+
+      # Create the new draft BEFORE deleting the old ones, so a cancelled run
+      # never leaves you with nothing to publish. It is created as
+      # "Uploading" and only renamed "Candidate" once every file is there,
+      # so a cut-off upload can never be picked by Publish release.
+      - name: Create the draft release
+        run: |
+          set -euo pipefail
+          tag="ci-${SHA::7}"
+          # A rerun of the same commit replaces its own draft (same code),
+          # unless a Publish release run has already claimed it.
+          existing="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft,name -q 'select(.isDraft) | .name' 2>/dev/null || true)"
+          case "$existing" in
+            "") ;;
+            "Publishing "*)
+              echo "::notice::Draft $tag is being published by a Publish release run; leaving it alone."
+              exit 0 ;;
+            *) gh release delete "$tag" --repo "$GITHUB_REPOSITORY" -y ;;
+          esac
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --draft --target "$SHA" \
+            --title "Uploading ${SHA::7}" --notes-file notes.md \
+            out/server-bundle-*.tar.gz out/server-bundle-*.tar.gz.sha256 \
+            out/personal-website-*.tar.gz out/personal-website-*.tar.gz.sha256 \
+            out/last-build-requirements.txt
+
+          # Every file must be on the draft before it becomes a Candidate.
+          got="$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' | sort)"
+          want="$(cd out && ls server-bundle-*.tar.gz server-bundle-*.tar.gz.sha256 personal-website-*.tar.gz personal-website-*.tar.gz.sha256 last-build-requirements.txt | sort)"
+          if [ "$got" != "$want" ]; then
+            echo "::error::The draft is missing files. Expected:"; echo "$want"; echo "Got:"; echo "$got"
+            exit 1
+          fi
+          # The title is read back by release.yml: keep the "Candidate " prefix
+          # and the "tested against <tag|none>" ending.
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --title "Candidate ${SHA::7}, tested against ${PREVIOUS:-none}"
+          echo "Draft release **Candidate ${SHA::7}** is ready. Publish it from Actions > Publish release." >> "$GITHUB_STEP_SUMMARY"
+
+      # Older Candidate drafts and cut-off Uploading drafts go; a draft a
+      # Publish release run has claimed ("Publishing ...") is never touched.
+      # The title is checked again right before each delete, in case Publish
+      # claimed it after the list was read.
+      - name: Remove older drafts
+        run: |
+          set -euo pipefail
+          keep="ci-${SHA::7}"
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,isDraft,name \
+            -q '.[] | select(.isDraft and ((.name | startswith("Candidate ")) or (.name | startswith("Uploading ")))) | .tagName' \
+            | { grep -vx -- "$keep" || true; } | while read -r t; do
+              name="$(gh release view "$t" --repo "$GITHUB_REPOSITORY" --json name -q .name 2>/dev/null || true)"
+              case "$name" in
+                "Candidate "*|"Uploading "*)
+                  echo "Deleting older draft $t ($name)"
+                  gh release delete "$t" --repo "$GITHUB_REPOSITORY" -y || true ;;
+                *) echo "Leaving $t alone (now '$name')" ;;
+              esac
+            done
+
+  # Run workflow with mode "test" only: publish this branch as a pre-release
+  # and send it to your own site.
+  testbuild:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.mode == 'test'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # push the test tag and publish the pre-release
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+      TAG: ${{ needs.prepare.outputs.tag }}
+      PREVIOUS: ${{ needs.prepare.outputs.previous }}
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-${{ needs.prepare.outputs.version }}
+          path: out
+
+      - name: Check the files again
+        run: |
+          cd out
+          ls -l
+          sha256sum -c ./*.sha256
+
+      # Tag the exact commit that was built, nothing else.
+      - name: Tag and push
+        run: |
+          set -euo pipefail
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "$TAG"
+
+      - name: Write the release notes
+        run: |
+          {
+            echo "**TEST BUILD** of branch \`${GITHUB_REF_NAME}\` at ${GITHUB_SHA::7}. Not a release: it is a pre-release, so other sites never install it."
+            echo ""
+            echo "Changes: https://github.com/$GITHUB_REPOSITORY/compare/${PREVIOUS:-main}...$TAG"
+            echo ""
+            echo "- \`server-bundle-$TAG-linux-arm64.tar.gz\`: backend, migrations and deploy files. Each site's dist repo adds its own prerendered pages to this."
+            echo "- \`personal-website-$TAG.tar.gz\`: template build (no prerendered pages, AI demos off), installable with install.sh."
+            echo ""
+            cat out/dependency-changes.md
+          } > notes.md
+
+      - name: Publish the pre-release
+        run: |
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes-file notes.md --prerelease \
+            out/server-bundle-*.tar.gz out/server-bundle-*.tar.gz.sha256 \
+            out/personal-website-*.tar.gz out/personal-website-*.tar.gz.sha256 \
+            out/last-build-requirements.txt
+
+      # Needs secret DIST_DISPATCH_TOKEN (a fine-grained token with Actions:
+      # read and write on those repos) and variable OWN_DIST_REPOS
+      # (space-separated owner/repo list). A test build is only installed
+      # when this tells the dist repo about it.
+      - name: Send it to your dist repos
+        env:
+          DISPATCH_TOKEN: ${{ secrets.DIST_DISPATCH_TOKEN }}
+          REPOS: ${{ vars.OWN_DIST_REPOS }}
+        run: |
+          how="Actions -> Publish site -> Run workflow, with test_tag set to $TAG"
+          if [ -z "$DISPATCH_TOKEN" ] || [ -z "$REPOS" ]; then
+            echo "::warning::DIST_DISPATCH_TOKEN or OWN_DIST_REPOS not set, so no site was told about $TAG. Start it by hand in the dist repo: $how."
+            exit 0
+          fi
+          # --ref main: see the same step in release.yml.
+          failed=0
+          for repo in $REPOS; do
+            if GH_TOKEN="$DISPATCH_TOKEN" gh workflow run publish.yml --repo "$repo" --ref main -f test_tag="$TAG"; then
+              echo "Started publish.yml in $repo"
+            else
+              echo "::error::Could not start publish.yml in $repo, but $TAG IS published. Start the build by hand there: $how."
+              failed=1
+            fi
+          done
+          exit "$failed"

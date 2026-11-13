@@ -11,14 +11,15 @@ name: Build site (reusable)
 #      - otherwise                       -> nothing (most scheduled runs)
 #   2. prerenders the site's frontend against its live content,
 #   3. adds the matching server bundle from the upstream public release
-#      (built and tested once, by release.yml),
+#      (built and tested once, by CI's build-test.yml, and published by
+#      release.yml),
 #   4. publishes the finished tarball as a release in the CALLING repo, where
 #      the site's production server (update-watch.sh) picks it up.
 #
 # A site needs no build machine of its own: GitHub Actions does all of it.
 #
 # The backend is not rebuilt or retested here; that already happened in
-# release.yml. What can still fail here is only about this site: its live
+# CI (build-test.yml). What can still fail here is only about this site: its live
 # API being unreachable, or something in its real content. Nothing is
 # published unless every check below passes, so production keeps running
 # the version it has.
@@ -51,7 +52,7 @@ on:
         type: boolean
         default: false
       test_tag:
-        description: "Publish this upstream test pre-release (sent by release.yml's test mode)"
+        description: "Publish this upstream test pre-release (sent by ci.yml's test mode)"
         type: string
         default: ""
       mode:

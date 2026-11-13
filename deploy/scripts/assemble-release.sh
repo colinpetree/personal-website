@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Packages a release tarball. Used by GitHub Actions (.github/workflows/
-# release.yml and build-instance.yml) and by the Pi fallback
+# build-test.yml and build-instance.yml) and by the Pi fallback
 # (deploy/scripts/build-on-pi.sh), so every release has the same layout no
 # matter what built it.
 #
@@ -76,6 +76,13 @@ _arch() {
 }
 
 if [ "$MODE" = "server" ]; then
+    # The repo has no committed VERSION file (versions come from git tags):
+    # whatever builds the release writes one first (CI's build-test.yml,
+    # build-on-pi.sh).
+    if [ ! -f "$REPO_DIR/VERSION" ]; then
+        echo "assemble-release.sh: no $REPO_DIR/VERSION. Write the version being built into it first (e.g. echo 1.2.3 > VERSION)." >&2
+        exit 1
+    fi
     VERSION="$(tr -d '[:space:]' < "$REPO_DIR/VERSION")"
     BACKEND_DIST="$REPO_DIR/backend/dist/server"
     if [ ! -x "$BACKEND_DIST/server" ]; then

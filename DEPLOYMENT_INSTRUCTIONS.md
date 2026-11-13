@@ -20,8 +20,8 @@ Replace every `<placeholder>`. `<domain>` is your site's domain (for example
 How the pieces fit together, once set up:
 
 ```
-colinpetree/personal-website (public)       builds and tests each version once,
-  Release vX.Y.Z                             publishes a server bundle
+colinpetree/personal-website (public)       CI builds and tests every push;
+  Publish release -> vX.Y.Z                  publishes a tested server bundle
         |
         v
 <you>/personal-website-dist-<domain> (private, yours)
