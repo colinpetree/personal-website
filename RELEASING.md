@@ -2,24 +2,43 @@
 
 Releases are built by GitHub Actions. There is nothing to SSH into and no version number to type.
 
-- **Code:** `colinpetree/personal-website` (public) builds and tests the code once per version: `.github/workflows/release.yml`.
+- **Code:** `colinpetree/personal-website` (public) builds and tests every push to `main` and every pull request (`.github/workflows/ci.yml`, using `build-test.yml`). A push that passes leaves a draft release, and you publish it when you choose (`.github/workflows/release.yml`).
+- **Versions** come from git tags (`vX.Y.Z`). The repo has no `VERSION` file and no "Release" commits, so there is nothing to pull after a release.
 - **Your site:** your private dist repo (`colinpetree/personal-website-dist-colinpetree.com`) prerenders the site against its live content and publishes the release your server installs. Its `.github/workflows/publish.yml` calls `.github/workflows/build-instance.yml` here.
 - **Production:** `update-watch.sh` installs the newest dist release within about 5 minutes, as before.
 
 The Pi now only pulls a copy of the nightly backups (see `deploy/BACKUP.md`). If GitHub Actions is ever down, `deploy/scripts/publish-release.sh` still builds and publishes from the Pi as a manual fallback (`--patch`, or `--ref <branch>` to try a branch). A release made that way has no server bundle on the public repo, so the dist repo can't make content releases on top of it: run a normal GitHub release once GitHub is back.
 
-## Every code release
+## Every push: CI
 
-1. Push your work to `main`.
-2. GitHub, **Actions**, **Release**, **Run workflow**. Leave "Use workflow from" on `main`, pick `patch`, `minor` or `major`, and run it. From a terminal: `gh workflow run release.yml -f bump=patch`.
-3. That's it. The run:
-   - works out the next version from `VERSION` (shown in the run summary, for example "0.9.3 -> 0.9.4");
-   - builds the backend on ARM64 and runs the tests: dependency imports, migrations on a fresh Postgres and as an upgrade from the previous release, a prerender of sample content, a real-browser hydration test, and the CSP check;
-   - only if everything passed: commits `VERSION`, tags `vX.Y.Z`, pushes, and publishes the public release;
+Push to `main` and **CI** runs by itself (about 5 minutes). It builds the backend on ARM64 and runs the tests: dependency imports, migrations on a fresh Postgres and as an upgrade from the previous release, a prerender of sample content, a real-browser hydration test, and the CSP check.
+
+- **Passed:** it leaves a **draft release** named `Candidate <sha>, tested against vX.Y.Z` on the Releases page, holding the exact files it tested, with the commits since the last release in its notes. Each passing push replaces the draft, so there is only ever one. Drafts are private and nothing installs them: until you publish, a push is only a test of the build.
+- **Failed:** GitHub emails you. The previous draft (if any) stays as it was.
+- Pushing again while CI is running cancels the older run; only the newest commit matters.
+
+Pull requests (including Dependabot's) run the same tests, without leaving a draft.
+
+## Every code release: Publish release
+
+1. Check the newest CI run on `main` passed (a `Candidate` draft exists for it).
+2. GitHub, **Actions**, **Publish release**, **Run workflow**. Leave "Use workflow from" on `main`, pick `patch`, `minor` or `major`, and run it. From a terminal: `gh workflow run release.yml -f bump=patch`.
+3. That's it. Nothing is rebuilt. The run (about a minute):
+   - works out the next version from the newest release tag (shown in the run summary, for example "v0.9.6 -> v0.9.7");
+   - relabels the draft's tested files as that version (`deploy/scripts/reversion-release.sh`, which checks nothing else changed);
+   - tags the tested commit `vX.Y.Z` and publishes the draft as the release;
    - starts your dist repo's `publish.yml` (if `DIST_DISPATCH_TOKEN` is set), which prerenders your site and publishes it. Production installs it on its next check.
-4. Run `git pull` before your next change, to get the `VERSION` commit.
 
-If it fails, GitHub emails you and nothing is committed, tagged or published. If you pushed to `main` while it was building, it stops before publishing; run it again.
+The run summary lists any commits on `main` that came after the tested build and so are **not** in the release (their CI failed or hadn't finished).
+
+If it stops:
+
+- **"No tested build waiting":** push to `main` and wait for CI to pass.
+- **"upgrade-migration test is out of date":** a release was published after this draft was built. Open the newest CI run on `main`, **Re-run all jobs**, then publish again.
+- **Failed partway** (for example a GitHub error while uploading): just run it again with the same bump. Once a run starts, it renames the draft to `Publishing <sha>...`, and the next run carries on with that draft and its tag. To give up on it instead, delete the `Publishing` draft on the Releases page (and its tag, if one was pushed); the next CI run on `main` makes a new Candidate.
+- **"replaced by a newer build":** a push to `main` finished CI at the same moment you started. Nothing was tagged; run it again.
+
+Pushing to `main` while Publish release runs is fine: CI never deletes a `Publishing` draft, and a draft whose upload was cut off stays named `Uploading <sha>`, so it can never be published.
 
 On the 1st of each month, **Actions**, **Dependency audit** checks the packages in the latest release, and what the next release would ship, for known security problems. If it finds any, the run fails and GitHub emails you; the run's summary shows the details. Run it any time from the same page.
 
@@ -31,9 +50,9 @@ Nothing to do. About 7 minutes after you stop editing, production's `content-dis
 
 ## Checking a branch
 
-**Tests only:** Actions, Release, Run workflow, choose your branch in "Use workflow from", `bump: trial`. Nothing is published.
+**Tests only:** open a pull request, or Actions, **CI**, Run workflow, choose your branch in "Use workflow from", `mode: trial`. Nothing is published. From a terminal: `gh workflow run ci.yml --ref <branch> -f mode=trial`.
 
-**Try it on colinpetree.com:** same, but `bump: test`.
+**Try it on colinpetree.com:** Actions, **CI**, Run workflow, your branch, `mode: test` (`gh workflow run ci.yml --ref <branch> -f mode=test`).
 
 - It runs every test, then publishes a **pre-release** `vX.Y.Z-test.<branch>.<sha>` (other sites never install pre-releases) and sends it to your dist repo, which publishes it for production. Site Settings shows the test version once it's live.
 - While a test build is live, automatic content updates pause, so an edit can't quietly replace your test with `main`. Edits are saved; they're prerendered when the test ends.
@@ -42,7 +61,7 @@ Nothing to do. About 7 minutes after you stop editing, production's `content-dis
 
 To end a test:
 
-- **Ship it:** merge to `main` and run a normal `patch`/`minor`/`major` release. The newer version replaces the test.
+- **Ship it:** merge to `main`, wait for CI, and run Publish release with `patch`/`minor`/`major`. The newer version replaces the test.
 - **Change it:** push more commits and run `test` again.
 - **Go back:** in the dist repo, Actions, Publish site, Run workflow, `mode: resume`. It rebuilds the last stable version and production reinstalls it.
 
@@ -67,7 +86,7 @@ Fine-grained tokens expire. When the production token stops working you get one 
 
 ## Where to look when something is wrong
 
-- A release or site build: the run's page under Actions. Failures are emailed to you.
+- CI, a release or a site build: the run's page under Actions. Failures are emailed to you.
 - Production installing: `sudo journalctl -u personal-website-updater -n 50`
 - Content triggers: `sudo journalctl -u personal-website-content-dispatch -n 20`
 - Roll back by hand: `sudo bash /opt/personal-website/current/deploy/rollback.sh`

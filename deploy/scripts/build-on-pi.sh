@@ -66,9 +66,9 @@ cd "$REPO_DIR"
 if [ -n "${ASSEMBLE_ONLY:-}" ]; then
     echo "==> ASSEMBLE_ONLY set - skipping git sync/build/smoke test, packaging whatever's already built"
 else
-    # publish-release.sh no longer needs to protect an uncommitted VERSION
-    # bump here - it now decides/writes the bump AFTER this build succeeds
-    # (see its own comments), so a plain git sync is always safe at this point.
+    # publish-release.sh decides and writes a bump only AFTER this build
+    # succeeds (see its own comments), and VERSION is untracked anyway, so a
+    # plain git sync is always safe at this point.
     if [ -d .git ]; then
         # BUILD_REF picks the branch to build (publish-release.sh --ref sets
         # it); it defaults to main, never "whatever branch the checkout was
@@ -81,10 +81,23 @@ else
         echo "==> Pulling $BUILD_REF from origin"
         git fetch origin "$BUILD_REF"
         git checkout -f -B "$BUILD_REF" "origin/$BUILD_REF"
+
+        # Versions come from git tags; the repo has no committed VERSION file.
+        # Write the newest release's version for assemble-release.sh.
+        # publish-release.sh overwrites it with the bumped version before
+        # assembling a bump release.
+        git fetch -q --tags origin main
+        # shellcheck source=lib/latest-version.sh
+        source "$REPO_DIR/deploy/scripts/lib/latest-version.sh"
+        latest_stable_version > VERSION
     else
         echo "WARNING: $REPO_DIR is not a git checkout - building whatever is on disk as-is."
     fi
 
+    if [ ! -f VERSION ]; then
+        echo "BUILD FAILED: no VERSION file and no git checkout to work one out from. Write it by hand (echo 1.2.3 > VERSION)."
+        exit 1
+    fi
     VERSION="$(cat VERSION | tr -d '[:space:]')"
     echo "==> Building v$VERSION from $REPO_DIR"
 fi

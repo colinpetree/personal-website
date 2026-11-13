@@ -1,179 +1,68 @@
-name: Release
+name: Publish release
 
-# Builds and tests the site's code once per version on an ARM64 runner (the
-# same CPU and OS as production), then publishes a public GitHub Release
-# holding:
-#   - server-bundle-vX.Y.Z-linux-arm64.tar.gz: the frozen backend, migrations
-#     and deploy files. Each site's private dist repo downloads this and adds
-#     its own prerendered frontend (see build-instance.yml).
-#   - personal-website-vX.Y.Z.tar.gz: the template build (no prerendered
-#     pages, AI demos off), installable on any fresh server.
+# Turns the tested draft release into a real release. Nothing is built here.
 #
-# Start it from the Actions tab: Release -> Run workflow, pick a branch in
-# "Use workflow from" and a `bump`:
-#   patch / minor / major  bump VERSION, tag and publish (main only). You never
-#                          type a version number: it is worked out from VERSION.
-#   trial                  build and test only; nothing is committed or published.
-#                          Works on any branch.
-#   test                   publish a test build of any branch as a PRE-release
-#                          (vX.Y.Z-test.<branch>.<sha>) and send it to your own
-#                          site to try live. No VERSION commit. See RELEASING.md.
+# How a release happens:
+#   1. Push to main. CI (ci.yml) builds and tests it, and if everything passes
+#      leaves a draft release "Candidate <sha>, tested against <tag>" holding
+#      the exact files it tested. Each new passing push replaces the draft.
+#   2. When you want to release: Actions -> Publish release -> Run workflow
+#      (leave "Use workflow from" on main) and pick patch, minor or major.
+#      From a terminal: gh workflow run release.yml -f bump=patch
 #
-# Order matters, as in the old publish-release.sh: everything is built and
-# tested first; VERSION is committed, tagged and pushed only after that
-# passes. A failed run never uses up a version number.
+# This workflow then:
+#   - works out the version from the newest release tag (there is no VERSION
+#     file in the repo), e.g. v0.9.6 + minor = v0.10.0
+#   - relabels the draft's files as that version
+#     (deploy/scripts/reversion-release.sh: renames the files and the folder
+#     inside, rewrites VERSION, and checks nothing else changed)
+#   - tags the commit CI tested (no commit is pushed to main, so there is
+#     nothing to pull afterwards)
+#   - publishes the draft as the release, removes old test builds and tells
+#     your dist repos.
 #
-# PyInstaller cannot cross-compile, so the backend must be built on ARM64 to
-# run on production's Graviton (t4g) servers.
+# Draft titles (written by ci.yml's draft job):
+#   Uploading <sha7>                        files still uploading; ignored here
+#   Candidate <sha7>, tested against <tag>  complete, ready to publish
+#   Publishing <sha7>, tested against <tag> claimed by a run of this workflow
+# This workflow renames the Candidate it picks to "Publishing" before it tags
+# anything, and CI never deletes a "Publishing" draft, so a push landing
+# mid-publish can't pull the draft out from under it.
+#
+# Safe to run again if it fails partway: a "Publishing" draft is picked up
+# first, and an existing tag on the same commit with no published release is
+# carried on from. To give up on a claimed draft instead, delete it on the
+# Releases page (and its tag, if one was pushed).
 
 on:
   workflow_dispatch:
     inputs:
       bump:
-        description: "patch/minor/major release (main only), trial (test only), or test (try a branch on your site)"
+        description: "Which part of the version to raise"
         type: choice
-        options: [patch, minor, major, trial, test]
+        options: [patch, minor, major]
         default: patch
-      allow_migrations:
-        description: "test only: allow a test build that adds database migrations (back up production first)"
-        type: boolean
-        default: false
 
 permissions:
   contents: read
 
-# One release at a time, so two runs can never pick the same next version.
+# Shared with CI's test builds (also started by hand), never with CI's
+# automatic draft job: GitHub keeps one waiting run per group, and an
+# automatic job in it would cancel a waiting Publish. Draft titles keep the
+# two apart instead (see above).
 concurrency:
-  group: release
+  group: publish
   cancel-in-progress: false
 
 jobs:
-  prepare:
+  publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      mode: ${{ steps.plan.outputs.mode }}
-      version: ${{ steps.plan.outputs.version }}
-      tag: ${{ steps.plan.outputs.tag }}
-      publish: ${{ steps.plan.outputs.publish }}
-      previous: ${{ steps.plan.outputs.previous }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-
-      - name: Work out the version
-        id: plan
-        shell: bash
-        env:
-          BUMP: ${{ inputs.bump }}
-          ALLOW_MIGRATIONS: ${{ inputs.allow_migrations || false }}
-          BRANCH: ${{ github.ref_name }}
-        run: |
-          set -euo pipefail
-          current="$(tr -d '[:space:]' < VERSION)"
-          if ! [[ "$current" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::VERSION is '$current'; it must look like 1.2.3"
-            exit 1
-          fi
-          # The newest stable release tag reachable from main: the base for
-          # the migration check and the dependency report.
-          git fetch -q origin main
-          previous="$(git tag --merged origin/main --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)"
-
-          IFS=. read -r major minor patch <<< "$current"
-          case "$BUMP" in
-            patch|minor|major)
-              if [ "$BRANCH" != "main" ]; then
-                echo "::error::A $BUMP release must run on main (this run is on '$BRANCH'). To try a branch, use bump: trial (tests only) or bump: test (deploys it to your site)."
-                exit 1
-              fi
-              case "$BUMP" in
-                major) major=$((major + 1)); minor=0; patch=0 ;;
-                minor) minor=$((minor + 1)); patch=0 ;;
-                patch) patch=$((patch + 1)) ;;
-              esac
-              version="$major.$minor.$patch"
-              publish=true
-              ;;
-            test)
-              # Lowercase; anything outside a-z 0-9 - becomes -, so CI/CD -> ci-cd.
-              slug="$(echo "$BRANCH" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9-]+/-/g; s/^-+|-+$//g' | cut -c1-40)"
-              # Base it on the newer of this branch's VERSION and the latest
-              # stable release. A branch made before the latest release has an
-              # older VERSION, and a test labelled older than what is live would
-              # be replaced by that stable release on the site's next check.
-              base="$current"
-              if [ -n "$previous" ] && [ "$(printf '%s\n%s\n' "${previous#v}" "$current" | sort -V | tail -1)" != "$current" ]; then
-                base="${previous#v}"
-              fi
-              version="$base-test.$slug.${GITHUB_SHA::7}"
-              publish=true
-              # A test build installs on your real site. install.sh takes no
-              # database backup before migrating, and a migration cannot be
-              # undone by going back to the stable release.
-              if [ -n "$previous" ]; then
-                added="$(git diff --name-only --diff-filter=A "$previous" HEAD -- backend/migrations/ || true)"
-                if [ -n "$added" ] && [ "$ALLOW_MIGRATIONS" != "true" ]; then
-                  echo "::error::This branch adds database migrations: $(echo "$added" | tr '\n' ' ')"
-                  echo "::error::A test build would change the production database permanently, and install.sh takes no backup first. On production run: sudo systemctl start personal-website-backup  (then check it finished), and run this again with allow_migrations ticked."
-                  exit 1
-                fi
-              fi
-              ;;
-            trial)
-              version="$current"
-              publish=false
-              ;;
-            *)
-              echo "::error::Unknown bump '$BUMP'"
-              exit 1
-              ;;
-          esac
-
-          tag="v$version"
-          if [ "$publish" = true ] && git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-            echo "::error::Tag $tag already exists. If an earlier run failed after tagging, delete the tag (git push --delete origin $tag) or bump again."
-            exit 1
-          fi
-
-          {
-            echo "mode=$BUMP"
-            echo "version=$version"
-            echo "tag=$tag"
-            echo "publish=$publish"
-            echo "previous=$previous"
-          } >> "$GITHUB_OUTPUT"
-          {
-            echo "## Release plan"
-            echo ""
-            echo "| | |"
-            echo "|---|---|"
-            echo "| Mode | \`$BUMP\` |"
-            echo "| Branch | \`$BRANCH\` @ \`${GITHUB_SHA::7}\` |"
-            echo "| Version | $current -> **$version** |"
-            echo "| Publishes | $publish |"
-            echo "| Previous release | ${previous:-none} |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  build:
-    needs: prepare
-    runs-on: ubuntu-24.04-arm
-    timeout-minutes: 45
+    timeout-minutes: 20
+    permissions:
+      contents: write # push the tag and publish the release
     env:
-      VERSION: ${{ needs.prepare.outputs.version }}
-      OUT: ${{ github.workspace }}/out
-    services:
-      # Real Postgres for the migration and fixture tests. Production runs
-      # Postgres; SQLite cannot run several of the .sql migrations at all.
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_PASSWORD: ci
-        ports: ["5432:5432"]
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s --health-timeout 5s --health-retries 20
+      BUMP: ${{ inputs.bump }}
+      GH_TOKEN: ${{ github.token }}
     defaults:
       run:
         shell: bash
@@ -182,296 +71,253 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version-file: frontend/.nvmrc
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: |
-            backend/requirements.txt
-            backend/requirements-build.txt
-
-      - name: Set VERSION for this build
+      - name: Find and check the tested draft
+        id: plan
         run: |
-          echo "$VERSION" > VERSION
-          mkdir -p "$OUT"
+          set -euo pipefail
+          if [ "$GITHUB_REF_NAME" != "main" ]; then
+            echo "::error::Publish release must run on main (this run is on '$GITHUB_REF_NAME'). To try a branch, use Actions -> CI -> Run workflow with mode test."
+            exit 1
+          fi
 
-      # First, on its own: every package must have an ARM64 wheel (or build
-      # from source here). A missing one should fail plainly at this step.
-      - name: Install Python packages
-        run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r backend/requirements-build.txt
-          # The exact package set frozen into this release; the next release
-          # diffs against it, and the dependency audit checks it.
-          python -m pip freeze --exclude pyinstaller --exclude pyinstaller-hooks-contrib --exclude altgraph > "$OUT/last-build-requirements.txt"
+          # Newest first. A draft an earlier run claimed comes before any
+          # Candidate, so a failed publish is finished rather than abandoned.
+          list="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName,isDraft,name \
+            -q '.[] | select(.isDraft) | [.tagName, .name] | @tsv')"
+          claimed_drafts="$(echo "$list" | awk -F'\t' '$2 ~ /^Publishing / { print $1 }')"
+          candidates="$(echo "$list" | awk -F'\t' '$2 ~ /^Candidate / { print $1 }')"
+          if [ -n "$claimed_drafts" ]; then
+            if [ "$(echo "$claimed_drafts" | wc -l)" -gt 1 ]; then
+              echo "::error::More than one draft is marked 'Publishing' ($(echo "$claimed_drafts" | tr '\n' ' ')). Delete the ones you don't want on the Releases page, then run this again."
+              exit 1
+            fi
+            draft="$claimed_drafts"
+            claimed=true
+            echo "Carrying on with draft $draft, claimed by an earlier Publish release run."
+          elif [ -n "$candidates" ]; then
+            draft="$(echo "$candidates" | head -1)"
+            claimed=false
+          else
+            echo "::error::No tested build waiting. Push to main and wait for CI to pass; it leaves a 'Candidate' draft release to publish."
+            exit 1
+          fi
+          title="$(gh release view "$draft" --repo "$GITHUB_REPOSITORY" --json name -q .name)"
+          sha="$(gh release view "$draft" --repo "$GITHUB_REPOSITORY" --json targetCommitish -q .targetCommitish)"
+          tested_against="${title##*tested against }"
 
-      - name: Build the backend (PyInstaller)
-        working-directory: backend
-        run: |
-          rm -rf build dist
-          pyinstaller pyinstaller.spec --distpath dist --workpath build --noconfirm
-          test -x dist/server/server || { echo "::error::frozen binary not found at backend/dist/server/server"; exit 1; }
+          # Every stop below: a draft this workflow already claimed needs a
+          # way out, or every later run would keep picking it.
+          fail() {
+            echo "::error::$1"
+            if [ "$claimed" = true ]; then
+              echo "::error::Draft '$title' was claimed by an earlier Publish release run. To start over, delete it on the Releases page (and its tag, if one was pushed); the next CI run on main makes a new Candidate."
+            fi
+            exit 1
+          }
 
-      - name: "Smoke test: dependency imports"
-        run: backend/dist/server/server --check-imports
+          git fetch -q --tags origin main
+          if ! git cat-file -e "$sha^{commit}" 2>/dev/null; then
+            fail "The draft '$title' points at $sha, which is not in this repository."
+          fi
+          if ! git merge-base --is-ancestor "$sha" origin/main; then
+            fail "The draft '$title' was built from $sha, which is not on main (was main force-pushed?). Push to main again to get a new candidate."
+          fi
 
-      - name: Prepare test databases and secrets
-        run: |
-          python - <<'PY'
-          import psycopg2
-          conn = psycopg2.connect(host='127.0.0.1', user='postgres', password='ci', dbname='postgres')
-          conn.autocommit = True
-          with conn.cursor() as cur:
-              for name in ('ci_fresh', 'ci_upgrade', 'ci_fixture'):
-                  cur.execute(f'CREATE DATABASE {name}')
-          print('created ci_fresh, ci_upgrade, ci_fixture')
-          PY
+          # Same rule CI uses: the newest stable tag reachable from main.
+          stable_tags="$(git tag --merged origin/main --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V || true)"
+          previous="$(echo "$stable_tags" | tail -1)"
+
+          # Resuming after a failure partway through: an earlier attempt
+          # already tagged this very commit but never finished publishing.
+          # That tag is this release, not the one it was tested against.
+          resume_tag=""
+          if [ -n "$previous" ] && [ "$(git rev-list -n 1 "$previous")" = "$sha" ]; then
+            if [ "$(gh release view "$previous" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft 2>/dev/null || true)" = "false" ]; then
+              fail "$previous is already published from this build (${sha::7}). Push to main to get a new candidate."
+            fi
+            resume_tag="$previous"
+            previous="$(echo "$stable_tags" | grep -vx -- "$resume_tag" | tail -1 || true)"
+            echo "An earlier run tagged ${sha::7} as $resume_tag without finishing: carrying on from there."
+          fi
+
+          if [ "$tested_against" != "${previous:-none}" ]; then
+            fail "The draft was tested against ${tested_against}, but the newest release is now ${previous:-none}, so its upgrade-migration test is out of date. Re-run the latest CI run on main (Actions -> CI -> the run for ${sha::7} -> Re-run all jobs), then publish again."
+          fi
+
+          base="${previous#v}"
+          base="${base:-0.0.0}"
+          IFS=. read -r major minor patch <<< "$base"
+          case "$BUMP" in
+            major) major=$((major + 1)); minor=0; patch=0 ;;
+            minor) minor=$((minor + 1)); patch=0 ;;
+            patch) patch=$((patch + 1)) ;;
+            *) echo "::error::Unknown bump '$BUMP'"; exit 1 ;;
+          esac
+          version="$major.$minor.$patch"
+          tag="v$version"
+
+          tag_exists=false
+          if [ -n "$resume_tag" ]; then
+            if [ "$resume_tag" != "$tag" ]; then
+              echo "::error::An earlier run tagged ${sha::7} as $resume_tag, but this run's $BUMP bump gives $tag. Run again with the same bump as before, or delete the tag (git push --delete origin $resume_tag) to choose again."
+              exit 1
+            fi
+            tag_exists=true
+          elif git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            # Can only be a tag that isn't on main (main's tags are all
+            # older than $previous by construction).
+            fail "Tag $tag already exists on $(git rev-list -n 1 "$tag" | cut -c1-7), not on the tested commit ${sha::7}. If it is left over from something else, delete it (git push --delete origin $tag) and run this again."
+          fi
+
+          # Claim the draft, so CI's draft job won't delete it if a push lands
+          # while this runs. Then read it back: if CI deleted it in the
+          # moment between our list and the rename, stop before tagging.
+          if [ "$claimed" = false ]; then
+            gh release edit "$draft" --repo "$GITHUB_REPOSITORY" --title "Publishing ${title#Candidate }" >/dev/null \
+              || { echo "::error::Could not claim draft $draft (it was probably replaced by a newer build just now). Run this again."; exit 1; }
+            now="$(gh release view "$draft" --repo "$GITHUB_REPOSITORY" --json name -q .name 2>/dev/null || true)"
+            if [[ "$now" != "Publishing "* ]]; then
+              echo "::error::Draft $draft was replaced by a newer build while this started. Run this again."
+              exit 1
+            fi
+            title="$now"
+            claimed=true
+          fi
+
+          newer="$(git log --no-merges --format='- %h %s' "$sha..origin/main")"
+
           {
-            echo "SECRET_KEY=ci-$RANDOM$RANDOM"
-            echo "ENCRYPTION_KEY=$(python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
-            echo "ENABLE_AI_DEMOS=false"
-          } >> "$GITHUB_ENV"
-          mkdir -p "$RUNNER_TEMP/appdata"
+            echo "draft=$draft"
+            echo "sha=$sha"
+            echo "previous=$previous"
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "tag_exists=$tag_exists"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "## Release plan"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Draft | $title |"
+            echo "| Commit | \`${sha::7}\` |"
+            echo "| Version | ${previous:-none} -> **$tag** ($BUMP) |"
+            echo ""
+            if [ -n "$newer" ]; then
+              echo "**Not included:** these commits on main came after the tested build. Their CI either failed or has not finished:"
+              echo ""
+              echo "$newer"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      # Same steps, same order as install.sh on a brand-new server.
-      - name: "Migration test: fresh install"
+      - name: Download and relabel the tested files
         env:
-          DATABASE_URL: postgresql://postgres:ci@127.0.0.1:5432/ci_fresh
-          APP_DATA_DIR: ${{ runner.temp }}/appdata
-          MIGRATIONS_DIR: ${{ github.workspace }}/backend/migrations
+          DRAFT: ${{ steps.plan.outputs.draft }}
+          VERSION: ${{ steps.plan.outputs.version }}
         run: |
           set -euo pipefail
-          S=backend/dist/server/server
-          [ "$($S --db-is-fresh)" = "true" ] || { echo "::error::a brand-new database did not report as fresh"; exit 1; }
-          $S --seed-known-migrations
-          $S --seed-initial-data | grep -v -i password
-          $S --migrate-only
-          # A second run must be a no-op, as on every later install.
-          $S --migrate-only
-          [ "$($S --db-is-fresh)" = "false" ] || { echo "::error::database still reports fresh after migrating"; exit 1; }
-          echo "Fresh-install migrations OK."
-
-      # Upgrade path: build the previous release's schema with the previous
-      # release's own binary, then migrate it with this one. This is what
-      # actually happens on production at every install.
-      - name: "Migration test: upgrade from the previous release"
-        env:
-          DATABASE_URL: postgresql://postgres:ci@127.0.0.1:5432/ci_upgrade
-          APP_DATA_DIR: ${{ runner.temp }}/appdata
-          GH_TOKEN: ${{ github.token }}
-          PREVIOUS: ${{ needs.prepare.outputs.previous }}
-        run: |
-          set -euo pipefail
-          if [ -z "$PREVIOUS" ] || ! gh release download "$PREVIOUS" --repo "$GITHUB_REPOSITORY" \
-               --pattern 'server-bundle-*-linux-arm64.tar.gz' --dir "$RUNNER_TEMP/prev" 2>/dev/null; then
-            echo "No server bundle for the previous release (${PREVIOUS:-none}), so there is no older schema to upgrade from yet. Skipped."
-            echo "- Upgrade migration test: skipped (no previous server bundle)" >> "$GITHUB_STEP_SUMMARY"
-            exit 0
+          mkdir -p out
+          gh release download "$DRAFT" --repo "$GITHUB_REPOSITORY" --dir out
+          ls -l out
+          if ls out/server-bundle-v*-ci.*.tar.gz >/dev/null 2>&1; then
+            # Drop any already-relabelled copies left by an earlier attempt;
+            # they are made again from the tested originals.
+            rm -f out/*-v"$VERSION"[.-]*
+            (cd out && sha256sum -c ./*.sha256)
+            bash deploy/scripts/reversion-release.sh out "$VERSION"
+          elif [ -f "out/server-bundle-v$VERSION-linux-arm64.tar.gz" ] && [ -f "out/personal-website-v$VERSION.tar.gz" ]; then
+            echo "The draft already holds the files relabelled as $VERSION (an earlier attempt got this far)."
+          else
+            echo "::error::The draft has neither the candidate files nor files for $VERSION."
+            exit 1
           fi
-          tar -xzf "$RUNNER_TEMP"/prev/server-bundle-*.tar.gz -C "$RUNNER_TEMP/prev"
-          OLD="$(find "$RUNNER_TEMP/prev" -mindepth 1 -maxdepth 1 -type d -name 'server-bundle-v*' | head -1)"
-          echo "==> Building $PREVIOUS's schema with $PREVIOUS's own binary"
-          MIGRATIONS_DIR="$OLD/migrations" "$OLD/backend/server" --seed-known-migrations
-          MIGRATIONS_DIR="$OLD/migrations" "$OLD/backend/server" --seed-initial-data | grep -v -i password
-          MIGRATIONS_DIR="$OLD/migrations" "$OLD/backend/server" --migrate-only
-          echo "==> Upgrading it with this build"
-          MIGRATIONS_DIR="$GITHUB_WORKSPACE/backend/migrations" backend/dist/server/server --migrate-only
-          echo "- Upgrade migration test: $PREVIOUS -> $VERSION OK" >> "$GITHUB_STEP_SUMMARY"
-
-      # Boots the real frozen server (gunicorn) on Postgres with sample
-      # content. It stays running for the prerender and browser tests below.
-      - name: Start the backend with sample content
-        env:
-          DATABASE_URL: postgresql://postgres:ci@127.0.0.1:5432/ci_fixture
-          APP_DATA_DIR: ${{ runner.temp }}/appdata
-          MIGRATIONS_DIR: ${{ github.workspace }}/backend/migrations
-        run: |
-          set -euo pipefail
-          S=backend/dist/server/server
-          $S --seed-known-migrations
-          $S --seed-initial-data | grep -v -i password
-          $S --migrate-only
-          (cd backend && python ci_fixture.py --manifest "$RUNNER_TEMP/fixture.json")
-          GUNICORN_BIND=127.0.0.1:8099 GUNICORN_WORKERS=2 nohup "$S" > "$RUNNER_TEMP/backend.log" 2>&1 &
-          for i in $(seq 1 30); do
-            code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8099/api/site-config || true)"
-            if [ "$code" = "200" ]; then echo "Backend up (HTTP 200)."; exit 0; fi
-            sleep 1
-          done
-          echo "::error::the frozen server did not answer /api/site-config with 200 within 30s"
-          cat "$RUNNER_TEMP/backend.log"
-          exit 1
-
-      - name: Install frontend packages
-        working-directory: frontend
-        run: npm ci
-
-      - name: "Prerender test: build against the sample content"
-        working-directory: frontend
-        env:
-          PRERENDER_BASE_URL: http://127.0.0.1:8099
-        run: |
-          npm run build
-          node scripts/verify-prerender.mjs --manifest "$RUNNER_TEMP/fixture.json"
-          node scripts/verify-csp-hashes.mjs
-
-      - name: "Hydration test: open the pages in a real browser"
-        working-directory: frontend
-        run: |
-          npx playwright install --with-deps chromium
-          node scripts/verify-hydration.mjs --manifest "$RUNNER_TEMP/fixture.json" --api http://127.0.0.1:8099
-
-      - name: Backend log (on failure)
-        if: failure()
-        run: cat "$RUNNER_TEMP/backend.log" 2>/dev/null || true
-
-      - name: Stop the backend
-        if: always()
-        run: pkill -f 'backend/dist/server/server' || true
-
-      - name: Package the server bundle
-        run: bash deploy/scripts/assemble-release.sh --server-only --out "$OUT"
-
-      # The generic build anyone can install: no prerendered pages, AI demos off.
-      - name: Build and package the template
-        working-directory: frontend
-        env:
-          VITE_ENABLE_AI_DEMOS: "false"
-        run: |
-          rm -rf build
-          npm run build
-          node scripts/verify-csp-hashes.mjs
-          bash ../deploy/scripts/assemble-release.sh --from-server-bundle "$(ls "$OUT"/server-bundle-*.tar.gz)" \
-            --frontend build/client --out "$OUT" --no-ai
-
-      - name: Dependency changes
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PREVIOUS: ${{ needs.prepare.outputs.previous }}
-        run: |
-          mkdir -p "$RUNNER_TEMP/prevdeps"
-          if [ -n "$PREVIOUS" ]; then
-            gh release download "$PREVIOUS" --repo "$GITHUB_REPOSITORY" --pattern last-build-requirements.txt \
-              --dir "$RUNNER_TEMP/prevdeps" 2>/dev/null || true
-            git show "$PREVIOUS:frontend/package-lock.json" > "$RUNNER_TEMP/prevdeps/package-lock.json" 2>/dev/null || true
-          fi
-          python .github/scripts/dependency-diff.py \
-            --pip-old "$RUNNER_TEMP/prevdeps/last-build-requirements.txt" --pip-new "$OUT/last-build-requirements.txt" \
-            --npm-old "$RUNNER_TEMP/prevdeps/package-lock.json" --npm-new frontend/package-lock.json \
-            > "$OUT/dependency-changes.md"
-          cat "$OUT/dependency-changes.md" >> "$GITHUB_STEP_SUMMARY"
-
-      # Exactly these files, or the release stops here.
-      - name: Check the release files are all here
-        run: |
-          cd "$OUT"
-          ls -l
-          missing=0
-          for f in "server-bundle-v$VERSION-linux-arm64.tar.gz" "server-bundle-v$VERSION-linux-arm64.tar.gz.sha256" \
-                   "personal-website-v$VERSION.tar.gz" "personal-website-v$VERSION.tar.gz.sha256" \
-                   last-build-requirements.txt dependency-changes.md; do
-            [ -f "$f" ] || { echo "::error::missing release file: $f"; missing=1; }
-          done
-          # Nothing else either: the release job uploads by pattern.
-          count="$(find . -maxdepth 1 -type f -name '*.tar.gz' | wc -l)"
-          [ "$count" -eq 2 ] || { echo "::error::expected exactly 2 tarballs, found $count"; missing=1; }
-          [ "$missing" -eq 0 ] || exit 1
-          sha256sum -c ./*.sha256
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: release-${{ needs.prepare.outputs.version }}
-          path: out/*
-          if-no-files-found: error
-          retention-days: 7
-
-  release:
-    needs: [prepare, build]
-    if: needs.prepare.outputs.publish == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: write # only this job may push the VERSION commit, tag and release
-    env:
-      MODE: ${{ needs.prepare.outputs.mode }}
-      VERSION: ${{ needs.prepare.outputs.version }}
-      TAG: ${{ needs.prepare.outputs.tag }}
-      PREVIOUS: ${{ needs.prepare.outputs.previous }}
-      GH_TOKEN: ${{ github.token }}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          ref: ${{ github.ref_name }}
-          fetch-depth: 0
-
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: release-${{ needs.prepare.outputs.version }}
-          path: out
-
-      - name: Check the files again
-        run: |
           cd out
           ls -l
           sha256sum -c ./*.sha256
 
-      # Same rule as publish-release.sh: commit and tag only now that the
-      # build and every test passed, and push before the upload.
-      - name: Commit VERSION, tag and push
+      - name: Tag the tested commit
+        if: steps.plan.outputs.tag_exists != 'true'
+        env:
+          TAG: ${{ steps.plan.outputs.tag }}
+          SHA: ${{ steps.plan.outputs.sha }}
+          DRAFT: ${{ steps.plan.outputs.draft }}
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ "$MODE" = "test" ]; then
-            # Test builds: tag the exact commit that was built, nothing else.
-            git tag "$TAG" "$GITHUB_SHA"
-            git push origin "$TAG"
-            exit 0
-          fi
-          if [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ]; then
-            echo "::error::main moved while this release was building (built ${GITHUB_SHA::7}, main is now $(git rev-parse --short HEAD)). Nothing was published. Run the release again."
+          # Last check before anything permanent: the claimed draft must still
+          # be there (CI re-reads a title right before deleting, but a delete
+          # that started before our rename could still land).
+          now="$(gh release view "$DRAFT" --repo "$GITHUB_REPOSITORY" --json name -q .name 2>/dev/null || true)"
+          if [[ "$now" != "Publishing "* ]]; then
+            echo "::error::Draft $DRAFT disappeared before tagging (replaced by a newer build). Nothing was tagged or published. Run this again."
             exit 1
           fi
-          echo "$VERSION" > VERSION
-          git add VERSION
-          git commit -m "Release $TAG"
-          git tag "$TAG"
-          git push origin HEAD:main
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "$TAG" "$SHA"
           git push origin "$TAG"
 
       - name: Write the release notes
+        env:
+          DRAFT: ${{ steps.plan.outputs.draft }}
+          TAG: ${{ steps.plan.outputs.tag }}
+          SHA: ${{ steps.plan.outputs.sha }}
+          PREVIOUS: ${{ steps.plan.outputs.previous }}
         run: |
+          set -euo pipefail
           {
-            if [ "$MODE" = "test" ]; then
-              echo "**TEST BUILD** of branch \`${GITHUB_REF_NAME}\` at ${GITHUB_SHA::7}. Not a release: it is a pre-release, so other sites never install it."
-              echo ""
-            fi
             echo "Changes: https://github.com/$GITHUB_REPOSITORY/compare/${PREVIOUS:-main}...$TAG"
             echo ""
+            if [ -n "$PREVIOUS" ]; then
+              echo "### Commits since $PREVIOUS"
+              echo ""
+              git log --no-merges --format='- %h %s' "$PREVIOUS..$SHA"
+              echo ""
+            fi
             echo "- \`server-bundle-$TAG-linux-arm64.tar.gz\`: backend, migrations and deploy files. Each site's dist repo adds its own prerendered pages to this."
             echo "- \`personal-website-$TAG.tar.gz\`: template build (no prerendered pages, AI demos off), installable with install.sh."
             echo ""
-            cat out/dependency-changes.md
+            # The dependency report CI wrote into the draft's notes.
+            gh release view "$DRAFT" --repo "$GITHUB_REPOSITORY" --json body -q .body | tr -d '\r' \
+              | sed -n '/^## Dependency changes since the previous release/,$p'
           } > notes.md
 
+      # Swap the draft's files for the relabelled ones, then publish it.
+      # The old -ci. files must be gone first: installers pick release files
+      # by pattern (personal-website-*.tar.gz) and must find exactly one.
       - name: Publish the release
+        env:
+          DRAFT: ${{ steps.plan.outputs.draft }}
+          TAG: ${{ steps.plan.outputs.tag }}
+          VERSION: ${{ steps.plan.outputs.version }}
         run: |
-          flags=()
-          [ "$MODE" = "test" ] && flags+=(--prerelease)
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes-file notes.md "${flags[@]}" \
-            out/server-bundle-*.tar.gz out/server-bundle-*.tar.gz.sha256 \
-            out/personal-website-*.tar.gz out/personal-website-*.tar.gz.sha256 \
-            out/last-build-requirements.txt
+          set -euo pipefail
+          gh release upload "$DRAFT" --repo "$GITHUB_REPOSITORY" --clobber \
+            "out/server-bundle-v$VERSION-linux-arm64.tar.gz" "out/server-bundle-v$VERSION-linux-arm64.tar.gz.sha256" \
+            "out/personal-website-v$VERSION.tar.gz" "out/personal-website-v$VERSION.tar.gz.sha256"
+          gh release view "$DRAFT" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' \
+            | { grep -- '-ci\.' || true; } | while read -r a; do
+              echo "Removing candidate file $a"
+              gh release delete-asset "$DRAFT" "$a" --repo "$GITHUB_REPOSITORY" -y
+            done
+          gh release edit "$DRAFT" --repo "$GITHUB_REPOSITORY" --tag "$TAG" --title "$TAG" \
+            --notes-file notes.md --draft=false --latest
+
+          # Check what was published: not a draft, and exactly these files.
+          [ "$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft -q .isDraft)" = "false" ] \
+            || { echo "::error::$TAG is still a draft."; exit 1; }
+          got="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets -q '.assets[].name' | sort)"
+          want="$(printf '%s\n' last-build-requirements.txt \
+            "personal-website-v$VERSION.tar.gz" "personal-website-v$VERSION.tar.gz.sha256" \
+            "server-bundle-v$VERSION-linux-arm64.tar.gz" "server-bundle-v$VERSION-linux-arm64.tar.gz.sha256" | sort)"
+          if [ "$got" != "$want" ]; then
+            echo "::error::$TAG has unexpected files:"
+            echo "$got"
+            exit 1
+          fi
+          echo "Published **$TAG**." >> "$GITHUB_STEP_SUMMARY"
 
       # Stable releases clear away earlier test pre-releases and their tags.
       - name: Remove old test builds
-        if: needs.prepare.outputs.mode != 'test'
         run: |
           # `|| true`: grep exits 1 when there are no test builds, which
           # pipefail would otherwise turn into a failed step.
@@ -489,6 +335,7 @@ jobs:
         env:
           DISPATCH_TOKEN: ${{ secrets.DIST_DISPATCH_TOKEN }}
           REPOS: ${{ vars.OWN_DIST_REPOS }}
+          TAG: ${{ steps.plan.outputs.tag }}
         run: |
           if [ -z "$DISPATCH_TOKEN" ] || [ -z "$REPOS" ]; then
             echo "DIST_DISPATCH_TOKEN or OWN_DIST_REPOS not set; dist repos will pick this up on their next scheduled run."
@@ -500,18 +347,12 @@ jobs:
           # "Resource not accessible by personal access token").
           failed=0
           for repo in $REPOS; do
-            args=(publish.yml --repo "$repo" --ref main)
-            how="Actions -> Publish site -> Run workflow"
-            if [ "$MODE" = "test" ]; then
-              args+=(-f test_tag="$TAG")
-              how="$how, with test_tag set to $TAG"
-            fi
-            if GH_TOKEN="$DISPATCH_TOKEN" gh workflow run "${args[@]}"; then
+            if GH_TOKEN="$DISPATCH_TOKEN" gh workflow run publish.yml --repo "$repo" --ref main; then
               echo "Started publish.yml in $repo"
             else
               # The release above is already published and stays published;
               # only the "build now" message failed.
-              echo "::error::Could not start publish.yml in $repo, but $TAG IS published. Start the build by hand there: $how. (Otherwise its next scheduled run picks up a normal release; a test build always needs this.)"
+              echo "::error::Could not start publish.yml in $repo, but $TAG IS published. Start the build by hand there: Actions -> Publish site -> Run workflow. (Otherwise its next scheduled run picks it up.)"
               failed=1
             fi
           done

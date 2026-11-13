@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
-# FALLBACK: releases are normally made by GitHub Actions
-# (.github/workflows/release.yml, "Run workflow" with patch/minor/major), and
-# each site's prerendered build by its dist repo's publish.yml. Use this
-# script only when GitHub Actions is unavailable. See RELEASING.md.
+# FALLBACK: releases are normally made by GitHub Actions (CI's tested draft,
+# published with .github/workflows/release.yml, "Publish release", picking
+# patch/minor/major), and each site's prerendered build by its dist repo's
+# publish.yml. Use this script only when GitHub Actions is unavailable. See
+# RELEASING.md.
 #
-# Runs ON THE PI (gh auth lives there). Optionally bumps VERSION, then always
+# Versions come from git tags (deploy/scripts/lib/latest-version.sh); the repo
+# has no committed VERSION file. A bump tags the commit that was built and
+# pushes only the tag, never a commit, just like GitHub Actions.
+#
+# Runs ON THE PI (gh auth lives there). Optionally bumps the version, then always
 # builds+publishes the tarball as a GitHub Release on the SEPARATE releases
 # repo given by --releases-repo.
 #
@@ -150,7 +155,10 @@ if [ "$NO_AI" = true ]; then
 fi
 
 cd "$REPO_DIR"
-CURRENT="$(cat VERSION | tr -d '[:space:]')"
+# shellcheck source=lib/latest-version.sh
+source "$REPO_DIR/deploy/scripts/lib/latest-version.sh"
+git fetch -q --tags origin main
+CURRENT="$(latest_stable_version)"
 CURRENT_AT_START="$CURRENT"   # preserved for a post-build drift comparison further down
 
 if [ -n "$BUMP" ]; then
@@ -231,13 +239,12 @@ if ! SKIP_ASSEMBLE=1 bash deploy/scripts/build-on-pi.sh; then
 fi
 
 if [ -n "$BUMP" ]; then
-    # Re-read CURRENT: the git sync inside the build above could have moved
-    # it (e.g. a fork tracking colinpetree/personal-website as `origin` that
-    # also happens to pass a bump flag - unusual, but this keeps the bump
-    # math correct even then instead of bumping from a now-stale value).
-    CURRENT="$(cat VERSION | tr -d '[:space:]')"
+    # Re-read CURRENT: the build's git fetch above could have brought in a
+    # newer release tag (e.g. one GitHub Actions published meanwhile), and
+    # bumping from a stale value would reuse a version number.
+    CURRENT="$(latest_stable_version)"
     if [ "$CURRENT" != "$CURRENT_AT_START" ]; then
-        echo "==> VERSION advanced during git sync before this bump: $CURRENT_AT_START -> $CURRENT"
+        echo "==> A newer release appeared during the build: $CURRENT_AT_START -> $CURRENT"
     fi
     IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
     case "$BUMP" in
@@ -247,15 +254,14 @@ if [ -n "$BUMP" ]; then
     esac
     NEW_VERSION="$MAJOR.$MINOR.$PATCH"
     TAG="v$NEW_VERSION"
+    if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+        echo "Tag $TAG already exists. Nothing was published."
+        exit 1
+    fi
 
-    # Revert this uncommitted bump on ANY exit from here on (build/assembly
-    # failure, Ctrl-C, an unexpected error under `set -e`) unless we make it
-    # far enough below to actually commit it - covers every early-exit path,
-    # not just the one explicit failure branch a plain `git checkout --
-    # VERSION` in an `if` block would.
-    BUMP_COMMITTED=false
-    trap '[ "$BUMP_COMMITTED" = true ] || git checkout -- VERSION 2>/dev/null || true' EXIT
-    echo "==> Bumping VERSION (uncommitted): $CURRENT -> $NEW_VERSION"
+    # VERSION is untracked (ignored), so writing it changes nothing in git;
+    # it only tells the assembly step below which version to package.
+    echo "==> Version: $CURRENT -> $NEW_VERSION"
     echo "$NEW_VERSION" > VERSION
 else
     # No bump requested - VERSION is whatever the build's git sync left on
@@ -321,19 +327,11 @@ if [ ! -f "$TARBALL" ]; then
 fi
 
 if [ -n "$BUMP" ]; then
-    echo "==> Committing, tagging, and pushing $TAG"
-    git add VERSION
-    git commit -m "Release $TAG"
+    # Tag the commit that was just built (HEAD) and push only the tag: no
+    # commit, so nothing lands on main. Pushed before the gh upload below,
+    # which can take a while for a multi-MB tarball.
+    echo "==> Tagging $(git rev-parse --short HEAD) as $TAG and pushing the tag"
     git tag "$TAG"
-    BUMP_COMMITTED=true   # the EXIT trap above no longer reverts VERSION
-    # Push immediately - before the gh upload below, which can take a while
-    # for a multi-MB tarball - so the commit+tag spend as little time as
-    # possible sitting local-only. The lock held since before the build is
-    # what actually closes the race (nothing else can touch this checkout
-    # while this script holds it); pushing promptly on top of that also
-    # protects against anything outside this locking scheme, e.g. a human
-    # inspecting/running git commands against this checkout by hand.
-    git push origin "HEAD:$(git rev-parse --abbrev-ref HEAD)"
     git push origin "$TAG"
 fi
 
