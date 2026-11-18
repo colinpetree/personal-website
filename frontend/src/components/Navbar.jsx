@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { Link, useLocation, useMatches } from 'react-router'
-import { Search, ChevronRight, ChevronLeft } from 'lucide-react'
+import { Search, ArrowLeft } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { startsWithOverlayHeader } from '../utils/headerLayout'
@@ -362,11 +362,20 @@ export default function Navbar() {
           out of the tab order / a11y tree until opened. md:hidden already makes it
           display:none at desktop widths regardless.
 
-          Inside it are two stacked panes. The primary pane holds the site links and never
-          moves. The secondary pane holds the children of whichever parent link was tapped
-          ("Projects >"), with a "< Projects" back button: it slides in from the right over
-          the primary pane, and back out the same way. Each pane scrolls on its own, and
-          whichever one isn't showing is inert + aria-hidden. */}
+          Inside it are two stacked panes. The primary pane holds the site links; the
+          secondary pane has a "<- Home" back button, the tapped link's label as a small
+          gray heading, then its sub-links. A link with sub-links looks like any other link.
+
+          Switching panes is one crossfade, modeled on openai.com's mobile menu (measured
+          frame by frame): both panes animate at the same time, 200ms, CSS `ease`, and both
+          move 8px in the same direction. Opening a submenu, the primary pane fades out
+          drifting up while the secondary pane fades in rising up into place; going back is
+          the exact reverse (both drift down). Each pane scrolls on its own, and whichever
+          one isn't showing is inert + aria-hidden + pointer-events-none. The panes are
+          stacked in the same spot, so the hidden one sits invisibly on top of (or under)
+          the visible one: inert alone lets taps and scrolls pass through it, but browsers
+          from before inert support (Safari < 15.5, Chrome < 102) would let the invisible
+          pane swallow every tap, so pointer-events-none makes that explicit. */}
       <nav
         inert={!menuOpen}
         aria-hidden={!menuOpen}
@@ -377,10 +386,15 @@ export default function Navbar() {
         <div
           inert={submenuOpen}
           aria-hidden={submenuOpen}
-          className="absolute inset-0 overflow-y-auto px-6 pt-2 pb-8 flex flex-col gap-1"
+          className={`absolute inset-0 overflow-y-auto px-6 pt-2 pb-8 flex flex-col gap-1 transition-[opacity,transform] duration-200 ease-[ease] motion-reduce:transition-none ${
+            submenuOpen ? 'opacity-0 -translate-y-2 pointer-events-none' : 'opacity-100 translate-y-0'
+          }`}
         >
           {navLinks.map((link, i) => {
-            const className = `text-2xl font-semibold -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
+            // Type scale matches openai.com's mobile menu (measured): 32px, medium
+            // weight, ~1.15 line height, -0.02em tracking, rows 53px apart (the
+            // 12px of padding plus the pane's 4px gap). Sub-links use the same.
+            const className = `text-[32px] leading-[1.15] tracking-[-0.02em] font-medium -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
               navItemIsActive(link, location.pathname) ? 'text-gray-900' : 'text-gray-500'
             }`
             if (link.children?.length) {
@@ -392,10 +406,9 @@ export default function Navbar() {
                   onClick={() => openSubmenu(i)}
                   aria-haspopup="true"
                   aria-expanded={submenuOpen && submenuIndex === i}
-                  className={`${className} flex items-center justify-between text-left`}
+                  className={`${className} text-left`}
                 >
                   {link.label}
-                  <ChevronRight size={24} aria-hidden="true" className="flex-shrink-0" />
                 </button>
               )
             }
@@ -403,10 +416,12 @@ export default function Navbar() {
               <NavAnchor key={i} url={link.url} label={link.label} onClick={() => setMenuOpen(false)} className={className} />
             )
           })}
+          {/* Account rows: the same type scale as the links (openai.com's "Login"
+              matches its links' size), in a lighter gray so they read as secondary. */}
           {usersEnabled && (
             user ? (
               <>
-                <div className="border-t border-gray-100 mt-4 pt-6 flex items-center gap-3">
+                <div className="border-t border-gray-200 mt-4 pt-6 mb-4 flex items-center gap-3">
                   {user.avatar_url ? (
                     <img src={user.avatar_url} alt={user.name} className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
@@ -416,47 +431,55 @@ export default function Navbar() {
                   )}
                   <span className="text-lg font-medium text-gray-900">{user.name}</span>
                 </div>
-                <Link to="/profile" onClick={() => setMenuOpen(false)} className="text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Profile</Link>
-                <button onClick={logout} className="text-left text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign out</button>
+                <Link to="/profile" onClick={() => setMenuOpen(false)} className="text-left text-[32px] leading-[1.15] tracking-[-0.02em] font-medium text-gray-400 -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200">Profile</Link>
+                <button onClick={logout} className="text-left text-[32px] leading-[1.15] tracking-[-0.02em] font-medium text-gray-400 -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign out</button>
               </>
             ) : (
-              <button onClick={() => setShowSignInModal(true)} className="text-left text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign in</button>
+              <>
+                {/* Divider spaced like the signed-in name row's top border, setting the
+                    account row apart from the site links (as openai.com does). */}
+                <div aria-hidden="true" className="border-t border-gray-200 mt-4 mb-5" />
+                <button onClick={() => setShowSignInModal(true)} className="text-left text-[32px] leading-[1.15] tracking-[-0.02em] font-medium text-gray-400 -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign in</button>
+              </>
             )
           )}
         </div>
 
-        {/* Secondary pane: the tapped parent's children, covering the primary pane.
-            Keeps showing the last parent's links while it slides back out
-            (submenuIndex isn't cleared). */}
+        {/* Secondary pane: the tapped parent's sub-links. Keeps showing the last
+            parent's links while it fades back out (submenuIndex isn't cleared). Same
+            timing as the primary pane above; keep the two in step. */}
         <div
           ref={submenuPaneRef}
           inert={!submenuOpen}
           aria-hidden={!submenuOpen}
-          className={`absolute inset-0 z-10 bg-white overflow-y-auto px-6 pt-2 pb-8 flex flex-col gap-1 transition-transform duration-200 ease-out motion-reduce:transition-none ${
-            submenuOpen ? 'translate-x-0' : 'translate-x-full'
+          className={`absolute inset-0 overflow-y-auto px-6 pt-2 pb-8 flex flex-col gap-1 transition-[opacity,transform] duration-200 ease-[ease] motion-reduce:transition-none ${
+            submenuOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
           }`}
         >
           {submenuItem && (
             <>
-              {/* Same size and full-width tap target as the links below it, in a
-                  lighter gray so it reads as the menu's heading/back control. */}
+              {/* Back to the main links: 16px medium (openai.com's size), same color
+                  as the links, with a full-width tap target. The accessible name spells out where
+                  it goes, since "Home" alone reads like a link to the home page. */}
               <button
                 ref={backButtonRef}
                 type="button"
                 onClick={closeSubmenu}
-                aria-label={`Back to ${submenuItem.label}`}
-                className="text-2xl font-semibold -mx-3 px-3 py-2 rounded-lg flex items-center gap-2 text-left text-gray-400 hover:bg-gray-100 active:bg-gray-200"
+                aria-label="Home, back to main menu"
+                className="text-base leading-5 font-medium -mx-3 px-3 py-2 rounded-lg flex items-center gap-2 text-left text-gray-500 hover:bg-gray-100 active:bg-gray-200"
               >
-                <ChevronLeft size={24} aria-hidden="true" className="flex-shrink-0" />
-                {submenuItem.label}
+                <ArrowLeft size={16} aria-hidden="true" className="flex-shrink-0" />
+                Home
               </button>
+              {/* The link that was tapped to get here, as a plain heading. */}
+              <p className="mt-4 mb-1 text-[13px] leading-normal font-medium text-gray-400">{submenuItem.label}</p>
               {submenuItem.children.map((child, j) => (
                 <NavAnchor
                   key={j}
                   url={child.url}
                   label={child.label}
                   onClick={() => setMenuOpen(false)}
-                  className={`text-2xl font-semibold -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
+                  className={`text-[32px] leading-[1.15] tracking-[-0.02em] font-medium -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
                     location.pathname === child.url ? 'text-gray-900' : 'text-gray-500'
                   }`}
                 />

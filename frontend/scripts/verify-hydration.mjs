@@ -157,8 +157,8 @@ try {
       .then(() => true, () => false)
     if (!opened) w.seen.push('tapping "Toggle menu" did not show the menu links')
 
-    // Submenu pane: tapping a parent slides in its children, and the back
-    // button slides back to the main links. The pane that's off-screen is
+    // Submenu pane: tapping a parent fades in its children, and the Home
+    // button fades back to the main links. The pane that isn't showing is
     // inert + aria-hidden, so role lookups only match the one showing.
     if (opened && manifest.nav_dropdown) {
       const { parent, child } = manifest.nav_dropdown
@@ -169,12 +169,12 @@ try {
       if (!childShown) {
         w.seen.push(`tapping "${parent}" in the mobile menu did not show "${child}"`)
       } else {
-        await page.getByRole('button', { name: `Back to ${parent}`, exact: true }).click()
+        await page.getByRole('button', { name: 'Home, back to main menu', exact: true }).click()
         const backShown = await page.getByRole('link', { name: manifest.nav_click.label, exact: true })
           .locator('visible=true').first()
           .waitFor({ state: 'visible', timeout: 5000 })
           .then(() => true, () => false)
-        if (!backShown) w.seen.push(`"Back to ${parent}" did not return to the main menu links`)
+        if (!backShown) w.seen.push(`the Home button did not return to the main menu links`)
       }
     }
     w.report()
