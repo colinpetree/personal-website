@@ -20,7 +20,9 @@
 // page error, or any console error (React reports hydration mismatches as
 // console errors). Then it checks hydration really happened by clicking an
 // internal nav link and confirming the route changed WITHOUT a full page
-// load, and that the mobile menu opens on a phone-sized screen.
+// load, that a nav parent's dropdown opens on hover and its child link
+// works, and that the mobile menu (and its submenu pane) opens on a
+// phone-sized screen.
 import { spawn } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
@@ -110,6 +112,33 @@ try {
     await context.close()
   }
 
+  // ---- 2b. Desktop nav dropdown: hovering a parent shows its children ---
+  // (NavDropdown.jsx), and a child link is a client-side route change.
+  if (manifest.nav_dropdown) {
+    const { parent, child, to } = manifest.nav_dropdown
+    const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+    const page = await context.newPage()
+    const w = watch(page, `nav dropdown ${parent} > ${child}`)
+    await page.goto(BASE + '/', { waitUntil: 'networkidle' })
+    await page.evaluate(() => { window.__noFullReload = true })
+    await page.getByRole('button', { name: parent, exact: true }).locator('visible=true').first().hover()
+    // The closed menu is inert + aria-hidden, so the child only matches by
+    // role once the menu really opened.
+    const childLink = page.getByRole('link', { name: child, exact: true }).locator('visible=true').first()
+    const opened = await childLink.waitFor({ state: 'visible', timeout: 5000 }).then(() => true, () => false)
+    if (!opened) {
+      w.seen.push(`hovering "${parent}" did not show "${child}"`)
+    } else {
+      await childLink.click()
+      await page.waitForURL((url) => url.pathname.replace(/\/$/, '') === to, { timeout: 10000 })
+        .catch(() => w.seen.push(`clicking "${child}" did not reach ${to} (still at ${page.url()})`))
+      const kept = await page.evaluate(() => window.__noFullReload === true)
+      if (!kept) w.seen.push(`clicking "${child}" did a full page load`)
+    }
+    w.report()
+    await context.close()
+  }
+
   // ---- 3. Mobile menu opens on a phone-sized screen ---------------------
   {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
@@ -127,6 +156,27 @@ try {
       .waitFor({ state: 'visible', timeout: 5000 })
       .then(() => true, () => false)
     if (!opened) w.seen.push('tapping "Toggle menu" did not show the menu links')
+
+    // Submenu pane: tapping a parent slides in its children, and the back
+    // button slides back to the main links. The pane that's off-screen is
+    // inert + aria-hidden, so role lookups only match the one showing.
+    if (opened && manifest.nav_dropdown) {
+      const { parent, child } = manifest.nav_dropdown
+      await page.getByRole('button', { name: parent, exact: true }).locator('visible=true').first().click()
+      const childShown = await page.getByRole('link', { name: child, exact: true }).locator('visible=true').first()
+        .waitFor({ state: 'visible', timeout: 5000 })
+        .then(() => true, () => false)
+      if (!childShown) {
+        w.seen.push(`tapping "${parent}" in the mobile menu did not show "${child}"`)
+      } else {
+        await page.getByRole('button', { name: `Back to ${parent}`, exact: true }).click()
+        const backShown = await page.getByRole('link', { name: manifest.nav_click.label, exact: true })
+          .locator('visible=true').first()
+          .waitFor({ state: 'visible', timeout: 5000 })
+          .then(() => true, () => false)
+        if (!backShown) w.seen.push(`"Back to ${parent}" did not return to the main menu links`)
+      }
+    }
     w.report()
     await context.close()
   }

@@ -1020,7 +1020,9 @@ html {
    (the element's own transparent-state style) before 10px and its last one
    after 11px. Browsers without scroll timelines skip the whole block and
    keep the transparent bar until hydration, as before. Scoped to the top
-   bar (`> div`) so the mobile menu panel keeps its own colors. */
+   bar (`> div`) so the mobile menu panel keeps its own colors. Desktop nav
+   dropdown menus (NavDropdown.jsx) also sit inside `> div` and so match
+   these selectors, but they're always closed before hydration. */
 @supports (animation-timeline: scroll()) {
   @keyframes navbar-prehydrate-bar {
     to { background-color: #fff; border-bottom-color: rgb(229 231 235); }

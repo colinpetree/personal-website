@@ -1,12 +1,13 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { Link, useLocation, useMatches } from 'react-router'
-import { Search } from 'lucide-react'
+import { Search, ChevronRight, ChevronLeft } from 'lucide-react'
 import { useUserAuth } from '../context/UserAuthContext'
 import { useSiteConfig } from '../hooks/useSiteConfig'
 import { startsWithOverlayHeader } from '../utils/headerLayout'
 import SignInRequiredModal from './SignInRequiredModal'
 import SearchModal from './SearchModal'
 import OverflowNav from './OverflowNav'
+import NavAnchor, { navItemIsActive } from './NavAnchor'
 import { getInitials } from '../utils/getInitials'
 
 // Shared by every nav-link-shaped control (desktop nav links, Sign in) so
@@ -65,6 +66,13 @@ export default function Navbar() {
   const { config } = useSiteConfig()
   const overlay = useRouteNavOverlay(config)
   const [menuOpen, setMenuOpen] = useState(false)
+  // Mobile menu's secondary pane (a parent link's children). Index and open
+  // flag are separate so the pane keeps its content while sliding back out.
+  const [submenuIndex, setSubmenuIndex] = useState(null)
+  const [submenuOpen, setSubmenuOpen] = useState(false)
+  const submenuPaneRef = useRef(null)
+  const backButtonRef = useRef(null)
+  const parentRowRefs = useRef([])
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [showSignInModal, setShowSignInModal] = useState(false)
   const [scrolled, setScrolled] = useState(false)
@@ -175,6 +183,34 @@ export default function Navbar() {
   // Close mobile menu on navigation
   useEffect(() => { setMenuOpen(false); setUserMenuOpen(false) }, [location.pathname])
 
+  // The mobile menu always reopens on its primary pane. The menu is already
+  // display:none by the time this runs, so the slide back doesn't play.
+  useEffect(() => { if (!menuOpen) setSubmenuOpen(false) }, [menuOpen])
+
+  function openSubmenu(index) {
+    if (submenuPaneRef.current) submenuPaneRef.current.scrollTop = 0
+    setSubmenuIndex(index)
+    setSubmenuOpen(true)
+  }
+
+  function closeSubmenu() {
+    setSubmenuOpen(false)
+  }
+
+  // Move focus with the slide, so keyboard and screen reader users land in
+  // the pane that's now showing (the other one just went inert). Skipped when
+  // the reset above runs on menu close. preventScroll keeps the browser from
+  // scrolling the overflow-hidden track sideways to reach the focused button.
+  const submenuWasOpenRef = useRef(false)
+  useEffect(() => {
+    const wasOpen = submenuWasOpenRef.current
+    submenuWasOpenRef.current = submenuOpen
+    if (!menuOpen) return
+    if (submenuOpen) backButtonRef.current?.focus({ preventScroll: true })
+    else if (wasOpen) parentRowRefs.current[submenuIndex]?.focus({ preventScroll: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submenuOpen])
+
   // Close user dropdown on outside click
   useEffect(() => {
     function handleClick(e) {
@@ -204,6 +240,9 @@ export default function Navbar() {
   // `config.nav` field it fed, are gone). No `enabled` filter needed: every
   // entry here is meant to render, unlike the old system's per-page toggle.
   const navLinks = config?.primary_navigation ?? []
+  const submenuItem = submenuIndex !== null && navLinks[submenuIndex]?.children?.length
+    ? navLinks[submenuIndex]
+    : null
   const siteTitle = config?.site_title ?? ''
   const usersEnabled = config?.users_enabled ?? false
 
@@ -318,55 +357,113 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile menu - full-height overlay directly below the sticky header. No transition;
-          it's simply shown/hidden. Marked inert while hidden to keep its links out of the
-          tab order / a11y tree until opened. md:hidden already makes it display:none at
-          desktop widths regardless. */}
+      {/* Mobile menu - full-height overlay directly below the sticky header. No transition
+          on open/close; it's simply shown/hidden. Marked inert while hidden to keep its links
+          out of the tab order / a11y tree until opened. md:hidden already makes it
+          display:none at desktop widths regardless.
+
+          Inside it, a two-pane track (200% wide) slides sideways: the primary pane holds the
+          site links, the secondary pane holds the children of whichever parent link was
+          tapped ("Projects >"), with a "< Projects" back button. Each pane scrolls on its
+          own, and the off-screen pane is inert + aria-hidden. */}
       <nav
         inert={!menuOpen}
         aria-hidden={!menuOpen}
-        className={`md:hidden fixed inset-x-0 top-16 bottom-0 z-40 bg-white overflow-y-auto px-6 pt-2 pb-8 flex-col gap-1 ${
-          menuOpen ? 'flex' : 'hidden'
+        className={`md:hidden fixed inset-x-0 top-16 bottom-0 z-40 bg-white overflow-hidden ${
+          menuOpen ? 'block' : 'hidden'
         }`}
       >
-        {navLinks.map((link, i) => {
-          const className = `text-2xl font-semibold -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
-            location.pathname === link.url ? 'text-gray-900' : 'text-gray-500'
-          }`
-          // Internal site pages always use root-relative paths, anything
-          // else an admin types into Site Navigation is treated as an
-          // external URL (see OverflowNav.jsx's isInternalPath for the
-          // desktop-nav equivalent of this same check).
-          return link.url.startsWith('/') ? (
-            <Link key={i} to={link.url} onClick={() => setMenuOpen(false)} className={className}>
-              {link.label}
-            </Link>
-          ) : (
-            <a key={i} href={link.url} onClick={() => setMenuOpen(false)} className={className}>
-              {link.label}
-            </a>
-          )
-        })}
-        {usersEnabled && (
-          user ? (
-            <>
-              <div className="border-t border-gray-100 mt-4 pt-6 flex items-center gap-3">
-                {user.avatar_url ? (
-                  <img src={user.avatar_url} alt={user.name} className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center leading-none text-base font-semibold text-gray-600">
-                    <span className="translate-y-px">{getInitials(user.name)}</span>
+        <div
+          className={`flex w-[200%] h-full transition-transform duration-300 ease-out motion-reduce:transition-none ${
+            submenuOpen ? '-translate-x-1/2' : 'translate-x-0'
+          }`}
+        >
+          <div
+            inert={submenuOpen}
+            aria-hidden={submenuOpen}
+            className="w-1/2 h-full overflow-y-auto px-6 pt-2 pb-8 flex flex-col gap-1"
+          >
+            {navLinks.map((link, i) => {
+              const className = `text-2xl font-semibold -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
+                navItemIsActive(link, location.pathname) ? 'text-gray-900' : 'text-gray-500'
+              }`
+              if (link.children?.length) {
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    ref={el => { parentRowRefs.current[i] = el }}
+                    onClick={() => openSubmenu(i)}
+                    aria-haspopup="true"
+                    aria-expanded={submenuOpen && submenuIndex === i}
+                    className={`${className} flex items-center justify-between text-left`}
+                  >
+                    {link.label}
+                    <ChevronRight size={24} aria-hidden="true" className="flex-shrink-0" />
+                  </button>
+                )
+              }
+              return (
+                <NavAnchor key={i} url={link.url} label={link.label} onClick={() => setMenuOpen(false)} className={className} />
+              )
+            })}
+            {usersEnabled && (
+              user ? (
+                <>
+                  <div className="border-t border-gray-100 mt-4 pt-6 flex items-center gap-3">
+                    {user.avatar_url ? (
+                      <img src={user.avatar_url} alt={user.name} className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center leading-none text-base font-semibold text-gray-600">
+                        <span className="translate-y-px">{getInitials(user.name)}</span>
+                      </div>
+                    )}
+                    <span className="text-lg font-medium text-gray-900">{user.name}</span>
                   </div>
-                )}
-                <span className="text-lg font-medium text-gray-900">{user.name}</span>
-              </div>
-              <Link to="/profile" onClick={() => setMenuOpen(false)} className="text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Profile</Link>
-              <button onClick={logout} className="text-left text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign out</button>
-            </>
-          ) : (
-            <button onClick={() => setShowSignInModal(true)} className="text-left text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign in</button>
-          )
-        )}
+                  <Link to="/profile" onClick={() => setMenuOpen(false)} className="text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Profile</Link>
+                  <button onClick={logout} className="text-left text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign out</button>
+                </>
+              ) : (
+                <button onClick={() => setShowSignInModal(true)} className="text-left text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign in</button>
+              )
+            )}
+          </div>
+
+          {/* Secondary pane: the tapped parent's children. Keeps showing the last
+              parent's links while it slides back out (submenuIndex isn't cleared). */}
+          <div
+            ref={submenuPaneRef}
+            inert={!submenuOpen}
+            aria-hidden={!submenuOpen}
+            className="w-1/2 h-full overflow-y-auto px-6 pt-2 pb-8 flex flex-col gap-1"
+          >
+            {submenuItem && (
+              <>
+                <button
+                  ref={backButtonRef}
+                  type="button"
+                  onClick={closeSubmenu}
+                  aria-label={`Back to ${submenuItem.label}`}
+                  className="self-start -mx-3 mb-1 px-3 py-2 rounded-lg inline-flex items-center gap-1 text-base font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200"
+                >
+                  <ChevronLeft size={18} aria-hidden="true" />
+                  {submenuItem.label}
+                </button>
+                {submenuItem.children.map((child, j) => (
+                  <NavAnchor
+                    key={j}
+                    url={child.url}
+                    label={child.label}
+                    onClick={() => setMenuOpen(false)}
+                    className={`text-2xl font-semibold -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
+                      location.pathname === child.url ? 'text-gray-900' : 'text-gray-500'
+                    }`}
+                  />
+                ))}
+              </>
+            )}
+          </div>
+        </div>
       </nav>
 
       {showSignInModal && (

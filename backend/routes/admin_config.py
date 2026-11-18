@@ -28,7 +28,7 @@ ALLOWED_EXTENSIONS = {
 
 VIDEO_EXTENSIONS = {'mp4', 'webm', 'mov'}
 
-# Matches the FileDropzone `accept` list on the Site icon field — no SVG,
+# Matches the FileDropzone `accept` list on the Site icon field: no SVG,
 # since ICO generation needs a raster source.
 FAVICON_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
 
@@ -37,7 +37,7 @@ ENCRYPTED_FIELDS = ('mailgun_api_key', 'stripe_secret_key', 'stripe_webhook_secr
 
 
 def _config_to_dict(config):
-    """Serialize SiteConfig for the admin — includes all fields, secrets as _set flags."""
+    """Serialize SiteConfig for the admin: includes all fields, secrets as _set flags."""
     result = {
         'site_title': config.site_title,
         'domain': config.domain,
@@ -103,7 +103,7 @@ def _config_to_dict(config):
         'site_title_link': config.site_title_link,
     }
     # AI demo settings are only exposed to the admin UI when this deployment
-    # has the feature built in — see app.config['ENABLE_AI_DEMOS'].
+    # has the feature built in (see app.config['ENABLE_AI_DEMOS']).
     if current_app.config['ENABLE_AI_DEMOS']:
         result['ai_demo_enabled'] = config.ai_demo_enabled
         result['ai_demo_page_name'] = config.ai_demo_page_name
@@ -124,7 +124,7 @@ def get_admin_config():
         return jsonify({'error': 'No site config found'}), 404
     result = _config_to_dict(config)
     # Operational metadata about the running deployment, not a SiteConfig DB
-    # column — added directly here rather than through _config_to_dict.
+    # column, added directly here rather than through _config_to_dict.
     from version import get_app_version, get_prerendered_at
     result['app_version'] = get_app_version()
     result['prerendered_at'] = get_prerendered_at()
@@ -150,7 +150,7 @@ def update_admin_config():
     if current_user.role == 'editor' and ADMIN_ONLY_FIELDS & set(data.keys()):
         return jsonify({'error': 'Insufficient permissions to update these settings'}), 403
 
-    # Plain fields — update if present in payload
+    # Plain fields: update if present in payload
     plain_fields = [
         'site_title', 'domain', 'favicon_filename', 'social_image_filename', 'timezone', 'users_enabled', 'site_title_link',
         'home_enabled', 'home_page_name', 'home_text', 'home_meta_description', 'home_scrollable_nav_enabled', 'home_page_width', 'home_font_family',
@@ -168,7 +168,7 @@ def update_admin_config():
             setattr(config, field, data[field])
 
     # These fixed feature pages (Home/Blog/Projects/Contact/Payment/AI Demo)
-    # have no draft state — a save here goes live immediately — so unlike
+    # have no draft state (a save here goes live immediately), so unlike
     # BlogPost/Page (admin_blog.py/admin_pages.py), there's no "still editing,
     # keep it" window to preserve. Any HeaderNode's no-longer-selected
     # image/video reference is abandoned the moment this save happens, same
@@ -181,29 +181,19 @@ def update_admin_config():
                 setattr(config, field, strip_inactive_header_media(value))
 
     # Primary navigation (Pages feature, Ghost-style freeform label/url
-    # pairs) — validated separately since it needs JSON (de)serialization.
-    # No stricter URL validation than "non-empty string" — arbitrary internal
+    # pairs), validated separately since it needs JSON (de)serialization.
+    # No stricter URL validation than "non-empty string": arbitrary internal
     # or external URLs are intentionally allowed, matching Ghost's own
     # leniency.
+    # A top-level item may instead carry `children`, see
+    # _clean_primary_navigation below.
     if 'primary_navigation' in data:
-        nav_items = data['primary_navigation']
-        valid = isinstance(nav_items, list) and len(nav_items) <= 50
-        if valid:
-            for item in nav_items:
-                if (
-                    not isinstance(item, dict)
-                    or not isinstance(item.get('label'), str) or not item['label'].strip() or len(item['label']) > 200
-                    or not isinstance(item.get('url'), str) or not item['url'].strip() or len(item['url']) > 2000
-                ):
-                    valid = False
-                    break
-        if not valid:
-            return jsonify({'error': 'Invalid primary_navigation'}), 400
-        config.primary_navigation = json.dumps(
-            [{'label': item['label'], 'url': item['url']} for item in nav_items]
-        )
+        cleaned, error = _clean_primary_navigation(data['primary_navigation'])
+        if error:
+            return jsonify({'error': error}), 400
+        config.primary_navigation = json.dumps(cleaned)
 
-    # Analytics start date — validated/parsed separately since it's a Date,
+    # Analytics start date: validated/parsed separately since it's a Date,
     # not a plain string field.
     if 'analytics_start_date' in data:
         raw = data['analytics_start_date']
@@ -217,14 +207,14 @@ def update_admin_config():
         else:
             config.analytics_start_date = None
 
-    # Google OAuth client ID — a stray leading/trailing space (easy to pick up
+    # Google OAuth client ID: a stray leading/trailing space (easy to pick up
     # via copy-paste from Google Cloud Console) makes Google reject it outright
     # with a cryptic "Error 401: invalid_client", so strip it here rather than
     # storing it verbatim.
     if 'google_oauth_client_id' in data:
         config.google_oauth_client_id = (data['google_oauth_client_id'] or '').strip()
 
-    # Encrypted fields — only update if a non-empty value is provided
+    # Encrypted fields: only update if a non-empty value is provided
     if data.get('mailgun_api_key'):
         config.mailgun_api_key = encrypt(data['mailgun_api_key'])
     if data.get('stripe_secret_key'):
@@ -235,7 +225,7 @@ def update_admin_config():
         config.google_oauth_client_secret = encrypt(data['google_oauth_client_secret'].strip())
 
     # User accounts require Mailgun to be configured, since magic-link
-    # sign-in and account-related emails depend on it — Google sign-in is
+    # sign-in and account-related emails depend on it; Google sign-in is
     # an optional add-on layered on top, not a substitute. Only block the
     # request that's actively turning users_enabled on; don't re-validate
     # this on every unrelated save, since a site with a pre-existing
@@ -361,7 +351,7 @@ def upload_favicon():
 def _extract_video_poster(input_path, output_path):
     """Best-effort: grabs a representative (non-blank) frame via ffmpeg's
     `thumbnail` filter for use as the video's poster image. Returns False on
-    any failure (missing ffmpeg, corrupt video, etc.) rather than raising —
+    any failure (missing ffmpeg, corrupt video, etc.) rather than raising:
     unlike _transcode_to_mp3, a poster is a nice-to-have, not the primary
     deliverable of a video upload."""
     if not shutil.which('ffmpeg'):
@@ -441,3 +431,63 @@ def test_email():
         return jsonify({'error': 'Failed to send test email. Check your Mailgun settings.'}), 500
 
     return jsonify({'message': f'Test email sent to {to_address}'})
+
+
+# Site Navigation limits. Menus (a link's sub-links) are meant to stay short.
+MAX_NAV_LINKS = 50
+MAX_NAV_SUBLINKS = 20
+MAX_NAV_LABEL = 200
+MAX_NAV_URL = 2000
+
+
+def _clean_primary_navigation(nav_items):
+    """Validate the admin's Site Navigation list and return (cleaned, error).
+
+    Each item is {label, url}, or {label, children: [{label, url}, ...]} for a
+    link that opens a menu instead of going to a page (one level only). A
+    menu's url is stored as ''. Any `children` inside a sub-link is dropped.
+    `error` is a plain-language message the admin page shows as-is.
+    """
+    def label_ok(item):
+        label = item.get('label')
+        return isinstance(label, str) and label.strip() and len(label) <= MAX_NAV_LABEL
+
+    def url_ok(item):
+        url = item.get('url')
+        return isinstance(url, str) and url.strip() and len(url) <= MAX_NAV_URL
+
+    if not isinstance(nav_items, list):
+        return None, 'Navigation must be a list of links.'
+    if len(nav_items) > MAX_NAV_LINKS:
+        return None, f'Navigation can have at most {MAX_NAV_LINKS} links (this has {len(nav_items)}).'
+
+    cleaned = []
+    for item in nav_items:
+        if not isinstance(item, dict) or not label_ok(item):
+            return None, f'Every link needs a label of {MAX_NAV_LABEL} characters or fewer.'
+        label = item['label']
+        children = item.get('children')
+        if children is not None and not isinstance(children, list):
+            return None, f'The sub-links under "{label}" are not in a valid format.'
+        if children:
+            if len(children) > MAX_NAV_SUBLINKS:
+                return None, (
+                    f'"{label}" has {len(children)} sub-links. A menu can hold at most '
+                    f'{MAX_NAV_SUBLINKS}, so remove some or move them to another menu.'
+                )
+            for child in children:
+                if not isinstance(child, dict) or not label_ok(child) or not url_ok(child):
+                    return None, (
+                        f'Every sub-link under "{label}" needs a label ({MAX_NAV_LABEL} characters '
+                        f'or fewer) and a URL ({MAX_NAV_URL:,} characters or fewer).'
+                    )
+            cleaned.append({
+                'label': label,
+                'url': '',
+                'children': [{'label': c['label'], 'url': c['url']} for c in children],
+            })
+        else:
+            if not url_ok(item):
+                return None, f'"{label}" needs a URL of {MAX_NAV_URL:,} characters or fewer.'
+            cleaned.append({'label': label, 'url': item['url']})
+    return cleaned, None

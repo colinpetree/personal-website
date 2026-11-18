@@ -122,6 +122,12 @@ def main():
             {'label': 'Projects', 'url': '/projects'},
             {'label': 'Fixture Page', 'url': '/fixture-page'},
             {'label': 'Contact', 'url': '/contact'},
+            # A parent with children, so CI prerenders and hydrates the
+            # desktop dropdown and the mobile submenu pane.
+            {'label': 'More', 'url': '', 'children': [
+                {'label': 'Fixture Post', 'url': '/fixture-post'},
+                {'label': 'Fixture Doc', 'url': '/fixture-doc-page'},
+            ]},
         ])
         db.session.commit()
 
@@ -142,6 +148,9 @@ def main():
         'absent': ['/fixture-draft-post', '/fixture-draft-page'],
         # Internal nav link the hydration test clicks, and where it should land.
         'nav_click': {'from': '/', 'label': 'Blog', 'to': '/blog'},
+        # Nav parent with children: hydration test opens it (hover on
+        # desktop, submenu pane on mobile) and follows the child link.
+        'nav_dropdown': {'parent': 'More', 'child': 'Fixture Post', 'to': '/fixture-post'},
     }
     with open(args.manifest, 'w', encoding='utf-8') as f:
         json.dump(manifest, f, indent=2)
