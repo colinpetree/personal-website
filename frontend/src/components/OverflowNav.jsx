@@ -1,23 +1,25 @@
 import { useLayoutEffect, useRef, useState, useEffect, useCallback } from 'react'
 import { useLocation } from 'react-router'
-import { MoreHorizontal, ChevronDown } from 'lucide-react'
+import { MoreHorizontal } from 'lucide-react'
 import NavAnchor from './NavAnchor'
 import NavDropdown from './NavDropdown'
 
 // Desktop-only "priority navigation": renders every link from `links` until
 // the row would no longer fit its container, then collapses the remainder
-// (in original order: first collapsed link on top, last nav link at the
-// bottom) into a "more" popover button. Reuses the same hand-rolled
-// dropdown pattern already in Navbar.jsx (useState + outside-click
-// absolute-positioned panel) rather than adding a new dependency.
+// (in original order) into a "more" button.
 //
 // A link with `children` renders as a NavDropdown (a button that opens a menu
-// of its children) instead. Which dropdown is open lives here, as one
-// `openKey`, so only one menu (dropdown or "more") is ever open at a time.
-export default function OverflowNav({ links, transparent, navItemClass }) {
+// of its children) instead. The "more" button is a NavDropdown too, with the
+// same full-width panel: one column for the collapsed plain links, then one
+// per collapsed dropdown. Which menu is open lives here, as one `openKey` (a
+// link index, or 'more'), so only one menu is ever open at a time.
+// While a dropdown is open this also draws one shared backdrop (dimmed and
+// blurred) over the page below the navbar, shared so switching between two
+// menus doesn't flicker it, and reports the open state through
+// `onMenuOpenChange` so Navbar can turn a transparent bar solid.
+export default function OverflowNav({ links, transparent, barTransparent, navItemClass, onMenuOpenChange }) {
   const containerRef = useRef(null)
   const measureRef = useRef(null)
-  const moreRef = useRef(null)
   // Starts at 0, not links.length: useLayoutEffect below never runs
   // during server-side prerendering (no real DOM exists in Node to
   // measure), so the prerendered static HTML, and the brief window before
@@ -28,9 +30,19 @@ export default function OverflowNav({ links, transparent, navItemClass }) {
   // safe: worst case a brief flash of just the "more" button, never a
   // flash of overlapping/broken layout.
   const [visibleCount, setVisibleCount] = useState(0)
-  const [moreOpen, setMoreOpen] = useState(false)
-  // Index (in `links`) of the open dropdown, or null.
+  // Index (in `links`) of the open dropdown, 'more', or null.
   const [openKey, setOpenKey] = useState(null)
+  // When a dropdown opens while another is already open, the height of the
+  // panel being replaced, so the new one can animate from it (see
+  // NavDropdown). null when opening from closed.
+  const [switchFromHeight, setSwitchFromHeight] = useState(null)
+  // Natural height of the most recently opened panel, reported by NavDropdown.
+  const lastPanelHeightRef = useRef(null)
+  const recordPanelHeight = useCallback(h => { lastPanelHeightRef.current = h }, [])
+  function openDropdown(i) {
+    setSwitchFromHeight(openKey !== null && openKey !== i ? lastPanelHeightRef.current : null)
+    setOpenKey(i)
+  }
   const location = useLocation()
 
   // useLayoutEffect (not useEffect) so the trimmed-down link count is what
@@ -47,18 +59,23 @@ export default function OverflowNav({ links, transparent, navItemClass }) {
       const itemEls = Array.from(measure.children).slice(0, links.length)
       const moreButtonEl = measure.children[links.length]
       const moreWidth = moreButtonEl ? moreButtonEl.offsetWidth : 0
+      // The gap between labels (and between the last label and the "more"
+      // button), read from the measurement row, which uses the same gap as
+      // the real rows. It has to be counted: at 24px it adds up fast.
+      const gap = parseFloat(getComputedStyle(measure).columnGap) || 0
       let used = 0
       let count = 0
       for (let i = 0; i < itemEls.length; i++) {
         const w = itemEls[i].offsetWidth
         const isLast = i === itemEls.length - 1
+        const gapBefore = count > 0 ? gap : 0
         // Every link except the last needs to leave room for the "more"
-        // button too, since taking it would still leave something
-        // collapsed; the last one doesn't, since taking it means nothing
-        // is left to collapse and the "more" button won't render at all.
-        const widthNeeded = used + w + (isLast ? 0 : moreWidth)
+        // button too (plus its gap), since taking it would still leave
+        // something collapsed; the last one doesn't, since taking it means
+        // nothing is left to collapse and the "more" button won't render.
+        const widthNeeded = used + gapBefore + w + (isLast ? 0 : gap + moreWidth)
         if (widthNeeded > available) break
-        used += w
+        used += gapBefore + w
         count += 1
       }
       setVisibleCount(count)
@@ -86,22 +103,28 @@ export default function OverflowNav({ links, transparent, navItemClass }) {
     return () => { cancelled = true; ro.disconnect(); cancelAnimationFrame(raf) }
   }, [links])
 
-  useEffect(() => {
-    if (!moreOpen) return
-    function handle(e) {
-      if (moreRef.current && !moreRef.current.contains(e.target)) setMoreOpen(false)
-    }
-    document.addEventListener('mousedown', handle)
-    return () => document.removeEventListener('mousedown', handle)
-  }, [moreOpen])
-
-  useEffect(() => { setMoreOpen(false); setOpenKey(null) }, [location.pathname])
+  useEffect(() => { setOpenKey(null) }, [location.pathname])
 
   // A dropdown that collapses into "more" (window narrowed while it was
-  // open) shouldn't stay open as an orphan.
+  // open), or "more" once nothing is collapsed any more, shouldn't stay open
+  // as an orphan.
   useEffect(() => {
-    if (openKey !== null && openKey >= visibleCount) setOpenKey(null)
-  }, [openKey, visibleCount])
+    if (typeof openKey === 'number' && openKey >= visibleCount) setOpenKey(null)
+    if (openKey === 'more' && visibleCount >= links.length) setOpenKey(null)
+  }, [openKey, visibleCount, links.length])
+
+  // Tells Navbar a dropdown is open, so text over a transparent bar turns dark
+  // (the panel slides white in behind it). On open, in a layout effect (not
+  // passive) so it starts in the same paint the panel starts moving in. On
+  // close, only once the panel's 200ms slide back has finished, so white text
+  // never sits on the still-visible white panel; reopening within that window
+  // cancels the pending report.
+  const dropdownOpen = openKey !== null
+  useLayoutEffect(() => {
+    if (dropdownOpen) { onMenuOpenChange?.(true); return }
+    const timer = setTimeout(() => onMenuOpenChange?.(false), 200)
+    return () => clearTimeout(timer)
+  }, [dropdownOpen, onMenuOpenChange])
 
   // Key-specific close: a dropdown's delayed close (see NavDropdown) can fire
   // after another dropdown has already opened, and must not close that one.
@@ -109,31 +132,31 @@ export default function OverflowNav({ links, transparent, navItemClass }) {
 
   const visible = links.slice(0, visibleCount)
   const collapsed = links.slice(visibleCount)
+  // The "more" panel's columns: collapsed plain links first, under "More",
+  // then each collapsed dropdown under its own label.
+  const collapsedPlain = collapsed.filter(link => !link.children?.length)
+  const moreSections = [
+    ...(collapsedPlain.length ? [{ label: 'More', links: collapsedPlain }] : []),
+    ...collapsed.filter(link => link.children?.length).map(link => ({ label: link.label, links: link.children })),
+  ]
 
   return (
-    // No overflow-hidden on this outer element: the "more" popover is a
-    // descendant of it and needs to render outside the clipped links row
-    // below (an ancestor's overflow-hidden clips absolutely-positioned
-    // descendants regardless of their own position, which was silently
-    // hiding the popover even while open). Dropdown menus inside the
-    // clipped row get around it by being position: fixed (see NavDropdown).
-    <div ref={containerRef} className="relative flex items-center justify-end gap-1 min-w-0 flex-1">
-      <div className="flex items-center justify-end gap-1 min-w-0 flex-1 overflow-hidden">
+    // Dropdown panels are position: fixed (see NavDropdown), so the links
+    // row's overflow-hidden (which clips labels that don't fit) can't clip
+    // them.
+    // Labels sit on the left, right after the site title. The container takes
+    // the remaining width (that's what recalc measures against); the links
+    // row only takes its labels' width, so the "more" button sits directly
+    // after the last visible label instead of at the far right.
+    <div ref={containerRef} className="relative flex items-center justify-start gap-6 min-w-0 flex-1">
+      <div className="flex items-center gap-6 min-w-0 overflow-hidden">
         {/* Hidden measurement row: every link plus a "more" button
             rendered at natural width, absolutely positioned off-screen so
             it doesn't affect layout but its children's offsetWidth is
-            measurable. A parent's span includes its chevron, matching the
-            NavDropdown button it measures for. */}
-        <div ref={measureRef} aria-hidden="true" className="absolute -left-[9999px] top-0 flex items-center gap-1 pointer-events-none">
+            measurable. Same gap as the real rows (recalc reads it). */}
+        <div ref={measureRef} aria-hidden="true" className="absolute -left-[9999px] top-0 flex items-center gap-6 pointer-events-none">
           {links.map((link, i) => (
-            link.children?.length ? (
-              <span key={i} className={`${navItemClass(false, transparent)} inline-flex items-center gap-1`}>
-                {link.label}
-                <ChevronDown size={14} />
-              </span>
-            ) : (
-              <span key={i} className={navItemClass(false, transparent)}>{link.label}</span>
-            )
+            <span key={i} className={navItemClass(false, transparent)}>{link.label}</span>
           ))}
           <span className={navItemClass(false, transparent)}><MoreHorizontal size={16} /></span>
         </div>
@@ -144,8 +167,12 @@ export default function OverflowNav({ links, transparent, navItemClass }) {
               key={i}
               item={link}
               open={openKey === i}
-              onOpen={() => { setMoreOpen(false); setOpenKey(i) }}
+              onOpen={() => openDropdown(i)}
               onClose={() => closeDropdown(i)}
+              switchFromHeight={openKey === i ? switchFromHeight : null}
+              anotherOpen={openKey !== null && openKey !== i}
+              barTransparent={barTransparent}
+              onPanelHeight={recordPanelHeight}
               transparent={transparent}
               navItemClass={navItemClass}
             />
@@ -161,50 +188,40 @@ export default function OverflowNav({ links, transparent, navItemClass }) {
       </div>
 
       {collapsed.length > 0 && (
-        <div className="relative flex-shrink-0" ref={moreRef}>
-          <button
-            onClick={() => { setOpenKey(null); setMoreOpen(o => !o) }}
-            aria-label="More links"
-            className={navItemClass(false, transparent)}
-          >
-            <MoreHorizontal size={16} />
-          </button>
-          {moreOpen && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-50">
-              {collapsed.map((link, i) => (
-                link.children?.length ? (
-                  // A collapsed parent has no link of its own: a small
-                  // heading with its children listed under it.
-                  <div key={i} role="group" aria-label={link.label}>
-                    <p className="px-4 pt-2 pb-1 text-xs font-medium text-gray-400">{link.label}</p>
-                    {link.children.map((child, j) => (
-                      <NavAnchor
-                        key={j}
-                        url={child.url}
-                        label={child.label}
-                        onClick={() => setMoreOpen(false)}
-                        className={`block px-4 py-2 text-sm hover:bg-gray-50 ${
-                          location.pathname === child.url ? 'text-gray-900 font-medium' : 'text-gray-700'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <NavAnchor
-                    key={i}
-                    url={link.url}
-                    label={link.label}
-                    onClick={() => setMoreOpen(false)}
-                    className={`block px-4 py-2 text-sm hover:bg-gray-50 ${
-                      location.pathname === link.url ? 'text-gray-900 font-medium' : 'text-gray-700'
-                    }`}
-                  />
-                )
-              ))}
-            </div>
-          )}
-        </div>
+        <NavDropdown
+          sections={moreSections}
+          buttonContent={<MoreHorizontal size={16} />}
+          ariaLabel="More links"
+          open={openKey === 'more'}
+          onOpen={() => openDropdown('more')}
+          onClose={() => closeDropdown('more')}
+          switchFromHeight={openKey === 'more' ? switchFromHeight : null}
+          anotherOpen={openKey !== null && openKey !== 'more'}
+          barTransparent={barTransparent}
+          onPanelHeight={recordPanelHeight}
+          transparent={transparent}
+          navItemClass={navItemClass}
+        />
       )}
+
+      {/* Backdrop behind an open dropdown: dims (black at 12%) and blurs (16px)
+          the page below the navbar. It fades
+          in and out over 200ms ease-in-out as a menu opens from or closes to
+          nothing (switching between menus leaves it as is). Not inside any dropdown's
+          wrapper, so pressing on it counts as a click outside and closes the
+          menu; moving the pointer onto it from the panel starts the dropdown's
+          normal close delay. Negative z-index inside the header's stacking
+          context: under the panels (-z-20 vs their -z-10), which are in turn
+          under the navbar's own labels, title and buttons. `invisible` while closed, so a closed
+          menu doesn't leave a full-screen blur layer for the browser to keep
+          rendering. */}
+      <div
+        aria-hidden="true"
+        data-keep-transition=""
+        className={`fixed inset-x-0 top-16 bottom-0 -z-20 bg-black/[0.12] backdrop-blur-lg transition-[opacity,visibility] duration-200 ease-in-out motion-reduce:transition-none ${
+          dropdownOpen ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'
+        }`}
+      />
     </div>
   )
 }

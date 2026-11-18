@@ -7,17 +7,22 @@ import { startsWithOverlayHeader } from '../utils/headerLayout'
 import SignInRequiredModal from './SignInRequiredModal'
 import SearchModal from './SearchModal'
 import OverflowNav from './OverflowNav'
-import NavAnchor, { navItemIsActive } from './NavAnchor'
+import NavAnchor from './NavAnchor'
 import { getInitials } from '../utils/getInitials'
 
-// Shared by every nav-link-shaped control (desktop nav links, Sign in) so
-// the hover chip and the transparent/solid text colors stay in sync in one
-// place instead of being repeated at each call site.
-function navItemClass(active, transparent) {
-  const color = transparent
+function navTextColor(active, transparent) {
+  return transparent
     ? (active ? 'text-white' : 'text-white/75 hover:text-white')
     : (active ? 'text-gray-900' : 'text-gray-500 hover:text-gray-900')
-  const hoverBg = transparent ? 'hover:bg-gray-400/30' : 'hover:bg-gray-400/10'
+}
+
+// Desktop nav labels (links, dropdown buttons, the "more" button), shared by
+// OverflowNav.jsx and NavDropdown.jsx so their styles stay in sync in one
+// place. 17px regular, -0.01em tracking, dark when current/open and gray
+// otherwise, no padding or hover background, and each label spans the
+// navbar's full 64px height, so there's no gap between a label and the
+// dropdown panel under it. OverflowNav spaces the labels 24px apart.
+function navItemClass(active, transparent) {
   // whitespace-nowrap + flex-shrink-0: a flex item's default min-width:auto
   // otherwise lets the browser wrap/shrink a multi-word label (e.g. "AI
   // Demos") below its measured natural width once OverflowNav.jsx's row
@@ -25,7 +30,14 @@ function navItemClass(active, transparent) {
   // whether an item fits, not the browser wrapping text as a fallback. If
   // it truly doesn't fit, this makes the row overflow (clipped by
   // OverflowNav's own overflow-hidden) instead of visibly wrapping.
-  return `text-sm font-medium rounded-md px-3 py-1.5 transition-colors whitespace-nowrap flex-shrink-0 ${hoverBg} ${color}`
+  return `h-16 inline-flex items-center text-[17px] font-normal tracking-[-0.01em] transition-colors whitespace-nowrap flex-shrink-0 ${navTextColor(active, transparent)}`
+}
+
+// The desktop "Sign in" button keeps a compact button look (small text,
+// padding, a hover background), set apart from the nav labels.
+function signInClass(transparent) {
+  const hoverBg = transparent ? 'hover:bg-gray-400/30' : 'hover:bg-gray-400/10'
+  return `text-sm font-medium rounded-md px-3 py-1.5 transition-colors whitespace-nowrap flex-shrink-0 ${hoverBg} ${navTextColor(false, transparent)}`
 }
 
 function SearchButton({ className = '', transparent = false }) {
@@ -81,20 +93,27 @@ export default function Navbar() {
   const [borderVisible, setBorderVisible] = useState(!overlay)
   const userMenuRef = useRef(null)
   const headerRef = useRef(null)
-  // The `transparent` value a snap effect below (route change, mobile menu
-  // toggle) just applied to the border, so the delayed-reveal effect can skip
-  // that one update. Holds a value rather than a yes/no flag on purpose: a
-  // snap doesn't always change `transparent` (e.g. toggling the menu while
-  // already scrolled to the solid bar), and a leftover "just snapped" flag
-  // would then wrongly skip the next real change too, leaving the border
-  // showing after scrolling back to the transparent top of the page.
+  // The `transparent` value the route-change snap effect below just applied to
+  // the border, so the delayed-reveal effect can skip that one update. Holds a
+  // value rather than a yes/no flag on purpose: a snap doesn't always change
+  // `transparent`, and a leftover "just snapped" flag would then wrongly skip
+  // the next real change too, leaving the border showing after scrolling back
+  // to the transparent top of the page.
   const snappedTransparentRef = useRef(undefined)
   const location = useLocation()
   const { user, logout } = useUserAuth()
-  // menuOpen forces the navbar solid even before scrolling: the mobile menu panel doesn't
-  // cover the navbar itself (intentional), so a still-transparent bar would let a
-  // fullscreen/split/full-width header show through behind the open menu's nav links.
-  const transparent = !!overlay && !scrolled && !menuOpen
+  const [dropdownOpen, setDropdownOpen] = useState(false)
+  // Whether the bar's own background is transparent. Opening a menu doesn't change
+  // it: the mobile menu and the desktop dropdowns both slide a white panel down from
+  // the top of the window *behind* the bar, so the bar fills with white as part of
+  // that motion instead of snapping solid.
+  const transparent = !!overlay && !scrolled
+  // Text colors (white vs gray) follow `transparent`, except while a menu's white
+  // panel is behind a transparent bar: then only the text turns dark. For the mobile
+  // menu it switches the moment the menu starts opening or closing, so the text's own
+  // color fade (transition-colors: 150ms, ease-in-out) plays alongside the panel's
+  // 200ms slide instead of after it, and the two read as one motion.
+  const lightText = transparent && !dropdownOpen && !menuOpen
 
   // The prerendered HTML can't know the scroll position, so it always ships
   // the top-of-page (transparent) navbar. Until hydration takes over, the
@@ -153,23 +172,6 @@ export default function Navbar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [overlay])
 
-  // Opening/closing the mobile menu should snap the navbar's color instantly (white while
-  // the menu's open, since its panel doesn't cover the navbar itself), not play the same
-  // 300ms fade used for the scroll-driven transparent-to-white flip, same
-  // disable-transition-then-force-reflow trick as the route-change effect above, and same
-  // snappedTransparentRef trick to make the border snap instead of its normal delayed reveal.
-  useLayoutEffect(() => {
-    const el = headerRef.current
-    if (!el) return
-    el.classList.add('navbar-no-transition')
-    void el.offsetHeight
-    const raf = requestAnimationFrame(() => el.classList.remove('navbar-no-transition'))
-    snappedTransparentRef.current = transparent
-    setBorderVisible(!transparent)
-    return () => cancelAnimationFrame(raf)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [menuOpen])
-
   // The border has no in-between visual state the way a color fade does,
   // it's either there or not, so animating it in sync with the
   // background's 300ms fade reads as lagging behind (a hairline's alpha
@@ -193,9 +195,27 @@ export default function Navbar() {
   // Close mobile menu on navigation
   useEffect(() => { setMenuOpen(false); setUserMenuOpen(false) }, [location.pathname])
 
-  // The mobile menu always reopens on its primary pane. The menu is already
-  // display:none by the time this runs, so the slide back doesn't play.
-  useEffect(() => { if (!menuOpen) setSubmenuOpen(false) }, [menuOpen])
+  // Close the mobile menu if the window widens to desktop size (md, 768px)
+  // while it's open: it's display:none there, but `menuOpen` would otherwise
+  // keep the bar's text dark over a transparent header with nothing behind it.
+  useEffect(() => {
+    if (!menuOpen) return
+    const mq = window.matchMedia('(min-width: 768px)')
+    if (mq.matches) { setMenuOpen(false); return }
+    const onChange = e => { if (e.matches) setMenuOpen(false) }
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [menuOpen])
+
+  // The mobile menu always reopens on its primary pane. Normally that reset
+  // happens once the menu's 200ms close has finished, so the panes don't
+  // visibly crossfade back while it slides away; if it's reopened before then,
+  // reset on open instead.
+  useEffect(() => {
+    if (menuOpen) { setSubmenuOpen(false); return }
+    const timer = setTimeout(() => setSubmenuOpen(false), 200)
+    return () => clearTimeout(timer)
+  }, [menuOpen])
 
   function openSubmenu(index) {
     if (submenuPaneRef.current) submenuPaneRef.current.scrollTop = 0
@@ -270,7 +290,7 @@ export default function Navbar() {
         {config ? (() => {
           const titleLink = config?.site_title_link || '/'
           const titleClassName = `flex-shrink-0 whitespace-nowrap text-lg font-semibold transition-colors ${
-            transparent ? 'text-white hover:text-white/80' : 'text-gray-900 hover:text-gray-700'
+            lightText ? 'text-white hover:text-white/80' : 'text-gray-900 hover:text-gray-700'
           }`
           // Same internal-vs-external check as the nav links (see
           // OverflowNav.jsx's isInternalPath), site_title_link is a freely
@@ -286,8 +306,10 @@ export default function Navbar() {
           <div className="w-32 h-4 bg-gray-100 rounded animate-pulse" />
         )}
 
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-1 min-w-0 flex-1">
+        {/* Desktop nav: labels start right after the site title (OverflowNav takes
+            the free width and left-aligns them); search and Sign in / the avatar stay
+            on the right. */}
+        <nav className="hidden md:flex items-center gap-1 min-w-0 flex-1 ml-10">
           {!config && (
             <>
               <div className="w-12 h-4 bg-gray-100 rounded animate-pulse" />
@@ -296,14 +318,14 @@ export default function Navbar() {
             </>
           )}
           {config && (
-            <OverflowNav links={navLinks} transparent={transparent} navItemClass={navItemClass} />
+            <OverflowNav links={navLinks} transparent={lightText} barTransparent={transparent} navItemClass={navItemClass} onMenuOpenChange={setDropdownOpen} />
           )}
 
-          <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="ml-5 flex items-center gap-1 flex-shrink-0">
             {usersEnabled ? (
               user ? (
                 <>
-                  <SearchButton transparent={transparent} />
+                  <SearchButton transparent={lightText} />
                   <div className="relative ml-2" ref={userMenuRef}>
                     <button
                       onClick={() => setUserMenuOpen(o => !o)}
@@ -331,26 +353,26 @@ export default function Navbar() {
                 </>
               ) : (
                 <>
-                  <SearchButton transparent={transparent} />
+                  <SearchButton transparent={lightText} />
                   <button
                     onClick={() => setShowSignInModal(true)}
-                    className={navItemClass(false, transparent)}
+                    className={signInClass(lightText)}
                   >
                     Sign in
                   </button>
                 </>
               )
             ) : (
-              <SearchButton transparent={transparent} />
+              <SearchButton transparent={lightText} />
             )}
           </div>
         </nav>
 
         {/* Mobile hamburger */}
         <div className="md:hidden flex items-center gap-1">
-          <SearchButton transparent={transparent} />
+          <SearchButton transparent={lightText} />
           <button
-            className={`rounded-full p-2 transition-colors ${transparent ? 'hover:bg-gray-400/30 text-white/75 hover:text-white' : 'hover:bg-gray-400/10 text-gray-500 hover:text-gray-900'}`}
+            className={`rounded-full p-2 transition-colors ${lightText ? 'hover:bg-gray-400/30 text-white/75 hover:text-white' : 'hover:bg-gray-400/10 text-gray-500 hover:text-gray-900'}`}
             onClick={() => setMenuOpen(o => !o)}
             aria-label="Toggle menu"
           >
@@ -367,10 +389,18 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile menu - full-height overlay directly below the sticky header. No transition
-          on open/close; it's simply shown/hidden. Marked inert while hidden to keep its links
-          out of the tab order / a11y tree until opened. md:hidden already makes it
-          display:none at desktop widths regardless.
+      {/* Mobile menu - a full-height white panel. Opening, it slides down from the very
+          top of the window behind the bar (height 0 to 100dvh, 200ms ease-in-out, the
+          same motion as a desktop dropdown over a transparent bar), filling the bar with
+          white as it goes, while Navbar fades the bar's text dark; closing slides it back
+          up. It sits at a negative z-index inside the header's stacking context, so the
+          bar's own title and buttons stay on top of it. Its content starts below the bar
+          (top-16) and is clipped by the growing height, so it's revealed top-down.
+          `invisible` once fully closed. Heights use dvh where supported (so the
+          panel tracks mobile browsers' collapsing toolbars), with a plain vh fallback:
+          without one, a browser that predates dvh would ignore the height and the
+          panel, whose content is all absolutely positioned, would open 0px tall. Marked inert while closed to keep its links out
+          of the tab order / a11y tree. md:hidden makes it display:none at desktop widths.
 
           Inside it are two stacked panes. The primary pane holds the site links; the
           secondary pane has a "<- Home" back button, the tapped link's label as a small
@@ -388,113 +418,112 @@ export default function Navbar() {
       <nav
         inert={!menuOpen}
         aria-hidden={!menuOpen}
-        className={`md:hidden fixed inset-x-0 top-16 bottom-0 z-40 bg-white overflow-hidden ${
-          menuOpen ? 'block' : 'hidden'
+        data-keep-transition=""
+        className={`md:hidden fixed inset-x-0 top-0 -z-10 overflow-hidden bg-white transition-[height,visibility] duration-200 ease-in-out motion-reduce:transition-none ${
+          menuOpen ? 'h-screen supports-[height:100dvh]:h-[100dvh] visible' : 'h-0 invisible pointer-events-none'
         }`}
       >
-        <div
-          inert={submenuOpen}
-          aria-hidden={submenuOpen}
-          className={`absolute inset-0 overflow-y-auto px-6 pt-2 pb-8 flex flex-col gap-1 transition-[opacity,transform] duration-200 ease-[ease] motion-reduce:transition-none ${
-            submenuOpen ? 'opacity-0 -translate-y-2 pointer-events-none' : 'opacity-100 translate-y-0'
-          }`}
-        >
-          {navLinks.map((link, i) => {
-            // Type scale: 32px, medium weight, ~1.15 line height, -0.02em tracking,
-            // rows 53px apart (the 12px of padding plus the pane's 4px gap).
-            // Sub-links and the account rows use the same.
-            const className = `text-[32px] leading-[1.15] tracking-[-0.02em] font-medium -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
-              navItemIsActive(link, location.pathname) ? 'text-gray-900' : 'text-gray-500'
-            }`
-            if (link.children?.length) {
+        <div className="absolute inset-x-0 top-16 h-[calc(100vh-4rem)] supports-[height:100dvh]:h-[calc(100dvh-4rem)]">
+          <div
+            inert={submenuOpen}
+            aria-hidden={submenuOpen}
+            className={`absolute inset-0 overflow-y-auto px-6 pt-2 pb-8 flex flex-col gap-1 transition-[opacity,transform] duration-200 ease-[ease] motion-reduce:transition-none ${
+              submenuOpen ? 'opacity-0 -translate-y-2 pointer-events-none' : 'opacity-100 translate-y-0'
+            }`}
+          >
+            {navLinks.map((link, i) => {
+              // Type scale: 32px, medium weight, ~1.15 line height, -0.02em tracking,
+              // rows 53px apart (the 12px of padding plus the pane's 4px gap).
+              // Sub-links and the account rows use the same.
+              const className = 'text-[32px] leading-[1.15] tracking-[-0.02em] font-medium -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-50 active:bg-gray-100 text-black hover:text-black/60 transition-colors duration-[250ms] ease-linear'
+              if (link.children?.length) {
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    ref={el => { parentRowRefs.current[i] = el }}
+                    onClick={() => openSubmenu(i)}
+                    aria-haspopup="true"
+                    aria-expanded={submenuOpen && submenuIndex === i}
+                    className={`${className} text-left`}
+                  >
+                    {link.label}
+                  </button>
+                )
+              }
               return (
-                <button
-                  key={i}
-                  type="button"
-                  ref={el => { parentRowRefs.current[i] = el }}
-                  onClick={() => openSubmenu(i)}
-                  aria-haspopup="true"
-                  aria-expanded={submenuOpen && submenuIndex === i}
-                  className={`${className} text-left`}
-                >
-                  {link.label}
-                </button>
+                <NavAnchor key={i} url={link.url} label={link.label} onClick={() => setMenuOpen(false)} className={className} />
               )
-            }
-            return (
-              <NavAnchor key={i} url={link.url} label={link.label} onClick={() => setMenuOpen(false)} className={className} />
-            )
-          })}
-          {/* Account rows: the same type scale as the links, in a lighter gray so
-              they read as secondary. */}
-          {usersEnabled && (
-            user ? (
-              <>
-                <div className="border-t border-gray-200 mt-4 pt-6 mb-4 flex items-center gap-3">
-                  {user.avatar_url ? (
-                    <img src={user.avatar_url} alt={user.name} className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center leading-none text-base font-semibold text-gray-600">
-                      <span className="translate-y-px">{getInitials(user.name)}</span>
-                    </div>
-                  )}
-                  <span className="text-lg font-medium text-gray-900">{user.name}</span>
-                </div>
-                <Link to="/profile" onClick={() => setMenuOpen(false)} className="text-left text-[32px] leading-[1.15] tracking-[-0.02em] font-medium text-gray-400 -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200">Profile</Link>
-                <button onClick={logout} className="text-left text-[32px] leading-[1.15] tracking-[-0.02em] font-medium text-gray-400 -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign out</button>
-              </>
-            ) : (
-              <>
-                {/* Divider spaced like the signed-in name row's top border, setting the
-                    account row apart from the site links. */}
-                <div aria-hidden="true" className="border-t border-gray-200 mt-4 mb-5" />
-                <button onClick={() => setShowSignInModal(true)} className="text-left text-[32px] leading-[1.15] tracking-[-0.02em] font-medium text-gray-400 -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign in</button>
-              </>
-            )
-          )}
-        </div>
+            })}
+            {/* Account rows: the same type scale as the links, at 60% black so they
+                read as secondary. Links are black, fading to 60% black on hover. */}
+            {usersEnabled && (
+              user ? (
+                <>
+                  <div className="border-t border-gray-200 mt-4 pt-6 mb-4 flex items-center gap-3">
+                    {user.avatar_url ? (
+                      <img src={user.avatar_url} alt={user.name} className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center leading-none text-base font-semibold text-gray-600">
+                        <span className="translate-y-px">{getInitials(user.name)}</span>
+                      </div>
+                    )}
+                    <span className="text-lg font-medium text-gray-900">{user.name}</span>
+                  </div>
+                  <Link to="/profile" onClick={() => setMenuOpen(false)} className="text-left text-[32px] leading-[1.15] tracking-[-0.02em] font-medium text-black/60 -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-50 active:bg-gray-100">Profile</Link>
+                  <button onClick={logout} className="text-left text-[32px] leading-[1.15] tracking-[-0.02em] font-medium text-black/60 -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-50 active:bg-gray-100">Sign out</button>
+                </>
+              ) : (
+                <>
+                  {/* Divider spaced like the signed-in name row's top border, setting the
+                      account row apart from the site links. */}
+                  <div aria-hidden="true" className="border-t border-gray-200 mt-4 mb-5" />
+                  <button onClick={() => setShowSignInModal(true)} className="text-left text-[32px] leading-[1.15] tracking-[-0.02em] font-medium text-black/60 -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-50 active:bg-gray-100">Sign in</button>
+                </>
+              )
+            )}
+          </div>
 
-        {/* Secondary pane: the tapped parent's sub-links. Keeps showing the last
-            parent's links while it fades back out (submenuIndex isn't cleared). Same
-            timing as the primary pane above; keep the two in step. */}
-        <div
-          ref={submenuPaneRef}
-          inert={!submenuOpen}
-          aria-hidden={!submenuOpen}
-          className={`absolute inset-0 overflow-y-auto px-6 pt-2 pb-8 flex flex-col gap-1 transition-[opacity,transform] duration-200 ease-[ease] motion-reduce:transition-none ${
-            submenuOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
-          }`}
-        >
-          {submenuItem && (
-            <>
-              {/* Back to the main links: 16px medium, same color as the links, with a
-                  full-width tap target. The accessible name spells out where it goes,
-                  since "Home" alone reads like a link to the home page. */}
-              <button
-                ref={backButtonRef}
-                type="button"
-                onClick={closeSubmenu}
-                aria-label="Home, back to main menu"
-                className="text-base leading-5 font-medium -mx-3 px-3 py-2 rounded-lg flex items-center gap-2 text-left text-gray-500 hover:bg-gray-100 active:bg-gray-200"
-              >
-                <ArrowLeft size={16} aria-hidden="true" className="flex-shrink-0" />
-                Home
-              </button>
-              {/* The link that was tapped to get here, as a plain heading. */}
-              <p className="mt-4 mb-1 text-[13px] leading-normal font-medium text-gray-400">{submenuItem.label}</p>
-              {submenuItem.children.map((child, j) => (
-                <NavAnchor
-                  key={j}
-                  url={child.url}
-                  label={child.label}
-                  onClick={() => setMenuOpen(false)}
-                  className={`text-[32px] leading-[1.15] tracking-[-0.02em] font-medium -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
-                    location.pathname === child.url ? 'text-gray-900' : 'text-gray-500'
-                  }`}
-                />
-              ))}
-            </>
-          )}
+          {/* Secondary pane: the tapped parent's sub-links. Keeps showing the last
+              parent's links while it fades back out (submenuIndex isn't cleared). Same
+              timing as the primary pane above; keep the two in step. */}
+          <div
+            ref={submenuPaneRef}
+            inert={!submenuOpen}
+            aria-hidden={!submenuOpen}
+            className={`absolute inset-0 overflow-y-auto px-6 pt-2 pb-8 flex flex-col gap-1 transition-[opacity,transform] duration-200 ease-[ease] motion-reduce:transition-none ${
+              submenuOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2 pointer-events-none'
+            }`}
+          >
+            {submenuItem && (
+              <>
+                {/* Back to the main links: 16px medium, black like the links, with a
+                    full-width tap target. The accessible name spells out where it goes,
+                    since "Home" alone reads like a link to the home page. */}
+                <button
+                  ref={backButtonRef}
+                  type="button"
+                  onClick={closeSubmenu}
+                  aria-label="Home, back to main menu"
+                  className="text-base leading-5 font-medium -mx-3 px-3 py-2 rounded-lg flex items-center gap-2 text-left text-black hover:bg-gray-50 active:bg-gray-100"
+                >
+                  <ArrowLeft size={16} aria-hidden="true" className="flex-shrink-0" />
+                  Home
+                </button>
+                {/* The link that was tapped to get here, as a plain heading. */}
+                <p className="mt-4 mb-1 text-sm leading-normal font-medium text-black/60">{submenuItem.label}</p>
+                {submenuItem.children.map((child, j) => (
+                  <NavAnchor
+                    key={j}
+                    url={child.url}
+                    label={child.label}
+                    onClick={() => setMenuOpen(false)}
+                    className="text-[32px] leading-[1.15] tracking-[-0.02em] font-medium -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-50 active:bg-gray-100 text-black hover:text-black/60 transition-colors duration-[250ms] ease-linear"
+                  />
+                ))}
+              </>
+            )}
+          </div>
         </div>
       </nav>
 

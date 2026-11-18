@@ -1003,10 +1003,21 @@ html {
    visibly crossfading from the previous page's. Toggled via direct DOM
    writes, not a Tailwind/React class, so the disable is guaranteed to land
    in the same paint as the color change, see the comment above where it's
-   applied. */
+   applied.
+   Elements marked data-keep-transition are exempt: opening a desktop nav
+   dropdown (NavDropdown.jsx) also triggers this snap (the bar turns solid
+   with the panel), and without the exemption the backdrop's fade-in and the
+   panel's switch animation would be killed too. */
 .navbar-no-transition,
-.navbar-no-transition * {
+.navbar-no-transition *:not([data-keep-transition]) {
   transition: none !important;
+}
+
+/* NavDropdown.jsx: a desktop nav menu's links fade in when the panel switches
+   from one section to another (opening from closed is instant). */
+@keyframes nav-panel-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* Navbar.jsx: the prerendered navbar on an overlay-header page is always the
