@@ -81,7 +81,14 @@ export default function Navbar() {
   const [borderVisible, setBorderVisible] = useState(!overlay)
   const userMenuRef = useRef(null)
   const headerRef = useRef(null)
-  const justNavigatedRef = useRef(true)
+  // The `transparent` value a snap effect below (route change, mobile menu
+  // toggle) just applied to the border, so the delayed-reveal effect can skip
+  // that one update. Holds a value rather than a yes/no flag on purpose: a
+  // snap doesn't always change `transparent` (e.g. toggling the menu while
+  // already scrolled to the solid bar), and a leftover "just snapped" flag
+  // would then wrongly skip the next real change too, leaving the border
+  // showing after scrolling back to the transparent top of the page.
+  const snappedTransparentRef = useRef(undefined)
   const location = useLocation()
   const { user, logout } = useUserAuth()
   // menuOpen forces the navbar solid even before scrolling: the mobile menu panel doesn't
@@ -140,7 +147,7 @@ export default function Navbar() {
     // paint, see the effect below for why the border's reveal (but not
     // its hide) is otherwise delayed to match the background's fade.
     // Landing on a page is not a "reveal", there's nothing to delay for.
-    justNavigatedRef.current = true
+    snappedTransparentRef.current = transparent
     setBorderVisible(!transparent)
     return () => cancelAnimationFrame(raf)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -150,14 +157,14 @@ export default function Navbar() {
   // the menu's open, since its panel doesn't cover the navbar itself), not play the same
   // 300ms fade used for the scroll-driven transparent-to-white flip, same
   // disable-transition-then-force-reflow trick as the route-change effect above, and same
-  // justNavigatedRef trick to make the border snap instead of its normal delayed reveal.
+  // snappedTransparentRef trick to make the border snap instead of its normal delayed reveal.
   useLayoutEffect(() => {
     const el = headerRef.current
     if (!el) return
     el.classList.add('navbar-no-transition')
     void el.offsetHeight
     const raf = requestAnimationFrame(() => el.classList.remove('navbar-no-transition'))
-    justNavigatedRef.current = true
+    snappedTransparentRef.current = transparent
     setBorderVisible(!transparent)
     return () => cancelAnimationFrame(raf)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -174,7 +181,10 @@ export default function Navbar() {
   // appearance until the background's own fade has finished, so the two
   // resolve together instead of the border finishing first.
   useEffect(() => {
-    if (justNavigatedRef.current) { justNavigatedRef.current = false; return }
+    const snapped = snappedTransparentRef.current
+    snappedTransparentRef.current = undefined
+    // A snap effect already set the border for this exact state.
+    if (snapped === transparent) return
     if (transparent) { setBorderVisible(false); return }
     const timer = setTimeout(() => setBorderVisible(true), 300)
     return () => clearTimeout(timer)
