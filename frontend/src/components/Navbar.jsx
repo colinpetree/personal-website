@@ -366,9 +366,8 @@ export default function Navbar() {
           secondary pane has a "<- Home" back button, the tapped link's label as a small
           gray heading, then its sub-links. A link with sub-links looks like any other link.
 
-          Switching panes is one crossfade, modeled on openai.com's mobile menu (measured
-          frame by frame): both panes animate at the same time, 200ms, CSS `ease`, and both
-          move 8px in the same direction. Opening a submenu, the primary pane fades out
+          Switching panes is one crossfade: both panes animate at the same time, 200ms, CSS
+          `ease`, and both move 8px in the same direction. Opening a submenu, the primary pane fades out
           drifting up while the secondary pane fades in rising up into place; going back is
           the exact reverse (both drift down). Each pane scrolls on its own, and whichever
           one isn't showing is inert + aria-hidden + pointer-events-none. The panes are
@@ -391,9 +390,9 @@ export default function Navbar() {
           }`}
         >
           {navLinks.map((link, i) => {
-            // Type scale matches openai.com's mobile menu (measured): 32px, medium
-            // weight, ~1.15 line height, -0.02em tracking, rows 53px apart (the
-            // 12px of padding plus the pane's 4px gap). Sub-links use the same.
+            // Type scale: 32px, medium weight, ~1.15 line height, -0.02em tracking,
+            // rows 53px apart (the 12px of padding plus the pane's 4px gap).
+            // Sub-links and the account rows use the same.
             const className = `text-[32px] leading-[1.15] tracking-[-0.02em] font-medium -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
               navItemIsActive(link, location.pathname) ? 'text-gray-900' : 'text-gray-500'
             }`
@@ -416,8 +415,8 @@ export default function Navbar() {
               <NavAnchor key={i} url={link.url} label={link.label} onClick={() => setMenuOpen(false)} className={className} />
             )
           })}
-          {/* Account rows: the same type scale as the links (openai.com's "Login"
-              matches its links' size), in a lighter gray so they read as secondary. */}
+          {/* Account rows: the same type scale as the links, in a lighter gray so
+              they read as secondary. */}
           {usersEnabled && (
             user ? (
               <>
@@ -437,7 +436,7 @@ export default function Navbar() {
             ) : (
               <>
                 {/* Divider spaced like the signed-in name row's top border, setting the
-                    account row apart from the site links (as openai.com does). */}
+                    account row apart from the site links. */}
                 <div aria-hidden="true" className="border-t border-gray-200 mt-4 mb-5" />
                 <button onClick={() => setShowSignInModal(true)} className="text-left text-[32px] leading-[1.15] tracking-[-0.02em] font-medium text-gray-400 -mx-3 px-3 py-1.5 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign in</button>
               </>
@@ -458,9 +457,9 @@ export default function Navbar() {
         >
           {submenuItem && (
             <>
-              {/* Back to the main links: 16px medium (openai.com's size), same color
-                  as the links, with a full-width tap target. The accessible name spells out where
-                  it goes, since "Home" alone reads like a link to the home page. */}
+              {/* Back to the main links: 16px medium, same color as the links, with a
+                  full-width tap target. The accessible name spells out where it goes,
+                  since "Home" alone reads like a link to the home page. */}
               <button
                 ref={backButtonRef}
                 type="button"
