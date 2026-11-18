@@ -5,12 +5,10 @@ import NavAnchor, { navItemIsActive } from './NavAnchor'
 
 // How long the pointer can be outside both the button and its menu before
 // the menu closes, so a slightly crooked path from the button down into the
-// menu (across the gap between them) doesn't close it.
+// menu (across the strip of navbar between them) doesn't close it.
 const CLOSE_DELAY_MS = 150
 
-// Gap between the button and the menu, and the minimum distance the menu
-// keeps from the viewport's right edge.
-const PANEL_GAP = 8
+// Minimum distance the menu keeps from the viewport's right edge.
 const VIEWPORT_MARGIN = 8
 
 // Desktop nav item that has children (Site Navigation's secondary links).
@@ -29,8 +27,14 @@ const VIEWPORT_MARGIN = 8
 // it clips links that don't fit), and that would clip the menu too. The
 // header is always sticky or fixed, so page scroll never moves the button.
 //
+// It hangs from the navbar itself rather than floating as a popover: its top
+// sits on the header's 1px bottom border (covering it, so menu and bar read
+// as one piece), with square top corners and only slightly rounded bottom
+// ones. On a transparent overlay navbar it stays white; the bar doesn't
+// change.
+//
 // The panel stays mounted so it can animate both ways: a grid-template-rows
-// 0fr -> 1fr reveal that slides it down out of the button, and the same in
+// 0fr -> 1fr reveal that expands it down out of the navbar, and the same in
 // reverse on close. While closed it is inert, so its links are out of the tab
 // order and the accessibility tree.
 export default function NavDropdown({ item, open, onOpen, onClose, transparent, navItemClass }) {
@@ -69,7 +73,10 @@ export default function NavDropdown({ item, open, onOpen, onClose, transparent, 
     // buttons would push a left-aligned menu past the window: right-align
     // it to the button instead.
     if (left + width > window.innerWidth - VIEWPORT_MARGIN) left = rect.right - width
-    setPosition({ top: rect.bottom + PANEL_GAP, left: Math.max(VIEWPORT_MARGIN, left) })
+    // One pixel up from the header's bottom edge, so the menu covers the
+    // header's border instead of sitting below it.
+    const headerBottom = button.closest('header')?.getBoundingClientRect().bottom ?? rect.bottom
+    setPosition({ top: headerBottom - 1, left: Math.max(VIEWPORT_MARGIN, left) })
   }, [open])
 
   useEffect(() => {
@@ -145,7 +152,7 @@ export default function NavDropdown({ item, open, onOpen, onClose, transparent, 
         inert={!open}
         aria-hidden={!open}
         style={position ? { top: position.top, left: position.left } : { top: 0, left: 0 }}
-        className={`fixed z-50 grid w-max min-w-[12rem] max-w-xs bg-white rounded-lg border border-gray-200 shadow-lg transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${
+        className={`fixed z-50 grid w-max min-w-[12rem] max-w-xs bg-white rounded-t-none rounded-b-sm border border-t-0 border-gray-200 shadow-[0_6px_12px_-4px_rgba(0,0,0,0.12)] transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none ${
           open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 pointer-events-none'
         }`}
       >

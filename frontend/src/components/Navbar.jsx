@@ -362,10 +362,11 @@ export default function Navbar() {
           out of the tab order / a11y tree until opened. md:hidden already makes it
           display:none at desktop widths regardless.
 
-          Inside it, a two-pane track (200% wide) slides sideways: the primary pane holds the
-          site links, the secondary pane holds the children of whichever parent link was
-          tapped ("Projects >"), with a "< Projects" back button. Each pane scrolls on its
-          own, and the off-screen pane is inert + aria-hidden. */}
+          Inside it are two stacked panes. The primary pane holds the site links and never
+          moves. The secondary pane holds the children of whichever parent link was tapped
+          ("Projects >"), with a "< Projects" back button: it slides in from the right over
+          the primary pane, and back out the same way. Each pane scrolls on its own, and
+          whichever one isn't showing is inert + aria-hidden. */}
       <nav
         inert={!menuOpen}
         aria-hidden={!menuOpen}
@@ -374,95 +375,94 @@ export default function Navbar() {
         }`}
       >
         <div
-          className={`flex w-[200%] h-full transition-transform duration-300 ease-out motion-reduce:transition-none ${
-            submenuOpen ? '-translate-x-1/2' : 'translate-x-0'
+          inert={submenuOpen}
+          aria-hidden={submenuOpen}
+          className="absolute inset-0 overflow-y-auto px-6 pt-2 pb-8 flex flex-col gap-1"
+        >
+          {navLinks.map((link, i) => {
+            const className = `text-2xl font-semibold -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
+              navItemIsActive(link, location.pathname) ? 'text-gray-900' : 'text-gray-500'
+            }`
+            if (link.children?.length) {
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  ref={el => { parentRowRefs.current[i] = el }}
+                  onClick={() => openSubmenu(i)}
+                  aria-haspopup="true"
+                  aria-expanded={submenuOpen && submenuIndex === i}
+                  className={`${className} flex items-center justify-between text-left`}
+                >
+                  {link.label}
+                  <ChevronRight size={24} aria-hidden="true" className="flex-shrink-0" />
+                </button>
+              )
+            }
+            return (
+              <NavAnchor key={i} url={link.url} label={link.label} onClick={() => setMenuOpen(false)} className={className} />
+            )
+          })}
+          {usersEnabled && (
+            user ? (
+              <>
+                <div className="border-t border-gray-100 mt-4 pt-6 flex items-center gap-3">
+                  {user.avatar_url ? (
+                    <img src={user.avatar_url} alt={user.name} className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center leading-none text-base font-semibold text-gray-600">
+                      <span className="translate-y-px">{getInitials(user.name)}</span>
+                    </div>
+                  )}
+                  <span className="text-lg font-medium text-gray-900">{user.name}</span>
+                </div>
+                <Link to="/profile" onClick={() => setMenuOpen(false)} className="text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Profile</Link>
+                <button onClick={logout} className="text-left text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign out</button>
+              </>
+            ) : (
+              <button onClick={() => setShowSignInModal(true)} className="text-left text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign in</button>
+            )
+          )}
+        </div>
+
+        {/* Secondary pane: the tapped parent's children, covering the primary pane.
+            Keeps showing the last parent's links while it slides back out
+            (submenuIndex isn't cleared). */}
+        <div
+          ref={submenuPaneRef}
+          inert={!submenuOpen}
+          aria-hidden={!submenuOpen}
+          className={`absolute inset-0 z-10 bg-white overflow-y-auto px-6 pt-2 pb-8 flex flex-col gap-1 transition-transform duration-200 ease-out motion-reduce:transition-none ${
+            submenuOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
         >
-          <div
-            inert={submenuOpen}
-            aria-hidden={submenuOpen}
-            className="w-1/2 h-full overflow-y-auto px-6 pt-2 pb-8 flex flex-col gap-1"
-          >
-            {navLinks.map((link, i) => {
-              const className = `text-2xl font-semibold -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
-                navItemIsActive(link, location.pathname) ? 'text-gray-900' : 'text-gray-500'
-              }`
-              if (link.children?.length) {
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    ref={el => { parentRowRefs.current[i] = el }}
-                    onClick={() => openSubmenu(i)}
-                    aria-haspopup="true"
-                    aria-expanded={submenuOpen && submenuIndex === i}
-                    className={`${className} flex items-center justify-between text-left`}
-                  >
-                    {link.label}
-                    <ChevronRight size={24} aria-hidden="true" className="flex-shrink-0" />
-                  </button>
-                )
-              }
-              return (
-                <NavAnchor key={i} url={link.url} label={link.label} onClick={() => setMenuOpen(false)} className={className} />
-              )
-            })}
-            {usersEnabled && (
-              user ? (
-                <>
-                  <div className="border-t border-gray-100 mt-4 pt-6 flex items-center gap-3">
-                    {user.avatar_url ? (
-                      <img src={user.avatar_url} alt={user.name} className="w-10 h-10 rounded-full object-cover" referrerPolicy="no-referrer" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center leading-none text-base font-semibold text-gray-600">
-                        <span className="translate-y-px">{getInitials(user.name)}</span>
-                      </div>
-                    )}
-                    <span className="text-lg font-medium text-gray-900">{user.name}</span>
-                  </div>
-                  <Link to="/profile" onClick={() => setMenuOpen(false)} className="text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Profile</Link>
-                  <button onClick={logout} className="text-left text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign out</button>
-                </>
-              ) : (
-                <button onClick={() => setShowSignInModal(true)} className="text-left text-lg text-gray-500 -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200">Sign in</button>
-              )
-            )}
-          </div>
-
-          {/* Secondary pane: the tapped parent's children. Keeps showing the last
-              parent's links while it slides back out (submenuIndex isn't cleared). */}
-          <div
-            ref={submenuPaneRef}
-            inert={!submenuOpen}
-            aria-hidden={!submenuOpen}
-            className="w-1/2 h-full overflow-y-auto px-6 pt-2 pb-8 flex flex-col gap-1"
-          >
-            {submenuItem && (
-              <>
-                <button
-                  ref={backButtonRef}
-                  type="button"
-                  onClick={closeSubmenu}
-                  aria-label={`Back to ${submenuItem.label}`}
-                  className="self-start -mx-3 mb-1 px-3 py-2 rounded-lg inline-flex items-center gap-1 text-base font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 active:bg-gray-200"
-                >
-                  <ChevronLeft size={18} aria-hidden="true" />
-                  {submenuItem.label}
-                </button>
-                {submenuItem.children.map((child, j) => (
-                  <NavAnchor
-                    key={j}
-                    url={child.url}
-                    label={child.label}
-                    onClick={() => setMenuOpen(false)}
-                    className={`text-2xl font-semibold -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
-                      location.pathname === child.url ? 'text-gray-900' : 'text-gray-500'
-                    }`}
-                  />
-                ))}
-              </>
-            )}
-          </div>
+          {submenuItem && (
+            <>
+              {/* Same size and full-width tap target as the links below it, in a
+                  lighter gray so it reads as the menu's heading/back control. */}
+              <button
+                ref={backButtonRef}
+                type="button"
+                onClick={closeSubmenu}
+                aria-label={`Back to ${submenuItem.label}`}
+                className="text-2xl font-semibold -mx-3 px-3 py-2 rounded-lg flex items-center gap-2 text-left text-gray-400 hover:bg-gray-100 active:bg-gray-200"
+              >
+                <ChevronLeft size={24} aria-hidden="true" className="flex-shrink-0" />
+                {submenuItem.label}
+              </button>
+              {submenuItem.children.map((child, j) => (
+                <NavAnchor
+                  key={j}
+                  url={child.url}
+                  label={child.label}
+                  onClick={() => setMenuOpen(false)}
+                  className={`text-2xl font-semibold -mx-3 px-3 py-2 rounded-lg hover:bg-gray-100 active:bg-gray-200 ${
+                    location.pathname === child.url ? 'text-gray-900' : 'text-gray-500'
+                  }`}
+                />
+              ))}
+            </>
+          )}
         </div>
       </nav>
 
