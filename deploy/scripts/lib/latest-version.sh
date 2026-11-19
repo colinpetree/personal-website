@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Sourced by build-on-pi.sh and publish-release.sh (the Pi fallback).
 #
 # Versions come from git tags, not a VERSION file. This prints the newest

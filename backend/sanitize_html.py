@@ -1,6 +1,6 @@
 """Sanitizes blog `content_html` for lower-trust authors before it's persisted.
 
-Only applied to contributor-authored posts (see admin_blog.py) — administrator/
+Only applied to contributor-authored posts (see admin_blog.py) - administrator/
 owner accounts already have equivalent trust to editing site config directly.
 """
 import bleach
@@ -16,13 +16,13 @@ ALLOWED_TAGS = [
     'video', 'audio', 'source', 'iframe',
     'table', 'thead', 'tbody', 'tr', 'td', 'th',
     'details', 'summary', 'header', 'button',
-    # Inline icon markup — the editor embeds small static SVGs (code-block
+    # Inline icon markup - the editor embeds small static SVGs (code-block
     # copy icon, link-group platform badges) directly into exported HTML.
     'svg', 'path', 'rect', 'circle', 'polyline', 'polygon', 'line', 'g',
 ]
 
-# 'data-*' handled separately below — bleach's ATTRIBUTES dict only takes exact names.
-# No 'onclick' or other event-handler attributes here, and never will be —
+# 'data-*' handled separately below - bleach's ATTRIBUTES dict only takes exact names.
+# No 'onclick' or other event-handler attributes here, and never will be -
 # 'button' is only safe to allow because exportDOM() no longer emits one
 # (see nodes.jsx's CodeBlockNode) and BlogPostPage.jsx handles the click via
 # delegation instead.
@@ -51,28 +51,28 @@ ALLOWED_PROTOCOLS = ['http', 'https', 'mailto', 'data']
 _IFRAME_ALLOWED_HOSTS = ('www.youtube.com', 'player.vimeo.com', 'open.spotify.com')
 
 # bleach's CSSSanitizer matches property names exactly as tinycss2 parses them
-# out of the style string — longhand properties (margin-top, background-image)
+# out of the style string - longhand properties (margin-top, background-image)
 # are distinct tokens from their shorthand (margin, background) and need their
 # own entries. This list has to cover everything HeaderNode.exportDOM()
-# (nodes.jsx) emits inline — background/position/inset/opacity/pointer-events/
+# (nodes.jsx) emits inline - background/position/inset/opacity/pointer-events/
 # overflow/line-height/box-sizing/margin-top/margin-left/margin-right/
-# background-image/background-repeat/background-position/text-decoration —
+# background-image/background-repeat/background-position/text-decoration -
 # or a contributor-authored header block (shadow overlay, background image,
 # split-layout media) silently loses that styling once sanitized, with no
 # error surfaced anywhere.
 # Two of the properties above need their *value* restricted too, not just
-# their name — bleach's CSSSanitizer only filters by property name, and
+# their name - bleach's CSSSanitizer only filters by property name, and
 # allowing these unconditionally would let a contributor's content_html (sent
 # directly to the API, not necessarily through the editor UI) build a
 # tracking pixel or an invisible click-hijacking overlay inside their own
 # post/page:
 #   - background/background-image: nodes.jsx's exportDOM() only ever points
 #     these at our own /api/uploads/<file>, so any url() pointing elsewhere
-#     is dropped — otherwise an external url() fires an unconditional request
+#     is dropped - otherwise an external url() fires an unconditional request
 #     to that host (with referrer) every time the content is viewed,
 #     including by the admin/editor who opens the draft to review it.
 #   - pointer-events: exportDOM() only ever sets this to 'none' (the shadow
-#     overlay is always decorative), so any other value is dropped —
+#     overlay is always decorative), so any other value is dropped -
 #     otherwise `position:absolute` + `opacity` (both needed for that same
 #     overlay) + `pointer-events:auto` builds a near-invisible clickable
 #     layer over other content.
@@ -80,11 +80,16 @@ _SAFE_POINTER_EVENTS_VALUES = {'none'}
 _UPLOADS_URL_PREFIX = '/api/uploads/'
 
 
-def _iter_url_tokens(tokens):
-    """Yields every 'url' token anywhere in the tree, including ones nested
-    inside a function's arguments (e.g. image-set(url(...)), cross-fade(...))
-    — a flat scan of the top-level tokens alone misses those, which would
-    otherwise let an external url() back in through a wrapping function.
+def _iter_url_values(tokens):
+    """Yields every resource address anywhere in the tree, including ones
+    nested inside a function's arguments (e.g. image-set(url(...)),
+    cross-fade(...)) - a flat scan of the top-level tokens alone misses
+    those, which would otherwise let an external url() back in through a
+    wrapping function. tinycss2 gives an address in three shapes, all checked:
+      - url(/x)          an unquoted 'url' token
+      - url("/x")        a 'function' named url (or src) holding a string;
+                         browsers write this quoted form themselves
+      - image-set("/x")  a bare string, which image-set() treats as a URL
     Iterative (an explicit stack, not recursion) so a request built directly
     against the API with pathologically deep function nesting can't blow
     Python's call stack and crash with an unhandled RecursionError instead of
@@ -93,8 +98,12 @@ def _iter_url_tokens(tokens):
     while stack:
         t = stack.pop()
         if t.type == 'url':
-            yield t
+            yield t.value
+        elif t.type == 'string':
+            yield t.value
         elif t.type == 'function':
+            if t.lower_name in ('url', 'src') and not any(a.type == 'string' for a in t.arguments):
+                yield ''  # url() with no quoted address: never one of ours
             stack.extend(t.arguments)
 
 
@@ -103,7 +112,7 @@ def _declaration_value_is_safe(prop, value_tokens):
         idents = [t.lower_value for t in value_tokens if t.type == 'ident']
         return all(v in _SAFE_POINTER_EVENTS_VALUES for v in idents)
     if prop in ('background', 'background-image'):
-        return all(t.value.startswith(_UPLOADS_URL_PREFIX) for t in _iter_url_tokens(value_tokens))
+        return all(v.startswith(_UPLOADS_URL_PREFIX) for v in _iter_url_values(value_tokens))
     return True
 
 

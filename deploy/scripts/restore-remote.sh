@@ -211,6 +211,7 @@ if [ "$RESTORE_OK" = true ]; then
     _log "Restore completed successfully on $TARGET_HOST."
 else
     _log "restore.sh reported a failure on $TARGET_HOST - see its output above."
+    # shellcheck disable=SC2088  # message text about the remote home, not a path
     _log "~/restic-repo was intentionally left on the target for debugging (only cleaned up automatically after a successful move into /opt/personal-website/data/restic-repo)."
     _log "NOTE: if this was a genuinely from-scratch box, install.sh has no previous release to auto-rollback to - the site may be left down; SSH in and debug manually."
 fi

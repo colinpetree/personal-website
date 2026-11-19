@@ -51,7 +51,6 @@ const PaymentComments = forwardRef(function PaymentComments({ enabled }, ref) {
       return
     }
     loadPage(0, false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled])
 
   if (!enabled) return null

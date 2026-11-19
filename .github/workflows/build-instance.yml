@@ -192,7 +192,7 @@ jobs:
           up_base="$(base_of "${upstream_tag:-v0.0.0}")"
 
           if [ -n "$TEST_TAG" ]; then
-            action=test; build_tag="$TEST_TAG"; publish_tag="$TEST_TAG"
+            action="test"; build_tag="$TEST_TAG"; publish_tag="$TEST_TAG"
             note "Test build requested: $TEST_TAG"
           elif [ "$MODE" = "resume" ]; then
             if [ -z "$own_stable" ]; then

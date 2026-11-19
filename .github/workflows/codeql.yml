@@ -1,0 +1,52 @@
+name: CodeQL
+
+# Static security analysis of the backend (Python) and frontend
+# (JavaScript). Runs on every pull request, every push to main, and weekly
+# so new CodeQL queries also check code that has not changed. Findings show
+# under Security > Code scanning, and on the pull request that adds them.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "37 6 * * 1"   # 06:37 UTC every Monday
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write # upload the results
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      # Neither language needs a build: CodeQL reads the source directly.
+      - uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+          config: |
+            paths-ignore:
+              - backend/.venv
+              - frontend/node_modules
+              - frontend/build
+
+      - uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          category: /language:${{ matrix.language }}

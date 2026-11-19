@@ -133,7 +133,10 @@ if [ "$NO_TARGET" = true ]; then
 else
     if [ -f "$PI_BUILD_ENV" ]; then
         # shellcheck source=/dev/null
-        set -a; source "$PI_BUILD_ENV"; set +a
+        set -a
+        # shellcheck source=/dev/null  # env file, path set at runtime
+        source "$PI_BUILD_ENV"
+        set +a
     fi
     BUILD_DOMAIN="$(echo "${PRERENDER_BASE_URL:-}" | sed -E 's#^https?://##; s#/.*##')"
     BUILD_DOMAIN="${BUILD_DOMAIN:-unknown}"

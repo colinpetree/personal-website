@@ -12,9 +12,9 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin'
 import { LinkNode } from '@lexical/link'
 import { TableNode, TableCellNode } from '@lexical/table'
 import { $generateHtmlFromNodes, $generateNodesFromDOM } from '@lexical/html'
-import { AlignLeft, AlignCenter, AlignRight, Maximize2, Columns2, RectangleVertical, RectangleHorizontal, StretchHorizontal, Fullscreen, Scaling, Link, Link2, Link2Off, X, Music, FileText, Plus, ImagePlus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Mic, Square, Play, Pause, Save, AlertCircle, Loader2, Circle, Type, PaintBucket, GripVertical } from 'lucide-react'
+import { AlignLeft, AlignCenter, AlignRight, Maximize2, Columns2, RectangleVertical, RectangleHorizontal, StretchHorizontal, Fullscreen, Scaling, Link, Link2, Link2Off, X, Music, FileText, Plus, ImagePlus, Download, Repeat, Scissors, ChevronDown, Copy, Check, Image as ImageIcon, Upload, Trash2, Eclipse, Sun, Moon, Type, PaintBucket, GripVertical } from 'lucide-react'
 import { GALLERY_MAX_IMAGES, groupImagesIntoRows, computeRowAspectRatio, aspectRatioOf } from '../../../lib/galleryLayout'
-import ColorPicker, { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
+import { ColorSwatchMenu, getContrastColor } from '../../ui/ColorPicker'
 
 function resolveTextColor(mode, bgHex) {
   if (mode === 'light') return 'white'
@@ -4353,7 +4353,6 @@ export class CodeBlockNode extends DecoratorNode {
 
   exportDOM() {
     const COPY_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`
-    const CHECK_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
 
     const wrapper = document.createElement('div')
     wrapper.className = 'code-block-wrapper'

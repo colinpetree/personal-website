@@ -118,6 +118,15 @@ def update_account(account_id):
         new_role = data['role']
         if account.role == 'owner' and new_role != 'owner':
             return jsonify({'error': "The Owner's role cannot be changed here"}), 403
+        if new_role != account.role:
+            # Ownership only moves through make-owner (Owner only). Without
+            # this, anyone could make themselves (or someone else) an Owner.
+            if new_role == 'owner':
+                return jsonify({'error': 'Ownership can only be transferred by the Owner'}), 403
+            # Your own role is read-only (as in the staff profile modal);
+            # otherwise a Contributor could raise their own role.
+            if is_own_account:
+                return jsonify({'error': 'You cannot change your own role'}), 403
         if ROLE_ORDER.index(current_user.role) < ROLE_ORDER.index('administrator'):
             # Editors can only change between contributor and editor
             if current_user.role == 'editor' and new_role not in ['contributor', 'editor']:

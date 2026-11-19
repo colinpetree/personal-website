@@ -56,7 +56,6 @@ export function useFullscreenHeaderNav(containerRef, contentKey, { inDocs = fals
     return () => {
       if (needsResizeListener) window.removeEventListener('resize', update)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [containerRef, contentKey, inDocs])
 
   return state

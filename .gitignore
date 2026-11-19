@@ -47,3 +47,10 @@ SECURITY_QA_CHECKLIST.md
 .claude/skills/auto-publish-system/
 .claude/skills/testing-credentials/
 notes/
+
+# Test and lint caches / reports
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/

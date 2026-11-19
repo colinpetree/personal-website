@@ -130,7 +130,10 @@ PI_BUILD_ENV="$HOME/.personal-website-build.env"
 # is a no-op for them - the file gets sourced exactly as before.
 if [ -z "${PRERENDER_BASE_URL+x}" ] && [ -f "$PI_BUILD_ENV" ]; then
     # shellcheck source=/dev/null
-    set -a; source "$PI_BUILD_ENV"; set +a
+    set -a
+    # shellcheck source=/dev/null  # env file, path set at runtime
+    source "$PI_BUILD_ENV"
+    set +a
 fi
 
 # Staging directory is scoped by the domain being built for, not hardcoded
@@ -228,7 +231,8 @@ if [ -z "${ASSEMBLE_ONLY:-}" ]; then
     SMOKE_DATA_DIR="$(mktemp -d)"
     export DATABASE_URL="sqlite:///$SMOKE_DB"
     export SECRET_KEY="smoke-test"
-    export ENCRYPTION_KEY="$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
+    ENCRYPTION_KEY="$(python3 -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())')"
+    export ENCRYPTION_KEY
     export APP_DATA_DIR="$SMOKE_DATA_DIR"
     export GUNICORN_BIND="127.0.0.1:8099"
     export GUNICORN_WORKERS="1"

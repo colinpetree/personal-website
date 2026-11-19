@@ -188,7 +188,7 @@ jobs:
           $S --migrate-only
           (cd backend && python ci_fixture.py --manifest "$RUNNER_TEMP/fixture.json")
           GUNICORN_BIND=127.0.0.1:8099 GUNICORN_WORKERS=2 nohup "$S" > "$RUNNER_TEMP/backend.log" 2>&1 &
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             code="$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8099/api/site-config || true)"
             if [ "$code" = "200" ]; then echo "Backend up (HTTP 200)."; exit 0; fi
             sleep 1
@@ -214,11 +214,30 @@ jobs:
         working-directory: frontend
         run: |
           npx playwright install --with-deps chromium
-          node scripts/verify-hydration.mjs --manifest "$RUNNER_TEMP/fixture.json" --api http://127.0.0.1:8099
+          node scripts/verify-hydration.mjs --manifest "$RUNNER_TEMP/fixture.json" --api http://127.0.0.1:8099 --artifacts "$RUNNER_TEMP/browser-failures"
+
+      # Runs after the prerender, so the page it publishes is never part of
+      # a release build.
+      - name: "Admin test: sign in, write and publish a page in a real browser"
+        working-directory: frontend
+        run: node scripts/verify-admin.mjs --manifest "$RUNNER_TEMP/fixture.json" --api http://127.0.0.1:8099 --artifacts "$RUNNER_TEMP/browser-failures"
 
       - name: Backend log (on failure)
         if: failure()
         run: cat "$RUNNER_TEMP/backend.log" 2>/dev/null || true
+
+      # Screenshot and Playwright trace from a failed browser test. Open the
+      # trace at https://trace.playwright.dev.
+      - name: Upload browser test evidence (on failure)
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browser-failures-${{ inputs.version }}
+          path: |
+            ${{ runner.temp }}/browser-failures
+            ${{ runner.temp }}/backend.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Stop the backend
         if: always()
@@ -259,7 +278,7 @@ jobs:
       # Exactly these files, or the build stops here.
       - name: Check the release files are all here
         run: |
-          cd "$OUT"
+          cd "$OUT" || exit 1
           ls -l
           missing=0
           for f in "server-bundle-v$VERSION-linux-arm64.tar.gz" "server-bundle-v$VERSION-linux-arm64.tar.gz.sha256" \

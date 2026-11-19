@@ -1,5 +1,5 @@
-"""Sample content for the release workflow's prerender and hydration tests
-(.github/workflows/release.yml). CI only: never run this against a real
+"""Sample content for CI's prerender and hydration tests
+(.github/workflows/build-test.yml). CI only: never run this against a real
 database.
 
 Run after the frozen server's --seed-initial-data and --migrate-only, with
@@ -8,6 +8,8 @@ the same DATABASE_URL/SECRET_KEY/ENCRYPTION_KEY environment:
     python ci_fixture.py --manifest /tmp/fixture.json
 
 It turns on the blog, projects and contact pages and adds:
+  - a staff account for the admin browser test (verify-admin.mjs), whose
+    one-off password is written only to the manifest,
   - a plain published post and a draft post (the draft must NOT be prerendered),
   - a "rich" post using the same markup the Lexical editor exports
     (image, gallery, table, emoji),
@@ -21,6 +23,7 @@ workflow never hard-codes them.
 """
 import argparse
 import json
+import secrets
 import sys
 from datetime import datetime, timedelta, timezone
 
@@ -63,6 +66,14 @@ def main():
 
         author = AdminAccount.query.first()
         author_id = author.id if author else None
+
+        # A staff login for the admin browser test (verify-admin.mjs). Fresh
+        # random password each run, handed over only through the manifest.
+        admin_email = 'ci-admin@example.com'
+        admin_password = secrets.token_urlsafe(24)
+        ci_admin = AdminAccount(full_name='CI Admin', email=admin_email, role='administrator')
+        ci_admin.set_password(admin_password)
+        db.session.add(ci_admin)
         # Naive UTC, matching how the models store datetimes.
         yesterday = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1)
 
@@ -151,6 +162,13 @@ def main():
         # Nav parent with children: hydration test opens it (hover on
         # desktop, submenu pane on mobile) and follows the child link.
         'nav_dropdown': {'parent': 'More', 'child': 'Fixture Post', 'to': '/fixture-post'},
+        # Staff login for the admin test, and the page it creates and publishes.
+        'admin': {
+            'email': admin_email,
+            'password': admin_password,
+            'new_page': {'title': 'CI Admin Test Page', 'slug': 'ci-admin-test-page',
+                         'text': 'Written by the CI admin test.'},
+        },
     }
     with open(args.manifest, 'w', encoding='utf-8') as f:
         json.dump(manifest, f, indent=2)

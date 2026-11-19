@@ -1,0 +1,7 @@
+# Coverage for `pytest --cov=.` (CI's unit job): app code only.
+[run]
+omit =
+    tests/*
+    .venv/*
+    ci_fixture.py
+    seed.py

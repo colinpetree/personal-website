@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router'
 import { Menu } from 'lucide-react'
-import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
+import { useAdminAuth } from '../../context/AdminAuthContext'
 import { ToastProvider } from '../../context/ToastContext'
 import StaffProfileModal, { AvatarCircle, ROLE_BADGE, ROLE_LABELS } from './StaffProfileModal'
 import { useSiteConfig } from '../../hooks/useSiteConfig'
 import Popover from '../ui/Popover'
 
-// Deployment-time flag — matches the one router.jsx uses to exclude the AI demo
+// Deployment-time flag - matches the one router.jsx uses to exclude the AI demo
 // routes; keeps this sidebar link from pointing at a route that doesn't exist.
 const AI_DEMOS_ENABLED = import.meta.env.VITE_ENABLE_AI_DEMOS !== 'false'
 
 // Blog keeps its own group (unchanged). Everything else that's still a
 // fixed SiteConfig-backed page lives under "Feature Pages", in this fixed
-// order — About is gone from this list entirely: it's a regular `Page` now,
+// order - About is gone from this list entirely: it's a regular `Page` now,
 // reached through the standalone "Pages" link below, not a fixed page key.
 const FEATURE_PAGE_LOOKUP = {
   home: { to: '/admin/home', label: 'Home' },
@@ -61,13 +61,13 @@ const METRICS_NAV_ITEMS = [
   { to: '/admin/metrics/payments', label: 'Payment Metrics', adminOnly: true },
 ]
 
-// Standalone (not inside a collapsible NavGroup) top-level sidebar link —
+// Standalone (not inside a collapsible NavGroup) top-level sidebar link -
 // used for Pages below. Contributor-visible like Blog > Posts, per the
 // Pages feature plan's locked-in permissions decision (contributors can
 // create/edit their own draft pages, same as blog posts).
 const PAGES_NAV_ITEM = { standalone: true, to: '/admin/pages', label: 'Pages' }
 
-// Editor+ only (not contributor-visible, unlike Pages above) — matches
+// Editor+ only (not contributor-visible, unlike Pages above) - matches
 // AdminSiteNavigationPage.jsx's own RoleGuard minRole="editor".
 const SITE_NAVIGATION_NAV_ITEM = { standalone: true, to: '/admin/navigation', label: 'Site Navigation' }
 
@@ -93,7 +93,7 @@ function getFilteredNavGroups(role) {
 
   if (role === 'editor') {
     // "System Settings" (Site Settings, Staff Accounts, Users) is hidden
-    // entirely for editors — every entry in it requires administrator+
+    // entirely for editors - every entry in it requires administrator+
     // (matches each route's own RoleGuard threshold), so leaving any of
     // them visible just links to a dead-end "must be administrator"
     // fallback instead of actually being usable.

@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router'
 import { ArrowLeft, ChevronRight, ExternalLink, PanelRight, Pencil, Plus, Trash2, Upload, X, Type, BookA, BookType } from 'lucide-react'
 import RichTextEditor from '../../components/admin/editor'
 import { handleUploadFull } from '../../components/admin/editor/upload'
-import { Field, Input, Textarea, Toggle } from '../../components/admin/AdminPage'
+import { Field, Textarea, Toggle } from '../../components/admin/AdminPage'
 import SlugUrlField from '../../components/admin/SlugUrlField'
 import { Tooltip } from '../../components/ui/Tooltip'
 import Popover from '../../components/ui/Popover'
@@ -87,7 +87,7 @@ function slugify(text) {
 }
 
 // Builds a "YYYY-MM-DDTHH:MM" string from the browser's local wall-clock
-// time — matching the convention used everywhere else in this file for
+// time - matching the convention used everywhere else in this file for
 // publish_date (naive strings interpreted as local time on both write and
 // read). new Date().toISOString() must NOT be used here: it returns UTC,
 // and slicing off the "Z" leaves a UTC reading that gets silently
@@ -370,7 +370,7 @@ export default function AdminBlogEditorPage() {
   // Scheduled header hover
   const [scheduledHover, setScheduledHover] = useState(false)
 
-  // Settings panel visibility — closed by default below the `lg` breakpoint
+  // Settings panel visibility - closed by default below the `lg` breakpoint
   // where it renders as an overlay, so opening the editor doesn't immediately
   // cover the content on mobile.
   const [panelOpen, setPanelOpen] = useState(() => (
@@ -403,13 +403,13 @@ export default function AdminBlogEditorPage() {
   const autosaveTimer = useRef(null)
   const pendingFields = useRef({})
   // Chains save() calls so their requests always reach the server in the
-  // order they were made — without this, a slow earlier request (e.g. a
+  // order they were made - without this, a slow earlier request (e.g. a
   // background autosave) can resolve after a faster later one (e.g. a
   // sidebar save or Publish) and silently overwrite it with stale data.
   const saveQueue = useRef(Promise.resolve())
   const slugEdited = useRef(false)
   const excerptEdited = useRef(false)
-  // Suppresses repeat toasts for the same ongoing failure — scheduleSave
+  // Suppresses repeat toasts for the same ongoing failure - scheduleSave
   // retries every AUTOSAVE_DELAY regardless of whether the last attempt
   // failed, so without this a persistent failure (e.g. the post got
   // published elsewhere mid-edit, now permanently 403ing) would pop a new
@@ -460,7 +460,7 @@ export default function AdminBlogEditorPage() {
         setLoading(false)
         // Contributors can't save changes to a post once it's published or
         // scheduled (see update_post), and it's already live/queued on the
-        // public site regardless — sitting in the editor at that point is
+        // public site regardless - sitting in the editor at that point is
         // just a dead end, so redirect away entirely rather than showing a
         // read-only view nobody asked for.
         if (admin?.role === 'contributor' && (data.author_id !== admin.id || (data.status || 'draft') !== 'draft')) {
@@ -493,7 +493,7 @@ export default function AdminBlogEditorPage() {
       if (!res.ok) throw new Error(data.error || 'Save failed')
       saveErrorShown.current = false
       // slug_collided means the backend silently suffixed a taken slug rather
-      // than rejecting the save — only worth a toast once the admin has taken
+      // than rejecting the save - only worth a toast once the admin has taken
       // manual ownership of the slug (typed into the URL field, or reached
       // publish/update, where slugEdited is forced true); a still-automatic,
       // title-derived slug should keep resolving silently.
@@ -1087,7 +1087,7 @@ export default function AdminBlogEditorPage() {
           }} />
         </div>
 
-        {/* Backdrop — mobile only, dismisses the overlay sidebar */}
+        {/* Backdrop - mobile only, dismisses the overlay sidebar */}
         {panelOpen && (
           <div
             className="lg:hidden absolute inset-0 z-40 bg-black/20"
@@ -1095,7 +1095,7 @@ export default function AdminBlogEditorPage() {
           />
         )}
 
-        {/* Settings sidebar — overlay on mobile, push on md+ */}
+        {/* Settings sidebar - overlay on mobile, push on md+ */}
         <div className={`absolute lg:static inset-y-0 right-0 z-50 lg:z-auto shrink-0 overflow-hidden transition-all duration-200 ${panelOpen ? 'w-80' : 'w-0'}`}>
         <div className="w-80 h-full border-l border-gray-200 bg-gray-50 overflow-y-auto p-4 flex flex-col gap-4">
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Post settings</h3>
@@ -1115,7 +1115,7 @@ export default function AdminBlogEditorPage() {
                 <span className="text-sm text-gray-900">{owner.full_name}</span>
               </div>
             ) : (
-              <span className="text-sm text-gray-400">—</span>
+              <span className="text-sm text-gray-400">–</span>
             )}
             <p className="text-xs text-gray-400">Edit the Owner account to change the author</p>
           </div>

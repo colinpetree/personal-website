@@ -102,7 +102,7 @@ function PickerPopup({ value, onChange, verticalLightness = true }) {
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   function getSVCoords(e) {
     const rect = svRef.current?.getBoundingClientRect()
@@ -228,7 +228,7 @@ function PickerPopup({ value, onChange, verticalLightness = true }) {
           value={hexInput.toUpperCase()}
           onChange={handleHexInput}
           className="flex-1 min-w-0 text-xs font-mono border border-gray-200 rounded px-2 py-1 outline-none focus:border-blue-400"
-          // Generous on purpose — handleHexInput strips everything down to 6
+          // Generous on purpose - handleHexInput strips everything down to 6
           // hex digits itself, so this only needs to be loose enough that the
           // browser never truncates a paste (leading '#', stray whitespace,
           // etc.) before that filtering gets to run.
@@ -240,7 +240,7 @@ function PickerPopup({ value, onChange, verticalLightness = true }) {
   )
 }
 
-// ─── ColorPicker — standalone rainbow-triggered picker ────────────────────────
+// ─── ColorPicker - standalone rainbow-triggered picker ────────────────────────
 
 export default function ColorPicker({ value = '#3b82f6', onChange }) {
   const [pickerColor, setPickerColor] = useState(isValidHex(value) ? value : '#3b82f6')
@@ -300,7 +300,7 @@ export default function ColorPicker({ value = '#3b82f6', onChange }) {
   )
 }
 
-// ─── ColorSwatchMenu — current-color trigger → presets + rainbow picker ───────
+// ─── ColorSwatchMenu - current-color trigger → presets + rainbow picker ───────
 
 export function ColorSwatchMenu({
   value = '#000000',
@@ -393,7 +393,7 @@ export function ColorSwatchMenu({
     if (rect) {
       // Popover is centered on this point via translateX(-50%); clamp so it
       // can't run off either edge of the viewport (width varies with the
-      // lightness slider — w-60/240px when shown, w-52/208px otherwise).
+      // lightness slider - w-60/240px when shown, w-52/208px otherwise).
       const width = verticalLightness ? 240 : 208
       const rawCenterX = rect.left + rect.width / 2
       const centerX = Math.min(Math.max(rawCenterX, width / 2 + 8), window.innerWidth - width / 2 - 8)
@@ -535,7 +535,7 @@ export function ColorSwatchMenu({
           onMouseDown={e => e.stopPropagation()}
         >
           <div className="flex gap-1.5">
-            {/* Image swatch — leftmost */}
+            {/* Image swatch - leftmost */}
             {showImageSwatch && (
               <Tooltip content="Image">
                 <button

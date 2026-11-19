@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request, Response
 from flask_login import current_user
 from extensions import db
 from models import User, Comment, SiteEventLog
-from routes.admin_auth import admin_required, role_at_least
+from routes.admin_auth import role_at_least
 
 admin_users_bp = Blueprint('admin_users', __name__)
 
