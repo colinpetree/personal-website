@@ -9,6 +9,17 @@ from upload_utils import get_uploads_dir, thumbnail_variant_filename
 admin_projects_bp = Blueprint('admin_projects', __name__)
 
 
+def _is_int(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _valid_order_items(items):
+    return isinstance(items, list) and all(
+        isinstance(item, dict) and _is_int(item.get('id')) and _is_int(item.get('order'))
+        for item in items
+    )
+
+
 def _project_to_dict(p):
     return {
         'id': p.id,
@@ -107,7 +118,11 @@ def delete_project(project_id):
 @role_at_least('editor')
 def reorder_projects():
     """Accepts [{id, order}, ...] and bulk-updates order values."""
-    items = request.get_json(silent=True) or []
+    items = request.get_json(silent=True)
+    # Validated up front: anything but a list of integer {id, order} pairs
+    # used to reach the database as-is and come back as a 500.
+    if not _valid_order_items(items):
+        return jsonify({'error': 'Expected a list of {id, order} pairs'}), 400
     for item in items:
         project = Project.query.get(item.get('id'))
         if project:

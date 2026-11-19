@@ -1,7 +1,16 @@
 // Release check, run by CI (.github/workflows/build-test.yml) after
-// verify-hydration.mjs. Drives the admin side in a real Chromium: sign in,
-// create a page in the Lexical editor, publish it, see it on the public site,
-// sign out. The public-side checks cover reading; this covers writing.
+// verify-hydration.mjs. Drives the admin side in a real Chromium, as an
+// administrator:
+//   1. sign in
+//   2. create and publish a Page in the editor, see it on the public site
+//   3. create and publish a blog post (publish dialog + final review), see it
+//   4. invite a Contributor on Staff Accounts, sign in as them in a separate
+//      browser, and check their sidebar leaves out the admin-only screens
+//   5. change the site title in Site Settings, see it survive a reload and
+//      reach the public site
+//   6. sign out, and confirm the session really ended
+// Site Settings runs last because it renames the site. The public-side
+// checks cover reading; this covers writing.
 //
 // Needs the same setup as verify-hydration.mjs (a build in build/client, the
 // fixture backend still running, Playwright's Chromium) and the manifest
@@ -26,7 +35,7 @@ const API = argValue('--api', 'http://127.0.0.1:8099')
 const PORT = Number(argValue('--port', '4174'))
 const ARTIFACTS = argValue('--artifacts', null)
 const BASE = `http://127.0.0.1:${PORT}`
-const { email, password, new_page: newPage } = manifest.admin
+const { email, password, new_page: newPage, new_post: newPost, invitee, new_site_title: newSiteTitle } = manifest.admin
 
 const problems = []
 const fail = (msg) => { problems.push(msg); console.error(`::error::${msg}`) }
@@ -63,6 +72,19 @@ function watch(page) {
 let browser
 let context
 let page
+
+// Opens `path` as a logged-out visitor and waits for `text` to appear.
+async function visitorSees(path, text) {
+  const visitor = await browser.newContext()
+  const publicPage = await visitor.newPage()
+  watch(publicPage)
+  await publicPage.goto(`${BASE}${path}`, { waitUntil: 'networkidle' })
+  const shown = await publicPage.getByText(text).first()
+    .waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false)
+  await visitor.close()
+  return shown
+}
+
 try {
   await waitForServer()
   browser = await chromium.launch()
@@ -95,15 +117,94 @@ try {
   await page.waitForURL((url) => url.pathname === '/admin/pages', { timeout: 15000 })
 
   step('see it on the public site, logged out')
+  if (!(await visitorSees(`/${newPage.slug}`, newPage.text))) {
+    fail(`/${newPage.slug} does not show "${newPage.text}" after publishing`)
+  }
+
+  step('blog: create a post')
+  await page.goto(`${BASE}/admin/blog/posts`, { waitUntil: 'networkidle' })
+  await page.getByRole('button', { name: '+ New post' }).click()
+  await page.waitForURL(/\/admin\/blog\/posts\/\d+$/, { timeout: 15000 })
+  await page.getByPlaceholder('Post title').fill(newPost.title)
+  await page.locator('[contenteditable="true"]').first().click()
+  await page.keyboard.type(newPost.text)
+
+  step('blog: publish right now')
+  await page.getByRole('button', { name: 'Publish', exact: true }).locator('visible=true').first().click()
+  await page.getByRole('button', { name: 'Publish Right Now' }).click()
+  await page.getByRole('button', { name: 'Continue' }).click()
+  await page.getByRole('button', { name: 'Publish post, right now' }).click()
+  await page.waitForURL((url) => url.pathname === '/admin/blog/posts', { timeout: 15000 })
+  if (!(await visitorSees(`/${newPost.slug}`, newPost.text))) {
+    fail(`/${newPost.slug} does not show "${newPost.text}" after publishing the post`)
+  }
+
+  step('staff: invite a contributor')
+  await page.goto(`${BASE}/admin/accounts`, { waitUntil: 'networkidle' })
+  // Control for the contributor check below: an administrator's sidebar
+  // shows the "System Settings" group, so its absence there means hidden by
+  // role. (Its links are inside a collapsed group, so check the heading.)
+  const adminSeesSettings = await page.getByText('System Settings', { exact: true }).first()
+    .waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false)
+  if (!adminSeesSettings) fail('the administrator sidebar has no "System Settings" group, so the contributor check proves nothing')
+  await page.getByRole('button', { name: 'Add account' }).click()
+  const dialog = page.locator('form').filter({ has: page.locator('input[type="password"]') })
+  await dialog.locator('input[type="text"]').fill(invitee.name)
+  await dialog.locator('input[type="email"]').fill(invitee.email)
+  await dialog.locator('input[type="password"]').fill(invitee.password)
+  // The radio's name is its label plus the role description, and other
+  // roles' descriptions mention Contributors, so match the start only.
+  await dialog.getByRole('radio', { name: /^Contributor\b/ }).check()
+  await dialog.getByRole('button', { name: 'Create' }).click()
+  await dialog.waitFor({ state: 'detached', timeout: 10000 })
+  await page.getByRole('button', { name: 'Contributors', exact: true }).click()
+  const listed = await page.getByText(invitee.email).first()
+    .waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false)
+  if (!listed) fail(`the new contributor ${invitee.email} is not on the Contributors tab`)
+
+  step('staff: the contributor signs in and sees only their screens')
   {
-    const visitor = await browser.newContext()
-    const publicPage = await visitor.newPage()
-    watch(publicPage)
-    await publicPage.goto(`${BASE}/${newPage.slug}`, { waitUntil: 'networkidle' })
-    const shown = await publicPage.getByText(newPage.text).first()
-      .waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false)
-    if (!shown) fail(`/${newPage.slug} does not show "${newPage.text}" after publishing`)
-    await visitor.close()
+    const other = await browser.newContext({ viewport: { width: 1280, height: 900 } })
+    const contributor = await other.newPage()
+    watch(contributor)
+    await contributor.goto(`${BASE}/admin/login`, { waitUntil: 'networkidle' })
+    await contributor.getByLabel('Email').fill(invitee.email)
+    await contributor.getByLabel('Password').fill(invitee.password)
+    await contributor.getByRole('button', { name: 'Sign in' }).click()
+    await contributor.waitForURL((url) => url.pathname.startsWith('/admin') && !url.pathname.startsWith('/admin/login'), { timeout: 15000 })
+    await contributor.getByRole('link', { name: 'Pages', exact: true }).first().waitFor({ state: 'visible', timeout: 10000 })
+    if (await contributor.getByText('System Settings', { exact: true }).count()) {
+      fail('a contributor\'s sidebar shows the "System Settings" group')
+    }
+    // Typing an admin-only address directly sends a contributor back to
+    // their own posts list (RoleGuard).
+    for (const adminOnly of ['/admin/settings', '/admin/accounts', '/admin/users']) {
+      await contributor.goto(`${BASE}${adminOnly}`, { waitUntil: 'networkidle' })
+      const sentBack = await contributor.waitForURL((url) => url.pathname === '/admin/blog/posts', { timeout: 10000 })
+        .then(() => true, () => false)
+      if (!sentBack) fail(`a contributor can open ${adminOnly} (still at ${contributor.url()})`)
+    }
+    await other.close()
+  }
+
+  step('settings: rename the site')
+  await page.goto(`${BASE}/admin/settings`, { waitUntil: 'networkidle' })
+  // The whole Title card (EditableCard: heading > title block > header row >
+  // card), so the Edit/Save buttons and the text box are all found inside it
+  // rather than anywhere on the page.
+  const titleCard = page.getByRole('heading', { name: 'Title', exact: true }).locator('xpath=../../..')
+  await titleCard.getByRole('button', { name: 'Edit', exact: true }).click()
+  await titleCard.getByRole('textbox').fill(newSiteTitle)
+  await titleCard.getByRole('button', { name: 'Save', exact: true }).click()
+  await titleCard.getByRole('button', { name: 'Saved' }).waitFor({ timeout: 10000 })
+  await page.reload({ waitUntil: 'networkidle' })
+  const kept = await page.getByText(newSiteTitle).first()
+    .waitFor({ state: 'visible', timeout: 10000 }).then(() => true, () => false)
+  if (!kept) fail(`Site Settings does not show "${newSiteTitle}" after a reload`)
+  // The home page's prerendered HTML still has the old title; the browser
+  // fetches the live settings when the page loads, so the new one appears.
+  if (!(await visitorSees('/', newSiteTitle))) {
+    fail(`the public site does not show the new title "${newSiteTitle}"`)
   }
 
   step('sign out')
@@ -131,4 +232,4 @@ if (problems.length > 0) {
   console.error(`verify-admin: ${problems.length} problem(s).`)
   process.exit(1)
 }
-console.log('verify-admin: OK. Signed in, created and published a page in the editor, saw it publicly, signed out.')
+console.log('verify-admin: OK. Signed in; published a page and a blog post and saw both publicly; invited a contributor who sees only their screens; renamed the site; signed out.')

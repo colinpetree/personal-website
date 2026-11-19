@@ -58,22 +58,13 @@ def test_login_rate_limit_per_ip(client, monkeypatch):
 
 
 @pytest.fixture
-def contact_enabled(app, monkeypatch):
-    from crypto import encrypt
+def contact_enabled(app, mail_configured_site, sent_emails):
     from extensions import db
     from models import SiteConfig
     with app.app_context():
-        config = SiteConfig.query.first()
-        config.contact_enabled = True
-        config.forward_email = 'owner@test.invalid'
-        config.mailgun_domain = 'mg.test.invalid'
-        config.smtp_from_email = 'site@test.invalid'
-        config.mailgun_api_key = encrypt('key-test')
+        SiteConfig.query.first().contact_enabled = True
         db.session.commit()
-    sent = []
-    import routes.contact as contact
-    monkeypatch.setattr(contact, 'send_email', lambda *a, **k: sent.append((a, k)))
-    return sent
+    return sent_emails
 
 
 def _message(i=0):

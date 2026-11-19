@@ -168,6 +168,14 @@ def main():
             'password': admin_password,
             'new_page': {'title': 'CI Admin Test Page', 'slug': 'ci-admin-test-page',
                          'text': 'Written by the CI admin test.'},
+            'new_post': {'title': 'CI Admin Test Post', 'slug': 'ci-admin-test-post',
+                         'text': 'Posted by the CI admin test.'},
+            # Invited through Staff Accounts by the test; never in the database
+            # before then.
+            'invitee': {'name': 'CI Contributor', 'email': 'ci-contributor@example.com',
+                        'password': secrets.token_urlsafe(24)},
+            # Site Settings is renamed to this last, after every other check.
+            'new_site_title': 'CI Renamed Site',
         },
     }
     with open(args.manifest, 'w', encoding='utf-8') as f:

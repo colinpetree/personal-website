@@ -1,9 +1,7 @@
 """Drafts stay private, publishing makes content public, contributors are
 limited to their own drafts, and publishing changes the content fingerprint
 that triggers a prerender rebuild (/api/content-version)."""
-from datetime import datetime, timedelta
 
-import pytest
 
 
 def _new_page(c, title, html='<p>Body</p>'):
@@ -77,18 +75,6 @@ def _content_version(client):
     assert r.status_code == 204
     value = r.headers.get('Last-Modified')
     return parsedate_to_datetime(value) if value else None
-
-
-@pytest.fixture
-def old_content(app):
-    """Moves every fingerprinted timestamp a day back, so a change today shows."""
-    from sqlalchemy import text
-
-    from extensions import db
-    with app.app_context():
-        for table in ('site_config', 'profile', 'project', 'blog_post', 'page', 'docs_section'):
-            db.session.execute(text(f"UPDATE {table} SET updated_at = :t"), {'t': datetime.utcnow() - timedelta(days=1)})
-        db.session.commit()
 
 
 def test_publishing_changes_the_content_fingerprint(client, login_as, old_content):

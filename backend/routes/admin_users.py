@@ -117,6 +117,15 @@ def update_user(user_id):
     return jsonify(_user_dict(user, count))
 
 
+def _csv_safe(value):
+    """Visitors choose their own name and title, and a cell starting with
+    = + - @ (or a tab/carriage return) runs as a formula when the export is
+    opened in Excel or Sheets. A leading quote makes it plain text."""
+    if isinstance(value, str) and value.startswith(('=', '+', '-', '@', '\t', '\r')):
+        return "'" + value
+    return value
+
+
 @admin_users_bp.route('/api/admin/users/export.csv')
 @role_at_least('administrator')
 def export_users():
@@ -129,9 +138,9 @@ def export_users():
         count = Comment.query.filter_by(user_id=u.id, is_deleted=False).count()
         writer.writerow([
             u.id,
-            u.name,
-            u.email,
-            u.title or '',
+            _csv_safe(u.name),
+            _csv_safe(u.email),
+            _csv_safe(u.title or ''),
             'Verified' if u.last_login_at else 'Unverified',
             'Yes' if u.can_comment else 'No',
             'Yes' if u.ai_demo_access else 'No',

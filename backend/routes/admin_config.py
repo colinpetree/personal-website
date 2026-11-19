@@ -14,8 +14,34 @@ from email_utils import send_email, mail_configured
 from upload_utils import save_and_optimize_image, save_favicon, IMAGE_OPTIMIZE_EXTENSIONS, HEADER_IMAGE_MAX_DIM, get_app_data_dir, get_uploads_dir
 from varnish_purge import purge_all_public
 from header_media import strip_inactive_header_media
+from slug_utils import slugify, STATIC_RESERVED_SLUGS
 
 logger = logging.getLogger(__name__)
+
+# The fixed pages' URL slugs share the top-level namespace with Pages, blog
+# posts and the app's own routes.
+_FIXED_SLUG_FIELDS = ('blog_slug', 'projects_slug', 'contact_slug', 'payment_slug', 'ai_demo_slug')
+
+
+def _fixed_slug_error(config, data):
+    """Checks only the fixed-page slugs this save changes, so a stored value
+    from before this check existed never blocks an unrelated save. Returns a
+    plain-language error, or None."""
+    from models import BlogPost, Page
+    final = {f: data.get(f, getattr(config, f)) for f in _FIXED_SLUG_FIELDS}
+    for field in _FIXED_SLUG_FIELDS:
+        if field not in data or data[field] == getattr(config, field):
+            continue
+        value = data[field]
+        if not isinstance(value, str) or not value or value != slugify(value):
+            return f'"{value}" is not a valid page address. Use lowercase letters, numbers and hyphens only.'
+        if value in STATIC_RESERVED_SLUGS:
+            return f'"{value}" is used by the site itself and cannot be a page address.'
+        if any(final[other] == value for other in _FIXED_SLUG_FIELDS if other != field):
+            return f'"{value}" is already the address of another page.'
+        if Page.query.filter_by(slug=value).first() or BlogPost.query.filter_by(slug=value).first():
+            return f'"{value}" is already used by a page or blog post.'
+    return None
 
 admin_config_bp = Blueprint('admin_config', __name__)
 
@@ -149,6 +175,10 @@ def update_admin_config():
 
     if current_user.role == 'editor' and ADMIN_ONLY_FIELDS & set(data.keys()):
         return jsonify({'error': 'Insufficient permissions to update these settings'}), 403
+
+    slug_error = _fixed_slug_error(config, data)
+    if slug_error:
+        return jsonify({'error': slug_error}), 400
 
     # Plain fields: update if present in payload
     plain_fields = [
