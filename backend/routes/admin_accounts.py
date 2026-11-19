@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_user, logout_user
 from extensions import db
 from models import AdminAccount, SiteEventLog
-from routes.admin_auth import admin_required, role_at_least, ROLE_ORDER
+from routes.admin_auth import admin_required, role_at_least, ROLE_ORDER, MIN_PASSWORD_LENGTH, PASSWORD_TOO_SHORT
 
 admin_accounts_bp = Blueprint('admin_accounts', __name__)
 
@@ -63,6 +63,8 @@ def create_account():
 
     if not all([full_name, email, password]):
         return jsonify({'error': 'Name, email, and password are required'}), 400
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return jsonify({'error': PASSWORD_TOO_SHORT}), 400
 
     if role not in ['contributor', 'editor', 'administrator']:
         return jsonify({'error': 'Invalid role'}), 400
@@ -75,12 +77,31 @@ def create_account():
     if role == 'administrator' and ROLE_ORDER.index(current_user.role) < ROLE_ORDER.index('administrator'):
         return jsonify({'error': 'Insufficient permissions to create this role'}), 403
 
-    if AdminAccount.query.filter_by(email=email).first():
+    existing = AdminAccount.query.filter_by(email=email).first()
+    if existing and existing.is_active:
         return jsonify({'error': 'An account with that email already exists'}), 409
 
-    account = AdminAccount(full_name=full_name, title=title, email=email, role=role)
+    if existing:
+        # A removed staff member (deletion only switches the account off, so
+        # their posts and history stay linked). Inviting the same email again
+        # switches that account back on with the new details, instead of a
+        # 409 that could never be cleared.
+        account = existing
+        account.full_name = full_name
+        account.title = title
+        account.role = role
+        account.is_active = True
+        account.failed_login_attempts = 0
+        account.lockout_until = None
+        account.reset_token = None
+        account.reset_token_expires = None
+        # Any browser still holding a sign-in from before the removal must
+        # not come back to life with it.
+        account.end_all_sessions()
+    else:
+        account = AdminAccount(full_name=full_name, title=title, email=email, role=role)
+        db.session.add(account)
     account.set_password(password)
-    db.session.add(account)
     _log(current_user, 'User', 'added', full_name, subject_is_bold=True)
     db.session.commit()
 
@@ -107,8 +128,16 @@ def update_account(account_id):
     if 'email' in data:
         new_email = (data['email'] or '').strip()
         if new_email and new_email != account.email:
-            if AdminAccount.query.filter_by(email=new_email).first():
+            holder = AdminAccount.query.filter_by(email=new_email).first()
+            if holder and holder.is_active:
                 return jsonify({'error': 'An account with that email already exists'}), 409
+            if holder:
+                # A removed staff member's account (it can't sign in; its
+                # address only mattered for re-inviting them). It gives the
+                # address up so the active account can have it; its posts
+                # and history stay linked by id.
+                holder.email = f'removed-{holder.id}@removed.invalid'
+                db.session.flush()
             account.email = new_email
     if 'avatar_filename' in data:
         account.avatar_filename = data['avatar_filename'] or None
@@ -160,6 +189,8 @@ def update_password(account_id):
 
     if not new_password:
         return jsonify({'error': 'New password is required'}), 400
+    if len(new_password) < MIN_PASSWORD_LENGTH:
+        return jsonify({'error': PASSWORD_TOO_SHORT}), 400
 
     if is_own_account:
         if not old_password:

@@ -192,6 +192,23 @@ def test_editor_cannot_reset_another_password(login_as, make_admin):
     assert r.status_code == 403
 
 
+@pytest.mark.parametrize('whose', ['own', 'other'])
+def test_password_changes_need_eight_characters(app, login_as, make_admin, whose):
+    from models import AdminAccount
+    c = login_as('administrator')
+    if whose == 'own':
+        with app.app_context():
+            target = AdminAccount.query.filter_by(email='administrator@test.invalid').one().id
+        body = {'old_password': PASSWORD, 'new_password': 'short'}
+    else:
+        target = make_admin('editor', email='other@test.invalid')
+        body = {'new_password': 'short'}
+    r = c.put(f'/api/admin/accounts/{target}/password', json=body)
+    assert r.status_code == 400 and '8' in r.get_json()['error']
+    body['new_password'] = 'long enough now'
+    assert c.put(f'/api/admin/accounts/{target}/password', json=body).status_code == 200
+
+
 def test_own_password_change_needs_current_password(app, login_as):
     from models import AdminAccount
     c = login_as('editor')

@@ -403,6 +403,7 @@ export default function StaffProfileModal({ account, onClose, onUpdated, onRefet
                       {showNewPw ? <EyeOff size={16} /> : <Eye size={16} />}
                     </button>
                   </div>
+                  <p className="text-xs text-gray-400 mt-1">At least 8 characters.</p>
                 </div>
                 {pwError && <p className="text-sm text-red-600">{pwError}</p>}
                 <div className="flex gap-2">

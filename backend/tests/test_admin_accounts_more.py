@@ -40,6 +40,77 @@ def test_contributor_cannot_invite(login_as):
     assert _invite(login_as('contributor')).status_code == 403
 
 
+@pytest.mark.parametrize('password,expected', [('1234567', 400), ('12345678', 201)])
+def test_new_accounts_need_eight_character_passwords(login_as, password, expected):
+    r = login_as('administrator').post('/api/admin/accounts', json={
+        'full_name': 'N', 'email': 'n@test.invalid', 'password': password, 'role': 'contributor',
+    })
+    assert r.status_code == expected
+
+
+def test_removed_staff_can_be_invited_again(app, login_as, make_admin, make_post, get, history):
+    """Re-inviting a removed person's email switches their old account back on
+    (keeping their posts and history linked) instead of failing with 409."""
+    from models import AdminAccount, BlogPost
+    leaving = login_as('editor', email='back@test.invalid')
+    post_id = make_post('Their Post', author_id=leaving.admin_id)
+    admin = login_as('administrator')
+    admin.delete(f'/api/admin/accounts/{leaving.admin_id}')
+
+    r = admin.post('/api/admin/accounts', json={
+        'full_name': 'Back Again', 'email': 'back@test.invalid', 'password': 'a fresh password', 'role': 'contributor',
+    })
+    assert r.status_code == 201, r.get_json()
+    assert r.get_json()['id'] == leaving.admin_id
+    account = get(AdminAccount, leaving.admin_id)
+    assert (account.is_active, account.full_name, account.role) == (True, 'Back Again', 'contributor')
+    assert get(BlogPost, post_id).author_id == leaving.admin_id
+    assert history()[0]['action'] == 'added'
+
+    # The new password works, the old one doesn't, and a browser still holding
+    # a sign-in from before the removal stays signed out.
+    fresh = app.test_client()
+    assert fresh.post('/api/admin/login', json={'email': 'back@test.invalid', 'password': PASSWORD}).status_code == 401
+    assert fresh.post('/api/admin/login', json={'email': 'back@test.invalid', 'password': 'a fresh password'}).status_code == 200
+    assert leaving.get('/api/admin/site-config').status_code == 401
+
+
+def test_staff_can_take_over_a_removed_persons_email(app, login_as, make_admin, get):
+    """Moving an active account onto a removed person's address used to fail
+    with "already exists" for an account nobody could see."""
+    from models import AdminAccount
+    removed = make_admin('editor', email='shared@test.invalid')
+    current = make_admin('editor', email='current@test.invalid')
+    admin = login_as('administrator')
+    admin.delete(f'/api/admin/accounts/{removed}')
+
+    r = admin.put(f'/api/admin/accounts/{current}', json={'email': 'shared@test.invalid'})
+    assert r.status_code == 200, r.get_json()
+    assert get(AdminAccount, current).email == 'shared@test.invalid'
+    old = get(AdminAccount, removed)
+    assert old.is_active is False and old.email != 'shared@test.invalid'
+    # The address now belongs to an active account, so it can't be re-invited.
+    again = admin.post('/api/admin/accounts', json={'full_name': 'X', 'email': 'shared@test.invalid', 'password': 'p' * 12, 'role': 'contributor'})
+    assert again.status_code == 409
+
+
+def test_email_of_an_active_account_is_still_refused(login_as, make_admin):
+    make_admin('editor', email='taken@test.invalid')
+    target = make_admin('editor', email='mine@test.invalid')
+    r = login_as('administrator').put(f'/api/admin/accounts/{target}', json={'email': 'taken@test.invalid'})
+    assert r.status_code == 409
+
+
+def test_reinvite_follows_the_same_role_rules(login_as):
+    """An editor may only bring someone back as a Contributor."""
+    target = login_as('administrator', email='was-admin@test.invalid')
+    login_as('owner', email='owner2@test.invalid').delete(f'/api/admin/accounts/{target.admin_id}')
+    r = login_as('editor').post('/api/admin/accounts', json={
+        'full_name': 'X', 'email': 'was-admin@test.invalid', 'password': 'p' * 12, 'role': 'administrator',
+    })
+    assert r.status_code == 403
+
+
 def test_duplicate_email_refused(login_as, make_admin):
     make_admin('editor', email='dup@test.invalid')
     assert _invite(login_as('administrator'), email='dup@test.invalid').status_code == 409

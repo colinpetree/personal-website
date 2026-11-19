@@ -15,6 +15,11 @@ admin_auth_bp = Blueprint('admin_auth', __name__)
 
 ROLE_ORDER = ['contributor', 'editor', 'administrator', 'owner']
 
+# One rule for every staff password: new accounts, password changes and
+# email resets (ResetPasswordPage.jsx and the staff forms say the same).
+MIN_PASSWORD_LENGTH = 8
+PASSWORD_TOO_SHORT = f'Password must be at least {MIN_PASSWORD_LENGTH} characters'
+
 MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_DURATION = timedelta(minutes=15)
 MAX_ATTEMPTS_PER_IP = 50
@@ -350,8 +355,8 @@ def reset_password():
 
     if not token or not new_password:
         return jsonify({'error': 'Token and new password are required'}), 400
-    if len(new_password) < 8:
-        return jsonify({'error': 'Password must be at least 8 characters'}), 400
+    if len(new_password) < MIN_PASSWORD_LENGTH:
+        return jsonify({'error': PASSWORD_TOO_SHORT}), 400
 
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     account = AdminAccount.query.filter_by(reset_token=token_hash).first()
