@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 import { useAdminAuth, isAtLeast } from '../../context/AdminAuthContext'
-import { useToast } from '../../context/ToastContext'
 import { PageShell } from '../../components/admin/AdminPage'
 import StaffProfileModal, { AvatarCircle, ROLE_BADGE, ROLE_LABELS, ROLE_DESCRIPTIONS } from '../../components/admin/StaffProfileModal'
 import RoleGuard, { adminOnlyFallback } from '../../components/admin/RoleGuard'
@@ -49,8 +48,8 @@ function AddAccountModal({ onClose, onCreated, currentAdminRole }) {
           {[
             { label: 'Name', key: 'full_name', type: 'text', required: true },
             { label: 'Email', key: 'email', type: 'email', required: true },
-            { label: 'Password', key: 'password', type: 'password', required: true },
-          ].map(({ label, key, type, required }) => (
+            { label: 'Password', key: 'password', type: 'password', required: true, minLength: 8, hint: 'At least 8 characters.' },
+          ].map(({ label, key, type, required, minLength, hint }) => (
             <div key={key}>
               <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
               <input
@@ -58,8 +57,10 @@ function AddAccountModal({ onClose, onCreated, currentAdminRole }) {
                 value={form[key]}
                 onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
                 required={required}
+                minLength={minLength}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-gray-400"
               />
+              {hint && <p className="text-xs text-gray-400 mt-1">{hint}</p>}
             </div>
           ))}
 

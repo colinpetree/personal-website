@@ -1,16 +1,18 @@
 import re
 
-# Shared between admin_blog.py and admin_pages.py so BlogPost and Page —
+# Shared between admin_blog.py and admin_pages.py so BlogPost and Page  - 
 # which now share the same top-level public slug namespace via the :slug
-# catch-all / /api/resolve/<slug> — can never collide with each other, a
+# catch-all / /api/resolve/<slug> - can never collide with each other, a
 # reserved word, or a fixed SiteConfig page's slug.
 
 _STATIC_RESERVED = {'', 'admin', 'api', 'profile', 'search'}
+# Public name for other modules (admin_config.py checks fixed-page slugs).
+STATIC_RESERVED_SLUGS = frozenset(_STATIC_RESERVED)
 
 
 def get_reserved_slugs(config):
     """Reserved slugs = static app routes plus the still-fixed SiteConfig
-    pages' slugs. 'about' is deliberately NOT included — About is a regular
+    pages' slugs. 'about' is deliberately NOT included - About is a regular
     Page now (see the about_migrated migration in app.py), protected by
     Page.slug's own unique constraint like any other page, not a reserved
     word. Home has no slug column (always '/', covered by the empty-string
@@ -34,7 +36,7 @@ def slugify(text):
 def unique_slug(models, base, reserved, exclude=None, fallback_suffix='post'):
     """Find a slug that doesn't collide with a reserved word or an existing
     row in any of `models` (a list of model classes, each with a `.slug`
-    column and `.query`). `exclude`, if given, is (model_class, id) — the
+    column and `.query`). `exclude`, if given, is (model_class, id) - the
     row being edited is allowed to keep its own slug during an update.
 
     If `base` already ends in "-<number>" (e.g. a manually-edited slug like

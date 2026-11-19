@@ -4,9 +4,17 @@ from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 from extensions import db, login_manager
 from dotenv import load_dotenv
+import mimetypes
 import os
 
 load_dotenv()
+
+# Every uploaded image is stored as .webp, and Python 3.12 has no built-in
+# type for it: it relies on the OS's /etc/mime.types (Windows has none). If
+# that file is missing, /api/uploads/*.webp goes out as
+# application/octet-stream, and with nginx's nosniff header browsers refuse to
+# show the image. Registering it here removes that dependency on the host.
+mimetypes.add_type('image/webp', '.webp')
 
 _SAFE_METHODS = {'GET', 'HEAD', 'OPTIONS'}
 # Server-to-server callers: Stripe's webhook (verified by signature) and the

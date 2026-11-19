@@ -94,8 +94,13 @@ const server = http.createServer(async (req, res) => {
       return
     }
     const responseHeaders = { 'Content-Type': upstream.headers.get('content-type') || 'application/octet-stream' }
-    const setCookie = upstream.headers.get('set-cookie')
-    if (setCookie) responseHeaders['set-cookie'] = setCookie
+    // getSetCookie(), not get('set-cookie'): get() joins several cookies
+    // into one comma-separated header, which browsers misread (cookie
+    // Expires dates contain commas). Login and logout each set two cookies
+    // (pw_session and remember_admin), so the joined form left the
+    // remember cookie behind after "Sign out".
+    const setCookies = upstream.headers.getSetCookie()
+    if (setCookies.length) responseHeaders['set-cookie'] = setCookies
     res.writeHead(upstream.status, responseHeaders)
     if (upstream.body) {
       // pipeline(), not .pipe() - .pipe() leaves the source stream's 'error'

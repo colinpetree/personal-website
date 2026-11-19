@@ -13,6 +13,7 @@ set -uo pipefail   # not -e: a failed step must still let the alert POST fire be
 _log() { echo "[backup-pull] $*"; }   # journalctl already timestamps every line
 
 PI_BUILD_ENV="$HOME/.personal-website-build.env"   # written by setup-backup-pull-pi.sh
+# shellcheck source=/dev/null  # env file, path set at runtime
 [ -f "$PI_BUILD_ENV" ] && { set -a; source "$PI_BUILD_ENV"; set +a; }
 
 # The site's public URL, where /api/watcher-alert lives. Named

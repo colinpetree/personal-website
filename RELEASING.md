@@ -11,7 +11,7 @@ The Pi now only pulls a copy of the nightly backups (see `deploy/BACKUP.md`). If
 
 ## Every push: CI
 
-Push to `main` and **CI** runs by itself (about 5 minutes). It builds the backend on ARM64 and runs the tests: dependency imports, migrations on a fresh Postgres and as an upgrade from the previous release, a prerender of sample content, a real-browser hydration test, and the CSP check.
+Push to `main` and **CI** runs by itself (about 5 minutes). Lint (ruff, ESLint, shellcheck, actionlint), the backend tests (pytest on Postgres), the frontend tests (Vitest) and the nginx/Varnish config check run first, in about a minute each. Alongside them it builds the backend on ARM64 and runs the release tests: dependency imports, migrations on a fresh Postgres and as an upgrade from the previous release, a prerender of sample content, real-browser hydration and admin tests, and the CSP check. A draft only appears when every job passed.
 
 - **Passed:** it leaves a **draft release** named `Candidate <sha>, tested against vX.Y.Z` on the Releases page, holding the exact files it tested, with the commits since the last release in its notes. Each passing push replaces the draft, so there is only ever one. Drafts are private and nothing installs them: until you publish, a push is only a test of the build.
 - **Failed:** GitHub emails you. The previous draft (if any) stays as it was.

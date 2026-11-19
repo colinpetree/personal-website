@@ -575,6 +575,9 @@ fi
 # Facts common to both the success and failure deploy-report emails -
 # gathered once and exported right before each `--send-deploy-report` call.
 # Silently a no-op downstream if Mailgun/forward_email isn't configured.
+# Report fields are best effort: `export X="$(cmd)"` deliberately ignores a
+# failing cmd, so set -e cannot abort the deploy report over a missing value.
+# shellcheck disable=SC2155
 _export_deploy_report_common() {
     export DEPLOY_REPORT_RELEASE="$RELEASE_NAME"
     export DEPLOY_REPORT_PREVIOUS="$([ -n "$PREVIOUS_RELEASE" ] && basename "$PREVIOUS_RELEASE" || echo "none")"
@@ -635,6 +638,7 @@ if [ "$HEALTHY" != true ]; then
     export DEPLOY_REPORT_ROLLED_BACK="$ROLLED_BACK"
     export DEPLOY_REPORT_ATTEMPTS="$i"
     export DEPLOY_REPORT_HEALTH_ERROR="$LAST_HEALTH_ERROR"
+    # shellcheck disable=SC2155  # best effort, as above
     export DEPLOY_REPORT_LOG_TAIL="$(journalctl -u personal-website -n 30 --no-pager 2>/dev/null | tail -c 4000)"
     _run_server_in "$REPORT_DIR" --send-deploy-report >/dev/null 2>&1 || true
     exit 1

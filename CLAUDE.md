@@ -27,7 +27,36 @@ cd frontend
 npm run dev                  # Starts Vite on http://localhost:5173
 ```
 
-`/api/*` requests are proxied to `http://localhost:5000` by Vite. There's no unit test suite or linter; the release checks run in CI (see Releases and deployment below).
+`/api/*` requests are proxied to `http://localhost:5000` by Vite.
+
+### Tests and lint
+
+All of these run in CI on every push and pull request (see Releases and deployment below).
+
+```bash
+# Backend: pytest against a throwaway Postgres database (name must end in _test;
+# every table in it is emptied between tests). One-time: CREATE DATABASE personal_website_test
+cd backend
+pip install -r requirements-dev.txt
+$env:TEST_DATABASE_URL = "postgresql://postgres:PASSWORD@localhost:5432/personal_website_test"   # PowerShell
+python -m pytest                 # add --cov=. for coverage
+python -m ruff check .
+
+# Frontend
+cd frontend
+npm test                         # Vitest: src/**/*.test.js(x)
+npm run lint                     # ESLint
+
+# Deploy scripts
+shellcheck -S warning deploy/scripts/*.sh deploy/scripts/lib/*.sh
+```
+
+- Backend tests live in `backend/tests/` (`conftest.py` builds the schema with `server.py`'s own migration and seed functions, blocks outside network access, and gives `login_as(role)` / `make_admin(role)` fixtures). `test_auth_roles.py` reads every `/api/admin` route from the app, so a new admin route must answer 401 when logged out, or be added to `PUBLIC_ADMIN_ROUTES` on purpose.
+  - Every admin area has a `test_admin_*.py` file (blog, categories, projects, pages, docs, staff accounts, password reset, users, history, analytics, uploads, site settings, AI demo access, misc). A new admin route or behaviour gets a test in the matching file.
+  - Shared fixtures in `conftest.py`: factories (`make_post`, `make_page`, `make_category`, `make_project`, `make_user`, `make_comment`, `make_payment`, `make_page_view`, `make_docs_section`), `bans` (records Varnish cache bans), `sent_emails` (captures email instead of Mailgun, and runs admin_auth's background threads inline), `mail_configured_site`, `history` (audit log), `config_updated_at` / `old_content` (content-fingerprint checks), `get(Model, id)`.
+  - Tests write files only under the temporary `APP_DATA_DIR` conftest sets (`conftest.APP_DATA_DIR`), never `backend/uploads/` or `backend/certbot_domain.txt`.
+  - CI fails if backend coverage (AI demos on) drops below the floor in `ci.yml`'s `backend-tests` step (`--cov-fail-under`). Raise it as tests grow; don't lower it to get a change through.
+- Frontend unit tests sit next to the code (`*.test.js`); a test that needs a DOM starts with `// @vitest-environment jsdom`. `components/admin/editor/nodes.test.jsx` checks the custom nodes' exported HTML and that it survives a save/reload round trip.
 
 ### Build
 
@@ -40,12 +69,12 @@ npm run build                # Outputs to frontend/build/client/ (shipped as fro
 
 GitHub Actions builds everything; nothing builds on a Pi or on the server. Full guides: `RELEASING.md` (releasing, testing a branch live) and `DEPLOYMENT_INSTRUCTIONS.md` (new server setup).
 
-- **CI:** `.github/workflows/ci.yml` runs on every push to `main`, every pull request, and by hand (Actions, CI, Run workflow; `mode` trial/test for any branch). Its build job is the reusable `.github/workflows/build-test.yml`: PyInstaller on ARM64, Postgres migrations fresh and as an upgrade, a prerender of `backend/ci_fixture.py` sample content, `frontend/scripts/verify-prerender.mjs`, `verify-csp-hashes.mjs`, and a Playwright `verify-hydration.mjs`, then packaging by `deploy/scripts/assemble-release.sh`. A passing push to `main` replaces the single private draft release `Candidate <sha7>, tested against <tag>` (version label `<latest>-ci.<sha7>`).
+- **CI:** `.github/workflows/ci.yml` runs on every push to `main`, every pull request, and by hand (Actions, CI, Run workflow; `mode` trial/test for any branch). Fast jobs run alongside the build: `lint` (ruff, ESLint, shellcheck, actionlint), `backend-tests` (pytest, AI demos off and on), `frontend-tests` (Vitest), `server-config` (`nginx -t` and `varnishd -C` on the shipped configs) and, on pull requests, `dependency-review`. Its build job is the reusable `.github/workflows/build-test.yml`: PyInstaller on ARM64, Postgres migrations fresh and as an upgrade, a prerender of `backend/ci_fixture.py` sample content, `frontend/scripts/verify-prerender.mjs`, `verify-csp-hashes.mjs`, a Playwright `verify-hydration.mjs` and `verify-admin.mjs` (as an administrator: publish a page and a blog post and see them publicly, invite a contributor and check they're kept out of admin-only screens, rename the site, sign out; failures upload a screenshot and trace), then packaging by `deploy/scripts/assemble-release.sh`. CodeQL runs separately (`codeql.yml`). A passing push to `main` replaces the single private draft release `Candidate <sha7>, tested against <tag>` (version label `<latest>-ci.<sha7>`).
 - **Code release:** `.github/workflows/release.yml` ("Publish release": Actions, Publish release, Run workflow; `bump` patch/minor/major). Doesn't rebuild: relabels the draft's tested files with `deploy/scripts/reversion-release.sh`, tags the tested commit, and publishes the draft as the public release with a server bundle. Versions come only from git tags: there is no `VERSION` file in the repo (builds write one, it's gitignored) and no "Release" commit, so nothing to pull afterwards.
 - **Site build:** each site's private dist repo (`colinpetree/personal-website-dist-colinpetree.com`) runs `deploy/instance/publish.yml`, which calls `.github/workflows/build-instance.yml@main` to prerender against the live site and publish the release production installs. It decides what to build from the live `/api/content-version` headers (`Last-Modified` fingerprint, `X-Backend-Build`) compared with its latest release's notes.
 - **Production:** `update-watch.sh` installs the newest dist release every 5 minutes; `content-dispatch.sh` (timer) starts a dist build about 7 minutes after content edits stop. Any admin change that should reach prerendered pages must bump `updated_at` on a fingerprinted table (see the `content-update-triggers` skill).
 - **Pi:** only pulls a copy of the nightly backups (`deploy/BACKUP.md`). `deploy/scripts/publish-release.sh` / `build-on-pi.sh` remain as a manual build fallback if GitHub Actions is down.
-- **Monthly:** `.github/workflows/dependency-audit.yml` runs pip-audit and npm audit.
+- **Monthly:** `.github/workflows/dependency-audit.yml` runs pip-audit and npm audit, and Dependabot opens update PRs for pip, npm and Actions. React and Lexical come as their own grouped PRs (exact pins that move together); only Tailwind and React Router majors are ignored, so security fixes are never hidden.
 
 ## Architecture
 

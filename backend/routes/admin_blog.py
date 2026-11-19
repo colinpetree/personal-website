@@ -129,6 +129,15 @@ def update_post(post_id):
         if data.get('status') in ('published', 'scheduled'):
             return jsonify({'error': 'Contributors cannot publish or schedule posts'}), 403
 
+    # Parsed before anything changes, so a bad date is a clean 400 instead
+    # of a 500 halfway through the save.
+    new_publish_date = None
+    if data.get('publish_date'):
+        try:
+            new_publish_date = datetime.fromisoformat(data['publish_date'])
+        except (TypeError, ValueError):
+            return jsonify({'error': 'Invalid publish date'}), 400
+
     if 'title' in data:
         post.title = (data['title'] or '').strip() or 'Untitled'
 
@@ -190,7 +199,7 @@ def update_post(post_id):
         post.content_html = strip_inactive_header_media(post.content_html)
 
     if 'publish_date' in data:
-        post.publish_date = datetime.fromisoformat(data['publish_date']) if data['publish_date'] else None
+        post.publish_date = new_publish_date
 
     post.updated_at = datetime.utcnow()
 

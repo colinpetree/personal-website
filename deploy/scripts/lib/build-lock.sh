@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Sourced by build-on-pi.sh and publish-release.sh - not meant to be executed
 # directly. Requires $BUILD_ROOT to already be set (and to exist) by the
 # caller before sourcing this.
@@ -49,7 +50,7 @@ if ! flock -n 200; then
     # the other one's *new* run win the race and make us wait behind it,
     # which would break "interactive always wins." Keep re-asserting the
     # interrupt for a bounded window instead.
-    for i in $(seq 1 15); do
+    for _ in $(seq 1 15); do
         OLD_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
         if [ -n "$OLD_PID" ] && _looks_like_our_build "$OLD_PID"; then
             kill -TERM -- "-$OLD_PID" 2>/dev/null || true

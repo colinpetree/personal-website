@@ -24,6 +24,17 @@ def _log(area, action_type, subject, subject_is_bold=False):
 admin_blog_categories_bp = Blueprint('admin_blog_categories', __name__)
 
 
+def _is_int(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _valid_order_items(items):
+    return isinstance(items, list) and all(
+        isinstance(item, dict) and _is_int(item.get('id')) and _is_int(item.get('order'))
+        for item in items
+    )
+
+
 def _slugify(text):
     text = text.lower().strip()
     text = re.sub(r'[^\w\s-]', '', text)
@@ -93,7 +104,11 @@ def create_category():
 @role_at_least('editor')
 def reorder_categories():
     """Accepts [{id, order}, ...] and bulk-updates order values."""
-    items = request.get_json(silent=True) or []
+    items = request.get_json(silent=True)
+    # Validated up front: anything but a list of integer {id, order} pairs
+    # used to reach the database as-is and come back as a 500.
+    if not _valid_order_items(items):
+        return jsonify({'error': 'Expected a list of {id, order} pairs'}), 400
     for item in items:
         category = BlogCategory.query.get(item.get('id'))
         if category:

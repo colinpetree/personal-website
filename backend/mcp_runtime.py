@@ -133,7 +133,7 @@ def _call(coro_factory, timeout, _retry=True):
         if _retry:
             _reset()
             return _call(coro_factory, timeout, _retry=False)
-        raise McpUnavailableError(str(e))
+        raise McpUnavailableError(str(e)) from e
 
 
 def list_tools(timeout=10):

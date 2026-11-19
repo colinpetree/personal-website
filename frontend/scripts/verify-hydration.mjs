@@ -1,5 +1,5 @@
-// Release check, run by the release workflow (.github/workflows/release.yml)
-// against the prerendered fixture build. Opens the built pages in a real
+// Release check, run by CI (.github/workflows/build-test.yml) against the
+// prerendered fixture build. Opens the built pages in a real
 // Chromium and fails if any of them does not come to life in the browser.
 //
 // Why: a page can build, prerender and look right as HTML yet never
@@ -14,7 +14,7 @@
 // backend/ci_fixture.py.
 //
 // Usage:
-//   node scripts/verify-hydration.mjs --manifest f.json --api http://127.0.0.1:8099
+//   node scripts/verify-hydration.mjs --manifest f.json --api http://127.0.0.1:8099 [--artifacts dir]
 //
 // For each page in the manifest it fails on: a CSP violation, an uncaught
 // page error, or any console error (React reports hydration mismatches as
@@ -24,7 +24,7 @@
 // works, and that the mobile menu (and its submenu pane) opens on a
 // phone-sized screen.
 import { spawn } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
@@ -34,6 +34,8 @@ const argValue = (name, fallback) => (args.includes(name) ? args[args.indexOf(na
 const manifest = JSON.parse(readFileSync(argValue('--manifest'), 'utf8'))
 const API = argValue('--api', 'http://127.0.0.1:8099')
 const PORT = Number(argValue('--port', '4173'))
+// Where to save a screenshot of each check that fails (CI uploads it).
+const ARTIFACTS = argValue('--artifacts', null)
 const BASE = `http://127.0.0.1:${PORT}`
 
 const problems = []
@@ -66,11 +68,21 @@ function watch(page, label) {
   page.on('pageerror', (err) => seen.push(`uncaught error: ${err.message}`))
   return {
     seen,
-    report: () => seen.forEach((s) => fail(`${label}: ${s}`)),
+    report: async () => {
+      seen.forEach((s) => fail(`${label}: ${s}`))
+      if (seen.length && ARTIFACTS) {
+        mkdirSync(ARTIFACTS, { recursive: true })
+        const file = `verify-hydration-${label.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '') || 'home'}.png`
+        await page.screenshot({ path: join(ARTIFACTS, file), fullPage: true }).catch(() => {})
+      }
+    },
   }
 }
 
 let browser
+// The page under test right now, so a step that throws (rather than
+// recording a problem) still gets a screenshot.
+let currentPage = null
 try {
   await waitForServer()
   browser = await chromium.launch()
@@ -85,12 +97,13 @@ try {
       })
     })
     const page = await context.newPage()
+    currentPage = page
     const w = watch(page, path)
     const response = await page.goto(BASE + path, { waitUntil: 'networkidle' })
     if (!response || !response.ok()) w.seen.push(`HTTP ${response ? response.status() : 'no response'}`)
     const violations = await page.evaluate(() => window.__cspViolations)
     violations.forEach((v) => w.seen.push(`CSP violation: ${v}`))
-    w.report()
+    await w.report()
     await context.close()
   }
 
@@ -99,6 +112,7 @@ try {
     const { from, label, to } = manifest.nav_click
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
     const page = await context.newPage()
+    currentPage = page
     const w = watch(page, `nav click ${from} -> ${to}`)
     await page.goto(BASE + from, { waitUntil: 'networkidle' })
     // A full page load would wipe this; a hydrated React Router app keeps it.
@@ -108,7 +122,7 @@ try {
       .catch(() => w.seen.push(`clicking "${label}" did not reach ${to} (still at ${page.url()})`))
     const kept = await page.evaluate(() => window.__noFullReload === true)
     if (!kept) w.seen.push(`clicking "${label}" did a full page load, so the page never hydrated`)
-    w.report()
+    await w.report()
     await context.close()
   }
 
@@ -118,6 +132,7 @@ try {
     const { parent, child, to } = manifest.nav_dropdown
     const context = await browser.newContext({ viewport: { width: 1280, height: 900 } })
     const page = await context.newPage()
+    currentPage = page
     const w = watch(page, `nav dropdown ${parent} > ${child}`)
     await page.goto(BASE + '/', { waitUntil: 'networkidle' })
     await page.evaluate(() => { window.__noFullReload = true })
@@ -135,7 +150,7 @@ try {
       const kept = await page.evaluate(() => window.__noFullReload === true)
       if (!kept) w.seen.push(`clicking "${child}" did a full page load`)
     }
-    w.report()
+    await w.report()
     await context.close()
   }
 
@@ -143,6 +158,7 @@ try {
   {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true })
     const page = await context.newPage()
+    currentPage = page
     const w = watch(page, 'mobile menu')
     await page.goto(BASE + '/', { waitUntil: 'networkidle' })
     const toggle = page.getByRole('button', { name: 'Toggle menu' })
@@ -177,11 +193,15 @@ try {
         if (!backShown) w.seen.push(`the Home button did not return to the main menu links`)
       }
     }
-    w.report()
+    await w.report()
     await context.close()
   }
 } catch (err) {
   fail(`verify-hydration could not run: ${err.message}`)
+  if (ARTIFACTS && currentPage && !currentPage.isClosed()) {
+    mkdirSync(ARTIFACTS, { recursive: true })
+    await currentPage.screenshot({ path: join(ARTIFACTS, 'verify-hydration-stopped.png'), fullPage: true }).catch(() => {})
+  }
 } finally {
   if (browser) await browser.close()
   preview.kill()

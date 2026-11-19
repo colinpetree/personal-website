@@ -25,7 +25,7 @@ import {
 } from '@lexical/table'
 import {
   $getSelection, $isRangeSelection, $isNodeSelection, $createParagraphNode, $createTextNode, $getRoot,
-  FORMAT_TEXT_COMMAND, FORMAT_ELEMENT_COMMAND, UNDO_COMMAND, REDO_COMMAND,
+  FORMAT_TEXT_COMMAND, UNDO_COMMAND, REDO_COMMAND,
   KEY_DOWN_COMMAND, COMMAND_PRIORITY_HIGH, COMMAND_PRIORITY_CRITICAL, COMMAND_PRIORITY_LOW,
   $getNodeByKey, $isParagraphNode, $isDecoratorNode, $isElementNode,
   $createNodeSelection, $setSelection, createCommand,
@@ -584,7 +584,7 @@ export function SlashCommandPlugin() {
             plusTriggered: false,
           })
         } else if (menuRef.current.visible && menuRef.current.plusTriggered) {
-          // Menu was opened by + button — close it if cursor moved or paragraph got content
+          // Menu was opened by + button - close it if cursor moved or paragraph got content
           if (text === '' && topLevel.getKey() === menuRef.current.nodeKey) {
             // Still on the same empty paragraph; keep menu open and update position
             if (domEl) {
@@ -736,7 +736,7 @@ export function SlashCommandPlugin() {
       if (para && $isParagraphNode(para) && para.getTextContent() === '' && para.getNextSibling()) {
         para.remove()
       }
-      // The insert command leaves the selection inside the first cell — use it
+      // The insert command leaves the selection inside the first cell - use it
       // to find the new table, then set default widths + width mode.
       const sel = $getSelection()
       if (!$isRangeSelection(sel)) return
@@ -771,7 +771,7 @@ export function SlashCommandPlugin() {
     setMenu(m => ({ ...m, visible: false }))
 
     if (UPLOAD_ACTIONS.has(item.action)) {
-      // Read synchronously — editor.update() is deferred when called inside a
+      // Read synchronously - editor.update() is deferred when called inside a
       // Lexical command handler, so we can't rely on its callback having run
       // before checking paragraphFound or before calling fileRef.current.click().
       let paragraphFound = false
@@ -788,7 +788,7 @@ export function SlashCommandPlugin() {
       pendingSavedTextRef.current = savedText
       fileRef.current.accept = ACCEPT_MAP[item.action]
       fileRef.current.multiple = item.action === 'gallery'
-      // Clear the slash text — can run async, we don't need to wait for it.
+      // Clear the slash text - can run async, we don't need to wait for it.
       editor.update(() => {
         const node = $getNodeByKey(nodeKey)
         if (node && $isParagraphNode(node)) node.clear()
@@ -1024,7 +1024,7 @@ export function SlashCommandPlugin() {
           if (node && $isParagraphNode(node)) node.replace($createFileNode(`/api/uploads/${data.filename}`, data.original_name, data.mime_type, data.size || 0))
         })
       } else if (action === 'gallery') {
-        // Uploaded in parallel — awaiting each file's server-side WebP/
+        // Uploaded in parallel - awaiting each file's server-side WebP/
         // resize/LQIP work in sequence before starting the next is what made
         // inserting a multi-image gallery take tens of seconds. allSettled
         // tolerates individual failures rather than aborting the whole batch.
@@ -1845,7 +1845,7 @@ export function DragDropPastePlugin() {
   useEffect(() => {
     const root = editor.getRootElement()
     if (!root) return
-    // editorWrapper  = div.relative.bg-white (index.jsx) — defines the visual top of the overlay
+    // editorWrapper  = div.relative.bg-white (index.jsx) - defines the visual top of the overlay
     // dropContainer  = its parent, which also contains the 33vh bottom-padding div in the page
     const editorWrapper = root.parentElement ?? root
     const dropContainer = editorWrapper.parentElement ?? editorWrapper
@@ -1893,7 +1893,7 @@ export function DragDropPastePlugin() {
         return
       }
 
-      // Browser image drag — URL carried in dataTransfer, no file blob
+      // Browser image drag - URL carried in dataTransfer, no file blob
       const imageUrl = extractBrowserImageUrl(e.dataTransfer)
       if (!imageUrl) return
       e.preventDefault()
@@ -1910,7 +1910,7 @@ export function DragDropPastePlugin() {
         insertMediaNodes(editor, anchorKey, [upload])
         scrollToBottom(root)
       } catch {
-        // CORS-blocked or network error — silently skip
+        // CORS-blocked or network error - silently skip
       }
     }
 
@@ -2107,7 +2107,7 @@ function RecordingModal({ onClose, onInsert }) {
       const data = await res.json()
       if (!res.ok) {
         if (data.error === 'ffmpeg_not_found') {
-          setSaveError('Cannot convert audio to MP3 — FFmpeg not found on the server.')
+          setSaveError('Cannot convert audio to MP3 - FFmpeg not found on the server.')
         } else {
           setSaveError(`Failed to save recording.${data.detail ? ` ${data.detail}` : ''}`)
         }
@@ -2412,7 +2412,7 @@ function VideoPosterModal({ videoSrc, initialPosterSrc, onSave, onClose }) {
   }, [onClose, saving])
 
   function handleVideoError() {
-    // Browser can't decode this file at all — skip silently, no dialog.
+    // Browser can't decode this file at all - skip silently, no dialog.
     onClose()
   }
 
@@ -2526,7 +2526,7 @@ export function VideoPosterModalPlugin() {
   // Mirrors `active` synchronously. Multiple OPEN_VIDEO_POSTER_COMMAND
   // dispatches can happen back-to-back in the same tick (e.g. a multi-file
   // drag-drop, which fires one dispatch per video with no await between
-  // them) — React state updates aren't applied until the next render, so a
+  // them) - React state updates aren't applied until the next render, so a
   // command handler reading `active` (state) would see the same stale value
   // for every dispatch in that batch and could set it more than once,
   // silently dropping every video but the last. Reading/writing this ref

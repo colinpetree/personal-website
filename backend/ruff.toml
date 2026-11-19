@@ -1,0 +1,24 @@
+# Python lint for the backend, run by CI (ci.yml, lint job) and locally:
+#   cd backend && .venv\Scripts\python -m ruff check .
+#
+# Rules chosen to catch real bugs (undefined names, unused code, risky
+# patterns), not to enforce a style.
+target-version = "py312"
+extend-exclude = [".venv", "build", "dist", "uploads", "data"]
+
+[lint]
+select = [
+  "E",  # pycodestyle errors
+  "F",  # pyflakes: undefined names, unused imports/variables
+  "B",  # flake8-bugbear: likely bugs
+]
+ignore = [
+  "E501",  # line length: style only
+  "E711",  # `== None`: required inside SQLAlchemy filter() expressions
+  "E712",  # `== False`: same, for SQLAlchemy boolean columns
+  "E741",  # short names like `l` in comprehensions
+  "B905",  # zip(strict=): every current use zips lists built to the same length
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["B011"]  # assert False is fine in tests

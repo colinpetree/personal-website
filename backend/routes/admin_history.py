@@ -1,5 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from flask import Blueprint, jsonify, request
+from sqlalchemy import and_, or_
 from models import SiteEventLog, AdminAccount
 from routes.admin_auth import role_at_least
 
@@ -46,10 +47,12 @@ def get_history():
     admin_id = request.args.get('admin_id', type=int)
     area = request.args.get('area')          # comma-separated e.g. "Post,Settings"
     action = request.args.get('action')      # comma-separated e.g. "added,edited"
-    page = request.args.get('page', 1, type=int)
-    per_page = min(request.args.get('per_page', 50, type=int), 200)
+    page = max(request.args.get('page', 1, type=int), 1)
+    per_page = min(max(request.args.get('per_page', 50, type=int), 1), 200)
 
-    query = SiteEventLog.query.order_by(SiteEventLog.created_at.desc())
+    # id breaks ties between entries with the same timestamp, so the batches
+    # read below never repeat or skip a row.
+    query = SiteEventLog.query.order_by(SiteEventLog.created_at.desc(), SiteEventLog.id.desc())
 
     if admin_id:
         query = query.filter(SiteEventLog.admin_id == admin_id)
@@ -64,12 +67,33 @@ def get_history():
         if actions:
             query = query.filter(SiteEventLog.action_type.in_(actions))
 
-    # Fetch more than needed to allow for grouping, then paginate grouped results
-    raw_entries = query.limit(per_page * 10).all()
-    grouped = _group_entries(raw_entries)
-
-    # Simple pagination on grouped results
+    # Grouping happens after the query, so how many raw rows a page needs isn't
+    # known up front. Read rows in batches until there is one complete group
+    # past this page, or no rows left. The extra group proves the last group on
+    # this page is complete (a run of repeats can straddle two batches) and
+    # answers has_more. Previously only the newest per_page*10 rows were read,
+    # so pages past the 10th came back empty.
     start = (page - 1) * per_page
+    needed = start + per_page + 1
+    batch = per_page * 10
+    raw_entries = []
+    while True:
+        # Each batch continues from the last row read ("older than this one"),
+        # not from a row count: an entry logged by another admin between two
+        # batches would shift an offset and repeat a row.
+        next_batch = query
+        if raw_entries:
+            last = raw_entries[-1]
+            next_batch = next_batch.filter(or_(
+                SiteEventLog.created_at < last.created_at,
+                and_(SiteEventLog.created_at == last.created_at, SiteEventLog.id < last.id),
+            ))
+        rows = next_batch.limit(batch).all()
+        raw_entries.extend(rows)
+        grouped = _group_entries(raw_entries)
+        if len(rows) < batch or len(grouped) >= needed:
+            break
+
     page_items = grouped[start:start + per_page]
 
     return jsonify({

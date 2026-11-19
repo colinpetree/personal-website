@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Runs ON THE PRODUCTION SERVER. Reverts to an already-extracted older
-# release — no re-download, no re-run of migrations.
+# release - no re-download, no re-run of migrations.
 #
 # CAVEAT: safe for app-only regressions. If the release being rolled back
-# past applied a SQL migration, rolling back does NOT undo it — the older
+# past applied a SQL migration, rolling back does NOT undo it - the older
 # code may not be compatible with the new schema. Review manually before
 # rolling back across a migration boundary.
 #
@@ -31,13 +31,13 @@ echo "==> Rolling back to $1"
 ln -sfn "$TARGET" "$CURRENT_LINK"
 systemctl restart personal-website
 
-# Read the live port from the installed unit rather than hardcoding it —
+# Read the live port from the installed unit rather than hardcoding it -
 # install.sh templates this from BACKEND_PORT, so this stays in sync
 # automatically instead of drifting from a second hardcoded copy.
 BACKEND_PORT="$(grep -oP 'GUNICORN_BIND=127\.0\.0\.1:\K[0-9]+' /etc/systemd/system/personal-website.service 2>/dev/null || echo 8000)"
 
 echo "==> Health check"
-for i in $(seq 1 15); do
+for _ in $(seq 1 15); do
     if curl -sf "http://127.0.0.1:$BACKEND_PORT/api/site-config" >/dev/null 2>&1; then
         echo "==> $1 is live and healthy."
         exit 0
@@ -45,5 +45,5 @@ for i in $(seq 1 15); do
     sleep 1
 done
 
-echo "HEALTH CHECK FAILED after rollback to $1 — investigate manually, service may be down."
+echo "HEALTH CHECK FAILED after rollback to $1 - investigate manually, service may be down."
 exit 1
